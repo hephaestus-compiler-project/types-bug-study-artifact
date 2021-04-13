@@ -1,0 +1,27 @@
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Typers.scala b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+index dbe65c16d8e7..9e498a301248 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Typers.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+@@ -4980,7 +4980,9 @@ trait Typers extends Modes with Adaptations with Tags {
+           if (isPatternMode) {
+             val uncheckedTypeExtractor = extractorForUncheckedType(tpt.pos, tptTyped.tpe)
+             val ownType = inferTypedPattern(tptTyped, tptTyped.tpe, pt, canRemedy = uncheckedTypeExtractor.nonEmpty)
+-            treeTyped setType ownType
++            // println(s"Typed($expr, ${tpt.tpe}) : $pt --> $ownType  (${isFullyDefined(ownType)}, ${makeFullyDefined(ownType)})")
++            // make fully defined to avoid bounded wildcard types that may be in pt from calling dropExistential (SI-2038)
++            treeTyped setType (if (isFullyDefined(ownType)) ownType else makeFullyDefined(ownType)) //ownType
+ 
+             uncheckedTypeExtractor match {
+               case None => treeTyped
+diff --git a/test/files/pos/t2038.scala b/test/files/pos/t2038.scala
+new file mode 100644
+index 000000000000..17b1a702dd79
+--- /dev/null
++++ b/test/files/pos/t2038.scala
+@@ -0,0 +1,5 @@
++class Test {
++  List(Some(classOf[java.lang.Integer]), Some(classOf[Int])).map {
++    case Some(f: Class[_]) => f.cast(???)
++  }
++}
+\ No newline at end of file

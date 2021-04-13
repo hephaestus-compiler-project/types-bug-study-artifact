@@ -1,0 +1,200 @@
+diff --git a/src/reflect/scala/reflect/internal/Definitions.scala b/src/reflect/scala/reflect/internal/Definitions.scala
+index adc8f9514907..abe96365ddf8 100644
+--- a/src/reflect/scala/reflect/internal/Definitions.scala
++++ b/src/reflect/scala/reflect/internal/Definitions.scala
+@@ -31,8 +31,7 @@ trait Definitions extends api.StandardDefinitions {
+   /** Since both the value parameter types and the result type may
+    *  require access to the type parameter symbols, we model polymorphic
+    *  creation as a function from those symbols to (formal types, result type).
+-   *  The Option is to distinguish between nullary methods and empty-param-list
+-   *  methods.
++   *  The Option is to distinguish between nullary methods and nilary methods.
+    */
+   private type PolyMethodCreator = List[Symbol] => (Option[List[Type]], Type)
+ 
+@@ -1030,8 +1029,8 @@ trait Definitions extends api.StandardDefinitions {
+     // participation.  At the "Any" level, the return type is Class[_] as it is in
+     // java.lang.Object.  Java also special cases the return type.
+     lazy val Any_getClass     = enterNewMethod(AnyClass, nme.getClass_, Nil, getMemberMethod(ObjectClass, nme.getClass_).tpe.resultType, DEFERRED)
+-    lazy val Any_isInstanceOf = newT1NullaryMethod(AnyClass, nme.isInstanceOf_, FINAL)(_ => BooleanTpe)
+-    lazy val Any_asInstanceOf = newT1NullaryMethod(AnyClass, nme.asInstanceOf_, FINAL)(_.typeConstructor)
++    lazy val Any_isInstanceOf = enterNewT1NullaryMethod(AnyClass, nme.isInstanceOf_, FINAL)(_ => BooleanTpe)
++    lazy val Any_asInstanceOf = enterNewT1NullaryMethod(AnyClass, nme.asInstanceOf_, FINAL)(_.typeConstructor)
+ 
+     lazy val primitiveGetClassMethods = Set[Symbol](Any_getClass, AnyVal_getClass) ++ (
+       ScalaValueClasses map (_.tpe member nme.getClass_)
+@@ -1121,11 +1120,9 @@ trait Definitions extends api.StandardDefinitions {
+     lazy val Object_!= = enterNewMethod(ObjectClass, nme.NE, AnyTpe :: Nil, BooleanTpe, FINAL)
+     lazy val Object_eq = enterNewMethod(ObjectClass, nme.eq, AnyRefTpe :: Nil, BooleanTpe, FINAL)
+     lazy val Object_ne = enterNewMethod(ObjectClass, nme.ne, AnyRefTpe :: Nil, BooleanTpe, FINAL)
+-    lazy val Object_isInstanceOf = newT1NoParamsMethod(ObjectClass, nme.isInstanceOf_Ob, FINAL | SYNTHETIC | ARTIFACT)(_ => BooleanTpe)
+-    lazy val Object_asInstanceOf = newT1NoParamsMethod(ObjectClass, nme.asInstanceOf_Ob, FINAL | SYNTHETIC | ARTIFACT)(_.typeConstructor)
+-    lazy val Object_synchronized = newPolyMethod(1, ObjectClass, nme.synchronized_, FINAL)(tps =>
+-      (Some(List(tps.head.typeConstructor)), tps.head.typeConstructor)
+-    )
++    lazy val Object_isInstanceOf = newT1NilaryMethod(ObjectClass, nme.isInstanceOf_Ob, FINAL | SYNTHETIC | ARTIFACT)(_ => BooleanTpe)
++    lazy val Object_asInstanceOf = newT1NilaryMethod(ObjectClass, nme.asInstanceOf_Ob, FINAL | SYNTHETIC | ARTIFACT)(_.typeConstructor)
++    lazy val Object_synchronized = enterNewT1Method(ObjectClass, nme.synchronized_, FINAL)(_.typeConstructor)
+     lazy val String_+ = enterNewMethod(StringClass, nme.raw.PLUS, AnyTpe :: Nil, StringTpe, FINAL)
+ 
+     def Object_getClass  = getMemberMethod(ObjectClass, nme.getClass_)
+@@ -1365,18 +1362,34 @@ trait Definitions extends api.StandardDefinitions {
+         case (Some(formals), restpe) => MethodType(msym.newSyntheticValueParams(formals), restpe)
+         case (_, restpe)             => NullaryMethodType(restpe)
+       }
+-
+-      msym setInfoAndEnter genPolyType(tparams, mtpe) markAllCompleted
++      msym.setInfo(genPolyType(tparams, mtpe)).markAllCompleted()
++    }
++    def enterNewPolyMethod(typeParamCount: Int, owner: Symbol, name: TermName, flags: Long)(createFn: PolyMethodCreator): MethodSymbol = {
++      val m = newPolyMethod(typeParamCount, owner, name, flags)(createFn)
++      owner.info.decls.enter(m)
++      m
+     }
+ 
+-    /** T1 means one type parameter.
++    /** T1 means one type parameter. Nullary means no param lists.
+      */
+-    def newT1NullaryMethod(owner: Symbol, name: TermName, flags: Long)(createFn: Symbol => Type): MethodSymbol = {
++    def newT1NullaryMethod(owner: Symbol, name: TermName, flags: Long)(createFn: Symbol => Type): MethodSymbol =
+       newPolyMethod(1, owner, name, flags)(tparams => (None, createFn(tparams.head)))
+-    }
+-    def newT1NoParamsMethod(owner: Symbol, name: TermName, flags: Long)(createFn: Symbol => Type): MethodSymbol = {
++    def enterNewT1NullaryMethod(owner: Symbol, name: TermName, flags: Long)(createFn: Symbol => Type): MethodSymbol =
++      enterNewPolyMethod(1, owner, name, flags)(tparams => (None, createFn(tparams.head)))
++
++    /** Nilary means one empty param list. The method takes parens.
++     */
++    def newT1NilaryMethod(owner: Symbol, name: TermName, flags: Long)(createFn: Symbol => Type): MethodSymbol =
+       newPolyMethod(1, owner, name, flags)(tparams => (util.SomeOfNil, createFn(tparams.head)))
+-    }
++    def enterNewT1NilaryMethod(owner: Symbol, name: TermName, flags: Long)(createFn: Symbol => Type): MethodSymbol =
++      enterNewPolyMethod(1, owner, name, flags)(tparams => (util.SomeOfNil, createFn(tparams.head)))
++
++    /** (T1) => T1.
++     */
++    def newT1Method(owner: Symbol, name: TermName, flags: Long)(createFn: Symbol => Type): MethodSymbol =
++      newPolyMethod(1, owner, name, flags) { tparams => val t = createFn(tparams.head) ; (Some(List(t)), t) }
++    def enterNewT1Method(owner: Symbol, name: TermName, flags: Long)(createFn: Symbol => Type): MethodSymbol =
++      enterNewPolyMethod(1, owner, name, flags) { tparams => val t = createFn(tparams.head) ; (Some(List(t)), t) }
+ 
+     /** Is symbol a phantom class for which no runtime representation exists? */
+     lazy val isPhantomClass = Set[Symbol](AnyClass, AnyValClass, NullClass, NothingClass)
+diff --git a/test/files/neg/t11843.check b/test/files/neg/t11843.check
+new file mode 100644
+index 000000000000..f8df4145bb34
+--- /dev/null
++++ b/test/files/neg/t11843.check
+@@ -0,0 +1,17 @@
++t11843.scala:6: error: value $isInstanceOf is not a member of String
++  "".$isInstanceOf[Int]
++     ^
++t11843.scala:7: error: value $asInstanceOf is not a member of String
++  "".$asInstanceOf[Int]
++     ^
++t11843.scala:8: warning: fruitless type test: a value of type Symbol cannot also be a String (the underlying of String)
++  ss.isInstanceOf[String]
++                 ^
++t11843.scala:10: error: value $isInstanceOf is not a member of Symbol
++  ss.$isInstanceOf[String]
++     ^
++t11843.scala:11: error: value $asInstanceOf is not a member of Symbol
++  ss.$asInstanceOf[String]
++     ^
++one warning found
++four errors found
+diff --git a/test/files/neg/t11843.scala b/test/files/neg/t11843.scala
+new file mode 100644
+index 000000000000..87abdbe4683e
+--- /dev/null
++++ b/test/files/neg/t11843.scala
+@@ -0,0 +1,16 @@
++trait t11843 {
++  def ss = Symbol("ss")
++
++  "".isInstanceOf[Int]
++  "".asInstanceOf[Int]
++  "".$isInstanceOf[Int]
++  "".$asInstanceOf[Int]
++  ss.isInstanceOf[String]
++  ss.asInstanceOf[String]
++  ss.$isInstanceOf[String]
++  ss.$asInstanceOf[String]
++
++  "hello, world" synchronized {
++    println("23:30 on my mark...")
++  }
++}
+diff --git a/test/files/run/reflection-magicsymbols-invoke.check b/test/files/run/reflection-magicsymbols-invoke.check
+index 80023cd49db5..9ae42cc182d3 100644
+--- a/test/files/run/reflection-magicsymbols-invoke.check
++++ b/test/files/run/reflection-magicsymbols-invoke.check
+@@ -37,8 +37,6 @@ if some of them change (possibly, adding and/or removing magic symbols), we must
+ constructor Object: ()Object
+ method !=: (x$1: Any)Boolean
+ method ##: ()Int
+-method $asInstanceOf: [T0]()T0
+-method $isInstanceOf: [T0]()Boolean
+ method ==: (x$1: Any)Boolean
+ method asInstanceOf: [T0]=> T0
+ method clone: ()Object
+@@ -58,10 +56,6 @@ method wait: (x$1: Long)Unit
+ method wait: (x$1: Long, x$2: Int)Unit
+ testing Object.!=: false
+ testing Object.##: 50
+-testing Object.$asInstanceOf: class scala.ScalaReflectionException: AnyRef.$asInstanceOf is an internal method, it cannot be invoked with mirrors
+-testing Object.$asInstanceOf: class scala.ScalaReflectionException: final def $asInstanceOf[T0](): T0 takes 0 arguments
+-testing Object.$isInstanceOf: class scala.ScalaReflectionException: AnyRef.$isInstanceOf is an internal method, it cannot be invoked with mirrors
+-testing Object.$isInstanceOf: class scala.ScalaReflectionException: final def $isInstanceOf[T0](): Boolean takes 0 arguments
+ testing Object.==: true
+ testing Object.clone: class java.lang.CloneNotSupportedException: java.lang.String
+ testing Object.eq: true
+@@ -82,8 +76,6 @@ if some of them change (possibly, adding and/or removing magic symbols), we must
+ constructor Array: (_length: Int)Array[T]
+ method !=: (x$1: Any)Boolean
+ method ##: ()Int
+-method $asInstanceOf: [T0]()T0
+-method $isInstanceOf: [T0]()Boolean
+ method ==: (x$1: Any)Boolean
+ method apply: (i: Int)T
+ method asInstanceOf: [T0]=> T0
+diff --git a/test/files/run/reflection-magicsymbols-invoke.scala b/test/files/run/reflection-magicsymbols-invoke.scala
+index 793f78bff4ac..df7d293514fe 100644
+--- a/test/files/run/reflection-magicsymbols-invoke.scala
++++ b/test/files/run/reflection-magicsymbols-invoke.scala
+@@ -23,7 +23,7 @@ object Test extends App {
+           println(realex.getClass + ": " + realex.getMessage)
+       }
+     print(s"testing ${tpe.typeSymbol.name}.$method: ")
+-    wrap({
++    wrap {
+       if (method == termNames.CONSTRUCTOR.toString) {
+         val ctor = tpe.decl(termNames.CONSTRUCTOR).asMethod
+         cm.reflectClass(ctor.owner.asClass).reflectConstructor(ctor)(args: _*)
+@@ -31,7 +31,7 @@ object Test extends App {
+         val meth = tpe.decl(TermName(method).encodedName.toTermName).asMethod
+         cm.reflect(receiver).reflectMethod(meth)(args: _*)
+       }
+-    })
++    }
+   }
+ 
+   println("============\nAny")
+@@ -63,10 +63,6 @@ object Test extends App {
+   typeOf[AnyRef].members.toList.sortBy(key).foreach(sym => println(key(sym)))
+   test(typeOf[AnyRef], "2", "!=", "2")
+   test(typeOf[AnyRef], "2", "##")
+-  test(typeOf[AnyRef], "2", "$asInstanceOf")
+-  test(typeOf[AnyRef], "2", "$asInstanceOf", typeOf[String])
+-  test(typeOf[AnyRef], "2", "$isInstanceOf")
+-  test(typeOf[AnyRef], "2", "$isInstanceOf", typeOf[String])
+   test(typeOf[AnyRef], "2", "==", "2")
+   test(typeOf[AnyRef], "2", "clone")
+   test(typeOf[AnyRef], "2", "eq", "2")
+@@ -97,4 +93,4 @@ object Test extends App {
+   test(PredefModule.moduleClass.info, Predef, "classOf")
+   test(PredefModule.moduleClass.info, Predef, "classOf", typeOf[String])
+   test(typeOf[scala.reflect.api.Universe], scala.reflect.runtime.universe, "reify", "2")
+-}
+\ No newline at end of file
++}

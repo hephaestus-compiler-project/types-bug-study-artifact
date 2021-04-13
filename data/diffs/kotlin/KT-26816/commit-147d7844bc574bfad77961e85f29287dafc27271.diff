@@ -1,0 +1,459 @@
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt
+index ccac288165e..731441e386c 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt
+@@ -19,7 +19,10 @@ import org.jetbrains.kotlin.utils.addIfNotNull
+ import java.util.*
+ 
+ // todo problem: intersection types in constrains: A <: Number, B <: Inv<A & Any> =>? B <: Inv<out Number & Any>
+-class ConstraintIncorporator(val typeApproximator: TypeApproximator) {
++class ConstraintIncorporator(
++    val typeApproximator: TypeApproximator,
++    val trivialConstraintTypeInferenceOracle: TrivialConstraintTypeInferenceOracle
++) {
+ 
+     interface Context {
+         val allTypeVariablesWithConstraints: Collection<VariableWithConstraints>
+@@ -99,9 +102,10 @@ class ConstraintIncorporator(val typeApproximator: TypeApproximator) {
+         otherVariable: NewTypeVariable,
+         otherConstraint: Constraint
+     ) {
++        val baseConstraintType = baseConstraint.type
+         val typeForApproximation = when (otherConstraint.kind) {
+             ConstraintKind.EQUALITY -> {
+-                baseConstraint.type.substitute(otherVariable, otherConstraint.type)
++                baseConstraintType.substituteTypeVariable(otherVariable, otherConstraint.type)
+             }
+             ConstraintKind.UPPER -> {
+                 val newCapturedTypeConstructor = NewCapturedTypeConstructor(
+@@ -113,7 +117,7 @@ class ConstraintIncorporator(val typeApproximator: TypeApproximator) {
+                     newCapturedTypeConstructor,
+                     lowerType = null
+                 )
+-                baseConstraint.type.substitute(otherVariable, temporaryCapturedType)
++                baseConstraintType.substituteTypeVariable(otherVariable, temporaryCapturedType)
+             }
+             ConstraintKind.LOWER -> {
+                 val newCapturedTypeConstructor = NewCapturedTypeConstructor(
+@@ -125,23 +129,24 @@ class ConstraintIncorporator(val typeApproximator: TypeApproximator) {
+                     newCapturedTypeConstructor,
+                     lowerType = otherConstraint.type
+                 )
+-                baseConstraint.type.substitute(otherVariable, temporaryCapturedType)
++                baseConstraintType.substituteTypeVariable(otherVariable, temporaryCapturedType)
+             }
+         }
+ 
+         if (baseConstraint.kind != ConstraintKind.UPPER) {
+-            c.addNewIncorporatedConstraint(approximateCapturedTypes(typeForApproximation, toSuper = false), targetVariable.defaultType)
++            val generatedConstraintType = approximateCapturedTypes(typeForApproximation, toSuper = false)
++            if (!trivialConstraintTypeInferenceOracle.isGeneratedConstraintTrivial(otherConstraint, generatedConstraintType)) {
++                c.addNewIncorporatedConstraint(generatedConstraintType, targetVariable.defaultType)
++            }
+         }
+         if (baseConstraint.kind != ConstraintKind.LOWER) {
+-            c.addNewIncorporatedConstraint(targetVariable.defaultType, approximateCapturedTypes(typeForApproximation, toSuper = true))
++            val generatedConstraintType = approximateCapturedTypes(typeForApproximation, toSuper = true)
++            if (!trivialConstraintTypeInferenceOracle.isGeneratedConstraintTrivial(otherConstraint, generatedConstraintType)) {
++                c.addNewIncorporatedConstraint(targetVariable.defaultType, generatedConstraintType)
++            }
+         }
+     }
+ 
+-    private fun UnwrappedType.substitute(typeVariable: NewTypeVariable, value: UnwrappedType): UnwrappedType {
+-        val substitutor = NewTypeSubstitutorByConstructorMap(mapOf(typeVariable.freshTypeConstructor to value))
+-        return substitutor.safeSubstitute(this)
+-    }
+-
+     private fun approximateCapturedTypes(type: UnwrappedType, toSuper: Boolean): UnwrappedType =
+         if (toSuper) typeApproximator.approximateToSuperType(type, TypeApproximatorConfiguration.IncorporationConfiguration) ?: type
+         else typeApproximator.approximateToSubType(type, TypeApproximatorConfiguration.IncorporationConfiguration) ?: type
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/NewTypeSubstitutor.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/NewTypeSubstitutor.kt
+index f00da01b565..64775f1aba3 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/NewTypeSubstitutor.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/NewTypeSubstitutor.kt
+@@ -6,6 +6,7 @@
+ package org.jetbrains.kotlin.resolve.calls.inference.components
+ 
+ import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
++import org.jetbrains.kotlin.resolve.calls.inference.model.NewTypeVariable
+ import org.jetbrains.kotlin.resolve.calls.inference.model.TypeVariableFromCallableDescriptor
+ import org.jetbrains.kotlin.types.*
+ import org.jetbrains.kotlin.types.checker.NewCapturedType
+@@ -164,4 +165,9 @@ class FreshVariableNewTypeSubstitutor(val freshVariables: List<TypeVariableFromC
+     companion object {
+         val Empty = FreshVariableNewTypeSubstitutor(emptyList())
+     }
++}
++
++fun UnwrappedType.substituteTypeVariable(typeVariable: NewTypeVariable, value: UnwrappedType): UnwrappedType {
++    val substitutor = NewTypeSubstitutorByConstructorMap(mapOf(typeVariable.freshTypeConstructor to value))
++    return substitutor.safeSubstitute(this)
+ }
+\ No newline at end of file
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/TrivialConstraintTypeInferenceOracle.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/TrivialConstraintTypeInferenceOracle.kt
+index 14b02efcfed..4ffd404f6ca 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/TrivialConstraintTypeInferenceOracle.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/TrivialConstraintTypeInferenceOracle.kt
+@@ -7,7 +7,9 @@ package org.jetbrains.kotlin.resolve.calls.inference.components
+ 
+ import org.jetbrains.kotlin.resolve.calls.inference.model.Constraint
+ import org.jetbrains.kotlin.resolve.calls.inference.model.ConstraintKind
++import org.jetbrains.kotlin.resolve.calls.inference.model.NewTypeVariable
+ import org.jetbrains.kotlin.types.UnwrappedType
++import org.jetbrains.kotlin.types.typeUtil.contains
+ import org.jetbrains.kotlin.types.typeUtil.isNothing
+ import org.jetbrains.kotlin.types.typeUtil.isNullableNothing
+ 
+@@ -26,7 +28,31 @@ class TrivialConstraintTypeInferenceOracle {
+     fun isSuitableResultedType(resultType: UnwrappedType): Boolean {
+         return !resultType.isNothingOrNullableNothing()
+     }
++
++    // It's possible to generate Nothing-like constraints inside incorporation mechanism:
++    // For instance, when two type variables are in subtyping relation `T <: K`, after incorporation
++    // there will be constraint `approximation(out K) <: K` => `Nothing <: K`, which is innocent
++    // but can change result of the constraint system.
++    // Therefore, here we avoid adding such trivial constraints to have stable constraint system
++    fun isGeneratedConstraintTrivial(
++        otherConstraint: Constraint,
++        generatedConstraintType: UnwrappedType
++    ): Boolean {
++        if (generatedConstraintType.isNothing()) return true
++
++        // If type that will be used to generate new constraint already contains `Nothing(?)`,
++        // then we can't decide that resulting constraint will be useless
++        if (otherConstraint.type.contains { it.isNothingOrNullableNothing() }) return false
++
++        // It's important to preserve constraints with nullable Nothing: `Nothing? <: T` (see implicitNothingConstraintFromReturn.kt test)
++        if (generatedConstraintType.containsOnlyNonNullableNothing()) return true
++
++        return false
++    }
+ }
+ 
+ private fun UnwrappedType.isNothingOrNullableNothing(): Boolean =
+-    isNothing() || isNullableNothing()
+\ No newline at end of file
++    isNothing() || isNullableNothing()
++
++private fun UnwrappedType.containsOnlyNonNullableNothing(): Boolean =
++    contains { it.isNothing() } && !contains { it.isNullableNothing() }
+diff --git a/compiler/testData/diagnostics/tests/inference/nothingType/generateConstraintWithInnerNothingType.kt b/compiler/testData/diagnostics/tests/inference/nothingType/generateConstraintWithInnerNothingType.kt
+new file mode 100644
+index 00000000000..e387e3f09bb
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/nothingType/generateConstraintWithInnerNothingType.kt
+@@ -0,0 +1,13 @@
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++
++class Out<out T>(val o: T)
++
++interface Base
++class Inv<K> : Base
++
++fun <S> select(x: S, y: S): S = x
++
++fun test(a1: Inv<Number>, a2: Inv<Nothing?>): Out<Base> {
++    return select(Out(a1), Out(a2))
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/nothingType/generateConstraintWithInnerNothingType.txt b/compiler/testData/diagnostics/tests/inference/nothingType/generateConstraintWithInnerNothingType.txt
+new file mode 100644
+index 00000000000..7ba15e847c0
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/nothingType/generateConstraintWithInnerNothingType.txt
+@@ -0,0 +1,25 @@
++package
++
++public fun </*0*/ S> select(/*0*/ x: S, /*1*/ y: S): S
++public fun test(/*0*/ a1: Inv<kotlin.Number>, /*1*/ a2: Inv<kotlin.Nothing?>): Out<Base>
++
++public interface Base {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Inv</*0*/ K> : Base {
++    public constructor Inv</*0*/ K>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Out</*0*/ out T> {
++    public constructor Out</*0*/ out T>(/*0*/ o: T)
++    public final val o: T
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/nothingType/implicitNothingConstraintFromReturn.kt b/compiler/testData/diagnostics/tests/inference/nothingType/implicitNothingConstraintFromReturn.kt
+new file mode 100644
+index 00000000000..35389378196
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/nothingType/implicitNothingConstraintFromReturn.kt
+@@ -0,0 +1,15 @@
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++
++class Simple
++
++fun test(s: Simple?): Simple? {
++    myRun {
++        s?.let { return it }
++    }
++
++    return s
++}
++
++inline fun <R> myRun(block: () -> R): R = TODO()
++inline fun <K, V> K.let(block: (K) -> V): V = TODO()
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/nothingType/implicitNothingConstraintFromReturn.txt b/compiler/testData/diagnostics/tests/inference/nothingType/implicitNothingConstraintFromReturn.txt
+new file mode 100644
+index 00000000000..cf25ae05cbf
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/nothingType/implicitNothingConstraintFromReturn.txt
+@@ -0,0 +1,12 @@
++package
++
++public inline fun </*0*/ R> myRun(/*0*/ block: () -> R): R
++public fun test(/*0*/ s: Simple?): Simple?
++public inline fun </*0*/ K, /*1*/ V> K.let(/*0*/ block: (K) -> V): V
++
++public final class Simple {
++    public constructor Simple()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/nothingType/kt24490.kt b/compiler/testData/diagnostics/tests/inference/nothingType/kt24490.kt
+new file mode 100644
+index 00000000000..e51d9a63070
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/nothingType/kt24490.kt
+@@ -0,0 +1,13 @@
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
++
++fun <T> bar(i: T): T = i
++fun foo(i: Int) = i
++
++fun dontRun(body: () -> Unit) = Unit
++
++class Case1 {
++    fun test() {
++        dontRun { val x = bar(bar { -> bar { -> 2} }) }
++    }
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/nothingType/kt24490.txt b/compiler/testData/diagnostics/tests/inference/nothingType/kt24490.txt
+new file mode 100644
+index 00000000000..aafc075abcb
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/nothingType/kt24490.txt
+@@ -0,0 +1,13 @@
++package
++
++public fun </*0*/ T> bar(/*0*/ i: T): T
++public fun dontRun(/*0*/ body: () -> kotlin.Unit): kotlin.Unit
++public fun foo(/*0*/ i: kotlin.Int): kotlin.Int
++
++public final class Case1 {
++    public constructor Case1()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun test(): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/nothingType/nestedLambdaInferenceWithIncorporationOfVariables.kt b/compiler/testData/diagnostics/tests/inference/nothingType/nestedLambdaInferenceWithIncorporationOfVariables.kt
+new file mode 100644
+index 00000000000..f784b2bae38
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/nothingType/nestedLambdaInferenceWithIncorporationOfVariables.kt
+@@ -0,0 +1,12 @@
++// !LANGUAGE: +NewInference
++
++fun <K> id1(k: K): K = k
++fun <V> id2(v: V): V = v
++
++fun test() {
++    id1 {
++        id2 {
++            3
++        }
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/nothingType/nestedLambdaInferenceWithIncorporationOfVariables.txt b/compiler/testData/diagnostics/tests/inference/nothingType/nestedLambdaInferenceWithIncorporationOfVariables.txt
+new file mode 100644
+index 00000000000..692d45546a6
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/nothingType/nestedLambdaInferenceWithIncorporationOfVariables.txt
+@@ -0,0 +1,5 @@
++package
++
++public fun </*0*/ K> id1(/*0*/ k: K): K
++public fun </*0*/ V> id2(/*0*/ v: V): V
++public fun test(): kotlin.Unit
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/nestedLambdaInferenceWithListMap.kt b/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/nestedLambdaInferenceWithListMap.kt
+new file mode 100644
+index 00000000000..8a0a39d25c3
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/nestedLambdaInferenceWithListMap.kt
+@@ -0,0 +1,37 @@
++// !LANGUAGE: +NewInference
++
++val configurations4 = listOf(
++    3 to mapOf(
++        2 to listOf(
++            1 to listOf(
++                {
++                    2
++                }
++            )
++        )
++    )
++)
++
++val configurations3 = listOf(
++    3 to mapOf(
++        2 to listOf(
++            {
++                2
++            }
++        )
++    )
++)
++
++val configurations2 = mapOf(
++    2 to listOf(
++        {
++            2
++        }
++    )
++)
++
++val configurations1 = listOf(
++    {
++        2
++    }
++)
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/nestedLambdaInferenceWithListMap.txt b/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/nestedLambdaInferenceWithListMap.txt
+new file mode 100644
+index 00000000000..c66481cbb64
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/nestedLambdaInferenceWithListMap.txt
+@@ -0,0 +1,6 @@
++package
++
++public val configurations1: kotlin.collections.List<() -> kotlin.Int>
++public val configurations2: kotlin.collections.Map<kotlin.Int, kotlin.collections.List<() -> kotlin.Int>>
++public val configurations3: kotlin.collections.List<kotlin.Pair<kotlin.Int, kotlin.collections.Map<kotlin.Int, kotlin.collections.List<() -> kotlin.Int>>>>
++public val configurations4: kotlin.collections.List<kotlin.Pair<kotlin.Int, kotlin.collections.Map<kotlin.Int, kotlin.collections.List<kotlin.Pair<kotlin.Int, kotlin.collections.List<() -> kotlin.Int>>>>>>
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 076f24956ec..5343ba29ca6 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -9962,11 +9962,31 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                     runTest("compiler/testData/diagnostics/tests/inference/nothingType/complexDependancyOnVariableWithTrivialConstraint.kt");
+                 }
+ 
++                @TestMetadata("generateConstraintWithInnerNothingType.kt")
++                public void testGenerateConstraintWithInnerNothingType() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/nothingType/generateConstraintWithInnerNothingType.kt");
++                }
++
++                @TestMetadata("implicitNothingConstraintFromReturn.kt")
++                public void testImplicitNothingConstraintFromReturn() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/nothingType/implicitNothingConstraintFromReturn.kt");
++                }
++
++                @TestMetadata("kt24490.kt")
++                public void testKt24490() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/nothingType/kt24490.kt");
++                }
++
+                 @TestMetadata("lambdaNothingAndExpectedType.kt")
+                 public void testLambdaNothingAndExpectedType() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/nothingType/lambdaNothingAndExpectedType.kt");
+                 }
+ 
++                @TestMetadata("nestedLambdaInferenceWithIncorporationOfVariables.kt")
++                public void testNestedLambdaInferenceWithIncorporationOfVariables() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/nothingType/nestedLambdaInferenceWithIncorporationOfVariables.kt");
++                }
++
+                 @TestMetadata("nothingWithCallableReference.kt")
+                 public void testNothingWithCallableReference() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/nothingType/nothingWithCallableReference.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
+index fb1464af13e..1396a91de58 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
+@@ -1822,6 +1822,11 @@ public class DiagnosticsTestWithStdLibGenerated extends AbstractDiagnosticsTestW
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt15516.kt");
+             }
+ 
++            @TestMetadata("nestedLambdaInferenceWithListMap.kt")
++            public void testNestedLambdaInferenceWithListMap() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/nestedLambdaInferenceWithListMap.kt");
++            }
++
+             @TestMetadata("nestedSuspendCallInsideLambda.kt")
+             public void testNestedSuspendCallInsideLambda() throws Exception {
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/nestedSuspendCallInsideLambda.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
+index f5053bfadf9..c91ce0013c5 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
+@@ -1822,6 +1822,11 @@ public class DiagnosticsTestWithStdLibUsingJavacGenerated extends AbstractDiagno
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt15516.kt");
+             }
+ 
++            @TestMetadata("nestedLambdaInferenceWithListMap.kt")
++            public void testNestedLambdaInferenceWithListMap() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/nestedLambdaInferenceWithListMap.kt");
++            }
++
+             @TestMetadata("nestedSuspendCallInsideLambda.kt")
+             public void testNestedSuspendCallInsideLambda() throws Exception {
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/nestedSuspendCallInsideLambda.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index 2c41bcd16ed..0974a463117 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -9962,11 +9962,31 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                     runTest("compiler/testData/diagnostics/tests/inference/nothingType/complexDependancyOnVariableWithTrivialConstraint.kt");
+                 }
+ 
++                @TestMetadata("generateConstraintWithInnerNothingType.kt")
++                public void testGenerateConstraintWithInnerNothingType() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/nothingType/generateConstraintWithInnerNothingType.kt");
++                }
++
++                @TestMetadata("implicitNothingConstraintFromReturn.kt")
++                public void testImplicitNothingConstraintFromReturn() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/nothingType/implicitNothingConstraintFromReturn.kt");
++                }
++
++                @TestMetadata("kt24490.kt")
++                public void testKt24490() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/nothingType/kt24490.kt");
++                }
++
+                 @TestMetadata("lambdaNothingAndExpectedType.kt")
+                 public void testLambdaNothingAndExpectedType() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/nothingType/lambdaNothingAndExpectedType.kt");
+                 }
+ 
++                @TestMetadata("nestedLambdaInferenceWithIncorporationOfVariables.kt")
++                public void testNestedLambdaInferenceWithIncorporationOfVariables() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/nothingType/nestedLambdaInferenceWithIncorporationOfVariables.kt");
++                }
++
+                 @TestMetadata("nothingWithCallableReference.kt")
+                 public void testNothingWithCallableReference() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/nothingType/nothingWithCallableReference.kt");

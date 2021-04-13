@@ -1,0 +1,97 @@
+changeset:   1918:3155e77d2676
+user:        mcimadamore
+date:        Thu Jul 25 14:47:43 2013 +0100
+summary:     8020804: javac crashes when speculative attribution infers intersection type with array component
+
+diff -r a218f7befd55 -r 3155e77d2676 src/share/classes/com/sun/tools/javac/code/Types.java
+--- a/src/share/classes/com/sun/tools/javac/code/Types.java	Thu Jul 25 11:02:27 2013 +0200
++++ b/src/share/classes/com/sun/tools/javac/code/Types.java	Thu Jul 25 14:47:43 2013 +0100
+@@ -620,7 +620,9 @@
+      * (ii) perform functional interface bridge calculation.
+      */
+     public ClassSymbol makeFunctionalInterfaceClass(Env<AttrContext> env, Name name, List<Type> targets, long cflags) {
+-        Assert.check(targets.nonEmpty() && isFunctionalInterface(targets.head));
++        if (targets.isEmpty() || !isFunctionalInterface(targets.head)) {
++            return null;
++        }
+         Symbol descSym = findDescriptorSymbol(targets.head.tsym);
+         Type descType = findDescriptorType(targets.head);
+         ClassSymbol csym = new ClassSymbol(cflags, name, env.enclClass.sym.outermostClass());
+diff -r a218f7befd55 -r 3155e77d2676 src/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Jul 25 11:02:27 2013 +0200
++++ b/src/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Jul 25 14:47:43 2013 +0100
+@@ -2970,7 +2970,9 @@
+                 //check that functional interface class is well-formed
+                 ClassSymbol csym = types.makeFunctionalInterfaceClass(env,
+                         names.empty, List.of(fExpr.targets.head), ABSTRACT);
+-                chk.checkImplementations(env.tree, csym, csym);
++                if (csym != null) {
++                    chk.checkImplementations(env.tree, csym, csym);
++                }
+             }
+         }
+     }
+diff -r a218f7befd55 -r 3155e77d2676 src/share/classes/com/sun/tools/javac/comp/Infer.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Infer.java	Thu Jul 25 11:02:27 2013 +0200
++++ b/src/share/classes/com/sun/tools/javac/comp/Infer.java	Thu Jul 25 14:47:43 2013 +0100
+@@ -1240,7 +1240,8 @@
+         CAPTURED(InferenceBound.UPPER) {
+             @Override
+             public boolean accepts(UndetVar t, InferenceContext inferenceContext) {
+-                return !inferenceContext.free(t.getBounds(InferenceBound.UPPER, InferenceBound.LOWER));
++                return t.isCaptured() &&
++                        !inferenceContext.free(t.getBounds(InferenceBound.UPPER, InferenceBound.LOWER));
+             }
+ 
+             @Override
+diff -r a218f7befd55 -r 3155e77d2676 test/tools/javac/lambda/8020804/T8020804.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/8020804/T8020804.java	Thu Jul 25 14:47:43 2013 +0100
+@@ -0,0 +1,46 @@
++/*
++ * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8020804
++ * @summary javac crashes when speculative attribution infers intersection type with array component
++ * @compile T8020804.java
++ */
++
++import java.util.*;
++
++class T8020804 {
++    interface Supplier<D> {
++        D make();
++    }
++
++    void m(Object o) { }
++    void m(char[] c) { }
++
++    <C extends Collection<?>> C g(Supplier<C> sc) { return null; }
++
++    void test() {
++        m(g(LinkedList<Double>::new));
++    }
++}
+

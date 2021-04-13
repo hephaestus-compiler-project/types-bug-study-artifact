@@ -1,0 +1,81 @@
+changeset:   47458:945935416d7c
+user:        mcimadamore
+date:        Thu Oct 26 18:42:40 2017 +0100
+summary:     8189838: Stack overflow when computing upward projection of an intersection type with fbounds
+
+diff -r 217860329f71 -r 945935416d7c src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java	Thu Oct 26 20:57:19 2017 +0530
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java	Thu Oct 26 18:42:40 2017 +0100
+@@ -292,8 +292,8 @@
+         @Override
+         public Type visitTypeVar(TypeVar t, ProjectionKind pkind) {
+             if (vars.contains(t)) {
+-                try {
+-                    if (seen.add(t)) {
++                if (seen.add(t)) {
++                    try {
+                         final Type bound;
+                         switch (pkind) {
+                             case UPWARDS:
+@@ -309,12 +309,13 @@
+                                 return null;
+                         }
+                         return bound.map(this, pkind);
+-                    } else {
+-                        //cycle
+-                        return syms.objectType;
++                    } finally {
++                        seen.remove(t);
+                     }
+-                } finally {
+-                    seen.remove(t);
++                } else {
++                    //cycle
++                    return pkind == ProjectionKind.UPWARDS ?
++                            syms.objectType : syms.botType;
+                 }
+             } else {
+                 return t;
+diff -r 217860329f71 -r 945935416d7c test/langtools/tools/javac/lvti/harness/NonDenotableTest.java
+--- a/test/langtools/tools/javac/lvti/harness/NonDenotableTest.java	Thu Oct 26 20:57:19 2017 +0530
++++ b/test/langtools/tools/javac/lvti/harness/NonDenotableTest.java	Thu Oct 26 18:42:40 2017 +0100
+@@ -25,7 +25,7 @@
+ 
+ /*
+  * @test
+- * @bug 8177466
++ * @bug 8177466 8189838
+  * @summary Add compiler support for local variable type-inference
+  * @modules jdk.compiler/com.sun.source.tree
+  *          jdk.compiler/com.sun.source.util
+@@ -50,6 +50,7 @@
+     static final String LIST_EXT_COMP_UNB = "java.util.List<? extends java.lang.Comparable<?>>";
+     static final String LIST_SUP_COMP_UNB = "java.util.List<? super java.lang.Comparable<?>>";
+     static final String INT_INTEGER_DOUBLE = "#INT(java.lang.Number,java.lang.Comparable<? extends java.lang.Number&java.lang.Comparable<?>>)";
++    static final String SEL_INT_ENUM_SEL = "NonDenotableTest.Selector<? extends #INT(java.lang.Enum<?>,NonDenotableTest.Selector<?>)>";
+ 
+     void testExtends() {
+         @InferredType(LIST_EXT)
+@@ -120,6 +121,14 @@
+         for (@InferredType(INT_INTEGER_DOUBLE) var s2 : listOf(choose(1, 1L))) { break; }
+     }
+ 
++    void testIntersection(Selector<?> s) {
++        @InferredType(SEL_INT_ENUM_SEL)
++        var c = s;
++        for (@InferredType(SEL_INT_ENUM_SEL) var s2 = s ; ;) { break; }
++        for (@InferredType(SEL_INT_ENUM_SEL) var s2 : arrayOf(s)) { break; }
++        for (@InferredType(SEL_INT_ENUM_SEL) var s2 : listOf(s)) { break; }
++    }
++
+     List<? extends String> extString() { return null; }
+     List<? super String> supString() { return null; }
+     List<?> unbString() { return null; }
+@@ -145,4 +154,6 @@
+     <Z> Z[] arrayOf(Z z) { return null; }
+ 
+     <Z> Z choose(Z z1, Z z2) { return z1; }
++
++    interface Selector<E extends Enum<E> & Selector<E>> {}
+ }
+

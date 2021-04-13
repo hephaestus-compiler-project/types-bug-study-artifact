@@ -1,0 +1,61 @@
+changeset:   2480:340148a26acf
+user:        vromero
+date:        Thu Jun 19 23:52:33 2014 +0100
+summary:     8042759: Lambda returning implicitly-typed lambdas considered pertinent to applicability
+
+diff -r 8085359d9444 -r 340148a26acf src/share/classes/com/sun/tools/javac/comp/DeferredAttr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/DeferredAttr.java	Thu Jun 19 22:06:29 2014 +0200
++++ b/src/share/classes/com/sun/tools/javac/comp/DeferredAttr.java	Thu Jun 19 23:52:33 2014 +0100
+@@ -953,7 +953,7 @@
+ 
+         LambdaReturnScanner() {
+             super(EnumSet.of(BLOCK, CASE, CATCH, DOLOOP, FOREACHLOOP,
+-                    FORLOOP, RETURN, SYNCHRONIZED, SWITCH, TRY, WHILELOOP));
++                    FORLOOP, IF, RETURN, SYNCHRONIZED, SWITCH, TRY, WHILELOOP));
+         }
+     }
+ 
+diff -r 8085359d9444 -r 340148a26acf test/tools/javac/lambda/T8042759/ImplicitLambdaConsideredForApplicabilityTest.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/T8042759/ImplicitLambdaConsideredForApplicabilityTest.java	Thu Jun 19 23:52:33 2014 +0100
+@@ -0,0 +1,33 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8042759
++ * @summary Lambda returning implicitly-typed lambdas considered pertinent to applicability
++ * @compile/fail/ref=ImplicitLambdaConsideredForApplicabilityTest.out -XDrawDiagnostics ImplicitLambdaConsideredForApplicabilityTest.java
++ */
++
++abstract class ImplicitLambdaConsideredForApplicabilityTest {
++    interface A {
++        B m(int a, int b);
++    }
++
++    interface C {
++        String m(int a, int b);
++    }
++
++    interface B {
++        int m(int c);
++    }
++
++    abstract void foo(A a);
++
++    abstract void foo(C c);
++
++    void bar() {
++        foo((int a, int b) -> {
++            if(a < b)
++                return c -> 0;
++            else
++                return c -> 0;
++        });
++    }
++}
+diff -r 8085359d9444 -r 340148a26acf test/tools/javac/lambda/T8042759/ImplicitLambdaConsideredForApplicabilityTest.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/T8042759/ImplicitLambdaConsideredForApplicabilityTest.out	Thu Jun 19 23:52:33 2014 +0100
+@@ -0,0 +1,2 @@
++ImplicitLambdaConsideredForApplicabilityTest.java:26:9: compiler.err.ref.ambiguous: foo, kindname.method, foo(ImplicitLambdaConsideredForApplicabilityTest.A), ImplicitLambdaConsideredForApplicabilityTest, kindname.method, foo(ImplicitLambdaConsideredForApplicabilityTest.C), ImplicitLambdaConsideredForApplicabilityTest
++1 error
+

@@ -1,0 +1,415 @@
+diff --git a/compiler/src/dotty/tools/dotc/ast/tpd.scala b/compiler/src/dotty/tools/dotc/ast/tpd.scala
+index 4528ac8d7bb6..dc8ad95dd0db 100644
+--- a/compiler/src/dotty/tools/dotc/ast/tpd.scala
++++ b/compiler/src/dotty/tools/dotc/ast/tpd.scala
+@@ -586,7 +586,7 @@ object tpd extends Trees.Instance[Type] with TypedTreeInfo {
+           val tree2: Select = tree.tpe match {
+             case tpe: NamedType =>
+               val qualType = qualifier.tpe.widenIfUnstable
+-              if qualType.isNothing then tree1.withTypeUnchecked(tree.tpe)
++              if qualType.isExactlyNothing then tree1.withTypeUnchecked(tree.tpe)
+               else tree1.withType(tpe.derivedSelect(qualType))
+             case _ => tree1.withTypeUnchecked(tree.tpe)
+           }
+@@ -980,7 +980,7 @@ object tpd extends Trees.Instance[Type] with TypedTreeInfo {
+ 
+     /** `tree ne null` (might need a cast to be type correct) */
+     def testNotNull(using Context): Tree = {
+-      val receiver = if (defn.isBottomType(tree.tpe))
++      val receiver = if (tree.tpe.isBottomType)
+         // If the receiver is of type `Nothing` or `Null`, add an ascription so that the selection
+         // succeeds: e.g. `null.ne(null)` doesn't type, but `(null: AnyRef).ne(null)` does.
+         Typed(tree, TypeTree(defn.AnyRefType))
+diff --git a/compiler/src/dotty/tools/dotc/core/Definitions.scala b/compiler/src/dotty/tools/dotc/core/Definitions.scala
+index 23ae40aa4aea..dc1a632ee08a 100644
+--- a/compiler/src/dotty/tools/dotc/core/Definitions.scala
++++ b/compiler/src/dotty/tools/dotc/core/Definitions.scala
+@@ -1174,13 +1174,6 @@ class Definitions {
+ 
+   def isBottomClassAfterErasure(cls: Symbol): Boolean = cls == NothingClass || cls == NullClass
+ 
+-  def isBottomType(tp: Type): Boolean =
+-    if (ctx.explicitNulls && !ctx.phase.erasedTypes) tp.derivesFrom(NothingClass)
+-    else isBottomTypeAfterErasure(tp)
+-
+-  def isBottomTypeAfterErasure(tp: Type): Boolean =
+-    tp.derivesFrom(NothingClass) || tp.derivesFrom(NullClass)
+-
+   /** Is a function class.
+    *   - FunctionXXL
+    *   - FunctionN for N >= 0
+diff --git a/compiler/src/dotty/tools/dotc/core/TypeApplications.scala b/compiler/src/dotty/tools/dotc/core/TypeApplications.scala
+index d82d5bb92854..d92549acfbf7 100644
+--- a/compiler/src/dotty/tools/dotc/core/TypeApplications.scala
++++ b/compiler/src/dotty/tools/dotc/core/TypeApplications.scala
+@@ -407,8 +407,8 @@ class TypeApplications(val self: Type) extends AnyVal {
+       if (self.derivesFrom(from)) {
+         def elemType(tp: Type): Type = tp.widenDealias match
+           case tp: OrType =>
+-            if defn.isBottomType(tp.tp1) then elemType(tp.tp2)
+-            else if defn.isBottomType(tp.tp2) then elemType(tp.tp1)
++            if tp.tp1.isBottomType then elemType(tp.tp2)
++            else if tp.tp2.isBottomType then elemType(tp.tp1)
+             else tp.derivedOrType(elemType(tp.tp1), elemType(tp.tp2))
+           case tp: AndType => tp.derivedAndType(elemType(tp.tp1), elemType(tp.tp2))
+           case _ => tp.baseType(from).argInfos.headOption.getOrElse(defn.NothingType)
+@@ -503,8 +503,8 @@ class TypeApplications(val self: Type) extends AnyVal {
+   def elemType(using Context): Type = self.widenDealias match {
+     case defn.ArrayOf(elemtp) => elemtp
+     case JavaArrayType(elemtp) => elemtp
+-    case tp: OrType if defn.isBottomType(tp.tp1) => tp.tp2.elemType
+-    case tp: OrType if defn.isBottomType(tp.tp2) => tp.tp1.elemType
++    case tp: OrType if tp.tp1.isBottomType => tp.tp2.elemType
++    case tp: OrType if tp.tp2.isBottomType => tp.tp1.elemType
+     case _ => self.baseType(defn.SeqClass).argInfos.headOption.getOrElse(NoType)
+   }
+ }
+diff --git a/compiler/src/dotty/tools/dotc/core/TypeComparer.scala b/compiler/src/dotty/tools/dotc/core/TypeComparer.scala
+index baaa1fb58afa..669fa51260d5 100644
+--- a/compiler/src/dotty/tools/dotc/core/TypeComparer.scala
++++ b/compiler/src/dotty/tools/dotc/core/TypeComparer.scala
+@@ -715,7 +715,7 @@ class TypeComparer(@constructorOnly initctx: Context) extends ConstraintHandling
+         }
+         compareTypeBounds
+       case tp2: AnnotatedType if tp2.isRefining =>
+-        (tp1.derivesAnnotWith(tp2.annot.sameAnnotation) || defn.isBottomType(tp1)) &&
++        (tp1.derivesAnnotWith(tp2.annot.sameAnnotation) || tp1.isBottomType) &&
+         recur(tp1, tp2.parent)
+       case ClassInfo(pre2, cls2, _, _, _) =>
+         def compareClassInfo = tp1 match {
+@@ -2338,7 +2338,7 @@ class TypeComparer(@constructorOnly initctx: Context) extends ConstraintHandling
+    */
+   def provablyEmpty(tp: Type): Boolean =
+     tp.dealias match {
+-      case tp if tp.isNothing => true
++      case tp if tp.isExactlyNothing => true
+       case AndType(tp1, tp2) => provablyDisjoint(tp1, tp2)
+       case OrType(tp1, tp2) => provablyEmpty(tp1) && provablyEmpty(tp2)
+       case at @ AppliedType(tycon, args) =>
+diff --git a/compiler/src/dotty/tools/dotc/core/TypeErasure.scala b/compiler/src/dotty/tools/dotc/core/TypeErasure.scala
+index e8726f9eb73b..d142ccd5f5ac 100644
+--- a/compiler/src/dotty/tools/dotc/core/TypeErasure.scala
++++ b/compiler/src/dotty/tools/dotc/core/TypeErasure.scala
+@@ -291,8 +291,8 @@ object TypeErasure {
+     // We need to short-circuit this case here because the regular lub logic below
+     // relies on the class hierarchy, which doesn't properly capture `Null`s subtyping
+     // behaviour.
+-    if (defn.isBottomTypeAfterErasure(tp1) && tp2.derivesFrom(defn.ObjectClass)) return tp2
+-    if (defn.isBottomTypeAfterErasure(tp2) && tp1.derivesFrom(defn.ObjectClass)) return tp1
++    if (tp1.isBottomTypeAfterErasure && tp2.derivesFrom(defn.ObjectClass)) return tp2
++    if (tp2.isBottomTypeAfterErasure && tp1.derivesFrom(defn.ObjectClass)) return tp1
+     tp1 match {
+       case JavaArrayType(elem1) =>
+         import dotty.tools.dotc.transform.TypeUtils._
+diff --git a/compiler/src/dotty/tools/dotc/core/TypeOps.scala b/compiler/src/dotty/tools/dotc/core/TypeOps.scala
+index 1498eec4bbbd..f5814935cfb6 100644
+--- a/compiler/src/dotty/tools/dotc/core/TypeOps.scala
++++ b/compiler/src/dotty/tools/dotc/core/TypeOps.scala
+@@ -152,7 +152,7 @@ object TypeOps:
+         simplify(l, theMap) & simplify(r, theMap)
+       case tp as OrType(l, r)
+       if !ctx.mode.is(Mode.Type)
+-         && (tp.isSoft || defn.isBottomType(l) || defn.isBottomType(r)) =>
++         && (tp.isSoft || l.isBottomType || r.isBottomType) =>
+         // Normalize A | Null and Null | A to A even if the union is hard (i.e.
+         // explicitly declared), but not if -Yexplicit-nulls is set. The reason is
+         // that in this case the normal asSeenFrom machinery is not prepared to deal
+diff --git a/compiler/src/dotty/tools/dotc/core/Types.scala b/compiler/src/dotty/tools/dotc/core/Types.scala
+index 14547d36e423..483802d6e673 100644
+--- a/compiler/src/dotty/tools/dotc/core/Types.scala
++++ b/compiler/src/dotty/tools/dotc/core/Types.scala
+@@ -209,7 +209,27 @@ object Types {
+     def isAnyRef(using Context): Boolean  = isRef(defn.ObjectClass, skipRefined = false)
+     def isAnyKind(using Context): Boolean = isRef(defn.AnyKindClass, skipRefined = false)
+ 
+-    def isFromJavaObject(using Context): Boolean = typeSymbol eq defn.FromJavaObjectSymbol
++    /** Is this type exactly Nothing (no vars, aliases, refinements etc allowed)? */
++    def isExactlyNothing(using Context): Boolean = this match {
++      case tp: TypeRef =>
++        tp.name == tpnme.Nothing && (tp.symbol eq defn.NothingClass)
++      case _ => false
++    }
++
++    /** Is this type exactly Any (no vars, aliases, refinements etc allowed)? */
++    def isExactlyAny(using Context): Boolean = this match {
++      case tp: TypeRef =>
++        tp.name == tpnme.Any && (tp.symbol eq defn.AnyClass)
++      case _ => false
++    }
++
++    def isBottomType(using Context): Boolean =
++      if ctx.explicitNulls && !ctx.phase.erasedTypes then hasClassSymbol(defn.NothingClass)
++      else isBottomTypeAfterErasure
++
++    def isBottomTypeAfterErasure(using Context): Boolean =
++      val d = defn
++      hasClassSymbol(d.NothingClass) || hasClassSymbol(d.NullClass)
+ 
+     /** Does this type refer exactly to class symbol `sym`, instead of to a subclass of `sym`?
+      *  Implemented like `isRef`, but follows more types: all type proxies as well as and- and or-types
+@@ -224,7 +244,9 @@ object Types {
+       case _ => false
+     }
+ 
+-    /** Is this type an instance of a non-bottom subclass of the given class `cls`? */
++    /** True if this type is an instance of the given `cls` or an instance of
++     *  a non-bottom subclass of `cls`.
++     */
+     final def derivesFrom(cls: Symbol)(using Context): Boolean = {
+       def loop(tp: Type): Boolean = tp match {
+         case tp: TypeRef =>
+@@ -239,11 +261,15 @@ object Types {
+         case tp: AndType =>
+           loop(tp.tp1) || loop(tp.tp2)
+         case tp: OrType =>
+-          // If the type is `T | Null` or `T | Nothing`, and `T` derivesFrom the class,
+-          // then the OrType derivesFrom the class. Otherwise, we need to check both sides
+-          // derivesFrom the class.
+-          if defn.isBottomType(tp.tp1) then loop(tp.tp2)
+-          else loop(tp.tp1) && (defn.isBottomType(tp.tp2) || loop(tp.tp2))
++          // If the type is `T | Null` or `T | Nothing`, the class is != Nothing,
++          // and `T` derivesFrom the class, then the OrType derivesFrom the class.
++          // Otherwise, we need to check both sides derivesFrom the class.
++          if tp.tp1.isBottomType && cls != defn.NothingClass then
++            loop(tp.tp2)
++          else if tp.tp2.isBottomType && cls != defn.NothingClass then
++            loop(tp.tp1)
++          else
++            loop(tp.tp1) && loop(tp.tp2)
+         case tp: JavaArrayType =>
+           cls == defn.ObjectClass
+         case _ =>
+@@ -252,6 +278,8 @@ object Types {
+       loop(this)
+     }
+ 
++    def isFromJavaObject(using Context): Boolean = typeSymbol eq defn.FromJavaObjectSymbol
++
+     /** True iff `symd` is a denotation of a class type parameter and the reference
+      *  `<this> . <symd>` is an actual argument reference, i.e. `this` is different
+      *  from the ThisType of `symd`'s owner.
+@@ -265,20 +293,6 @@ object Types {
+         }
+       }
+ 
+-    /** Is this type exactly Nothing (no vars, aliases, refinements etc allowed)? */
+-    def isNothing(using Context): Boolean = this match {
+-      case tp: TypeRef =>
+-        tp.name == tpnme.Nothing && (tp.symbol eq defn.NothingClass)
+-      case _ => false
+-    }
+-
+-    /** Is this type exactly Any (no vars, aliases, refinements etc allowed)? */
+-    def isTopType(using Context): Boolean = this match {
+-      case tp: TypeRef =>
+-        tp.name == tpnme.Any && (tp.symbol eq defn.AnyClass)
+-      case _ => false
+-    }
+-
+     /** Is this type a (possibly aliased) singleton type? */
+     def isSingleton(using Context): Boolean = dealias.isInstanceOf[SingletonType]
+ 
+@@ -478,6 +492,22 @@ object Types {
+     final def classSymbols(using Context): List[ClassSymbol] =
+       parentSymbols(_.isClass).asInstanceOf
+ 
++    /** Same as `this.classSymbols.contains(cls)` but more efficient */
++    final def hasClassSymbol(cls: Symbol)(using Context): Boolean = this match
++      case tp: TypeRef   =>
++        val sym = tp.symbol
++        sym == cls || !sym.isClass && tp.superType.hasClassSymbol(cls)
++      case tp: TypeProxy =>
++        tp.underlying.hasClassSymbol(cls)
++      case tp: ClassInfo =>
++        tp.cls == cls
++      case AndType(l, r) =>
++        l.hasClassSymbol(cls) || r.hasClassSymbol(cls)
++      case OrType(l, r) =>
++        l.hasClassSymbol(cls) && r.hasClassSymbol(cls)
++      case _ =>
++        false
++
+     /** The term symbol associated with the type */
+     @tailrec final def termSymbol(using Context): Symbol = this match {
+       case tp: TermRef => tp.symbol
+@@ -2134,8 +2164,8 @@ object Types {
+           case arg: TypeBounds =>
+             val v = param.paramVarianceSign
+             val pbounds = param.paramInfo
+-            if (v > 0 && pbounds.loBound.dealiasKeepAnnots.isNothing) TypeAlias(arg.hiBound & rebase(pbounds.hiBound))
+-            else if (v < 0 && pbounds.hiBound.dealiasKeepAnnots.isTopType) TypeAlias(arg.loBound | rebase(pbounds.loBound))
++            if (v > 0 && pbounds.loBound.dealiasKeepAnnots.isExactlyNothing) TypeAlias(arg.hiBound & rebase(pbounds.hiBound))
++            else if (v < 0 && pbounds.hiBound.dealiasKeepAnnots.isExactlyAny) TypeAlias(arg.loBound | rebase(pbounds.loBound))
+             else arg recoverable_& rebase(pbounds)
+           case arg => TypeAlias(arg)
+         }
+@@ -2297,7 +2327,7 @@ object Types {
+           if (base.isAnd == variance >= 0) tp1 & tp2 else tp1 | tp2
+         case _ =>
+           if (pre.termSymbol.is(Package)) argForParam(pre.select(nme.PACKAGE))
+-          else if (pre.isNothing) pre
++          else if (pre.isExactlyNothing) pre
+           else NoType
+       }
+     }
+@@ -2316,7 +2346,7 @@ object Types {
+      */
+     def derivedSelect(prefix: Type)(using Context): Type =
+       if (prefix eq this.prefix) this
+-      else if (prefix.isNothing) prefix
++      else if (prefix.isExactlyNothing) prefix
+       else {
+         if (isType) {
+           val res =
+@@ -4304,7 +4334,7 @@ object Types {
+ 
+     /** For uninstantiated type variables: Is the lower bound different from Nothing? */
+     def hasLowerBound(using Context): Boolean =
+-      !ctx.typerState.constraint.entry(origin).loBound.isNothing
++      !ctx.typerState.constraint.entry(origin).loBound.isExactlyNothing
+ 
+     /** For uninstantiated type variables: Is the upper bound different from Any? */
+     def hasUpperBound(using Context): Boolean =
+@@ -5309,7 +5339,7 @@ object Types {
+         case _ =>
+           def propagate(lo: Type, hi: Type) =
+             range(derivedRefinedType(tp, parent, lo), derivedRefinedType(tp, parent, hi))
+-          if (parent.isNothing) parent
++          if (parent.isExactlyNothing) parent
+           else info match {
+             case Range(infoLo: TypeBounds, infoHi: TypeBounds) =>
+               assert(variance == 0)
+@@ -5402,7 +5432,7 @@ object Types {
+         case Range(lo, hi) =>
+           range(tp.derivedAnnotatedType(lo, annot), tp.derivedAnnotatedType(hi, annot))
+         case _ =>
+-          if (underlying.isNothing) underlying
++          if (underlying.isExactlyNothing) underlying
+           else tp.derivedAnnotatedType(underlying, annot)
+       }
+     override protected def derivedWildcardType(tp: WildcardType, bounds: Type): WildcardType =
+@@ -5650,7 +5680,7 @@ object Types {
+       else {
+         seen += tp
+         tp match {
+-          case tp if tp.isTopType || tp.isNothing =>
++          case tp if tp.isExactlyAny || tp.isExactlyNothing =>
+             cs
+           case tp: AppliedType =>
+             foldOver(cs + tp.typeSymbol, tp)
+diff --git a/compiler/src/dotty/tools/dotc/interactive/Completion.scala b/compiler/src/dotty/tools/dotc/interactive/Completion.scala
+index a3c84d114b95..41b6ac43c714 100644
+--- a/compiler/src/dotty/tools/dotc/interactive/Completion.scala
++++ b/compiler/src/dotty/tools/dotc/interactive/Completion.scala
+@@ -205,7 +205,7 @@ object Completion {
+      * considered.
+      */
+     def addMemberCompletions(qual: Tree)(using Context): Unit =
+-      if (!qual.tpe.widenDealias.isNothing) {
++      if (!qual.tpe.widenDealias.isExactlyNothing) {
+         addAccessibleMembers(qual.tpe)
+         if (!mode.is(Mode.Import) && !qual.tpe.isNullType)
+           // Implicit conversions do not kick in when importing
+diff --git a/compiler/src/dotty/tools/dotc/reporting/messages.scala b/compiler/src/dotty/tools/dotc/reporting/messages.scala
+index 512197e98b3f..16a8dfe0d50f 100644
+--- a/compiler/src/dotty/tools/dotc/reporting/messages.scala
++++ b/compiler/src/dotty/tools/dotc/reporting/messages.scala
+@@ -269,7 +269,7 @@ import transform.SymUtils._
+           if expected.isAny
+              || expected.isAnyRef
+              || expected.isRef(defn.AnyValClass)
+-             || defn.isBottomType(found)
++             || found.isBottomType
+           then ""
+           else ctx.typer.importSuggestionAddendum(ViewProto(found.widen, expected))
+       val (where, printCtx) = Formatting.disambiguateTypes(found2, expected2)
+diff --git a/compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala b/compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala
+index 455b8c205619..a20f11e3cf9c 100644
+--- a/compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala
++++ b/compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala
+@@ -373,7 +373,7 @@ object PatternMatcher {
+               patternPlan(casted, pat, onSuccess)
+             })
+         case UnApply(extractor, implicits, args) =>
+-          val unappPlan = if (defn.isBottomType(scrutinee.info))
++          val unappPlan = if (scrutinee.info.isBottomType)
+             // Generate a throwaway but type-correct plan.
+             // This plan will never execute because it'll be guarded by a `NonNullTest`.
+             ResultPlan(tpd.Throw(tpd.nullLiteral))
+diff --git a/compiler/src/dotty/tools/dotc/transform/TransformByNameApply.scala b/compiler/src/dotty/tools/dotc/transform/TransformByNameApply.scala
+index e4eaf483dc0d..867c3329d944 100644
+--- a/compiler/src/dotty/tools/dotc/transform/TransformByNameApply.scala
++++ b/compiler/src/dotty/tools/dotc/transform/TransformByNameApply.scala
+@@ -42,7 +42,7 @@ abstract class TransformByNameApply extends MiniPhase { thisPhase: DenotTransfor
+       def transformArg(arg: Tree, formal: Type): Tree = formal.dealias match {
+         case formalExpr: ExprType =>
+           var argType = arg.tpe.widenIfUnstable
+-          if (defn.isBottomType(argType)) argType = formal.widenExpr
++          if (argType.isBottomType) argType = formal.widenExpr
+           def wrap(arg: Tree) =
+             ref(defn.cbnArg).appliedToType(argType).appliedTo(arg).withSpan(arg.span)
+           arg match {
+diff --git a/compiler/src/dotty/tools/dotc/typer/ErrorReporting.scala b/compiler/src/dotty/tools/dotc/typer/ErrorReporting.scala
+index 802bb5a6b3ea..e7bc3f120db2 100644
+--- a/compiler/src/dotty/tools/dotc/typer/ErrorReporting.scala
++++ b/compiler/src/dotty/tools/dotc/typer/ErrorReporting.scala
+@@ -165,7 +165,7 @@ object ErrorReporting {
+            |Note that `${tree.name}` is treated as an infix operator in Scala 3.
+            |If you do not want that, insert a `;` or empty line in front
+            |or drop any spaces behind the operator."""
+-      else if qualType.isNothing then
++      else if qualType.isExactlyNothing then
+         ""
+       else
+         val add = suggestImports(
+diff --git a/compiler/src/dotty/tools/dotc/typer/Implicits.scala b/compiler/src/dotty/tools/dotc/typer/Implicits.scala
+index 180be8d83128..06fd0389cd2c 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Implicits.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Implicits.scala
+@@ -715,7 +715,7 @@ trait ImplicitRunInfo:
+               seen += t
+               t.underlying match
+                 case TypeBounds(lo, hi) =>
+-                  if defn.isBottomTypeAfterErasure(lo) then apply(hi)
++                  if lo.isBottomTypeAfterErasure then apply(hi)
+                   else AndType.make(apply(lo), apply(hi))
+                 case u => apply(u)
+ 
+diff --git a/tests/pos/i10217.scala b/tests/pos/i10217.scala
+new file mode 100644
+index 000000000000..931095c2d3e6
+--- /dev/null
++++ b/tests/pos/i10217.scala
+@@ -0,0 +1,32 @@
++trait A
++trait B
++trait C
++trait D
++trait E
++trait F
++trait G
++trait H
++trait I
++trait J
++trait K
++trait L
++trait M
++trait N
++trait O
++trait P
++trait Q
++trait R
++trait S
++trait T
++trait U
++trait V
++trait W
++
++class Foo[T]
++
++val f1 = Foo[A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U]
++val f2 = Foo[A | (B | (C | (D | (E | (F | (G | (H | (I | (J | (K | (L | (M | (N | (O | (P | (Q | (R | (S | (T | U)))))))))))))))))))]
++val f3 = Foo[Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | A]
++val f4 = Foo[A | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null | Null]
++val f5 = Foo[Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | A)))))))))))))))))))]
++val f6 = Foo[A | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | (Null | Null))))))))))))))))))]

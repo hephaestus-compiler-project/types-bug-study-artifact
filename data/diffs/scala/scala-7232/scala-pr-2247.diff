@@ -1,0 +1,214 @@
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Namers.scala b/src/compiler/scala/tools/nsc/typechecker/Namers.scala
+index 7a3ab0057898..379f56521bf6 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Namers.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Namers.scala
+@@ -516,7 +516,13 @@ trait Namers extends MethodSynthesis {
+           // Setting the position at the import means that if there is
+           // more than one hidden name, the second will not be warned.
+           // So it is the position of the actual hidden name.
+-          checkNotRedundant(tree.pos withPoint fromPos, from, to)
++          //
++          // Note: java imports have precence over definitions in the same package
++          //       so don't warn for them. There is a corresponding special treatment
++          //       in the shadowing rules in typedIdent to (SI-7232). In any case,
++          //       we shouldn't be emitting warnings for .java source files.
++          if (!context.unit.isJava)
++            checkNotRedundant(tree.pos withPoint fromPos, from, to)
+         }
+       }
+ 
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Typers.scala b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+index d8493d231270..93d24996ebbc 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Typers.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+@@ -5046,7 +5046,25 @@ trait Typers extends Modes with Adaptations with Tags {
+                          else cx.depth - (cx.scope.nestingLevel - defEntry.owner.nestingLevel)
+           var impSym: Symbol = NoSymbol      // the imported symbol
+           var imports = context.imports      // impSym != NoSymbol => it is imported from imports.head
+-          while (!reallyExists(impSym) && !imports.isEmpty && imports.head.depth > symDepth) {
++
++          // Java: A single-type-import declaration d in a compilation unit c of package p
++          // that imports a type named n shadows, throughout c, the declarations of:
++          //
++          //  1) any top level type named n declared in another compilation unit of p
++          //
++          // A type-import-on-demand declaration never causes any other declaration to be shadowed.
++          //
++          // Scala: Bindings of different kinds have a precedence deﬁned on them:
++          //
++          //  1) Deﬁnitions and declarations that are local, inherited, or made available by a
++          //     package clause in the same compilation unit where the deﬁnition occurs have
++          //     highest precedence.
++          //  2) Explicit imports have next highest precedence.
++          def depthOk(imp: ImportInfo) = (
++               imp.depth > symDepth
++            || (unit.isJava && imp.isExplicitImport(name) && imp.depth == symDepth)
++          )
++          while (!reallyExists(impSym) && !imports.isEmpty && depthOk(imports.head)) {
+             impSym = imports.head.importedSymbol(name)
+             if (!impSym.exists) imports = imports.tail
+           }
+diff --git a/test/files/pos/t7232.flags b/test/files/pos/t7232.flags
+new file mode 100644
+index 000000000000..e8fb65d50c20
+--- /dev/null
++++ b/test/files/pos/t7232.flags
+@@ -0,0 +1 @@
++-Xfatal-warnings
+\ No newline at end of file
+diff --git a/test/files/pos/t7232/Foo.java b/test/files/pos/t7232/Foo.java
+new file mode 100644
+index 000000000000..3478301b3089
+--- /dev/null
++++ b/test/files/pos/t7232/Foo.java
+@@ -0,0 +1,9 @@
++package pack;
++
++import java.util.List;
++
++public class Foo {
++	public static java.util.List okay() { throw new Error(); }
++
++	public static List wrong() { throw new Error(); }
++}
+diff --git a/test/files/pos/t7232/List.java b/test/files/pos/t7232/List.java
+new file mode 100644
+index 000000000000..e42c63aa67a3
+--- /dev/null
++++ b/test/files/pos/t7232/List.java
+@@ -0,0 +1,4 @@
++package pack;
++
++public class List {
++}
+diff --git a/test/files/pos/t7232/Test.scala b/test/files/pos/t7232/Test.scala
+new file mode 100644
+index 000000000000..49c3c12aed02
+--- /dev/null
++++ b/test/files/pos/t7232/Test.scala
+@@ -0,0 +1,5 @@
++object Test {
++  import pack._
++  Foo.okay().size()
++  Foo.wrong().size()
++}
+diff --git a/test/files/pos/t7232b.flags b/test/files/pos/t7232b.flags
+new file mode 100644
+index 000000000000..e8fb65d50c20
+--- /dev/null
++++ b/test/files/pos/t7232b.flags
+@@ -0,0 +1 @@
++-Xfatal-warnings
+\ No newline at end of file
+diff --git a/test/files/pos/t7232b/Foo.java b/test/files/pos/t7232b/Foo.java
+new file mode 100644
+index 000000000000..94f08d545e3c
+--- /dev/null
++++ b/test/files/pos/t7232b/Foo.java
+@@ -0,0 +1,8 @@
++package pack;
++
++import java.util.*;
++
++public class Foo {
++	// should be pack.List.
++	public static List list() { throw new Error(); }
++}
+diff --git a/test/files/pos/t7232b/List.java b/test/files/pos/t7232b/List.java
+new file mode 100644
+index 000000000000..ce977152b95a
+--- /dev/null
++++ b/test/files/pos/t7232b/List.java
+@@ -0,0 +1,5 @@
++package pack;
++
++public class List {
++	public void packList() {}
++}
+diff --git a/test/files/pos/t7232b/Test.scala b/test/files/pos/t7232b/Test.scala
+new file mode 100644
+index 000000000000..6377e26becc5
+--- /dev/null
++++ b/test/files/pos/t7232b/Test.scala
+@@ -0,0 +1,5 @@
++object Test {
++  import pack._
++
++  Foo.list().packList()
++}
+diff --git a/test/files/pos/t7232c.flags b/test/files/pos/t7232c.flags
+new file mode 100644
+index 000000000000..e8fb65d50c20
+--- /dev/null
++++ b/test/files/pos/t7232c.flags
+@@ -0,0 +1 @@
++-Xfatal-warnings
+\ No newline at end of file
+diff --git a/test/files/pos/t7232c/Foo.java b/test/files/pos/t7232c/Foo.java
+new file mode 100644
+index 000000000000..bbda09a2da8a
+--- /dev/null
++++ b/test/files/pos/t7232c/Foo.java
+@@ -0,0 +1,10 @@
++package pack;
++
++import java.util.List;
++
++public class Foo {
++    public static class List {
++        public void isInnerList() {}
++    }
++	public static List innerList() { throw new Error(); }
++}
+diff --git a/test/files/pos/t7232c/Test.scala b/test/files/pos/t7232c/Test.scala
+new file mode 100644
+index 000000000000..aa7c71094839
+--- /dev/null
++++ b/test/files/pos/t7232c/Test.scala
+@@ -0,0 +1,4 @@
++object Test {
++  import pack._
++  Foo.innerList().isInnerList()
++}
+diff --git a/test/files/pos/t7232d.flags b/test/files/pos/t7232d.flags
+new file mode 100644
+index 000000000000..e8fb65d50c20
+--- /dev/null
++++ b/test/files/pos/t7232d.flags
+@@ -0,0 +1 @@
++-Xfatal-warnings
+\ No newline at end of file
+diff --git a/test/files/pos/t7232d/Entry.java b/test/files/pos/t7232d/Entry.java
+new file mode 100644
+index 000000000000..0cfb6fb25be6
+--- /dev/null
++++ b/test/files/pos/t7232d/Entry.java
+@@ -0,0 +1,4 @@
++package pack;
++
++public class Entry {
++}
+diff --git a/test/files/pos/t7232d/Foo.java b/test/files/pos/t7232d/Foo.java
+new file mode 100644
+index 000000000000..df7114a0f056
+--- /dev/null
++++ b/test/files/pos/t7232d/Foo.java
+@@ -0,0 +1,8 @@
++package pack;
++
++import java.util.Map.Entry;
++
++public class Foo {
++	public static Entry mapEntry() { throw new Error(); }
++	public static void javaTest() { mapEntry().getKey(); }
++}
+diff --git a/test/files/pos/t7232d/Test.scala b/test/files/pos/t7232d/Test.scala
+new file mode 100644
+index 000000000000..89a8063b3c17
+--- /dev/null
++++ b/test/files/pos/t7232d/Test.scala
+@@ -0,0 +1,4 @@
++object Test {
++  import pack._
++  Foo.mapEntry().getKey()
++}

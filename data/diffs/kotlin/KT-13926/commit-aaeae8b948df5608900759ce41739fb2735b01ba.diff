@@ -1,0 +1,405 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/FileScopeFactory.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/FileScopeFactory.kt
+index 983f21fa19a..b05dc59255d 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/FileScopeFactory.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/FileScopeFactory.kt
+@@ -16,6 +16,7 @@
+ 
+ package org.jetbrains.kotlin.resolve.lazy
+ 
++import org.jetbrains.kotlin.config.LanguageVersionSettings
+ import org.jetbrains.kotlin.descriptors.*
+ import org.jetbrains.kotlin.descriptors.annotations.Annotations
+ import org.jetbrains.kotlin.incremental.components.LookupLocation
+@@ -50,7 +51,8 @@ class FileScopeFactory(
+         private val qualifiedExpressionResolver: QualifiedExpressionResolver,
+         private val bindingTrace: BindingTrace,
+         private val ktImportsFactory: KtImportsFactory,
+-        private val platformToKotlinClassMap: PlatformToKotlinClassMap
++        private val platformToKotlinClassMap: PlatformToKotlinClassMap,
++        private val languageVersionSettings: LanguageVersionSettings
+ ) {
+     private val defaultImports by storageManager.createLazyValue {
+         ktImportsFactory.createImportDirectives(moduleDescriptor.defaultImports)
+@@ -87,7 +89,7 @@ class FileScopeFactory(
+ 
+         fun createImportResolver(indexedImports: IndexedImports, trace: BindingTrace, excludedImports: List<FqName>? = null) =
+                 LazyImportResolver(
+-                        storageManager, qualifiedExpressionResolver, moduleDescriptor, platformToKotlinClassMap,
++                        storageManager, qualifiedExpressionResolver, moduleDescriptor, platformToKotlinClassMap, languageVersionSettings,
+                         indexedImports, aliasImportNames concat excludedImports, trace, packageFragment
+                 )
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/LazyImportScope.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/LazyImportScope.kt
+index 0899b52512f..312254555f9 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/LazyImportScope.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/LazyImportScope.kt
+@@ -19,6 +19,7 @@ package org.jetbrains.kotlin.resolve.lazy
+ import com.google.common.collect.HashMultimap
+ import com.google.common.collect.ImmutableListMultimap
+ import com.google.common.collect.ListMultimap
++import org.jetbrains.kotlin.config.LanguageVersionSettings
+ import org.jetbrains.kotlin.descriptors.*
+ import org.jetbrains.kotlin.diagnostics.Errors
+ import org.jetbrains.kotlin.incremental.KotlinLookupLocation
+@@ -31,6 +32,7 @@ import org.jetbrains.kotlin.psi.KtPsiUtil
+ import org.jetbrains.kotlin.resolve.BindingTrace
+ import org.jetbrains.kotlin.resolve.PlatformClassesMappedToKotlinChecker
+ import org.jetbrains.kotlin.resolve.QualifiedExpressionResolver
++import org.jetbrains.kotlin.resolve.isHiddenInResolution
+ import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
+ import org.jetbrains.kotlin.resolve.scopes.ImportingScope
+ import org.jetbrains.kotlin.storage.StorageManager
+@@ -76,6 +78,7 @@ class LazyImportResolver(
+         private val qualifiedExpressionResolver: QualifiedExpressionResolver,
+         val moduleDescriptor: ModuleDescriptor,
+         private val platformToKotlinClassMap: PlatformToKotlinClassMap,
++        val languageVersionSettings: LanguageVersionSettings,
+         val indexedImports: IndexedImports,
+         excludedImportNames: Collection<FqName>,
+         private val traceForImportResolve: BindingTrace,
+@@ -180,6 +183,9 @@ class LazyImportScope(
+ 
+     private fun isClassifierVisible(descriptor: ClassifierDescriptor): Boolean {
+         if (filteringKind == FilteringKind.ALL) return true
++
++        if (descriptor.isHiddenInResolution(importResolver.languageVersionSettings)) return false
++
+         val visibility = (descriptor as DeclarationDescriptorWithVisibility).visibility
+         val includeVisible = filteringKind == FilteringKind.VISIBLE_CLASSES
+         if (!visibility.mustCheckInImports()) return includeVisible
+diff --git a/compiler/testData/diagnostics/tests/deprecated/deprecatedHidden.kt b/compiler/testData/diagnostics/tests/deprecated/deprecatedHidden.kt
+new file mode 100644
+index 00000000000..a9bdc18b2d6
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/deprecated/deprecatedHidden.kt
+@@ -0,0 +1,11 @@
++// !DIAGNOSTICS: -UNUSED_VARIABLE
++
++@Deprecated("", level = DeprecationLevel.HIDDEN)
++open class Foo
++
++fun test(f: <!DEPRECATION_ERROR!>Foo<!>) {
++    f.toString()
++    val g: <!DEPRECATION_ERROR!>Foo<!>? = <!UNRESOLVED_REFERENCE!>Foo<!>()
++}
++
++class Bar : <!UNRESOLVED_REFERENCE, DEPRECATION_ERROR, DEBUG_INFO_UNRESOLVED_WITH_TARGET!>Foo<!>()
+diff --git a/compiler/testData/diagnostics/tests/deprecated/deprecatedHidden.txt b/compiler/testData/diagnostics/tests/deprecated/deprecatedHidden.txt
+new file mode 100644
+index 00000000000..e4ecdd83957
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/deprecated/deprecatedHidden.txt
+@@ -0,0 +1,17 @@
++package
++
++public fun test(/*0*/ f: Foo): kotlin.Unit
++
++public final class Bar : Foo {
++    public constructor Bar()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++@kotlin.Deprecated(level = DeprecationLevel.HIDDEN, message = "") public open class Foo {
++    public constructor Foo()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/multimodule/hiddenClass/deprecatedHiddenImportPriority.kt b/compiler/testData/diagnostics/tests/multimodule/hiddenClass/deprecatedHiddenImportPriority.kt
+new file mode 100644
+index 00000000000..3b4ecd64b6f
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/multimodule/hiddenClass/deprecatedHiddenImportPriority.kt
+@@ -0,0 +1,37 @@
++// MODULE: m1
++// FILE: a.kt
++
++package p1
++
++@Deprecated("Use p2.A instead", level = DeprecationLevel.HIDDEN)
++class A {
++    fun m1() {}
++}
++
++// MODULE: m2
++// FILE: b.kt
++
++package p2
++
++class A {
++    fun m2() {}
++}
++
++// MODULE: m3(m1, m2)
++// FILE: severalStarImports.kt
++import p1.*
++import p2.*
++
++fun test(a: A) {
++    a.<!UNRESOLVED_REFERENCE!>m1<!>()
++    a.m2()
++}
++
++// FILE: explicitlyImportP1.kt
++import p1.<!DEPRECATION_ERROR!>A<!>
++import p2.*
++
++fun test(a: <!DEPRECATION_ERROR!>A<!>) {
++    a.m1()
++    a.<!UNRESOLVED_REFERENCE!>m2<!>()
++}
+diff --git a/compiler/testData/diagnostics/tests/multimodule/hiddenClass/deprecatedHiddenImportPriority.txt b/compiler/testData/diagnostics/tests/multimodule/hiddenClass/deprecatedHiddenImportPriority.txt
+new file mode 100644
+index 00000000000..cab91b0680f
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/multimodule/hiddenClass/deprecatedHiddenImportPriority.txt
+@@ -0,0 +1,49 @@
++// -- Module: <m1> --
++package
++
++package p1 {
++
++    @kotlin.Deprecated(level = DeprecationLevel.HIDDEN, message = "Use p2.A instead") public final class A {
++        public constructor A()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final fun m1(): kotlin.Unit
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
++
++
++// -- Module: <m2> --
++package
++
++package p2 {
++
++    public final class A {
++        public constructor A()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final fun m2(): kotlin.Unit
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
++
++
++// -- Module: <m3> --
++package
++
++public fun test(/*0*/ a: p1.A): kotlin.Unit
++public fun test(/*0*/ a: p2.A): kotlin.Unit
++
++package p1 {
++
++    @kotlin.Deprecated(level = DeprecationLevel.HIDDEN, message = "Use p2.A instead") public final class A {
++        // -- Module: <m1> --
++    }
++}
++
++package p2 {
++
++    public final class A {
++        // -- Module: <m2> --
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/multimodule/hiddenClass/deprecatedHiddenMultipleClasses.kt b/compiler/testData/diagnostics/tests/multimodule/hiddenClass/deprecatedHiddenMultipleClasses.kt
+new file mode 100644
+index 00000000000..77a689df03a
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/multimodule/hiddenClass/deprecatedHiddenMultipleClasses.kt
+@@ -0,0 +1,46 @@
++// MODULE: m1
++// FILE: a.kt
++
++package p1
++
++@Deprecated("1", level = DeprecationLevel.HIDDEN)
++class A(val v1: Unit)
++
++// MODULE: m2
++// FILE: b.kt
++
++package p2
++
++@Deprecated("2", level = DeprecationLevel.HIDDEN)
++class A(val v2: Unit)
++
++// MODULE: m3
++// FILE: c.kt
++
++package p3
++
++@Deprecated("3", level = DeprecationLevel.HIDDEN)
++class A(val v3: Unit)
++
++// MODULE: m4(m1, m2, m3)
++// FILE: oneExplicitImportOtherStars.kt
++import p1.*
++import p2.<!DEPRECATION_ERROR!>A<!>
++import p3.*
++
++fun test(a: <!DEPRECATION_ERROR!>A<!>) {
++    a.<!UNRESOLVED_REFERENCE!>v1<!>
++    a.v2
++    a.<!UNRESOLVED_REFERENCE!>v3<!>
++}
++
++// FILE: severalStarImports.kt
++import p1.*
++import p2.*
++import p3.*
++
++fun test(a: <!UNRESOLVED_REFERENCE!>A<!>) {
++    <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>a<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>v1<!>
++    <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>a<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>v2<!>
++    <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>a<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>v3<!>
++}
+diff --git a/compiler/testData/diagnostics/tests/multimodule/hiddenClass/deprecatedHiddenMultipleClasses.txt b/compiler/testData/diagnostics/tests/multimodule/hiddenClass/deprecatedHiddenMultipleClasses.txt
+new file mode 100644
+index 00000000000..c95f2aa8474
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/multimodule/hiddenClass/deprecatedHiddenMultipleClasses.txt
+@@ -0,0 +1,71 @@
++// -- Module: <m1> --
++package
++
++package p1 {
++
++    @kotlin.Deprecated(level = DeprecationLevel.HIDDEN, message = "1") public final class A {
++        public constructor A(/*0*/ v1: kotlin.Unit)
++        public final val v1: kotlin.Unit
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
++
++
++// -- Module: <m2> --
++package
++
++package p2 {
++
++    @kotlin.Deprecated(level = DeprecationLevel.HIDDEN, message = "2") public final class A {
++        public constructor A(/*0*/ v2: kotlin.Unit)
++        public final val v2: kotlin.Unit
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
++
++
++// -- Module: <m3> --
++package
++
++package p3 {
++
++    @kotlin.Deprecated(level = DeprecationLevel.HIDDEN, message = "3") public final class A {
++        public constructor A(/*0*/ v3: kotlin.Unit)
++        public final val v3: kotlin.Unit
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
++
++
++// -- Module: <m4> --
++package
++
++public fun test(/*0*/ a: [ERROR : A]): kotlin.Unit
++public fun test(/*0*/ a: p2.A): kotlin.Unit
++
++package p1 {
++
++    @kotlin.Deprecated(level = DeprecationLevel.HIDDEN, message = "1") public final class A {
++        // -- Module: <m1> --
++    }
++}
++
++package p2 {
++
++    @kotlin.Deprecated(level = DeprecationLevel.HIDDEN, message = "2") public final class A {
++        // -- Module: <m2> --
++    }
++}
++
++package p3 {
++
++    @kotlin.Deprecated(level = DeprecationLevel.HIDDEN, message = "3") public final class A {
++        // -- Module: <m3> --
++    }
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/AbstractDiagnosticsTest.java b/compiler/tests/org/jetbrains/kotlin/checkers/AbstractDiagnosticsTest.java
+index d6dcbb438e8..2465d516bd2 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/AbstractDiagnosticsTest.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/AbstractDiagnosticsTest.java
+@@ -354,8 +354,8 @@ public abstract class AbstractDiagnosticsTest extends BaseDiagnosticsTest {
+         boolean isMultiModuleTest = modules.size() != 1;
+         StringBuilder rootPackageText = new StringBuilder();
+ 
+-        for (TestModule module : CollectionsKt.sorted(modules.keySet())) {
+-            ModuleDescriptorImpl moduleDescriptor = modules.get(module);
++        for (Iterator<TestModule> module = CollectionsKt.sorted(modules.keySet()).iterator(); module.hasNext(); ) {
++            ModuleDescriptorImpl moduleDescriptor = modules.get(module.next());
+             PackageViewDescriptor aPackage = moduleDescriptor.getPackage(FqName.ROOT);
+             assertFalse(aPackage.isEmpty());
+ 
+@@ -366,7 +366,7 @@ public abstract class AbstractDiagnosticsTest extends BaseDiagnosticsTest {
+             String actualSerialized = comparator.serializeRecursively(aPackage);
+             rootPackageText.append(actualSerialized);
+ 
+-            if (isMultiModuleTest) {
++            if (isMultiModuleTest && module.hasNext()) {
+                 rootPackageText.append("\n\n");
+             }
+         }
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 59b87b78b16..38a55a65663 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -5928,6 +5928,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("deprecatedHidden.kt")
++            public void testDeprecatedHidden() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/deprecated/deprecatedHidden.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("deprecatedInheritance.kt")
+             public void testDeprecatedInheritance() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/deprecated/deprecatedInheritance.kt");
+@@ -12410,6 +12416,27 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                     doTest(fileName);
+                 }
+             }
++
++            @TestMetadata("compiler/testData/diagnostics/tests/multimodule/hiddenClass")
++            @TestDataPath("$PROJECT_ROOT")
++            @RunWith(JUnit3RunnerWithInners.class)
++            public static class HiddenClass extends AbstractDiagnosticsTest {
++                public void testAllFilesPresentInHiddenClass() throws Exception {
++                    KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/diagnostics/tests/multimodule/hiddenClass"), Pattern.compile("^(.+)\\.kt$"), true);
++                }
++
++                @TestMetadata("deprecatedHiddenImportPriority.kt")
++                public void testDeprecatedHiddenImportPriority() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/multimodule/hiddenClass/deprecatedHiddenImportPriority.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("deprecatedHiddenMultipleClasses.kt")
++                public void testDeprecatedHiddenMultipleClasses() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/multimodule/hiddenClass/deprecatedHiddenMultipleClasses.kt");
++                    doTest(fileName);
++                }
++            }
+         }
+ 
+         @TestMetadata("compiler/testData/diagnostics/tests/namedArguments")

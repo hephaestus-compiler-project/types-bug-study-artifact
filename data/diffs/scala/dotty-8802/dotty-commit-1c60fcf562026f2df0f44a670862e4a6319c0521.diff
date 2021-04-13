@@ -1,0 +1,58 @@
+diff --git a/compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala b/compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
+index e72f7eac0b..ece671216f 100644
+--- a/compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
++++ b/compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
+@@ -536,14 +536,15 @@ object ProtoTypes {
+   /** The result type of `mt`, where all references to parameters of `mt` are
+    *  replaced by either wildcards (if typevarsMissContext) or TypeParamRefs.
+    */
+-  def resultTypeApprox(mt: MethodType)(using Context): Type =
+-    if (mt.isResultDependent) {
++  def resultTypeApprox(mt: MethodType, wildcardOnly: Boolean = false)(using Context): Type =
++    if mt.isResultDependent then
+       def replacement(tp: Type) =
+-        if (ctx.mode.is(Mode.TypevarsMissContext) ||
+-            !tp.widenExpr.isValueTypeOrWildcard) WildcardType
++        if wildcardOnly
++           || ctx.mode.is(Mode.TypevarsMissContext)
++           || !tp.widenExpr.isValueTypeOrWildcard
++        then WildcardType
+         else newDepTypeVar(tp)
+       mt.resultType.substParams(mt, mt.paramInfos.map(replacement))
+-    }
+     else mt.resultType
+ 
+   /** The normalized form of a type
+@@ -568,7 +569,7 @@ object ProtoTypes {
+       case poly: PolyType =>
+         normalize(constrained(poly).resultType, pt)
+       case mt: MethodType =>
+-        if (mt.isImplicitMethod) normalize(resultTypeApprox(mt), pt)
++        if (mt.isImplicitMethod) normalize(resultTypeApprox(mt, wildcardOnly = true), pt)
+         else if (mt.isResultDependent) tp
+         else {
+           val rt = normalize(mt.resultType, pt)
+diff --git a/tests/pos/i8802.scala b/tests/pos/i8802.scala
+new file mode 100644
+index 0000000000..e9afc174d7
+--- /dev/null
++++ b/tests/pos/i8802.scala
+@@ -0,0 +1,17 @@
++trait Foo[A, B] {
++  type Out
++}
++
++object Test {
++
++  type Bar[A]
++
++  def unit: Bar[Unit] = ???
++  def product[A, B](fst: Bar[A], snd: Bar[B])(implicit foo: Foo[A, B]): Bar[foo.Out] = ???
++
++  implicit def foo[A]: Foo[A, Unit] { type Out = A } = ???
++
++  def check[A](bar: Bar[A])(a: A): Unit = {}
++
++  check(product(unit, unit))(()) // error
++}
+\ No newline at end of file

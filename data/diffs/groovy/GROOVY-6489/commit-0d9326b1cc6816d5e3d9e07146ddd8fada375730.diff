@@ -1,0 +1,90 @@
+diff --git a/gradle.properties b/gradle.properties
+index a8af0f4e1e..e9bdbeb049 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -5,7 +5,7 @@ groovyBundleVersion = 2.3.0.SNAPSHOT
+ groovyJUnit_ms = 256m
+ groovyJUnit_mx = 512m
+ groovyJUnit_permSize = 64m
+-groovyJUnit_maxPermSize=128m
++groovyJUnit_maxPermSize=184m
+ 
+ javacMain_mx = 384m
+ groovycMain_mx = 384m
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 0baddc8345..aedce0b952 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -971,7 +971,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+ 
+                     boolean isThisExpression = objectExpression instanceof VariableExpression && 
+                                                 ((VariableExpression)objectExpression).isThisExpression();
+-                    if (storeField(field, isThisExpression, pexp, objectExpressionType, visitor, receiver.getData())) return true;
++                    if (storeField(field, isThisExpression, pexp, receiver.getType(), visitor, receiver.getData())) return true;
+ 
+                     MethodNode getter = current.getGetterMethod("get" + capName);
+                     getter = allowStaticAccessToMember(getter, staticOnly);
+diff --git a/src/test/groovy/transform/stc/FieldsAndPropertiesSTCTest.groovy b/src/test/groovy/transform/stc/FieldsAndPropertiesSTCTest.groovy
+index 747d79f88b..8e822344e0 100644
+--- a/src/test/groovy/transform/stc/FieldsAndPropertiesSTCTest.groovy
++++ b/src/test/groovy/transform/stc/FieldsAndPropertiesSTCTest.groovy
+@@ -513,6 +513,59 @@ class FieldsAndPropertiesSTCTest extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
++    // GROOVY-6489
++    void testShouldNotThrowUnmatchedGenericsError() {
++        assertScript '''public class Foo {
++
++    private List<String> names;
++
++    public List<String> getNames() {
++        return names;
++    }
++
++    public void setNames(List<String> names) {
++        this.names = names;
++    }
++}
++
++class FooWorker {
++
++    public void doSomething() {
++        new Foo().with {
++            names = new ArrayList()
++        }
++    }
++}
++
++new FooWorker().doSomething()'''
++    }
++
++    void testShouldFailWithIncompatibleGenericTypes() {
++        shouldFailWithMessages '''public class Foo {
++
++    private List<String> names;
++
++    public List<String> getNames() {
++        return names;
++    }
++
++    public void setNames(List<String> names) {
++        this.names = names;
++    }
++}
++
++class FooWorker {
++
++    public void doSomething() {
++        new Foo().with {
++            names = new ArrayList<Integer>()
++        }
++    }
++}
++
++new FooWorker().doSomething()''', 'Incompatible generic argument types. Cannot assign java.util.ArrayList <Integer> to: java.util.List <java.lang.String>'
++    }
++
+     public static interface InterfaceWithField {
+         String boo = "I don't fancy fields in interfaces"
+     }

@@ -1,0 +1,49 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index cbb2798470..4c55eeafb8 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -3369,6 +3369,8 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+             return false;
+         } else if ((expressionType.getModifiers()& Opcodes.ACC_FINAL)==0 && targetType.isInterface()) {
+             return true;
++        } else if ((targetType.getModifiers()& Opcodes.ACC_FINAL)==0 && expressionType.isInterface()) {
++            return true;
+         } else if (!isAssignableTo(targetType, expressionType) && !implementsInterfaceOrIsSubclassOf(expressionType, targetType)) {
+             return false;
+         }
+diff --git a/src/test/groovy/transform/stc/STCAssignmentTest.groovy b/src/test/groovy/transform/stc/STCAssignmentTest.groovy
+index 3c00185b90..acb1c7532b 100644
+--- a/src/test/groovy/transform/stc/STCAssignmentTest.groovy
++++ b/src/test/groovy/transform/stc/STCAssignmentTest.groovy
+@@ -872,5 +872,31 @@ class STCAssignmentTest extends StaticTypeCheckingTestCase {
+         }            
+         '''
+     }
++
++    void testNarrowingConversion() {
++        assertScript '''
++        interface A1{}
++        interface A2 extends A1{}
++        
++        class C1 implements A1{}
++        
++        def m(A2 a2) {
++            C1 c1 = (C1) a2
++        }
++        '''
++    }
++
++    void testFinalNarrowingConversion() {
++        shouldFailWithMessages '''
++        interface A1{}
++        interface A2 extends A1{}
++        
++        final class C1 implements A1{}
++        
++        def m(A2 a2) {
++            C1 c1 = (C1) a2
++        }
++        ''', "Inconvertible types: cannot cast A2 to C1"
++    }
+ }
+ 

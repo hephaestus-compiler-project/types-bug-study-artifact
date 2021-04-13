@@ -1,0 +1,108 @@
+changeset:   1626:6db9a3b1a93f
+user:        mcimadamore
+date:        Tue Mar 12 16:02:13 2013 +0000
+summary:     8008540: Constructor reference to non-reifiable array should be rejected
+
+diff -r 7fe9b9d29095 -r 6db9a3b1a93f src/share/classes/com/sun/tools/javac/comp/Check.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Check.java	Tue Mar 12 11:16:30 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/Check.java	Tue Mar 12 16:02:13 2013 +0000
+@@ -670,11 +670,18 @@
+         t = checkClassOrArrayType(pos, t);
+         if (t.hasTag(CLASS)) {
+             if ((t.tsym.flags() & (ABSTRACT | INTERFACE)) != 0) {
+-                log.error(pos, "abstract.cant.be.instantiated");
++                log.error(pos, "abstract.cant.be.instantiated", t.tsym);
+                 t = types.createErrorType(t);
+             } else if ((t.tsym.flags() & ENUM) != 0) {
+                 log.error(pos, "enum.cant.be.instantiated");
+                 t = types.createErrorType(t);
++            } else {
++                t = checkClassType(pos, t, true);
++            }
++        } else if (t.hasTag(ARRAY)) {
++            if (!types.isReifiable(((ArrayType)t).elemtype)) {
++                log.error(pos, "generic.array.creation");
++                t = types.createErrorType(t);
+             }
+         }
+         return t;
+diff -r 7fe9b9d29095 -r 6db9a3b1a93f test/tools/javac/lambda/MethodReference38.out
+--- a/test/tools/javac/lambda/MethodReference38.out	Tue Mar 12 11:16:30 2013 +0100
++++ b/test/tools/javac/lambda/MethodReference38.out	Tue Mar 12 16:02:13 2013 +0000
+@@ -1,5 +1,5 @@
+-MethodReference38.java:24:18: compiler.err.abstract.cant.be.instantiated
+-MethodReference38.java:25:18: compiler.err.abstract.cant.be.instantiated
+-MethodReference38.java:26:18: compiler.err.abstract.cant.be.instantiated
++MethodReference38.java:24:18: compiler.err.abstract.cant.be.instantiated: MethodReference38.A
++MethodReference38.java:25:18: compiler.err.abstract.cant.be.instantiated: MethodReference38.I
++MethodReference38.java:26:18: compiler.err.abstract.cant.be.instantiated: MethodReference38.AC
+ MethodReference38.java:27:18: compiler.err.enum.cant.be.instantiated
+ 4 errors
+diff -r 7fe9b9d29095 -r 6db9a3b1a93f test/tools/javac/lambda/MethodReference64.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/MethodReference64.java	Tue Mar 12 16:02:13 2013 +0000
+@@ -0,0 +1,46 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8008540 8008539 8008538
++ * @summary Constructor reference to non-reifiable array should be rejected
++ * @compile/fail/ref=MethodReference64.out -XDrawDiagnostics MethodReference64.java
++ */
++class MethodReference64 {
++    interface ClassFactory {
++        Object m();
++    }
++
++    interface ArrayFactory {
++        Object m(int i);
++    }
++
++    @interface Anno { }
++
++    enum E { }
++
++    interface I { }
++
++    static class Foo<X> { }
++
++    void m(ClassFactory cf) { }
++    void m(ArrayFactory cf) { }
++
++    void testAssign() {
++        ClassFactory c1 = Anno::new; //error
++        ClassFactory c2 = E::new; //error
++        ClassFactory c3 = I::new; //error
++        ClassFactory c4 = Foo<?>::new; //error
++        ClassFactory c5 = 1::new; //error
++        ArrayFactory a1 = Foo<?>[]::new; //ok
++        ArrayFactory a2 = Foo<? extends String>[]::new; //error
++    }
++
++    void testMethod() {
++        m(Anno::new); //error
++        m(E::new); //error
++        m(I::new); //error
++        m(Foo<?>::new); //error
++        m(1::new); //error
++        m(Foo<?>[]::new); //ok - resolves to m(ArrayFactory)
++        m(Foo<? extends String>[]::new); //error
++    }
++}
+diff -r 7fe9b9d29095 -r 6db9a3b1a93f test/tools/javac/lambda/MethodReference64.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/MethodReference64.out	Tue Mar 12 16:02:13 2013 +0000
+@@ -0,0 +1,13 @@
++MethodReference64.java:28:27: compiler.err.abstract.cant.be.instantiated: MethodReference64.Anno
++MethodReference64.java:29:27: compiler.err.enum.cant.be.instantiated
++MethodReference64.java:30:27: compiler.err.abstract.cant.be.instantiated: MethodReference64.I
++MethodReference64.java:31:30: compiler.err.type.found.req: ?, (compiler.misc.type.req.exact)
++MethodReference64.java:32:27: compiler.err.unexpected.type: kindname.class, kindname.value
++MethodReference64.java:34:48: compiler.err.generic.array.creation
++MethodReference64.java:38:11: compiler.err.abstract.cant.be.instantiated: MethodReference64.Anno
++MethodReference64.java:39:11: compiler.err.enum.cant.be.instantiated
++MethodReference64.java:40:11: compiler.err.abstract.cant.be.instantiated: MethodReference64.I
++MethodReference64.java:41:14: compiler.err.type.found.req: ?, (compiler.misc.type.req.exact)
++MethodReference64.java:42:11: compiler.err.unexpected.type: kindname.class, kindname.value
++MethodReference64.java:44:32: compiler.err.generic.array.creation
++12 errors
+

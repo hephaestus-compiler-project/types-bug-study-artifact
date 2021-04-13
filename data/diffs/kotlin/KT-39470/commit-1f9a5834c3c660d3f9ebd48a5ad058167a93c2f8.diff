@@ -1,0 +1,138 @@
+diff --git a/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestWithStdlibGenerated.java b/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestWithStdlibGenerated.java
+index e2a019242af..c427847fefd 100644
+--- a/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestWithStdlibGenerated.java
++++ b/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestWithStdlibGenerated.java
+@@ -1835,6 +1835,11 @@ public class FirOldFrontendDiagnosticsTestWithStdlibGenerated extends AbstractFi
+             runTest("compiler/testData/diagnostics/testsWithStdLib/factoryPattern/overloadByLambdaReturnType_enabled_no_annotation.kt");
+         }
+ 
++        @TestMetadata("referenceWithTheSameNameAsContainingProperty.kt")
++        public void testReferenceWithTheSameNameAsContainingProperty() throws Exception {
++            runTest("compiler/testData/diagnostics/testsWithStdLib/factoryPattern/referenceWithTheSameNameAsContainingProperty.kt");
++        }
++
+         @TestMetadata("resolutionInOldInference.kt")
+         public void testResolutionInOldInference() throws Exception {
+             runTest("compiler/testData/diagnostics/testsWithStdLib/factoryPattern/resolutionInOldInference.kt");
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/CallableReferenceResolution.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/CallableReferenceResolution.kt
+index 62ac5ae47e1..598c5b99304 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/CallableReferenceResolution.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/CallableReferenceResolution.kt
+@@ -24,10 +24,7 @@ import org.jetbrains.kotlin.resolve.descriptorUtil.isCompanionObject
+ import org.jetbrains.kotlin.resolve.scopes.receivers.DetailedReceiver
+ import org.jetbrains.kotlin.resolve.scopes.receivers.ReceiverValue
+ import org.jetbrains.kotlin.resolve.scopes.receivers.ReceiverValueWithSmartCastInfo
+-import org.jetbrains.kotlin.types.ErrorUtils
+-import org.jetbrains.kotlin.types.KotlinType
+-import org.jetbrains.kotlin.types.UnwrappedType
+-import org.jetbrains.kotlin.types.Variance
++import org.jetbrains.kotlin.types.*
+ import org.jetbrains.kotlin.types.checker.captureFromExpression
+ import org.jetbrains.kotlin.types.expressions.CoercionStrategy
+ import org.jetbrains.kotlin.types.typeUtil.immediateSupertypes
+@@ -147,15 +144,15 @@ fun ConstraintSystemOperation.checkCallableReference(
+ 
+     val toFreshSubstitutor = createToFreshVariableSubstitutorAndAddInitialConstraints(candidateDescriptor, this)
+ 
+-    if (expectedType != null) {
+-        addSubtypeConstraint(toFreshSubstitutor.safeSubstitute(reflectionCandidateType), expectedType, position)
+-    }
+-
+     if (!ErrorUtils.isError(candidateDescriptor)) {
+         addReceiverConstraint(toFreshSubstitutor, dispatchReceiver, candidateDescriptor.dispatchReceiverParameter, position)
+         addReceiverConstraint(toFreshSubstitutor, extensionReceiver, candidateDescriptor.extensionReceiverParameter, position)
+     }
+ 
++    if (expectedType != null && !hasContradiction) {
++        addSubtypeConstraint(toFreshSubstitutor.safeSubstitute(reflectionCandidateType), expectedType, position)
++    }
++
+     val invisibleMember = Visibilities.findInvisibleMember(
+         dispatchReceiver?.asReceiverValueForVisibilityChecks,
+         candidateDescriptor, ownerDescriptor
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/factoryPattern/referenceWithTheSameNameAsContainingProperty.kt b/compiler/testData/diagnostics/testsWithStdLib/factoryPattern/referenceWithTheSameNameAsContainingProperty.kt
+new file mode 100644
+index 00000000000..d2dcf1dd7c8
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithStdLib/factoryPattern/referenceWithTheSameNameAsContainingProperty.kt
+@@ -0,0 +1,22 @@
++// FIR_IDENTICAL
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++
++interface Foo
++
++// isolated example when we have two canidates where one of them has DeferredType
++
++fun Foo.bar(): Int = 0
++
++fun call(f: Any) {}
++
++val String.bar
++    get() = call(Foo::bar)
++
++// test from KT-39470
++
++interface Bar {
++    val serializationWhitelists: List<Foo>
++}
++
++val List<Bar>.serializationWhitelists
++    get() = flatMapTo(LinkedHashSet(), Bar::serializationWhitelists)
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/factoryPattern/referenceWithTheSameNameAsContainingProperty.txt b/compiler/testData/diagnostics/testsWithStdLib/factoryPattern/referenceWithTheSameNameAsContainingProperty.txt
+new file mode 100644
+index 00000000000..4d88f7ca982
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithStdLib/factoryPattern/referenceWithTheSameNameAsContainingProperty.txt
+@@ -0,0 +1,19 @@
++package
++
++public val kotlin.String.bar: kotlin.Unit
++public val kotlin.collections.List<Bar>.serializationWhitelists: kotlin.collections.LinkedHashSet<Foo> /* = java.util.LinkedHashSet<Foo> */
++public fun call(/*0*/ f: kotlin.Any): kotlin.Unit
++public fun Foo.bar(): kotlin.Int
++
++public interface Bar {
++    public abstract val serializationWhitelists: kotlin.collections.List<Foo>
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface Foo {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
+index 7c23039fa5a..844ca799f50 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
+@@ -2850,6 +2850,11 @@ public class DiagnosticsTestWithStdLibGenerated extends AbstractDiagnosticsTestW
+             runTest("compiler/testData/diagnostics/testsWithStdLib/factoryPattern/overloadByLambdaReturnType_enabled_no_annotation.kt");
+         }
+ 
++        @TestMetadata("referenceWithTheSameNameAsContainingProperty.kt")
++        public void testReferenceWithTheSameNameAsContainingProperty() throws Exception {
++            runTest("compiler/testData/diagnostics/testsWithStdLib/factoryPattern/referenceWithTheSameNameAsContainingProperty.kt");
++        }
++
+         @TestMetadata("resolutionInOldInference.kt")
+         public void testResolutionInOldInference() throws Exception {
+             runTest("compiler/testData/diagnostics/testsWithStdLib/factoryPattern/resolutionInOldInference.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
+index aa692517223..23d3c12e28c 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
+@@ -2850,6 +2850,11 @@ public class DiagnosticsTestWithStdLibUsingJavacGenerated extends AbstractDiagno
+             runTest("compiler/testData/diagnostics/testsWithStdLib/factoryPattern/overloadByLambdaReturnType_enabled_no_annotation.kt");
+         }
+ 
++        @TestMetadata("referenceWithTheSameNameAsContainingProperty.kt")
++        public void testReferenceWithTheSameNameAsContainingProperty() throws Exception {
++            runTest("compiler/testData/diagnostics/testsWithStdLib/factoryPattern/referenceWithTheSameNameAsContainingProperty.kt");
++        }
++
+         @TestMetadata("resolutionInOldInference.kt")
+         public void testResolutionInOldInference() throws Exception {
+             runTest("compiler/testData/diagnostics/testsWithStdLib/factoryPattern/resolutionInOldInference.kt");

@@ -1,0 +1,139 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/checkers/ConstModifierChecker.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/checkers/ConstModifierChecker.kt
+index 4951aa01130..845b965c01a 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/checkers/ConstModifierChecker.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/checkers/ConstModifierChecker.kt
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2010-2016 JetBrains s.r.o.
++ * Copyright 2010-2017 JetBrains s.r.o.
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -37,46 +37,59 @@ object ConstModifierChecker : SimpleDeclarationChecker {
+ 
+         val constModifierPsiElement = declaration.modifierList!!.getModifier(KtTokens.CONST_KEYWORD)!!
+ 
+-        val diagnostic = checkCanBeConst(declaration, constModifierPsiElement, descriptor)
++        val diagnostic = checkCanBeConst(declaration, constModifierPsiElement, descriptor).diagnostic
+         if (diagnostic != null) {
+             diagnosticHolder.report(diagnostic)
+         }
+     }
+ 
+-    fun checkCanBeConst(declaration: KtDeclaration,
++    fun canBeConst(declaration: KtDeclaration, constModifierPsiElement: PsiElement, descriptor: VariableDescriptor): Boolean =
++            checkCanBeConst(declaration, constModifierPsiElement, descriptor).canBeConst
++
++    private fun checkCanBeConst(declaration: KtDeclaration,
+                         constModifierPsiElement: PsiElement,
+-                        descriptor: VariableDescriptor): Diagnostic? {
++                        descriptor: VariableDescriptor): ConstApplicability {
+         if (descriptor.isVar) {
+-            return Errors.WRONG_MODIFIER_TARGET.on(constModifierPsiElement, KtTokens.CONST_KEYWORD, "vars")
++            return Errors.WRONG_MODIFIER_TARGET.on(constModifierPsiElement, KtTokens.CONST_KEYWORD, "vars").nonApplicable()
+         }
+ 
+         val containingDeclaration = descriptor.containingDeclaration
+         if (containingDeclaration is ClassDescriptor && containingDeclaration.kind != ClassKind.OBJECT) {
+-            return Errors.CONST_VAL_NOT_TOP_LEVEL_OR_OBJECT.on(constModifierPsiElement)
++            return Errors.CONST_VAL_NOT_TOP_LEVEL_OR_OBJECT.on(constModifierPsiElement).nonApplicable()
+         }
+ 
+-        if (declaration !is KtProperty || descriptor !is PropertyDescriptor) return null
++        if (declaration !is KtProperty || descriptor !is PropertyDescriptor) return ConstApplicability.NonApplicable()
+ 
+         if (declaration.hasDelegate()) {
+-            return Errors.CONST_VAL_WITH_DELEGATE.on(declaration.delegate!!)
++            return Errors.CONST_VAL_WITH_DELEGATE.on(declaration.delegate!!).nonApplicable()
+         }
+ 
+         if (descriptor is PropertyDescriptor && !descriptor.getter!!.isDefault) {
+-            return Errors.CONST_VAL_WITH_GETTER.on(declaration.getter!!)
++            return Errors.CONST_VAL_WITH_GETTER.on(declaration.getter!!).nonApplicable()
+         }
+ 
++        if (descriptor.type.isError) return ConstApplicability.NonApplicable()
++
++        // Report errors about const initializer only on property of resolved types
+         if (!descriptor.type.canBeUsedForConstVal()) {
+-            return Errors.TYPE_CANT_BE_USED_FOR_CONST_VAL.on(constModifierPsiElement, descriptor.type)
++            return Errors.TYPE_CANT_BE_USED_FOR_CONST_VAL.on(constModifierPsiElement, descriptor.type).nonApplicable()
+         }
+ 
+         if (declaration.initializer == null) {
+-            return Errors.CONST_VAL_WITHOUT_INITIALIZER.on(constModifierPsiElement)
++            return Errors.CONST_VAL_WITHOUT_INITIALIZER.on(constModifierPsiElement).nonApplicable()
+         }
+ 
+         if (descriptor.compileTimeInitializer == null) {
+-            return Errors.CONST_VAL_WITH_NON_CONST_INITIALIZER.on(declaration.initializer!!)
++            return Errors.CONST_VAL_WITH_NON_CONST_INITIALIZER.on(declaration.initializer!!).nonApplicable()
+         }
+ 
+-        return null
++        return ConstApplicability.Applicable
+     }
+ }
++
++sealed class ConstApplicability(val canBeConst: Boolean, val diagnostic: Diagnostic?) {
++    object Applicable : ConstApplicability(true, null)
++    class NonApplicable(diagnostic: Diagnostic? = null) : ConstApplicability(false, diagnostic)
++}
++
++private fun Diagnostic.nonApplicable() = ConstApplicability.NonApplicable(this)
+diff --git a/compiler/testData/diagnostics/tests/modifiers/const/types.kt b/compiler/testData/diagnostics/tests/modifiers/const/types.kt
+index e507f758c44..674e83339b8 100644
+--- a/compiler/testData/diagnostics/tests/modifiers/const/types.kt
++++ b/compiler/testData/diagnostics/tests/modifiers/const/types.kt
+@@ -10,3 +10,8 @@ enum class MyEnum { A }
+ <!TYPE_CANT_BE_USED_FOR_CONST_VAL!>const<!> val enumConst: MyEnum = MyEnum.A
+ <!TYPE_CANT_BE_USED_FOR_CONST_VAL!>const<!> val arrayConst: Array<String> = arrayOf("1")
+ <!TYPE_CANT_BE_USED_FOR_CONST_VAL!>const<!> val intArrayConst: IntArray = intArrayOf()
++
++const val unresolvedConst1 = <!UNRESOLVED_REFERENCE!>Unresolved<!>
++<!WRONG_MODIFIER_TARGET!>const<!> var unresolvedConst2 = <!UNRESOLVED_REFERENCE!>Unresolved<!>
++const val unresolvedConst3 = <!UNRESOLVED_REFERENCE, PROPERTY_INITIALIZER_NO_BACKING_FIELD!>Unresolved<!>
++<!CONST_VAL_WITH_GETTER!>get() = 10<!>
+diff --git a/compiler/testData/diagnostics/tests/modifiers/const/types.txt b/compiler/testData/diagnostics/tests/modifiers/const/types.txt
+index ff13a8e26cc..509e14d4697 100644
+--- a/compiler/testData/diagnostics/tests/modifiers/const/types.txt
++++ b/compiler/testData/diagnostics/tests/modifiers/const/types.txt
+@@ -7,6 +7,9 @@ public const val intArrayConst: kotlin.IntArray
+ public const val intConst: kotlin.Int = 1
+ public const val longConst: kotlin.Long = 1.toLong()
+ public const val stringConst: kotlin.String = "empty"
++public const val unresolvedConst1: [ERROR : Type for Unresolved]
++public const var unresolvedConst2: [ERROR : Type for Unresolved]
++public const val unresolvedConst3: [ERROR : Type for Unresolved]
+ 
+ public final enum class MyEnum : kotlin.Enum<MyEnum> {
+     enum entry A
+diff --git a/idea/src/org/jetbrains/kotlin/idea/quickfix/AddConstModifierFix.kt b/idea/src/org/jetbrains/kotlin/idea/quickfix/AddConstModifierFix.kt
+index 34fd836fba6..c677b8f61ae 100644
+--- a/idea/src/org/jetbrains/kotlin/idea/quickfix/AddConstModifierFix.kt
++++ b/idea/src/org/jetbrains/kotlin/idea/quickfix/AddConstModifierFix.kt
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2010-2015 JetBrains s.r.o.
++ * Copyright 2010-2017 JetBrains s.r.o.
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -77,7 +77,7 @@ class AddConstModifierIntention : SelfTargetingIntention<KtProperty>(KtProperty:
+                 return false
+             }
+             val propertyDescriptor = element.descriptor as? VariableDescriptor ?: return false
+-            return ConstModifierChecker.checkCanBeConst(element, element, propertyDescriptor) == null
++            return ConstModifierChecker.canBeConst(element, element, propertyDescriptor)
+         }
+     }
+ }
+@@ -89,7 +89,7 @@ object ConstFixFactory : KotlinSingleIntentionActionFactory() {
+         val bindingContext = expr.analyze(BodyResolveMode.PARTIAL)
+         val targetDescriptor = bindingContext.get(BindingContext.REFERENCE_TARGET, expr) as? VariableDescriptor ?: return null
+         val declaration = (targetDescriptor.source as? PsiSourceElement)?.psi as? KtProperty ?: return null
+-        if (ConstModifierChecker.checkCanBeConst(declaration, declaration, targetDescriptor) == null) {
++        if (ConstModifierChecker.canBeConst(declaration, declaration, targetDescriptor)) {
+             return AddConstModifierFix(declaration)
+         }
+         return null

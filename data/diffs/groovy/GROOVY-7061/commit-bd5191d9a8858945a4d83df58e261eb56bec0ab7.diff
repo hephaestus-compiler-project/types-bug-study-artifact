@@ -1,0 +1,191 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index cee30e47e4..a37228477a 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -2584,7 +2584,14 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                 // implicit it
+                 blockParameterTypes = parameterTypesForSAM;
+             } else {
+-                blockParameterTypes = extractTypesFromParameters(p);
++                blockParameterTypes = new ClassNode[p.length];
++                for (int i = 0; i < p.length; i++) {
++                    if (p[i] != null && !p[i].isDynamicTyped()) {
++                        blockParameterTypes[i] = p[i].getType();
++                    } else {
++                        blockParameterTypes[i] = typeOrNull(parameterTypesForSAM, i);
++                    }
++                }
+             }
+         }
+         for (int i=0; i<blockParameterTypes.length; i++) {
+@@ -4271,12 +4278,8 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                 }
+                 // now check for closure override
+                 TypeCheckingContext.EnclosingClosure enclosingClosure = typeCheckingContext.getEnclosingClosure();
+-                ClassNode[] closureParamTypes = (ClassNode[]) (enclosingClosure != null ? enclosingClosure.getClosureExpression().getNodeMetaData(StaticTypesMarker.CLOSURE_ARGUMENTS) : null);
+-                if (type == null && enclosingClosure != null && "it".equals(variable.getName()) && closureParamTypes != null) {
+-                    final Parameter[] parameters = enclosingClosure.getClosureExpression().getParameters();
+-                    if (parameters.length == 0 && temporaryTypesForExpression == null && closureParamTypes.length != 0) {
+-                        type = closureParamTypes[0];
+-                    }
++                if (type == null && enclosingClosure != null && temporaryTypesForExpression == null) {
++                    type = getTypeFromClosureArguments(parameter, enclosingClosure);
+                 }
+                 if (type != null) {
+                     storeType(vexp, type);
+@@ -4356,6 +4359,26 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         return ((Expression) exp).getType();
+     }
+ 
++    private ClassNode getTypeFromClosureArguments(Parameter parameter, TypeCheckingContext.EnclosingClosure enclosingClosure) {
++        ClosureExpression closureExpression = enclosingClosure.getClosureExpression();
++        ClassNode[] closureParamTypes = (ClassNode[]) closureExpression.getNodeMetaData(StaticTypesMarker.CLOSURE_ARGUMENTS);
++        if (closureParamTypes == null) return null;
++        final Parameter[] parameters = closureExpression.getParameters();
++        String name = parameter.getName();
++
++        if (parameters.length == 0) {
++            return "it".equals(name) && closureParamTypes.length != 0 ? closureParamTypes[0] : null;
++        }
++
++        for (int index = 0; index < parameters.length; index++) {
++            if (name.equals(parameters[index].getName())) {
++                return closureParamTypes.length > index ? closureParamTypes[index] : null;
++            }
++        }
++
++        return null;
++    }
++
+     /**
+      * resolves a Field or Property node generics by using the current class and
+      * the declaring class to extract the right meaning of the generics symbols
+diff --git a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+index 12e9cd26e6..74c20955fe 100644
+--- a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+@@ -364,6 +364,29 @@ class MethodCallsSTCTest extends StaticTypeCheckingTestCase {
+             '''
+     }
+ 
++    void testShouldNotFailThanksToInstanceOfChecksAndWithoutExplicitCasts2() {
++        assertScript '''
++                static String foo(String s) {
++                    'String'
++                }
++                static String foo(Integer s) {
++                    'Integer'
++                }
++                static String foo(Boolean s) {
++                    'Boolean'
++                }
++                ['foo',123,true].each { argument ->
++                    if (argument instanceof String) {
++                        foo(argument)
++                    } else if (argument instanceof Boolean) {
++                        foo(argument)
++                    } else if (argument instanceof Integer) {
++                        foo(argument)
++                    }
++                }
++            '''
++    }
++
+     void testShouldFailWithMultiplePossibleMethods() {
+         shouldFailWithMessages '''
+                 static String foo(String s) {
+@@ -383,6 +406,94 @@ class MethodCallsSTCTest extends StaticTypeCheckingTestCase {
+             ''', 'Reference to method is ambiguous'
+     }
+ 
++    void testShouldFailWithMultiplePossibleMethods2() {
++        shouldFailWithMessages '''
++                static String foo(String s) {
++                    'String'
++                }
++                static String foo(Integer s) {
++                    'Integer'
++                }
++                static String foo(Boolean s) {
++                    'Boolean'
++                }
++                ['foo',123,true].each { argument ->
++                    if (argument instanceof String || argument instanceof Boolean || argument instanceof Integer) {
++                        foo(argument)
++                    }
++                }
++            ''', 'Reference to method is ambiguous'
++    }
++
++    void testInstanceOfOnExplicitParameter() {
++        assertScript '''
++                1.with { obj ->
++                    if (obj instanceof String) {
++                        obj.toUpperCase() 
++                    }
++                }
++            '''
++    }
++
++    void testSAMWithExplicitParameter() {
++        assertScript '''
++            public interface SAM {
++                boolean run(String var1, Thread th);
++            }
++            
++            static boolean foo(SAM sam) {
++               sam.run("foo",  new Thread())
++            }
++            
++            static def callSAM() {
++                foo { str, th ->
++                    str.toUpperCase().equals(th.getName())
++                }
++            }
++            '''
++    }
++
++    void testGroovy8241() {
++        assertScript '''
++            import java.util.function.Predicate
++            
++            static boolean foo(Predicate<? super String> p) {
++                p.test("foo")
++            }
++            
++            static def testPredicate() {
++                foo { it ->
++                    it.toUpperCase()
++                    true
++                }
++            }
++            '''
++    }
++
++    void testGroovy7061() {
++        assertScript '''
++            void doIt() {
++                List<Integer> nums = [1, 2, 3, -2, -5, 6]
++                Collections.sort(nums, { a, b -> a.abs() <=> b.abs() })
++            }
++            '''
++    }
++
++    void testGroovy7061ex2() {
++        assertScript '''
++            def doIt(List<String> strings) {
++                return strings.
++                    stream().
++                    filter { s -> s.length() < 10 }.
++                    toArray()
++            }
++            
++            final words = ["orange", "sit", "test", "flabbergasted", "honorific"] 
++            
++            println doIt(words)
++            '''
++    }
++
+     void testShouldFailBecauseVariableIsReassigned() {
+         shouldFailWithMessages '''
+                 static String foo(String s) {

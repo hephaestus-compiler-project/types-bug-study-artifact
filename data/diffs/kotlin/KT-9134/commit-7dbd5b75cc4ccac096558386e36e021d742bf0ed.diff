@@ -1,0 +1,223 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/FunctionDescriptorResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/FunctionDescriptorResolver.kt
+index 94c75cc176b..c3744b7c49d 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/FunctionDescriptorResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/FunctionDescriptorResolver.kt
+@@ -310,7 +310,7 @@ class FunctionDescriptorResolver(
+             val type: JetType
+             if (typeReference != null) {
+                 type = typeResolver.resolveType(parameterScope, typeReference, trace, true)
+-                if (expectedType != null) {
++                if (expectedType != null && !TypeUtils.noExpectedType(expectedType)) {
+                     if (!JetTypeChecker.DEFAULT.isSubtypeOf(expectedType, type)) {
+                         trace.report(EXPECTED_PARAMETER_TYPE_MISMATCH.on(valueParameter, expectedType))
+                     }
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolver.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolver.java
+index cf130bd7674..555025c8f71 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolver.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolver.java
+@@ -23,7 +23,9 @@ import kotlin.Unit;
+ import kotlin.jvm.functions.Function0;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
++import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
+ import org.jetbrains.kotlin.descriptors.*;
++import org.jetbrains.kotlin.descriptors.annotations.Annotations;
+ import org.jetbrains.kotlin.lexer.JetTokens;
+ import org.jetbrains.kotlin.name.Name;
+ import org.jetbrains.kotlin.progress.ProgressIndicatorAndCompilationCanceledStatus;
+@@ -50,6 +52,7 @@ import org.jetbrains.kotlin.resolve.scopes.receivers.ReceiverValue;
+ import org.jetbrains.kotlin.resolve.scopes.utils.UtilsPackage;
+ import org.jetbrains.kotlin.types.JetType;
+ import org.jetbrains.kotlin.types.TypeSubstitutor;
++import org.jetbrains.kotlin.types.TypeUtils;
+ import org.jetbrains.kotlin.types.expressions.ExpressionTypingContext;
+ import org.jetbrains.kotlin.types.expressions.ExpressionTypingServices;
+ import org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher;
+@@ -57,6 +60,7 @@ import org.jetbrains.kotlin.types.expressions.OperatorConventions;
+ import org.jetbrains.kotlin.util.PerformanceCounter;
+ 
+ import javax.inject.Inject;
++import java.util.ArrayList;
+ import java.util.Collection;
+ import java.util.Collections;
+ import java.util.List;
+@@ -81,16 +85,19 @@ public class CallResolver {
+     private CallCompleter callCompleter;
+     private final TaskPrioritizer taskPrioritizer;
+     private final ResolutionResultsHandler resolutionResultsHandler;
++    @NotNull private KotlinBuiltIns builtIns;
+ 
+     private static final PerformanceCounter callResolvePerfCounter = PerformanceCounter.Companion.create("Call resolve", ExpressionTypingVisitorDispatcher.typeInfoPerfCounter);
+     private static final PerformanceCounter candidatePerfCounter = PerformanceCounter.Companion.create("Call resolve candidate analysis", true);
+ 
+     public CallResolver(
+             @NotNull TaskPrioritizer taskPrioritizer,
+-            @NotNull ResolutionResultsHandler resolutionResultsHandler
++            @NotNull ResolutionResultsHandler resolutionResultsHandler,
++            @NotNull KotlinBuiltIns builtIns
+     ) {
+         this.taskPrioritizer = taskPrioritizer;
+         this.resolutionResultsHandler = resolutionResultsHandler;
++        this.builtIns = builtIns;
+     }
+ 
+     // component dependency cycle
+@@ -289,8 +296,17 @@ public class CallResolver {
+         }
+ 
+         // Here we handle the case where the callee expression must be something of type function, e.g. (foo.bar())(1, 2)
++        JetType expectedType = NO_EXPECTED_TYPE;
++        if (calleeExpression instanceof JetFunctionLiteralExpression) {
++            int parameterNumber = ((JetFunctionLiteralExpression) calleeExpression).getValueParameters().size();
++            List<JetType> parameterTypes = new ArrayList<JetType>(parameterNumber);
++            for (int i = 0; i < parameterNumber; i++) {
++                parameterTypes.add(NO_EXPECTED_TYPE);
++            }
++            expectedType = builtIns.getFunctionType(Annotations.EMPTY, null, parameterTypes, context.expectedType);
++        }
+         JetType calleeType = expressionTypingServices.safeGetType(
+-                context.scope, calleeExpression, NO_EXPECTED_TYPE, context.dataFlowInfo, context.trace);
++                context.scope, calleeExpression, expectedType, context.dataFlowInfo, context.trace);
+         ExpressionReceiver expressionReceiver = new ExpressionReceiver(calleeExpression, calleeType);
+ 
+         Call call = new CallTransformer.CallForImplicitInvoke(context.call.getExplicitReceiver(), expressionReceiver, context.call);
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/FunctionsTypingVisitor.kt b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/FunctionsTypingVisitor.kt
+index 8273ac4ab06..c517be8d0b2 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/FunctionsTypingVisitor.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/FunctionsTypingVisitor.kt
+@@ -37,6 +37,7 @@ import org.jetbrains.kotlin.resolve.scopes.LexicalWritableScope
+ import org.jetbrains.kotlin.resolve.source.toSourceElement
+ import org.jetbrains.kotlin.types.CommonSupertypes
+ import org.jetbrains.kotlin.types.JetType
++import org.jetbrains.kotlin.types.TypeUtils
+ import org.jetbrains.kotlin.types.TypeUtils.CANT_INFER_FUNCTION_PARAM_TYPE
+ import org.jetbrains.kotlin.types.TypeUtils.NO_EXPECTED_TYPE
+ import org.jetbrains.kotlin.types.TypeUtils.noExpectedType
+@@ -185,7 +186,7 @@ public class FunctionsTypingVisitor(facade: ExpressionTypingInternals) : Express
+         val returnType = computeUnsafeReturnType(expression, context, functionDescriptor, expectedReturnType);
+ 
+         if (!expression.getFunctionLiteral().hasDeclaredReturnType() && functionTypeExpected) {
+-            if (KotlinBuiltIns.isUnit(expectedReturnType!!)) {
++            if (!TypeUtils.noExpectedType(expectedReturnType!!) && KotlinBuiltIns.isUnit(expectedReturnType)) {
+                 return components.builtIns.getUnitType()
+             }
+         }
+@@ -201,7 +202,8 @@ public class FunctionsTypingVisitor(facade: ExpressionTypingInternals) : Express
+         val functionLiteral = expression.getFunctionLiteral()
+         val declaredReturnType = functionLiteral.getTypeReference()?.let {
+             val type = components.typeResolver.resolveType(context.scope, it, context.trace, true)
+-            if (expectedReturnType != null && !JetTypeChecker.DEFAULT.isSubtypeOf(type, expectedReturnType)) {
++            if (expectedReturnType != null && !TypeUtils.noExpectedType(expectedReturnType)
++                && !JetTypeChecker.DEFAULT.isSubtypeOf(type, expectedReturnType)) {
+                 context.trace.report(EXPECTED_RETURN_TYPE_MISMATCH.on(it, expectedReturnType))
+             }
+             type
+diff --git a/compiler/testData/diagnostics/tests/LiteralAsResult.kt b/compiler/testData/diagnostics/tests/LiteralAsResult.kt
+new file mode 100644
+index 00000000000..434e19277b7
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/LiteralAsResult.kt
+@@ -0,0 +1,3 @@
++// Here we want just to check return type
++// Should be () -> Int
++fun foo() = { 42 }
+diff --git a/compiler/testData/diagnostics/tests/LiteralAsResult.txt b/compiler/testData/diagnostics/tests/LiteralAsResult.txt
+new file mode 100644
+index 00000000000..3cac0bef73e
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/LiteralAsResult.txt
+@@ -0,0 +1,3 @@
++package
++
++public fun foo(): () -> kotlin.Int
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/lambdaCall.kt b/compiler/testData/diagnostics/tests/smartCasts/lambdaCall.kt
+new file mode 100644
+index 00000000000..196ef568485
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/smartCasts/lambdaCall.kt
+@@ -0,0 +1,6 @@
++// See KT-9134: smart cast is not provided inside lambda call
++fun bar(): Int = {
++    var i: Int?
++    i = 42
++    <!DEBUG_INFO_SMARTCAST!>i<!>
++}()
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/lambdaCall.txt b/compiler/testData/diagnostics/tests/smartCasts/lambdaCall.txt
+new file mode 100644
+index 00000000000..b0ac3fff0c7
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/smartCasts/lambdaCall.txt
+@@ -0,0 +1,3 @@
++package
++
++public fun bar(): kotlin.Int
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/lambdaCallAnnotated.kt b/compiler/testData/diagnostics/tests/smartCasts/lambdaCallAnnotated.kt
+new file mode 100644
+index 00000000000..3a5e07d8cb2
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/smartCasts/lambdaCallAnnotated.kt
+@@ -0,0 +1,10 @@
++// See KT-9134: smart cast is not provided inside lambda call
++
++@Target(AnnotationTarget.EXPRESSION)
++annotation class My
++
++fun bar(): Int = @My {
++    var i: Int?
++    i = 42
++    <!DEBUG_INFO_SMARTCAST!>i<!>
++}()
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/lambdaCallAnnotated.txt b/compiler/testData/diagnostics/tests/smartCasts/lambdaCallAnnotated.txt
+new file mode 100644
+index 00000000000..2be3538d8bb
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/smartCasts/lambdaCallAnnotated.txt
+@@ -0,0 +1,10 @@
++package
++
++public fun bar(): kotlin.Int
++
++kotlin.annotation.Target(allowedTargets = {AnnotationTarget.EXPRESSION}) kotlin.annotation.annotation() public final class My : kotlin.Annotation {
++    public constructor My()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
+index 5e654fb4ceb..0955090a819 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
+@@ -307,6 +307,12 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("LiteralAsResult.kt")
++        public void testLiteralAsResult() throws Exception {
++            String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/LiteralAsResult.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("LocalClassAndShortSubpackageNames.kt")
+         public void testLocalClassAndShortSubpackageNames() throws Exception {
+             String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/LocalClassAndShortSubpackageNames.kt");
+@@ -13305,6 +13311,18 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("lambdaCall.kt")
++            public void testLambdaCall() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/smartCasts/lambdaCall.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("lambdaCallAnnotated.kt")
++            public void testLambdaCallAnnotated() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/smartCasts/lambdaCallAnnotated.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("noErrorCheckForPackageLevelVal.kt")
+             public void testNoErrorCheckForPackageLevelVal() throws Exception {
+                 String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/smartCasts/noErrorCheckForPackageLevelVal.kt");

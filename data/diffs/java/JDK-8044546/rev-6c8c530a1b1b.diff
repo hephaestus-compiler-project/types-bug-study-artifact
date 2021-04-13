@@ -1,0 +1,249 @@
+changeset:   2484:6c8c530a1b1b
+user:        vromero
+date:        Fri Jun 20 20:36:54 2014 +0100
+summary:     8044546: Crash on faulty reduce/lambda
+
+diff -r 173f27d6e81f -r 6c8c530a1b1b src/share/classes/com/sun/tools/javac/code/Types.java
+--- a/src/share/classes/com/sun/tools/javac/code/Types.java	Fri Jun 20 10:56:47 2014 -0700
++++ b/src/share/classes/com/sun/tools/javac/code/Types.java	Fri Jun 20 20:36:54 2014 +0100
+@@ -2968,6 +2968,12 @@
+         }
+ 
+         @Override
++        public Type visitUndetVar(UndetVar t, Void ignored) {
++            //do nothing - we should not replace inside undet variables
++            return t;
++        }
++
++        @Override
+         public Type visitClassType(ClassType t, Void ignored) {
+             if (!t.isCompound()) {
+                 List<Type> typarams = t.getTypeArguments();
+diff -r 173f27d6e81f -r 6c8c530a1b1b src/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Attr.java	Fri Jun 20 10:56:47 2014 -0700
++++ b/src/share/classes/com/sun/tools/javac/comp/Attr.java	Fri Jun 20 20:36:54 2014 +0100
+@@ -249,36 +249,30 @@
+      */
+     Type check(final JCTree tree, final Type found, final int ownkind, final ResultInfo resultInfo) {
+         InferenceContext inferenceContext = resultInfo.checkContext.inferenceContext();
+-        Type owntype = found;
+-        if (!owntype.hasTag(ERROR) && !resultInfo.pt.hasTag(METHOD) && !resultInfo.pt.hasTag(FORALL)) {
+-            if (allowPoly && inferenceContext.free(found)) {
+-                if ((ownkind & ~resultInfo.pkind) == 0) {
+-                    owntype = resultInfo.check(tree, inferenceContext.asUndetVar(owntype));
+-                } else {
+-                    log.error(tree.pos(), "unexpected.type",
+-                            kindNames(resultInfo.pkind),
+-                            kindName(ownkind));
+-                    owntype = types.createErrorType(owntype);
+-                }
++        Type owntype;
++        if (!found.hasTag(ERROR) && !resultInfo.pt.hasTag(METHOD) && !resultInfo.pt.hasTag(FORALL)) {
++            if ((ownkind & ~resultInfo.pkind) != 0) {
++                log.error(tree.pos(), "unexpected.type",
++                        kindNames(resultInfo.pkind),
++                        kindName(ownkind));
++                owntype = types.createErrorType(found);
++            } else if (allowPoly && inferenceContext.free(found)) {
++                //delay the check if there are inference variables in the found type
++                //this means we are dealing with a partially inferred poly expression
++                owntype = resultInfo.pt;
+                 inferenceContext.addFreeTypeListener(List.of(found, resultInfo.pt), new FreeTypeListener() {
+                     @Override
+                     public void typesInferred(InferenceContext inferenceContext) {
+                         ResultInfo pendingResult =
+-                                    resultInfo.dup(inferenceContext.asInstType(resultInfo.pt));
++                                resultInfo.dup(inferenceContext.asInstType(resultInfo.pt));
+                         check(tree, inferenceContext.asInstType(found), ownkind, pendingResult);
+                     }
+                 });
+-                return tree.type = resultInfo.pt;
+             } else {
+-                if ((ownkind & ~resultInfo.pkind) == 0) {
+-                    owntype = resultInfo.check(tree, owntype);
+-                } else {
+-                    log.error(tree.pos(), "unexpected.type",
+-                            kindNames(resultInfo.pkind),
+-                            kindName(ownkind));
+-                    owntype = types.createErrorType(owntype);
+-                }
++                owntype = resultInfo.check(tree, found);
+             }
++        } else {
++            owntype = found;
+         }
+         tree.type = owntype;
+         return owntype;
+@@ -2472,6 +2466,7 @@
+                     currentTarget = infer.instantiateFunctionalInterface(that,
+                             currentTarget, explicitParamTypes, resultInfo.checkContext);
+                 }
++                currentTarget = types.removeWildcards(currentTarget);
+                 lambdaType = types.findDescriptorType(currentTarget);
+             } else {
+                 currentTarget = Type.recoveryType;
+@@ -2894,7 +2889,7 @@
+                     resultInfo.checkContext.deferredAttrContext().mode == DeferredAttr.AttrMode.CHECK &&
+                     isSerializable(currentTarget);
+             if (currentTarget != Type.recoveryType) {
+-                currentTarget = targetChecker.visit(currentTarget, that);
++                currentTarget = types.removeWildcards(targetChecker.visit(currentTarget, that));
+                 desc = types.findDescriptorType(currentTarget);
+             } else {
+                 currentTarget = Type.recoveryType;
+diff -r 173f27d6e81f -r 6c8c530a1b1b src/share/classes/com/sun/tools/javac/comp/Check.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Check.java	Fri Jun 20 10:56:47 2014 -0700
++++ b/src/share/classes/com/sun/tools/javac/comp/Check.java	Fri Jun 20 20:36:54 2014 +0100
+@@ -534,8 +534,8 @@
+ 
+     Type checkType(final DiagnosticPosition pos, final Type found, final Type req, final CheckContext checkContext) {
+         final Infer.InferenceContext inferenceContext = checkContext.inferenceContext();
+-        if (inferenceContext.free(req)) {
+-            inferenceContext.addFreeTypeListener(List.of(req), new FreeTypeListener() {
++        if (inferenceContext.free(req) || inferenceContext.free(found)) {
++            inferenceContext.addFreeTypeListener(List.of(req, found), new FreeTypeListener() {
+                 @Override
+                 public void typesInferred(InferenceContext inferenceContext) {
+                     checkType(pos, inferenceContext.asInstType(found), inferenceContext.asInstType(req), checkContext);
+diff -r 173f27d6e81f -r 6c8c530a1b1b src/share/classes/com/sun/tools/javac/comp/Infer.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Infer.java	Fri Jun 20 10:56:47 2014 -0700
++++ b/src/share/classes/com/sun/tools/javac/comp/Infer.java	Fri Jun 20 20:36:54 2014 +0100
+@@ -354,6 +354,7 @@
+             Type to, Attr.ResultInfo resultInfo,
+             InferenceContext inferenceContext) {
+         inferenceContext.solve(List.of(from.qtype), new Warner());
++        inferenceContext.notifyChange();
+         Type capturedType = resultInfo.checkContext.inferenceContext()
+                 .cachedCapture(tree, from.inst, false);
+         if (types.isConvertible(capturedType,
+@@ -450,7 +451,7 @@
+         class ImplicitArgType extends DeferredAttr.DeferredTypeMap {
+ 
+             public ImplicitArgType(Symbol msym, Resolve.MethodResolutionPhase phase) {
+-                rs.deferredAttr.super(AttrMode.SPECULATIVE, msym, phase);
++                (rs.deferredAttr).super(AttrMode.SPECULATIVE, msym, phase);
+             }
+ 
+             public Type apply(Type t) {
+@@ -518,6 +519,8 @@
+                 //or if it's not a subtype of the original target, issue an error
+                 checkContext.report(pos, diags.fragment("no.suitable.functional.intf.inst", funcInterface));
+             }
++            //propagate constraints as per JLS 18.2.1
++            checkContext.compatible(owntype, funcInterface, types.noWarnings);
+             return owntype;
+         }
+     }
+diff -r 173f27d6e81f -r 6c8c530a1b1b src/share/classes/com/sun/tools/javac/comp/Resolve.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Resolve.java	Fri Jun 20 10:56:47 2014 -0700
++++ b/src/share/classes/com/sun/tools/javac/comp/Resolve.java	Fri Jun 20 20:36:54 2014 +0100
+@@ -958,9 +958,10 @@
+         }
+ 
+         public boolean compatible(Type found, Type req, Warner warn) {
++            InferenceContext inferenceContext = deferredAttrContext.inferenceContext;
+             return strict ?
+-                    types.isSubtypeUnchecked(found, deferredAttrContext.inferenceContext.asUndetVar(req), warn) :
+-                    types.isConvertible(found, deferredAttrContext.inferenceContext.asUndetVar(req), warn);
++                    types.isSubtypeUnchecked(inferenceContext.asUndetVar(found), inferenceContext.asUndetVar(req), warn) :
++                    types.isConvertible(inferenceContext.asUndetVar(found), inferenceContext.asUndetVar(req), warn);
+         }
+ 
+         public void report(DiagnosticPosition pos, JCDiagnostic details) {
+diff -r 173f27d6e81f -r 6c8c530a1b1b test/tools/javac/generics/inference/T8044546/CrashImplicitLambdaTest.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/T8044546/CrashImplicitLambdaTest.java	Fri Jun 20 20:36:54 2014 +0100
+@@ -0,0 +1,41 @@
++/*
++ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/**
++ * @test
++ * @bug 8044546
++ * @summary Crash on faulty reduce/lambda
++ * @compile CrashImplicitLambdaTest.java
++ */
++
++abstract class CrashImplicitLambdaTest {
++    boolean foo() {
++        return bar(true, a -> {});
++    }
++
++    abstract <T1> T1 bar(T1 t1, S<T1> s);
++
++    interface S<S1> {
++        void baz(S1 s1);
++    }
++}
+diff -r 173f27d6e81f -r 6c8c530a1b1b test/tools/javac/generics/inference/T8044546/NestedInvocationsTest.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/T8044546/NestedInvocationsTest.java	Fri Jun 20 20:36:54 2014 +0100
+@@ -0,0 +1,47 @@
++/*
++ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/**
++ * @test
++ * @bug 8044546
++ * @summary Crash on faulty reduce/lambda
++ * @compile NestedInvocationsTest.java
++ */
++
++class NestedInvocationsTest<T> {
++    boolean foo(I<T> i) {
++        return baz(zas(i));
++    }
++
++    <U> J<U, Boolean> zas(I<U> i) {
++        return null;
++    }
++
++    <R> R baz(J<T, R> j) {
++        return null;
++    }
++
++    interface I<I1> {}
++
++    interface J<J1, J2> {}
++}
+

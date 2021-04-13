@@ -1,0 +1,74 @@
+diff --git a/src/compiler/scala/tools/nsc/transform/ExtensionMethods.scala b/src/compiler/scala/tools/nsc/transform/ExtensionMethods.scala
+index 5f66cadbc9..e937589f54 100644
+--- a/src/compiler/scala/tools/nsc/transform/ExtensionMethods.scala
++++ b/src/compiler/scala/tools/nsc/transform/ExtensionMethods.scala
+@@ -78,13 +78,13 @@ abstract class ExtensionMethods extends Transform with TypingTransformers {
+   }
+ 
+   /** This method removes the `$this` argument from the parameter list a method.
+-   *  
++   *
+    *  A method may be a `PolyType`, in which case we tear out the `$this` and the class
+    *  type params from its nested `MethodType`.
+    *  It may be a `MethodType`, either with a curried parameter list in which the first argument
+    *  is a `$this` - we just return the rest of the list.
+    *  This means that the corresponding symbol was generated during `extmethods`.
+-   *  
++   *
+    *  It may also be a `MethodType` in which the `$this` does not appear in a curried parameter list.
+    *  The curried lists disappear during `uncurry`, and the methods may be duplicated afterwards,
+    *  for instance, during `specialize`.
+@@ -105,6 +105,14 @@ abstract class ExtensionMethods extends Transform with TypingTransformers {
+ 
+     private val extensionDefs = mutable.Map[Symbol, mutable.ListBuffer[Tree]]()
+ 
++    def checkNonCyclic(pos: Position, seen: Set[Symbol], clazz: Symbol): Unit =
++      if (seen contains clazz)
++        unit.error(pos, "value class may not unbox to itself")
++      else {
++        val unboxed = erasure.underlyingOfValueClass(clazz).typeSymbol
++        if (unboxed.isDerivedValueClass) checkNonCyclic(pos, seen + clazz, unboxed)
++      }
++
+     def extensionMethInfo(extensionMeth: Symbol, origInfo: Type, clazz: Symbol): Type = {
+       var newTypeParams = cloneSymbolsAtOwner(clazz.typeParams, extensionMeth)
+       val thisParamType = appliedType(clazz.typeConstructor, newTypeParams map (_.tpeHK))
+@@ -129,6 +137,7 @@ abstract class ExtensionMethods extends Transform with TypingTransformers {
+       tree match {
+         case Template(_, _, _) =>
+           if (currentOwner.isDerivedValueClass) {
++            checkNonCyclic(currentOwner.pos, Set(), currentOwner)
+             extensionDefs(currentOwner.companionModule) = new mutable.ListBuffer[Tree]
+             currentOwner.primaryConstructor.makeNotPrivate(NoSymbol)
+             super.transform(tree)
+diff --git a/test/files/neg/t5878.check b/test/files/neg/t5878.check
+new file mode 100644
+index 0000000000..50dba0d272
+--- /dev/null
++++ b/test/files/neg/t5878.check
+@@ -0,0 +1,13 @@
++t5878.scala:1: error: value class may not unbox to itself
++case class Foo(x: Bar) extends AnyVal
++           ^
++t5878.scala:2: error: value class may not unbox to itself
++case class Bar(x: Foo) extends AnyVal
++           ^
++t5878.scala:4: error: value class may not unbox to itself
++class Foo1(val x: Bar1) extends AnyVal
++      ^
++t5878.scala:5: error: value class may not unbox to itself
++class Bar1(val x: Foo1) extends AnyVal
++      ^
++four errors found
+diff --git a/test/files/neg/t5878.scala b/test/files/neg/t5878.scala
+new file mode 100644
+index 0000000000..b4e33627ef
+--- /dev/null
++++ b/test/files/neg/t5878.scala
+@@ -0,0 +1,6 @@
++case class Foo(x: Bar) extends AnyVal
++case class Bar(x: Foo) extends AnyVal
++
++class Foo1(val x: Bar1) extends AnyVal
++class Bar1(val x: Foo1) extends AnyVal
++

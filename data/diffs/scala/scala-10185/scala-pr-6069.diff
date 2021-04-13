@@ -1,0 +1,822 @@
+diff --git a/src/reflect/mima-filters/2.12.0.forwards.excludes b/src/reflect/mima-filters/2.12.0.forwards.excludes
+index 0f4142213f96..d905f61dd561 100644
+--- a/src/reflect/mima-filters/2.12.0.forwards.excludes
++++ b/src/reflect/mima-filters/2.12.0.forwards.excludes
+@@ -13,4 +13,5 @@ ProblemFilters.exclude[MissingClassProblem]("scala.reflect.io.FileZipArchive$Laz
+ ProblemFilters.exclude[DirectMissingMethodProblem]("scala.reflect.io.ZipArchive.closeZipFile")
+ ProblemFilters.exclude[MissingClassProblem]("scala.reflect.io.FileZipArchive$LeakyEntry")
+ 
+-ProblemFilters.exclude[DirectMissingMethodProblem]("scala.reflect.runtime.SynchronizedSymbols#SynchronizedSymbol.exists")
+\ No newline at end of file
++ProblemFilters.exclude[DirectMissingMethodProblem]("scala.reflect.runtime.SynchronizedSymbols#SynchronizedSymbol.exists")
++ProblemFilters.exclude[DirectMissingMethodProblem]("scala.reflect.runtime.Settings.isScala213")
+diff --git a/src/reflect/scala/reflect/internal/Types.scala b/src/reflect/scala/reflect/internal/Types.scala
+index a4413e0d479b..80a268925390 100644
+--- a/src/reflect/scala/reflect/internal/Types.scala
++++ b/src/reflect/scala/reflect/internal/Types.scala
+@@ -3325,7 +3325,7 @@ trait Types
+     )
+     override def etaExpand: Type = (
+       if (!isHigherKinded) this
+-      else logResult("Normalizing HK $this")(typeFun(params, applyArgs(params map (_.typeConstructor))))
++      else logResult(s"Normalizing HK $this")(typeFun(params, applyArgs(params map (_.typeConstructor))))
+     )
+     override def typeSymbol = origin.typeSymbol
+ 
+diff --git a/src/reflect/scala/reflect/internal/settings/MutableSettings.scala b/src/reflect/scala/reflect/internal/settings/MutableSettings.scala
+index ab933ae61709..955c083295aa 100644
+--- a/src/reflect/scala/reflect/internal/settings/MutableSettings.scala
++++ b/src/reflect/scala/reflect/internal/settings/MutableSettings.scala
+@@ -61,6 +61,7 @@ abstract class MutableSettings extends AbsSettings {
+ 
+   def isScala211: Boolean
+   def isScala212: Boolean
++  private[scala] def isScala213: Boolean
+ }
+ 
+ object MutableSettings {
+diff --git a/src/reflect/scala/reflect/internal/tpe/TypeComparers.scala b/src/reflect/scala/reflect/internal/tpe/TypeComparers.scala
+index 37d05c08a7c2..de4ca640590b 100644
+--- a/src/reflect/scala/reflect/internal/tpe/TypeComparers.scala
++++ b/src/reflect/scala/reflect/internal/tpe/TypeComparers.scala
+@@ -365,7 +365,32 @@ trait TypeComparers {
+ 
+   // @assume tp1.isHigherKinded || tp2.isHigherKinded
+   def isHKSubType(tp1: Type, tp2: Type, depth: Depth): Boolean = {
+-    def isSub(ntp1: Type, ntp2: Type) = (ntp1.withoutAnnotations, ntp2.withoutAnnotations) match {
++
++    def isSubHKTypeVar(tp1: Type, tp2: Type) = (tp1, tp2) match {
++      case (tv1 @ TypeVar(_, _), tv2 @ TypeVar(_, _)) =>
++        reporter.warning(tv1.typeSymbol.pos,
++          sm"""|compiler bug: Unexpected code path: testing two type variables for subtype relation:
++               |  ${tv1} <:< ${tv2}
++               |Please report bug at https://github.com/scala/bug/issues
++            """.trim)
++        false
++      case (tp1, tv2 @ TypeVar(_, _)) =>
++        val ntp1 = tp1.normalize
++        (tv2.params corresponds ntp1.typeParams)(methodHigherOrderTypeParamsSubVariance) &&
++        { tv2.addLoBound(ntp1); true }
++      case (tv1 @ TypeVar(_, _), tp2) =>
++        val ntp2 = tp2.normalize
++        (ntp2.typeParams corresponds tv1.params)(methodHigherOrderTypeParamsSubVariance) &&
++        { tv1.addHiBound(ntp2); true }
++      case _ =>
++        false
++    }
++
++    def isSub(tp1: Type, tp2: Type) =
++      settings.isScala213 && isSubHKTypeVar(tp1, tp2) ||
++        isSub2(tp1.normalize, tp2.normalize)  // @M! normalize reduces higher-kinded case to PolyType's
++
++    def isSub2(ntp1: Type, ntp2: Type) = (ntp1, ntp2) match {
+       case (TypeRef(_, AnyClass, _), _)                                     => false                    // avoid some warnings when Nothing/Any are on the other side
+       case (_, TypeRef(_, NothingClass, _))                                 => false
+       case (pt1: PolyType, pt2: PolyType)                                   => isPolySubType(pt1, pt2)  // @assume both .isHigherKinded (both normalized to PolyType)
+@@ -381,7 +406,7 @@ trait TypeComparers {
+       || (if (isNoArgStaticClassTypeRef(tp1) && isNoArgStaticClassTypeRef(tp2))
+             tp1.typeSymbolDirect.isNonBottomSubClass(tp2.typeSymbolDirect) // OPT faster than comparing eta-expanded types
+           else
+-            isSub(tp1.normalize, tp2.normalize) && annotationsConform(tp1, tp2)  // @M! normalize reduces higher-kinded case to PolyType's
++            isSub(tp1.withoutAnnotations, tp2.withoutAnnotations) && annotationsConform(tp1, tp2)
+          )
+     )
+   }
+diff --git a/src/reflect/scala/reflect/runtime/Settings.scala b/src/reflect/scala/reflect/runtime/Settings.scala
+index 2d8bacd3b2e0..6b129f6ec51a 100644
+--- a/src/reflect/scala/reflect/runtime/Settings.scala
++++ b/src/reflect/scala/reflect/runtime/Settings.scala
+@@ -54,4 +54,5 @@ private[reflect] class Settings extends MutableSettings {
+   val maxClassfileName  = new IntSetting(255)
+   def isScala211        = true
+   def isScala212        = true
++  private[scala] def isScala213 = false
+ }
+diff --git a/test/files/neg/hk-typevar-unification.check b/test/files/neg/hk-typevar-unification.check
+new file mode 100644
+index 000000000000..96dfedda4eaf
+--- /dev/null
++++ b/test/files/neg/hk-typevar-unification.check
+@@ -0,0 +1,22 @@
++hk-typevar-unification.scala:14: error: inferred kinds of the type arguments ([_ <: B]Foo[_]) do not conform to the expected kinds of the type parameters (type F).
++[_ <: B]Foo[_]'s type parameters do not match type F's expected parameters:
++type _ (in class Foo)'s bounds <: B are stricter than type _'s declared bounds >: Nothing <: Any
++  f(tcFoo)
++  ^
++hk-typevar-unification.scala:14: error: type mismatch;
++ found   : TC[Foo]
++ required: TC[F]
++  f(tcFoo)
++    ^
++hk-typevar-unification.scala:17: error: inferred kinds of the type arguments ([_ <: B]Foo[_]) do not conform to the expected kinds of the type parameters (type F).
++[_ <: B]Foo[_]'s type parameters do not match type F's expected parameters:
++type _ (in class Foo) is invariant, but type _ is declared covariant
++type _ (in class Foo)'s bounds <: B are stricter than type _'s declared bounds >: Nothing <: Any
++  g(tcFoo)
++  ^
++hk-typevar-unification.scala:17: error: type mismatch;
++ found   : TC[Foo]
++ required: TC[F]
++  g(tcFoo)
++    ^
++four errors found
+diff --git a/test/files/neg/hk-typevar-unification.flags b/test/files/neg/hk-typevar-unification.flags
+new file mode 100644
+index 000000000000..714bbf5125f3
+--- /dev/null
++++ b/test/files/neg/hk-typevar-unification.flags
+@@ -0,0 +1 @@
++-Xsource:2.13
+diff --git a/test/files/neg/hk-typevar-unification.scala b/test/files/neg/hk-typevar-unification.scala
+new file mode 100644
+index 000000000000..abc22db48924
+--- /dev/null
++++ b/test/files/neg/hk-typevar-unification.scala
+@@ -0,0 +1,18 @@
++class A
++class B
++trait TC[F[_ <: A]]
++class Foo[_ <: B]
++
++object Test {
++
++  def f[F[ _]](tc: TC[F]): Unit = ()
++  def g[F[+_]](tc: TC[F]): Unit = ()
++
++  val tcFoo: TC[Foo] = new TC[Foo] {}
++
++  // incompatible bounds
++  f(tcFoo)
++
++  // incompatible variance
++  g(tcFoo)
++}
+diff --git a/test/files/pos/patmat-hk.flags b/test/files/pos/patmat-hk.flags
+new file mode 100644
+index 000000000000..714bbf5125f3
+--- /dev/null
++++ b/test/files/pos/patmat-hk.flags
+@@ -0,0 +1 @@
++-Xsource:2.13
+diff --git a/test/files/pos/patmat-hk.scala b/test/files/pos/patmat-hk.scala
+new file mode 100644
+index 000000000000..701a9e7aaf25
+--- /dev/null
++++ b/test/files/pos/patmat-hk.scala
+@@ -0,0 +1,13 @@
++case class Foo[F[_]]()
++
++case class APair[F[_], G[_], A](f: F[A], g: G[A])
++
++object Test {
++  Foo[({ type L[a] = (a, Int) })#L]() match {
++    case Foo() => ()
++  }
++
++  APair[({ type L[a] = (Boolean, a) })#L, ({ type L[a] = a => Int })#L, String]((true, "two"), _.length) match {
++    case APair((b, s), f) => ()
++  }
++}
+diff --git a/test/files/pos/t10185.flags b/test/files/pos/t10185.flags
+new file mode 100644
+index 000000000000..714bbf5125f3
+--- /dev/null
++++ b/test/files/pos/t10185.flags
+@@ -0,0 +1 @@
++-Xsource:2.13
+diff --git a/test/files/pos/t10185.scala b/test/files/pos/t10185.scala
+new file mode 100644
+index 000000000000..28bc78a72068
+--- /dev/null
++++ b/test/files/pos/t10185.scala
+@@ -0,0 +1,10 @@
++sealed trait Foo[A, F[_ <: A]]
++case class Bar[A, F[_ <: A]]() extends Foo[A, F]
++
++class F[S <: String]
++
++object Test {
++  def f(foo: Foo[String, F]): Unit = foo match {
++    case Bar() => ()
++  }
++}
+diff --git a/test/files/pos/t10195.flags b/test/files/pos/t10195.flags
+new file mode 100644
+index 000000000000..714bbf5125f3
+--- /dev/null
++++ b/test/files/pos/t10195.flags
+@@ -0,0 +1 @@
++-Xsource:2.13
+diff --git a/test/files/pos/t10195.scala b/test/files/pos/t10195.scala
+new file mode 100644
+index 000000000000..c0682c4c1d69
+--- /dev/null
++++ b/test/files/pos/t10195.scala
+@@ -0,0 +1,11 @@
++sealed trait Foo[F[_]]
++case class Bar[F[_]]() extends Foo[F]
++
++object Test {
++
++  val foo: Foo[({ type Out[X] = String })#Out] = ???
++
++  foo match {
++    case Bar() =>
++  }
++}
+diff --git a/test/files/pos/t10195b.flags b/test/files/pos/t10195b.flags
+new file mode 100644
+index 000000000000..714bbf5125f3
+--- /dev/null
++++ b/test/files/pos/t10195b.flags
+@@ -0,0 +1 @@
++-Xsource:2.13
+diff --git a/test/files/pos/t10195b.scala b/test/files/pos/t10195b.scala
+new file mode 100644
+index 000000000000..9c1eaeb8a70a
+--- /dev/null
++++ b/test/files/pos/t10195b.scala
+@@ -0,0 +1,19 @@
++sealed trait Foo[F[_]]
++case class Bar[F[_]]() extends Foo[F]
++
++trait TC[A, B] {
++  type F[X] = B
++}
++
++object TC {
++  implicit val intInstance: TC[Int, String] =
++    new TC[Int, String] {}
++
++  implicit class Ops[A, B](a: A)(implicit val tc: TC[A, B]) {
++    def getFoo: Foo[tc.F] = ???
++  }
++
++  1.getFoo match {
++    case Bar() =>
++  }
++}
+diff --git a/test/files/pos/t10197.flags b/test/files/pos/t10197.flags
+new file mode 100644
+index 000000000000..714bbf5125f3
+--- /dev/null
++++ b/test/files/pos/t10197.flags
+@@ -0,0 +1 @@
++-Xsource:2.13
+diff --git a/test/files/pos/t10197.scala b/test/files/pos/t10197.scala
+new file mode 100644
+index 000000000000..54d7d6db20b7
+--- /dev/null
++++ b/test/files/pos/t10197.scala
+@@ -0,0 +1,38 @@
++import scala.language.higherKinds
++
++final case class Getter[S, A](get: S => A)
++
++final case class Wrap[F[_], A](value: F[A])
++
++object Wrap {
++  // Helper to defer specifying second argument to Wrap.
++  // Basically a type lambda specialized for Wrap.
++  // Wr[F]#ap[A] =:= Wrap[F, A]
++  type Wr[F[_]] = { type ap[A] = Wrap[F, A] }
++
++  implicit def unwrapper[F[_], A]: Getter[Wrap[F, A], F[A]] =
++    Getter(w => w.value)
++}
++
++object Test {
++  import Wrap._
++
++  type Foo[A] = List[A]
++  type Bar[A] = String
++
++  type WrapFoo1[A] = Wrap[Foo, A]
++  type WrapBar1[A] = Wrap[Bar, A]
++
++  implicitly[Getter[WrapFoo1[Int], Foo[Int]]]
++  implicitly[Getter[WrapBar1[Int], Bar[Int]]]
++
++  type WrapFoo2[A] = Wr[Foo]#ap[A]
++  type WrapBar2[A] = Wr[Bar]#ap[A]
++
++  // here's evidence that the new types are the same as the old ones
++  implicitly[WrapFoo2[Int] =:= WrapFoo1[Int]]
++  implicitly[WrapBar2[Int] =:= WrapBar1[Int]]
++
++  implicitly[Getter[WrapFoo2[Int], Foo[Int]]]
++  implicitly[Getter[WrapBar2[Int], Bar[Int]]]
++}
+diff --git a/test/files/pos/t10213.flags b/test/files/pos/t10213.flags
+new file mode 100644
+index 000000000000..714bbf5125f3
+--- /dev/null
++++ b/test/files/pos/t10213.flags
+@@ -0,0 +1 @@
++-Xsource:2.13
+diff --git a/test/files/pos/t10213.scala b/test/files/pos/t10213.scala
+new file mode 100644
+index 000000000000..7f5a44197eef
+--- /dev/null
++++ b/test/files/pos/t10213.scala
+@@ -0,0 +1,53 @@
++import scala.language.higherKinds
++
++final case class Coproduct[F[_], G[_], A](run: Either[F[A], G[A]])
++
++object Coproduct {
++
++  sealed trait Builder {
++    type Out[_]
++  }
++
++  sealed trait :++:[F[_], G[_]] extends Builder {
++    type Out[A] = Coproduct[F, G, A]
++  }
++
++  sealed trait :+:[F[_], B <: Builder] extends Builder {
++    type Out[A] = Coproduct[F, B#Out, A]
++  }
++}
++
++trait Inject[F[_], H[_]] {
++  def inj[A](fa: F[A]): H[A]
++}
++
++object Inject {
++  import Coproduct._
++
++  implicit def reflexiveInject[F[_]]: Inject[F, F] =
++    new Inject[F, F] {
++      def inj[A](fa: F[A]): F[A] = fa
++    }
++
++  implicit def injectLeft[F[_], G[_]]: Inject[F, (F :++: G)#Out] =
++    new Inject[F, (F :++: G)#Out] {
++      def inj[A](fa: F[A]): Coproduct[F, G, A] = Coproduct(Left(fa))
++    }
++
++  implicit def injectRight[F[_], G[_], H[_]](implicit I: Inject[F, H]): Inject[F, (G :++: H)#Out] =
++    new Inject[F, (G :++: H)#Out] {
++      def inj[A](fa: F[A]): Coproduct[G, H , A] = Coproduct(Right(I.inj(fa)))
++    }
++}
++
++object Test1 {
++  import Coproduct.{:++:, :+:}
++
++  class Foo[A]
++  class Bar[A]
++  class Baz[A]
++
++  implicitly[Inject[Baz, (Foo :+: Bar :++: Baz)#Out]]
++
++  implicitly[Inject[Baz, ({ type Out[A] = Coproduct[Foo, ({ type Out1[a] = Coproduct[Bar, Baz, a] })#Out1, A] })#Out]]
++}
+diff --git a/test/files/pos/t10238.flags b/test/files/pos/t10238.flags
+new file mode 100644
+index 000000000000..714bbf5125f3
+--- /dev/null
++++ b/test/files/pos/t10238.flags
+@@ -0,0 +1 @@
++-Xsource:2.13
+diff --git a/test/files/pos/t10238.scala b/test/files/pos/t10238.scala
+new file mode 100644
+index 000000000000..4fa06af7b5cb
+--- /dev/null
++++ b/test/files/pos/t10238.scala
+@@ -0,0 +1,36 @@
++object Test {
++
++  // Data types
++
++  type Id[A] = A
++
++  class MaybeT[F[_], A]
++
++  type Maybe[A] = MaybeT[Id, A]
++
++  type MaybeMaybe[A] = MaybeT[Maybe, A]
++
++
++  // Typeclass
++
++  trait Monad[F[_]]
++
++
++  // Instances
++
++  implicit val monadId: Monad[Id] = ???
++
++  implicit def monadMaybeT[F[_]: Monad]: Monad[({ type λ[A] = MaybeT[F, A] })#λ] = ???
++
++  implicit val monadOption: Monad[Option] = ???
++
++
++  // Implicit search tests
++
++  implicitly[Monad[Id]]
++  implicitly[Monad[({ type λ[A] = A })#λ]]
++  implicitly[Monad[Maybe]]
++  implicitly[Monad[({ type λ[A] = MaybeT[Id, A] })#λ]]
++  implicitly[Monad[MaybeMaybe]]
++  implicitly[Monad[({ type λ[A] = MaybeT[Maybe, A] })#λ]]
++}
+diff --git a/test/files/pos/t10372.flags b/test/files/pos/t10372.flags
+new file mode 100644
+index 000000000000..714bbf5125f3
+--- /dev/null
++++ b/test/files/pos/t10372.flags
+@@ -0,0 +1 @@
++-Xsource:2.13
+diff --git a/test/files/pos/t10372.scala b/test/files/pos/t10372.scala
+new file mode 100644
+index 000000000000..9923457ebc57
+--- /dev/null
++++ b/test/files/pos/t10372.scala
+@@ -0,0 +1,16 @@
++import scala.language.higherKinds
++import scala.language.implicitConversions
++
++object Test {
++  class Expected[T, Func[_]]
++  implicit def conv[T, Func[_]](i : Int) : Expected[T, Func] = ???
++  type FuncId[T] = T
++
++  object DoesNotCompile {
++    class Bla {
++      type Alias[T] = Expected[T, FuncId]
++      def bla[T](expected : Alias[T]) : Unit = {}
++    }
++    (new Bla).bla(2)
++  }
++}
+diff --git a/test/files/pos/t6895b-2.flags b/test/files/pos/t6895b-2.flags
+new file mode 100644
+index 000000000000..714bbf5125f3
+--- /dev/null
++++ b/test/files/pos/t6895b-2.flags
+@@ -0,0 +1 @@
++-Xsource:2.13
+diff --git a/test/files/pos/t6895b-2.scala b/test/files/pos/t6895b-2.scala
+new file mode 100644
+index 000000000000..3be68cd3bf9a
+--- /dev/null
++++ b/test/files/pos/t6895b-2.scala
+@@ -0,0 +1,39 @@
++trait Foo[F[_]]
++trait Bar[F[_], A]
++
++trait Or[A, B]
++
++class Test {
++  implicit def orFoo[A]: Foo[({type L[X] = Or[A, X]})#L] = ???
++  implicit def barFoo[F[_]](implicit f: Foo[F]): Foo[({type L[X] = Bar[F, X]})#L] = ???
++
++  // Now we can define a couple of type aliases:
++  type StringOr[X] = Or[String, X]
++  type BarStringOr[X] = Bar[StringOr, X]
++
++  // ok
++  implicitly[Foo[BarStringOr]]
++  barFoo[StringOr](null) : Foo[BarStringOr]
++  barFoo(null) : Foo[BarStringOr]
++
++  // nok
++  implicitly[Foo[({type L[X] = Bar[StringOr, X]})#L]]
++  // Let's write the application explicitly, and then
++  // compile with just this line enabled and -explaintypes.
++  barFoo(null) : Foo[({type L[X] = Bar[StringOr, X]})#L]
++
++  // Foo[[X]Bar[F,X]] <: Foo[[X]Bar[[X]Or[String,X],X]]?
++  //   Bar[[X]Or[String,X],X] <: Bar[F,X]?
++  //     F[_] <: Or[String,_]?
++  //     false
++  //   false
++  // false
++
++  // Note that the type annotation above is typechecked as
++  // Foo[[X]Bar[[X]Or[String,X],X]], ie the type alias `L`
++  // is eta expanded.
++  //
++  // This is done so that it does not escape its defining scope.
++  // However, one this is done, higher kinded inference
++  // no longer is able to unify F with `StringOr` (scala/bug#2712)
++}
+diff --git a/test/files/run/hk-typevar-unification.check b/test/files/run/hk-typevar-unification.check
+new file mode 100644
+index 000000000000..3b7cea967342
+--- /dev/null
++++ b/test/files/run/hk-typevar-unification.check
+@@ -0,0 +1,8 @@
++Some(1)
++Some(1)
++Some((hi,5))
++Some((hi,5))
++Some(X)
++Some(X)
++Some(X)
++Some(X)
+diff --git a/test/files/run/hk-typevar-unification.flags b/test/files/run/hk-typevar-unification.flags
+new file mode 100644
+index 000000000000..714bbf5125f3
+--- /dev/null
++++ b/test/files/run/hk-typevar-unification.flags
+@@ -0,0 +1 @@
++-Xsource:2.13
+diff --git a/test/files/run/hk-typevar-unification.scala b/test/files/run/hk-typevar-unification.scala
+new file mode 100644
+index 000000000000..a8d895f2f948
+--- /dev/null
++++ b/test/files/run/hk-typevar-unification.scala
+@@ -0,0 +1,83 @@
++import scala.language.higherKinds
++
++trait Forall[F[_]] {
++  def instantiate[A]: F[A]
++}
++
++object Forall {
++  implicit class Ops[F[_]](f: Forall[F]) {
++    def apply[A]: F[A] = f.instantiate[A]
++  }
++}
++
++trait Forall2[F[_, _]] {
++  def instantiate[A, B]: F[A, B]
++}
++
++object Forall2 {
++  implicit class Ops[F[_, _]](f: Forall2[F]) {
++    def apply[A, B]: F[A, B] = f.instantiate[A, B]
++  }
++}
++
++trait FlatMap[F[_]] {
++  def flatMap[A, B](fa: F[A])(f: A => F[B]): F[B]
++}
++
++object FlatMap {
++  implicit val optionInstance: FlatMap[Option] = new FlatMap[Option] {
++    def flatMap[A, B](fa: Option[A])(f: A => Option[B]) = fa.flatMap(f)
++  }
++}
++
++object Test extends App {
++
++  // natural transformation
++  type ~>[F[_], G[_]] = Forall[({ type L[A] = F[A] => G[A] })#L]
++
++  // binatural transformation
++  type ~~>[F[_, _], G[_, _]] = Forall2[({ type L[A, B] = F[A, B] => G[A, B] })#L]
++
++
++  type RightAction[G[_], F[_, _]] = Forall2[({ type L[A, B] = (G[A], F[A, B]) => G[B] })#L]
++  type  LeftAction[G[_], F[_, _]] = Forall2[({ type L[A, B] = (F[A, B], G[B]) => G[A] })#L]
++
++
++  val headOpt = new (List ~> Option) {
++    def instantiate[A]: List[A] => Option[A] = _.headOption
++  }
++
++  // tests that implicit Forall.Ops is found
++  println(headOpt.apply(List(1, 2, 3)))
++  println(headOpt[Int](List(1, 2, 3)))
++
++  val someEntry = new (Map ~~> ({ type L[K, V] = Option[(K, V)] })#L) {
++    def instantiate[K, V]: Map[K, V] => Option[(K, V)] = _.headOption
++  }
++
++  // tests that implicit Forall2.Ops is found
++  println(someEntry.apply(Map(("hi", 5))))
++  println(someEntry[String, Int](Map(("hi", 5))))
++
++  def kleisliPostCompose[F[_], Z](implicit F: FlatMap[F]) =
++    new RightAction[({ type L[A] = Z => F[A] })#L, ({ type L[A, B] = A => F[B] })#L] {
++      def instantiate[A, B]: (Z => F[A], A => F[B]) => (Z => F[B]) = (f, g) => (z => F.flatMap(f(z))(g))
++    }
++
++  def kleisliPreCompose[F[_], C](implicit F: FlatMap[F]) =
++    new LeftAction[({ type L[B] = B => F[C] })#L, ({ type L[A, B] = A => F[B] })#L] {
++      def instantiate[A, B]: (A => F[B], B => F[C]) => (A => F[C]) = (f, g) => (a => F.flatMap(f(a))(g))
++    }
++
++  def parseInt(s: String): Option[Int] = Some(42)
++  def toChar(i: Int): Option[Char] = Some('X')
++
++  val ra = kleisliPostCompose[Option, String]
++  val la = kleisliPreCompose[Option, Char]
++
++  // tests that implicit Forall2.Ops is found
++  println( ra.apply(parseInt(_), toChar(_)).apply("")  )
++  println( ra[Int, Char](parseInt(_), toChar(_))("")   )
++  println( la.apply(parseInt(_), toChar(_))("")        )
++  println( la[String, Int](parseInt(_), toChar(_))("") )
++}
+diff --git a/test/junit/scala/reflect/internal/TypesTest.scala b/test/junit/scala/reflect/internal/TypesTest.scala
+index d02422c8a4e9..e70a5badc6ce 100644
+--- a/test/junit/scala/reflect/internal/TypesTest.scala
++++ b/test/junit/scala/reflect/internal/TypesTest.scala
+@@ -1,10 +1,11 @@
+ package scala.reflect.internal
+ 
+ import org.junit.Assert._
+-import org.junit.{Assert, Test}
++import org.junit.{After, Assert, Before, Test}
+ import org.junit.runner.RunWith
+ import org.junit.runners.JUnit4
+ import scala.collection.mutable
++import scala.tools.nsc.settings.ScalaVersion
+ import scala.tools.nsc.symtab.SymbolTableForUnitTesting
+ 
+ @RunWith(classOf[JUnit4])
+@@ -139,4 +140,177 @@ class TypesTest {
+     assert(ts.forall(_ <:< merged2))
+     assert(merged1 =:= merged2)
+   }
++
++
++
++  class Foo[A]
++  class Bar[+T, A]
++  class Baz {
++    def f[F[_]] = ()
++    def g[G[_, _]] = ()
++  }
++
++  var storedXsource: ScalaVersion = null
++  @Before
++  def storeXsource: Unit = {
++    storedXsource = settings.source.value
++  }
++  @After
++  def restoreXsource: Unit = {
++    settings.source.value = storedXsource
++  }
++
++  @Test
++  def testHigherKindedTypeVarUnification(): Unit = {
++    import rootMirror.EmptyPackageClass
++    import Flags._
++
++    val FooTpe = typeOf[Foo[Int]] match {
++      case TypeRef(pre, sym, _) =>
++        sym.typeParams // doing it for the side effect
++        TypeRef(pre, sym, Nil)
++    }
++    val BarTpe = typeOf[Bar[Int, Int]] match {
++      case TypeRef(pre, sym, _) =>
++        sym.typeParams // doing it for the side effect
++        TypeRef(pre, sym, Nil)
++    }
++
++    // apply Foo to type arugment A
++    def Foo(A: Type) = FooTpe match {
++      case TypeRef(pre, sym, Nil) => TypeRef(pre, sym, A :: Nil)
++    }
++
++    // apply Bar to type arguments A, B
++    def Bar(A: Type, B: Type) = BarTpe match {
++      case TypeRef(pre, sym, Nil) => TypeRef(pre, sym, A :: B :: Nil)
++    }
++
++    val F0 = typeOf[Baz].member(TermName("f")).typeSignature.typeParams.head
++    val G0 = typeOf[Baz].member(TermName("g")).typeSignature.typeParams.head
++
++    // since TypeVars are mutable, we will be creating fresh ones
++    def F() = TypeVar(F0)
++    def G() = TypeVar(G0)
++
++    def polyType(f: TypeVar => Type, flags: Long = 0L): Type = {
++      val A = EmptyPackageClass.newTypeParameter(newTypeName("A"), newFlags = flags)
++      A.setInfo(TypeBounds.empty)
++      val A_ = TypeVar(A)
++      PolyType(A :: Nil, f(A_))
++    }
++
++    def coPolyType(f: TypeVar => Type): Type =
++      polyType(f, COVARIANT)
++
++    def polyType2(f: (TypeVar, TypeVar) => Type): Type = {
++      val A = EmptyPackageClass.newTypeParameter(newTypeName("A"))
++      val B = EmptyPackageClass.newTypeParameter(newTypeName("B"))
++      A.setInfo(TypeBounds.empty)
++      B.setInfo(TypeBounds.empty)
++      val A_ = TypeVar(A)
++      val B_ = TypeVar(B)
++      PolyType(A :: B :: Nil, f(A_, B_))
++    }
++
++    val Any = typeOf[Any]
++    val Int = typeOf[Int]
++
++    settings.source.value = ScalaVersion("2.13")
++
++    // test that ?F unifies with Foo
++    assert(F() <:< FooTpe)
++    assert(FooTpe <:< F())
++    assert(F() =:= FooTpe)
++    assert(FooTpe =:= F)
++
++    // test that ?F unifies with [A]Foo[A]
++    assert(F() <:< polyType(A => Foo(A)))
++    assert(polyType(A => Foo(A)) <:< F())
++    assert(F() =:= polyType(A => Foo(A)))
++    assert(polyType(A => Foo(A)) =:= F())
++
++    // test that ?F unifies with [A]Bar[Int, A]
++    assert(F() <:< polyType(A => Bar(Int, A)))
++    assert(polyType(A => Bar(Int, A)) <:< F())
++    assert(F() =:= polyType(A => Bar(Int, A)))
++    assert(polyType(A => Bar(Int, A)) =:= F())
++
++    // test that ?F unifies with [A]Bar[A, Int]
++    assert(F() <:< polyType(A => Bar(A, Int)))
++    assert(polyType(A => Bar(A, Int)) <:< F())
++    assert(F() =:= polyType(A => Bar(A, Int)))
++    assert(polyType(A => Bar(A, Int)) =:= F())
++
++    // test that ?F unifies with [+A]Bar[A, Int]
++    assert(F() <:< coPolyType(A => Bar(A, Int)))
++    assert(coPolyType(A => Bar(A, Int)) <:< F())
++    assert(F() =:= coPolyType(A => Bar(A, Int)))
++    assert(coPolyType(A => Bar(A, Int)) =:= F())
++
++    // test that ?F unifies with [A]Foo[Foo[A]]
++    assert(F() <:< polyType(A => Foo(Foo(A))))
++    assert(polyType(A => Foo(Foo(A))) <:< F())
++    assert(F() =:= polyType(A => Foo(Foo(A))))
++    assert(polyType(A => Foo(Foo(A))) =:= F())
++
++    // test that ?F unifies with [A]Foo[Bar[A, A]]
++    assert(F() <:< polyType(A => Foo(Bar(A, A))))
++    assert(polyType(A => Foo(Bar(A, A))) <:< F())
++    assert(F() =:= polyType(A => Foo(Bar(A, A))))
++    assert(polyType(A => Foo(Bar(A, A))) =:= F())
++
++    // test that ?F unifies with [A]Bar[Foo[A], Foo[A]]
++    assert(F() <:< polyType(A => Bar(Foo(A), Foo(A))))
++    assert(polyType(A => Bar(Foo(A), Foo(A))) <:< F())
++    assert(F() =:= polyType(A => Bar(Foo(A), Foo(A))))
++    assert(polyType(A => Bar(Foo(A), Foo(A))) =:= F())
++
++    // test that ?F unifies with [A]A
++    assert(F() <:< polyType(A => A))
++    assert(polyType(A => A) <:< F())
++    assert(F() =:= polyType(A => A))
++    assert(polyType(A => A) =:= F())
++
++    // test that ?F unifies with [A]Int
++    assert(F() <:< polyType(A => Int))
++    assert(polyType(A => Int) <:< F())
++    assert(F() =:= polyType(A => Int))
++    assert(polyType(A => Int) =:= F())
++
++    // test that ?F unifies with [A]Foo[Int]
++    assert(F() <:< polyType(A => Foo(Int)))
++    assert(polyType(A => Foo(Int)) <:< F())
++    assert(F() =:= polyType(A => Foo(Int)))
++    assert(polyType(A => Foo(Int)) =:= F())
++
++    // test that ?G unifies with Bar
++    assert(G() <:< BarTpe)
++    assert(BarTpe <:< G())
++    assert(G() =:= BarTpe)
++    assert(BarTpe =:= G())
++
++    // test that ?G unifies with [A, B]Bar[A, B]
++    assert(G() <:< polyType2((A, B) => Bar(A, B)))
++    assert(polyType2((A, B) => Bar(A, B)) <:< G())
++    assert(G() =:= polyType2((A, B) => Bar(A, B)))
++    assert(polyType2((A, B) => Bar(A, B)) =:= G())
++
++    // test that ?G unifies with [A, B]Bar[B, A]
++    assert(G() <:< polyType2((A, B) => Bar(B, A)))
++    assert(polyType2((B, A) => Bar(A, B)) <:< G())
++    assert(G() =:= polyType2((A, B) => Bar(B, A)))
++    assert(polyType2((B, A) => Bar(A, B)) =:= G())
++
++    // test that ?G unifies with [A, B]Bar[Bar[B, A], A]
++    assert(G() <:< polyType2((A, B) => Bar(Bar(B, A), A)))
++    assert(polyType2((A, B) => Bar(Bar(B, A), A)) <:< G())
++    assert(G() =:= polyType2((A, B) => Bar(Bar(B, A), A)))
++    assert(polyType2((A, B) => Bar(Bar(B, A), A)) =:= G())
++
++    // test that [A]Bar[Int, A] <:< ?F <:< [A]Bar[Any, A]
++    F() match { case _F =>
++      assert(polyType(A => Bar(Int, A)) <:< _F && _F <:< polyType(A => Bar(Any, A)))
++    }
++  }
+ }
+diff --git a/test/junit/scala/tools/nsc/settings/SettingsTest.scala b/test/junit/scala/tools/nsc/settings/SettingsTest.scala
+index 24bfb3dcde5d..6a568012a653 100644
+--- a/test/junit/scala/tools/nsc/settings/SettingsTest.scala
++++ b/test/junit/scala/tools/nsc/settings/SettingsTest.scala
+@@ -176,6 +176,7 @@ class SettingsTest {
+     check(expected = "2.11.0", "-Xsource:2.11")
+     check(expected = "2.10",   "-Xsource:2.10.0")
+     check(expected = "2.12",   "-Xsource:2.12")
++    check(expected = "2.13",   "-Xsource:2.13")
+     assertThrows[IllegalArgumentException](check(expected = "2.11", "-Xsource"), _ == "-Xsource requires an argument, the syntax is -Xsource:<version>")
+     assertThrows[IllegalArgumentException](check(expected = "2.11", "-Xsource", "2.11"), _ == "-Xsource requires an argument, the syntax is -Xsource:<version>")
+     assertThrows[IllegalArgumentException](check(expected = "2.11", "-Xsource:2.invalid"), _ contains "Bad version (2.invalid)")

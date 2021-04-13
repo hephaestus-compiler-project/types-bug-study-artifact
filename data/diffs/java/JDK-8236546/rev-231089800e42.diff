@@ -1,0 +1,51 @@
+changeset:   57635:231089800e42
+user:        jlahoda
+date:        Mon Jan 13 10:50:31 2020 +0100
+summary:     8236546: Yield with boolean expression and Object target type crashes javac.
+
+diff -r 1539b1e71dfa -r 231089800e42 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Flow.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Flow.java	Mon Jan 13 10:49:58 2020 +0100
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Flow.java	Mon Jan 13 10:50:31 2020 +0100
+@@ -2579,7 +2579,7 @@
+                 recordExit(exit);
+                 return ;
+             } else {
+-                scan(tree.value);
++                scanExpr(tree.value);
+                 recordExit(new AssignPendingExit(tree, inits, uninits));
+             }
+         }
+diff -r 1539b1e71dfa -r 231089800e42 test/langtools/tools/javac/switchexpr/ExpressionSwitchEmbedding.java
+--- a/test/langtools/tools/javac/switchexpr/ExpressionSwitchEmbedding.java	Mon Jan 13 10:49:58 2020 +0100
++++ b/test/langtools/tools/javac/switchexpr/ExpressionSwitchEmbedding.java	Mon Jan 13 10:50:31 2020 +0100
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2018, 2019, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2018, 2020, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -23,7 +23,7 @@
+ 
+ /*
+  * @test
+- * @bug 8214031 8214114
++ * @bug 8214031 8214114 8236546
+  * @summary Verify switch expressions embedded in various statements work properly.
+  * @compile ExpressionSwitchEmbedding.java
+  * @run main ExpressionSwitchEmbedding
+@@ -321,6 +321,13 @@
+                 throw new IllegalStateException();
+             }
+         }
++        {
++            String s = "";
++            Object o = switch (s) { default -> s != null && s == s; };
++            if (!(Boolean) o) {
++                throw new IllegalStateException();
++            }
++        }
+     }
+ 
+     private void throwException() {
+

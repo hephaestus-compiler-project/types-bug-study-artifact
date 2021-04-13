@@ -1,0 +1,48 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/ModifiersChecker.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/ModifiersChecker.java
+index 04963437eba..92895ac5ece 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/ModifiersChecker.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/ModifiersChecker.java
+@@ -295,7 +295,8 @@ public class ModifiersChecker {
+         JetAnnotationEntry annotationEntry = trace.get(BindingContext.ANNOTATION_DESCRIPTOR_TO_PSI_ELEMENT, annotation);
+         if (annotationEntry == null) return;
+ 
+-        if (!DescriptorUtils.isTopLevelDeclaration(descriptor) || !(descriptor instanceof FunctionDescriptor)) {
++        if (!DescriptorUtils.isTopLevelDeclaration(descriptor) || !(descriptor instanceof FunctionDescriptor) ||
++            descriptor instanceof ConstructorDescriptor) {
+             trace.report(INAPPLICABLE_ANNOTATION.on(annotationEntry));
+         }
+ 
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/annotations/annotationApplicability/platformName.kt b/compiler/testData/diagnostics/testsWithStdLib/annotations/annotationApplicability/platformName.kt
+index d70c3d6d8cb..51952415dd5 100644
+--- a/compiler/testData/diagnostics/testsWithStdLib/annotations/annotationApplicability/platformName.kt
++++ b/compiler/testData/diagnostics/testsWithStdLib/annotations/annotationApplicability/platformName.kt
+@@ -1,4 +1,4 @@
+-// !DIAGNOSTICS: -UNUSED_VARIABLE
++// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER
+ 
+ import kotlin.platform.*
+ 
+@@ -32,7 +32,8 @@ var vardef: Int = 1
+     set
+ 
+ [<!INAPPLICABLE_ANNOTATION!>platformName("C")<!>]
+-class C {
++class C [platformName("primary")]() { // TODO: modifiers check on primary constructor KT-7057
++    <!INAPPLICABLE_ANNOTATION!>platformName("ctr")<!> constructor(x: Int): this() {}
+     [<!INAPPLICABLE_ANNOTATION!>platformName("a")<!>]
+     fun foo() {}
+ 
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/annotations/annotationApplicability/platformName.txt b/compiler/testData/diagnostics/testsWithStdLib/annotations/annotationApplicability/platformName.txt
+index 348d65731b3..b58ccc8e01f 100644
+--- a/compiler/testData/diagnostics/testsWithStdLib/annotations/annotationApplicability/platformName.txt
++++ b/compiler/testData/diagnostics/testsWithStdLib/annotations/annotationApplicability/platformName.txt
+@@ -10,7 +10,8 @@ internal fun foo1(): kotlin.Unit
+ kotlin.platform.platformName(name = "b": kotlin.String) internal fun kotlin.Any.foo(): kotlin.Unit
+ 
+ kotlin.platform.platformName(name = "C": kotlin.String) internal final class C {
+-    public constructor C()
++    kotlin.platform.platformName(name = "primary": kotlin.String) public constructor C()
++    kotlin.platform.platformName(name = "ctr": kotlin.String) public constructor C(/*0*/ x: kotlin.Int)
+     kotlin.platform.platformName(name = "c": kotlin.String) internal final val px: kotlin.Int = 1
+     internal final val valx: kotlin.Int
+     internal final var varx: kotlin.Int

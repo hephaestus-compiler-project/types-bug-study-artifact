@@ -1,0 +1,1 @@
+def map = new HashMap<>()

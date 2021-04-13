@@ -1,0 +1,214 @@
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Typers.scala b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+index 553583e6b71a..239fc47867c8 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Typers.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+@@ -2213,37 +2213,58 @@ trait Typers extends Modes with Adaptations with Tags {
+      */
+     def checkMethodStructuralCompatible(ddef: DefDef): Unit = {
+       val meth = ddef.symbol
+-      def fail(pos: Position, msg: String) = unit.error(pos, msg)
+-      val tp: Type = meth.tpe match {
+-        case mt @ MethodType(_, _)     => mt
+-        case NullaryMethodType(restpe) => restpe  // TODO_NMT: drop NullaryMethodType from resultType?
+-        case PolyType(_, restpe)       => restpe
+-        case _                         => NoType
+-      }
+-      def nthParamPos(n: Int) = ddef.vparamss match {
+-        case xs :: _ if xs.length > n => xs(n).pos
+-        case _                        => meth.pos
+-      }
+-      def failStruct(pos: Position, what: String, where: String = "Parameter") =
+-        fail(pos, s"$where type in structural refinement may not refer to $what")
+-
+-      foreachWithIndex(tp.paramTypes) { (paramType, idx) =>
+-        val sym = paramType.typeSymbol
+-        def paramPos = nthParamPos(idx)
+-
+-        if (sym.isAbstractType) {
+-          if (!sym.hasTransOwner(meth.owner))
+-            failStruct(paramPos, "an abstract type defined outside that refinement")
+-          else if (!sym.hasTransOwner(meth))
+-            failStruct(paramPos, "a type member of that refinement")
++      def parentString = meth.owner.parentSymbols filterNot (_ == ObjectClass) match {
++        case Nil => ""
++        case xs  => xs.map(_.nameString).mkString(" (of ", " with ", ")")
++      }
++      def fail(pos: Position, msg: String): Boolean = {
++        unit.error(pos, msg)
++        false
++      }
++      /** Have to examine all parameters in all lists.
++       */
++      def paramssTypes(tp: Type): List[List[Type]] = tp match {
++        case mt @ MethodType(_, restpe) => mt.paramTypes :: paramssTypes(restpe)
++        case PolyType(_, restpe)        => paramssTypes(restpe)
++        case _                          => Nil
++      }
++      def resultType = meth.tpe.finalResultType
++      def nthParamPos(n1: Int, n2: Int) =
++        try ddef.vparamss(n1)(n2).pos catch { case _: IndexOutOfBoundsException => meth.pos }
++
++      def failStruct(pos: Position, what: String, where: String = "Parameter type") =
++        fail(pos, s"$where in structural refinement may not refer to $what")
++
++      foreachWithIndex(paramssTypes(meth.tpe)) { (paramList, listIdx) =>
++        foreachWithIndex(paramList) { (paramType, paramIdx) =>
++          val sym = paramType.typeSymbol
++          def paramPos = nthParamPos(listIdx, paramIdx)
++
++          /** Not enough to look for abstract types; have to recursively check the bounds
++           *  of each abstract type for more abstract types. Almost certainly there are other
++           *  exploitable type soundness bugs which can be seen by bounding a type parameter
++           *  by an abstract type which itself is bounded by an abstract type.
++           */
++          def checkAbstract(tp0: Type, what: String): Boolean = {
++            def check(sym: Symbol): Boolean = !sym.isAbstractType || {
++              log(s"""checking $tp0 in refinement$parentString at ${meth.owner.owner.fullLocationString}""")
++              (    (!sym.hasTransOwner(meth.owner) && failStruct(paramPos, "an abstract type defined outside that refinement", what))
++                || (!sym.hasTransOwner(meth) && failStruct(paramPos, "a type member of that refinement", what))
++                || checkAbstract(sym.info.bounds.hi, "Type bound")
++              )
++            }
++            tp0.dealiasWidenChain forall (t => check(t.typeSymbol))
++          }
++          checkAbstract(paramType, "Parameter type")
++
++          if (sym.isDerivedValueClass)
++            failStruct(paramPos, "a user-defined value class")
++          if (paramType.isInstanceOf[ThisType] && sym == meth.owner)
++            failStruct(paramPos, "the type of that refinement (self type)")
+         }
+-        if (sym.isDerivedValueClass)
+-          failStruct(paramPos, "a user-defined value class")
+-        if (paramType.isInstanceOf[ThisType] && sym == meth.owner)
+-          failStruct(paramPos, "the type of that refinement (self type)")
+       }
+-      if (tp.resultType.typeSymbol.isDerivedValueClass)
+-        failStruct(ddef.tpt.pos, "a user-defined value class", where = "Result")
++      if (resultType.typeSymbol.isDerivedValueClass)
++        failStruct(ddef.tpt.pos, "a user-defined value class", where = "Result type")
+     }
+ 
+     def typedUseCase(useCase: UseCase) {
+diff --git a/test/files/neg/t5378.check b/test/files/neg/t5378.check
+new file mode 100644
+index 000000000000..c1460083f6c6
+--- /dev/null
++++ b/test/files/neg/t5378.check
+@@ -0,0 +1,31 @@
++t5378.scala:7: error: Type bound in structural refinement may not refer to an abstract type defined outside that refinement
++  def contains = new { def apply[T1 <: T](value: T1) = ??? }
++                                          ^
++t5378.scala:8: error: Type bound in structural refinement may not refer to an abstract type defined outside that refinement
++  def contains1 = new { def apply[T1 <: A1](value: T1) = ??? }
++                                            ^
++t5378.scala:9: error: Type bound in structural refinement may not refer to an abstract type defined outside that refinement
++  def contains2 = new { def apply[T1 <: A2](value: T1) = ??? }
++                                            ^
++t5378.scala:15: error: Type bound in structural refinement may not refer to an abstract type defined outside that refinement
++    new Bippy { def apply[T1 <: T](value: T1) = ??? }
++                                   ^
++t5378.scala:16: error: Type bound in structural refinement may not refer to an abstract type defined outside that refinement
++    new Bippy { def apply[T1 <: B1](value: T1) = ??? }
++                                    ^
++t5378.scala:17: error: Type bound in structural refinement may not refer to an abstract type defined outside that refinement
++    new Bippy { def apply[T1 <: B2](value: T1) = ??? }
++                                    ^
++t5378.scala:21: error: Type bound in structural refinement may not refer to an abstract type defined outside that refinement
++      def apply1[T1 <: B3](value: T1) = ???
++                           ^
++t5378.scala:23: error: Parameter type in structural refinement may not refer to an abstract type defined outside that refinement
++      def apply3(value: B3) = ???
++                 ^
++t5378.scala:28: error: Parameter type in structural refinement may not refer to an abstract type defined outside that refinement
++    def apply1(s: String)(x: Int)(value: T) = ???
++                                  ^
++t5378.scala:29: error: Type bound in structural refinement may not refer to an abstract type defined outside that refinement
++    def apply2[T1 <: T](s: String)(x: Int)(value: T1) = ???
++                                           ^
++10 errors found
+diff --git a/test/files/neg/t5378.scala b/test/files/neg/t5378.scala
+new file mode 100644
+index 000000000000..fa6afa02be36
+--- /dev/null
++++ b/test/files/neg/t5378.scala
+@@ -0,0 +1,54 @@
++import scala.language.reflectiveCalls
++
++class Coll[+T] {
++  type A1 <: T
++  type A2 <: A1
++
++  def contains = new { def apply[T1 <: T](value: T1) = ??? }
++  def contains1 = new { def apply[T1 <: A1](value: T1) = ??? }
++  def contains2 = new { def apply[T1 <: A2](value: T1) = ??? }
++  def contains3 = {
++    trait Bippy {
++      type B1 <: T
++      type B2 <: B1
++    }
++    new Bippy { def apply[T1 <: T](value: T1) = ??? }
++    new Bippy { def apply[T1 <: B1](value: T1) = ??? }
++    new Bippy { def apply[T1 <: B2](value: T1) = ??? }
++    new Bippy {
++      type B3 = B2
++      type B4 = List[B2]
++      def apply1[T1 <: B3](value: T1) = ???
++      def apply2[T1 <: B4](value: T1) = ???
++      def apply3(value: B3) = ???
++      def apply4(value: B4) = value.head
++    }
++  }
++  def contains4 = new {
++    def apply1(s: String)(x: Int)(value: T) = ???
++    def apply2[T1 <: T](s: String)(x: Int)(value: T1) = ???
++  }
++  def containsOk = {
++    trait Bippy {
++      type B1 <: AnyRef
++      type B2 <: B1
++    }
++    new Bippy { def apply[T1 <: AnyRef](value: T1) = ??? }
++    new Bippy { type B1 = String ; def apply[T1 <: B1](value: T1) = ??? }
++    new Bippy { type B2 = String ; def apply[T1 <: B2](value: T1) = ??? }
++  }
++}
++
++object Test {
++  def main(args: Array[String]): Unit = {
++    val xs = new Coll[List[String]]
++    val ys: Coll[Traversable[String]] = xs
++
++    println(ys contains Nil)
++    // java.lang.NoSuchMethodException: Coll$$anon$1.apply(scala.collection.Traversable)
++    //  at java.lang.Class.getMethod(Class.java:1605)
++    //  at Test$.reflMethod$Method1(a.scala:14)
++    //  at Test$.main(a.scala:14)
++    //  at Test.main(a.scala)
++  }
++}
+diff --git a/test/pending/neg/t5378.scala b/test/pending/neg/t5378.scala
+deleted file mode 100644
+index cada29b0a067..000000000000
+--- a/test/pending/neg/t5378.scala
++++ /dev/null
+@@ -1,19 +0,0 @@
+-import language.reflectiveCalls
+-
+-class Coll[+T] {
+-  def contains = new { def apply[T1 <: T](value: T1) = ??? }
+-}
+-
+-object Test {
+-  def main(args: Array[String]): Unit = {
+-    val xs = new Coll[List[String]]
+-    val ys: Coll[Traversable[String]] = xs
+-    
+-    println(ys contains Nil)
+-    // java.lang.NoSuchMethodException: Coll$$anon$1.apply(scala.collection.Traversable)
+-    //  at java.lang.Class.getMethod(Class.java:1605)
+-    //  at Test$.reflMethod$Method1(a.scala:14)
+-    //  at Test$.main(a.scala:14)
+-    //  at Test.main(a.scala)
+-  }
+-}

@@ -1,0 +1,347 @@
+diff --git a/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index b0321867265..61561bbe9cb 100644
+--- a/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -708,7 +708,7 @@ private boolean visitPropertyExpressionSilent(PropertyExpression pe, Expression
+ 
+     @Override
+     public void visitPropertyExpression(final PropertyExpression pexp) {
+-        typeCheckingContext.pushPropertyExpression(pexp);
++        typeCheckingContext.pushEnclosingPropertyExpression(pexp);
+         try {
+             if (visitPropertyExpressionSilent(pexp, pexp)) return;
+ 
+@@ -718,7 +718,7 @@ public void visitPropertyExpression(final PropertyExpression pexp) {
+                         " for class: " + findCurrentInstanceOfClass(objectExpression, getType(objectExpression)).toString(false), pexp);
+             }
+         } finally {
+-            typeCheckingContext.popPropertyExpression();
++            typeCheckingContext.popEnclosingPropertyExpression();
+         }
+     }
+ 
+@@ -2104,53 +2104,58 @@ protected void addClosureReturnType(ClassNode returnType) {
+ 
+     @Override
+     public void visitConstructorCallExpression(ConstructorCallExpression call) {
+-        super.visitConstructorCallExpression(call);
+-        if (extension.beforeMethodCall(call)) {
+-            extension.afterMethodCall(call);
+-            return;
+-        }
+-        ClassNode receiver = call.isThisCall() ? typeCheckingContext.getEnclosingClassNode() :
+-                call.isSuperCall() ? typeCheckingContext.getEnclosingClassNode().getSuperClass() : call.getType();
+-        Expression arguments = call.getArguments();
++        typeCheckingContext.pushEnclosingConstructorCall(call);
++        try {
++            super.visitConstructorCallExpression(call);
++            if (extension.beforeMethodCall(call)) {
++                extension.afterMethodCall(call);
++                return;
++            }
++            ClassNode receiver = call.isThisCall() ? typeCheckingContext.getEnclosingClassNode() :
++                    call.isSuperCall() ? typeCheckingContext.getEnclosingClassNode().getSuperClass() : call.getType();
++            Expression arguments = call.getArguments();
+ 
+-        ArgumentListExpression argumentList = InvocationWriter.makeArgumentList(arguments);
++            ArgumentListExpression argumentList = InvocationWriter.makeArgumentList(arguments);
+ 
+-        checkForbiddenSpreadArgument(argumentList);
++            checkForbiddenSpreadArgument(argumentList);
+ 
+-        ClassNode[] args = getArgumentTypes(argumentList);
+-        if (args.length > 0 &&
+-                typeCheckingContext.getEnclosingClosure() != null &&
+-                argumentList.getExpression(0) instanceof VariableExpression &&
+-                ((VariableExpression) argumentList.getExpression(0)).isThisExpression() &&
+-                call.getType() instanceof InnerClassNode &&
+-                call.getType().getOuterClass().equals(args[0]) &&
+-                !call.getType().isStaticClass()) {
+-            args[0] = CLOSURE_TYPE;
+-        }
+-
+-
+-        MethodNode node;
+-        if (looksLikeNamedArgConstructor(receiver, args)
+-                && findMethod(receiver, "<init>", DefaultGroovyMethods.init(args)).size() == 1
+-                && findMethod(receiver, "<init>", args).isEmpty()) {
+-            // bean-style constructor
+-            node = typeCheckMapConstructor(call, receiver, arguments);
+-            if (node != null) {
+-                storeTargetMethod(call, node);
+-                extension.afterMethodCall(call);
+-                return;
++            ClassNode[] args = getArgumentTypes(argumentList);
++            if (args.length > 0 &&
++                    typeCheckingContext.getEnclosingClosure() != null &&
++                    argumentList.getExpression(0) instanceof VariableExpression &&
++                    ((VariableExpression) argumentList.getExpression(0)).isThisExpression() &&
++                    call.getType() instanceof InnerClassNode &&
++                    call.getType().getOuterClass().equals(args[0]) &&
++                    !call.getType().isStaticClass()) {
++                args[0] = CLOSURE_TYPE;
+             }
+-        }
+-        node = findMethodOrFail(call, receiver, "<init>", args);
+-        if (node != null) {
+-            if (looksLikeNamedArgConstructor(receiver, args) && node.getParameters().length + 1 == args.length) {
++
++
++            MethodNode node;
++            if (looksLikeNamedArgConstructor(receiver, args)
++                    && findMethod(receiver, "<init>", DefaultGroovyMethods.init(args)).size() == 1
++                    && findMethod(receiver, "<init>", args).isEmpty()) {
++                // bean-style constructor
+                 node = typeCheckMapConstructor(call, receiver, arguments);
+-            } else {
+-                typeCheckMethodsWithGenericsOrFail(receiver, args, node, call);
++                if (node != null) {
++                    storeTargetMethod(call, node);
++                    extension.afterMethodCall(call);
++                    return;
++                }
++            }
++            node = findMethodOrFail(call, receiver, "<init>", args);
++            if (node != null) {
++                if (looksLikeNamedArgConstructor(receiver, args) && node.getParameters().length + 1 == args.length) {
++                    node = typeCheckMapConstructor(call, receiver, arguments);
++                } else {
++                    typeCheckMethodsWithGenericsOrFail(receiver, args, node, call);
++                }
++                if (node != null) storeTargetMethod(call, node);
+             }
+-            if (node != null) storeTargetMethod(call, node);
++            extension.afterMethodCall(call);
++        } finally {
++            typeCheckingContext.popEnclosingConstructorCall();
+         }
+-        extension.afterMethodCall(call);
+     }
+ 
+     private boolean looksLikeNamedArgConstructor(ClassNode receiver, ClassNode[] args) {
+@@ -3358,12 +3363,17 @@ public void visitMethodCallExpression(MethodCallExpression call) {
+ 
+     /**
+      * e.g. c(b(a())),      a() and b() are nested method call, but c() is not
++     *      new C(b(a()))   a() and b() are nested method call
++     *
+      *      a().b().c(),    a() and b() are sandwiched method call, but c() is not
++     *
+      *      a().b().c       a() and b() are sandwiched method call
+      *
+      */
+     private boolean isNestedOrSandwichedMethodCall() {
+-        return typeCheckingContext.getEnclosingMethodCalls().size() > 1 || typeCheckingContext.getPropertyExpressions().size() > 0;
++        return typeCheckingContext.getEnclosingMethodCalls().size() > 1
++                || typeCheckingContext.getEnclosingConstructorCalls().size() > 0
++                || typeCheckingContext.getEnclosingPropertyExpressions().size() > 0;
+     }
+ 
+     /**
+diff --git a/src/main/java/org/codehaus/groovy/transform/stc/TypeCheckingContext.java b/src/main/java/org/codehaus/groovy/transform/stc/TypeCheckingContext.java
+index a6ca78d2855..3d344f28791 100644
+--- a/src/main/java/org/codehaus/groovy/transform/stc/TypeCheckingContext.java
++++ b/src/main/java/org/codehaus/groovy/transform/stc/TypeCheckingContext.java
+@@ -23,6 +23,7 @@
+ import org.codehaus.groovy.ast.Parameter;
+ import org.codehaus.groovy.ast.expr.BinaryExpression;
+ import org.codehaus.groovy.ast.expr.ClosureExpression;
++import org.codehaus.groovy.ast.expr.ConstructorCallExpression;
+ import org.codehaus.groovy.ast.expr.Expression;
+ import org.codehaus.groovy.ast.expr.MethodCallExpression;
+ import org.codehaus.groovy.ast.expr.PropertyExpression;
+@@ -55,9 +56,10 @@
+     protected final LinkedList<ClassNode> enclosingClassNodes = new LinkedList<ClassNode>();
+     protected final LinkedList<MethodNode> enclosingMethods = new LinkedList<MethodNode>();
+     protected final LinkedList<Expression> enclosingMethodCalls = new LinkedList<Expression>();
++    protected final LinkedList<ConstructorCallExpression> enclosingConstructorCalls = new LinkedList<ConstructorCallExpression>();
+     protected final LinkedList<BlockStatement> enclosingBlocks = new LinkedList<BlockStatement>();
+     protected final LinkedList<ReturnStatement> enclosingReturnStatements = new LinkedList<ReturnStatement>();
+-    protected final LinkedList<PropertyExpression> propertyExpressions = new LinkedList<PropertyExpression>();
++    protected final LinkedList<PropertyExpression> enclosingPropertyExpressions = new LinkedList<PropertyExpression>();
+ 
+ 
+     // used for closure return type inference
+@@ -305,16 +307,16 @@ public void popTemporaryTypeInfo() {
+      * Pushes a property expression into the property expression stack.
+      * @param propertyExpression the property expression to be pushed
+      */
+-    public void pushPropertyExpression(PropertyExpression propertyExpression) {
+-        propertyExpressions.addFirst((PropertyExpression) propertyExpression);
++    public void pushEnclosingPropertyExpression(PropertyExpression propertyExpression) {
++        enclosingPropertyExpressions.addFirst(propertyExpression);
+     }
+ 
+     /**
+      * Pops a property expression from the property expression stack.
+      * @return the popped property expression
+      */
+-    public Expression popPropertyExpression() {
+-        return propertyExpressions.removeFirst();
++    public Expression popEnclosingPropertyExpression() {
++        return enclosingPropertyExpressions.removeFirst();
+     }
+ 
+     /**
+@@ -322,9 +324,9 @@ public Expression popPropertyExpression() {
+      * if there's no such element.
+      * @return the property expression on top of the stack, or null if no such element.
+      */
+-    public Expression getPropertyExpression() {
+-        if (propertyExpressions.isEmpty()) return null;
+-        return propertyExpressions.getFirst();
++    public Expression getEnclosingPropertyExpression() {
++        if (enclosingPropertyExpressions.isEmpty()) return null;
++        return enclosingPropertyExpressions.getFirst();
+     }
+ 
+     /**
+@@ -332,8 +334,8 @@ public Expression getPropertyExpression() {
+      * element is the top of the stack, that is to say the currently visited property expression.
+      * @return an immutable list of property expressions.
+      */
+-    public List<PropertyExpression> getPropertyExpressions() {
+-        return Collections.unmodifiableList(propertyExpressions);
++    public List<PropertyExpression> getEnclosingPropertyExpressions() {
++        return Collections.unmodifiableList(enclosingPropertyExpressions);
+     }
+ 
+     /**
+@@ -375,6 +377,42 @@ public Expression getEnclosingMethodCall() {
+         return Collections.unmodifiableList(enclosingMethodCalls);
+     }
+ 
++
++    /**
++     * Pushes a constructor call into the constructor call stack.
++     * @param call the call expression to be pushed
++     */
++    public void pushEnclosingConstructorCall(ConstructorCallExpression call) {
++        enclosingConstructorCalls.addFirst(call);
++    }
++
++    /**
++     * Pops a constructor call from the enclosing constructor call stack.
++     * @return the popped call
++     */
++    public Expression popEnclosingConstructorCall() {
++        return enclosingConstructorCalls.removeFirst();
++    }
++
++    /**
++     * Returns the constructor call which is on the top of the stack, or null
++     * if there's no such element.
++     * @return the enclosing constructor call on top of the stack, or null if no such element.
++     */
++    public Expression getEnclosingConstructorCall() {
++        if (enclosingConstructorCalls.isEmpty()) return null;
++        return enclosingConstructorCalls.getFirst();
++    }
++
++    /**
++     * Returns the current stack of enclosing constructor calls. The first
++     * element is the top of the stack, that is to say the currently visited constructor call.
++     * @return an immutable list of enclosing constructor calls.
++     */
++    public List<Expression> getEnclosingConstructorCalls() {
++        return Collections.unmodifiableList(enclosingConstructorCalls);
++    }
++
+     public List<ErrorCollector> getErrorCollectors() {
+         return Collections.unmodifiableList(errorCollectors);
+     }
+diff --git a/src/test/groovy/bugs/Groovy8629Bug.groovy b/src/test/groovy/bugs/Groovy8629Bug.groovy
+new file mode 100644
+index 00000000000..f4c949d1793
+--- /dev/null
++++ b/src/test/groovy/bugs/Groovy8629Bug.groovy
+@@ -0,0 +1,89 @@
++/*
++ *  Licensed to the Apache Software Foundation (ASF) under one
++ *  or more contributor license agreements.  See the NOTICE file
++ *  distributed with this work for additional information
++ *  regarding copyright ownership.  The ASF licenses this file
++ *  to you under the Apache License, Version 2.0 (the
++ *  "License"); you may not use this file except in compliance
++ *  with the License.  You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ *  Unless required by applicable law or agreed to in writing,
++ *  software distributed under the License is distributed on an
++ *  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++ *  KIND, either express or implied.  See the License for the
++ *  specific language governing permissions and limitations
++ *  under the License.
++ */
++package groovy.bugs
++
++public class Groovy8629Bug extends GroovyTestCase {
++    void testNestedMethodCallInConstructor() {
++        assertScript '''
++        import groovy.transform.CompileStatic
++        
++        /**
++         * A utility class for comparing two maps
++         */
++        @CompileStatic
++        class MapComparison implements Iterable<IntegerPair> {
++            Map<String, Integer> m1
++            Map<String, Integer> m2
++            Set<String> unionKeys = null
++        
++            MapComparison(Map<String, Integer> map1, Map<String, Integer> map2) {
++                this.m1 = map1
++                this.m2 = map2
++            }
++        
++            @Override
++            Iterator<IntegerPair> iterator() {
++                if (unionKeys == null) {
++                    unionKeys = m1.keySet() + m2.keySet()
++                }
++                return new IntegerPairIterator(unionKeys.iterator())
++            }
++        
++            class IntegerPairIterator implements Iterator<IntegerPair> {
++                private Iterator<String> keyIterator
++        
++                IntegerPairIterator(Iterator<String> keyIterator) {
++                    this.keyIterator = keyIterator
++                }
++        
++                @Override
++                boolean hasNext() {
++                    return keyIterator.hasNext()
++                }
++        
++                @Override
++                IntegerPair next() {
++                    String key = keyIterator.next()
++                    IntegerPair comp = new IntegerPair(m1[key], m2[key])
++                    return comp
++                }
++        
++                @Override
++                void remove() {
++                    throw new UnsupportedOperationException()
++                }
++            }
++        
++            static class IntegerPair  {
++                Integer i1;
++                Integer i2;
++        
++                IntegerPair(Integer int1, Integer int2) {
++                    i1 = int1;
++                    i2 = int2;
++                }
++            }
++        }
++        
++        def mc = new MapComparison([:],[:])
++
++        '''
++    }
++
++}

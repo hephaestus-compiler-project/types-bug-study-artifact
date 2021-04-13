@@ -1,0 +1,54 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 97edfe3647..462c6aeae2 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -1757,13 +1757,16 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                 if (objectExpression == VariableExpression.THIS_EXPRESSION) {
+                     // isClosureCall() check verified earlier that a field exists
+                     FieldNode field = classNode.getDeclaredField(name);
+-                    ClassNode closureReturnType = field.getType().getGenericsTypes()[0].getType();
+-                    Object data = field.getNodeMetaData(StaticTypesMarker.CLOSURE_ARGUMENTS);
+-                    if (data != null) {
+-                        Parameter[] parameters = (Parameter[]) data;
+-                        typeCheckClosureCall(callArguments, args, parameters);
++                    GenericsType[] genericsTypes = field.getType().getGenericsTypes();
++                    if (genericsTypes != null) {
++                        ClassNode closureReturnType = genericsTypes[0].getType();
++                        Object data = field.getNodeMetaData(StaticTypesMarker.CLOSURE_ARGUMENTS);
++                        if (data != null) {
++                            Parameter[] parameters = (Parameter[]) data;
++                            typeCheckClosureCall(callArguments, args, parameters);
++                        }
++                        storeType(call, closureReturnType);
+                     }
+-                    storeType(call, closureReturnType);
+                 } else if (objectExpression instanceof VariableExpression) {
+                     Variable variable = findTargetVariable((VariableExpression) objectExpression);
+                     if (variable instanceof Expression) {
+diff --git a/src/test/groovy/transform/stc/ClosuresSTCTest.groovy b/src/test/groovy/transform/stc/ClosuresSTCTest.groovy
+index 62ff6479e4..3ddf6a0625 100644
+--- a/src/test/groovy/transform/stc/ClosuresSTCTest.groovy
++++ b/src/test/groovy/transform/stc/ClosuresSTCTest.groovy
+@@ -259,5 +259,22 @@ class ClosuresSTCTest extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
++    // GROOVY-5705
++    void testNPEWhenCallingClosureFromAField() {
++        assertScript '''
++            import groovy.transform.*
++
++            class Test {
++                Closure c = { it }
++
++                @TypeChecked
++                void test() {
++                    c("123")
++                }
++            }
++
++            new Test().test()
++        '''
++    }
+ }
+ 

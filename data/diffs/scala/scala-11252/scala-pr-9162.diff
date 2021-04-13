@@ -1,0 +1,46 @@
+diff --git a/src/compiler/scala/tools/nsc/typechecker/PatternTypers.scala b/src/compiler/scala/tools/nsc/typechecker/PatternTypers.scala
+index 41c9a728ccc0..0f318ef20596 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/PatternTypers.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/PatternTypers.scala
+@@ -97,7 +97,9 @@ trait PatternTypers {
+       // Dueling test cases: pos/overloaded-unapply.scala, run/case-class-23.scala, pos/t5022.scala
+       // A case class with 23+ params has no unapply method.
+       // A case class constructor may be overloaded with unapply methods in the companion.
+-      else if (canElide && caseClass.isCase && !member.isOverloaded)
++      // A case class maybe have its own custom unapply (so non-synthetic) scala/bug#11252
++      // Unapply methods aren't `isCaseApplyOrUnapply` in Scala 3 tasty/run/src-2/tastytest/TestColour.scala
++      else if (canElide && caseClass.isCase && !member.isOverloaded && (member == NoSymbol || member.isSynthetic))
+         logResult(s"convertToCaseConstructor($fun, $caseClass, pt=$pt)")(convertToCaseConstructor(fun, caseClass, pt))
+       else if (!reallyExists(member))
+         CaseClassConstructorError(fun, s"${fun.symbol} is not a case class, nor does it have a valid unapply/unapplySeq member")
+diff --git a/src/reflect/scala/reflect/internal/Symbols.scala b/src/reflect/scala/reflect/internal/Symbols.scala
+index 32144d949661..dddaf91aa6b4 100644
+--- a/src/reflect/scala/reflect/internal/Symbols.scala
++++ b/src/reflect/scala/reflect/internal/Symbols.scala
+@@ -960,6 +960,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
+ 
+     /** Is this symbol a synthetic apply or unapply method in a companion object of a case class? */
+     // xeno-by: why this obscure use of the CASE flag? why not simply compare name with nme.apply and nme.unapply?
++    // dnw: "fixed in Dotty"?  In Scala 3 unapply methods don't use the CASE flag.
+     final def isCaseApplyOrUnapply =
+       isMethod && isCase && isSynthetic
+ 
+diff --git a/test/files/pos/t11252.scala b/test/files/pos/t11252.scala
+new file mode 100644
+index 000000000000..e23a3e257501
+--- /dev/null
++++ b/test/files/pos/t11252.scala
+@@ -0,0 +1,13 @@
++final case class Ttl(duration: Int, other: Boolean)
++
++object Ttl {
++  def apply(duration: Int) = new Ttl(duration, false)
++
++  def unapply(x: Ttl): Option[Int] = if (x eq null) None else Some(x.duration)
++}
++
++object Test {
++  def main(args: Array[String]): Unit = {
++    Ttl(1) match { case Ttl(y) => println(y) }
++  }
++}

@@ -1,0 +1,170 @@
+changeset:   4089:b873436b362b
+user:        mcimadamore
+date:        Thu Apr 06 17:27:52 2017 +0100
+summary:     8177933: Stackoverflow during compilation, starting jdk-9+163
+
+diff -r bd530c55e62c -r b873436b362b src/jdk.compiler/share/classes/com/sun/tools/javac/comp/ArgumentAttr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/ArgumentAttr.java	Thu Apr 06 16:19:33 2017 +0200
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/ArgumentAttr.java	Thu Apr 06 17:27:52 2017 +0100
+@@ -105,7 +105,7 @@
+     private Env<AttrContext> env;
+ 
+     /** Result of method attribution. */
+-    private Type result;
++    Type result;
+ 
+     /** Cache for argument types; behavior is influences by the currrently selected cache policy. */
+     Map<UniquePos, ArgumentType<?>> argumentTypeCache = new LinkedHashMap<>();
+@@ -215,13 +215,8 @@
+         processArg(that, () -> {
+             T speculativeTree = (T)deferredAttr.attribSpeculative(that, env, attr.new MethodAttrInfo() {
+                 @Override
+-                protected void attr(JCTree tree, Env<AttrContext> env) {
+-                    //avoid speculative attribution loops
+-                    if (!new UniquePos(tree).equals(pos)) {
+-                        super.attr(tree, env);
+-                    } else {
+-                        visitTree(tree);
+-                    }
++                protected boolean needsArgumentAttr(JCTree tree) {
++                    return !new UniquePos(tree).equals(pos);
+                 }
+             });
+             return argumentTypeFactory.apply(speculativeTree);
+diff -r bd530c55e62c -r b873436b362b src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Apr 06 16:19:33 2017 +0200
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Apr 06 17:27:52 2017 +0100
+@@ -505,9 +505,12 @@
+             this.checkMode = checkMode;
+         }
+ 
+-        protected void attr(JCTree tree, Env<AttrContext> env) {
+-            tree.accept(Attr.this);
+-        }
++        /**
++         * Should {@link Attr#attribTree} use the {@ArgumentAttr} visitor instead of this one?
++         * @param tree The tree to be type-checked.
++         * @return true if {@ArgumentAttr} should be used.
++         */
++        protected boolean needsArgumentAttr(JCTree tree) { return false; }
+ 
+         protected Type check(final DiagnosticPosition pos, final Type found) {
+             return chk.checkType(pos, found, pt, checkContext);
+@@ -553,8 +556,8 @@
+         }
+ 
+         @Override
+-        protected void attr(JCTree tree, Env<AttrContext> env) {
+-            result = argumentAttr.attribArg(tree, env);
++        protected boolean needsArgumentAttr(JCTree tree) {
++            return true;
+         }
+ 
+         protected ResultInfo dup(Type newPt) {
+@@ -644,7 +647,11 @@
+         try {
+             this.env = env;
+             this.resultInfo = resultInfo;
+-            resultInfo.attr(tree, env);
++            if (resultInfo.needsArgumentAttr(tree)) {
++                result = argumentAttr.attribArg(tree, env);
++            } else {
++                tree.accept(this);
++            }
+             if (tree == breakTree &&
+                     resultInfo.checkContext.deferredAttrContext().mode == AttrMode.CHECK) {
+                 throw new BreakAttr(copyEnv(env));
+diff -r bd530c55e62c -r b873436b362b test/tools/javac/lambda/speculative/T8177933.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/speculative/T8177933.java	Thu Apr 06 17:27:52 2017 +0100
+@@ -0,0 +1,89 @@
++/*
++ * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8177933
++ * @summary Stackoverflow during compilation, starting jdk-9+163
++ *
++ * @library /tools/javac/lib
++ * @modules jdk.compiler/com.sun.tools.javac.api
++ *          jdk.compiler/com.sun.tools.javac.code
++ *          jdk.compiler/com.sun.tools.javac.comp
++ *          jdk.compiler/com.sun.tools.javac.main
++ *          jdk.compiler/com.sun.tools.javac.tree
++ *          jdk.compiler/com.sun.tools.javac.util
++ * @build combo.ComboTestHelper
++
++ * @run main/othervm -Xss512K T8177933
++ */
++
++import combo.ComboInstance;
++import combo.ComboParameter;
++import combo.ComboTask.Result;
++import combo.ComboTestHelper;
++
++import javax.lang.model.element.Element;
++
++public class T8177933 extends ComboInstance<T8177933> {
++
++    static final int MAX_DEPTH = 350;
++
++    static class CallExpr implements ComboParameter {
++        @Override
++        public String expand(String optParameter) {
++            Integer n = Integer.parseInt(optParameter);
++            if (n == MAX_DEPTH) {
++                return "m()";
++            } else {
++                return "m().#{CALL." + (n + 1) + "}";
++            }
++        }
++    }
++
++    static final String sourceTemplate =
++            "class Test {\n" +
++            "   Test m() { return null; }\n" +
++            "   void test() {\n" +
++            "       #{CALL.0};\n" +
++            "} }\n";
++
++    public static void main(String[] args) {
++        new ComboTestHelper<T8177933>()
++                .withDimension("CALL", new CallExpr())
++                .run(T8177933::new);
++    }
++
++    @Override
++    protected void doWork() throws Throwable {
++        Result<Iterable<? extends Element>> result = newCompilationTask()
++                    .withOption("-XDdev")
++                    .withSourceFromTemplate(sourceTemplate)
++                    .analyze();
++        if (!result.get().iterator().hasNext()) {
++            fail("Exception occurred when compiling combo. " + result.compilationInfo());
++        }
++    }
++}
+

@@ -1,0 +1,249 @@
+changeset:   1628:f427043f8c65
+user:        jfranck
+date:        Tue Mar 12 17:39:34 2013 +0100
+summary:     7196531: Duplicate error messages on repeating annotations
+
+diff -r 5ddecb91d843 -r f427043f8c65 src/share/classes/com/sun/tools/javac/comp/Annotate.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Annotate.java	Tue Mar 12 16:02:43 2013 +0000
++++ b/src/share/classes/com/sun/tools/javac/comp/Annotate.java	Tue Mar 12 17:39:34 2013 +0100
+@@ -384,10 +384,16 @@
+         Assert.check(!annotations.isEmpty() &&
+                      !annotations.tail.isEmpty()); // i.e. size() > 1
+ 
++        int count = 0;
+         for (List<T> al = annotations;
+              !al.isEmpty();
+              al = al.tail)
+         {
++            count++;
++
++            // There must be more than a single anno in the annotation list
++            Assert.check(count > 1 || !al.tail.isEmpty());
++
+             T currentAnno = al.head;
+ 
+             origAnnoType = currentAnno.type;
+@@ -395,7 +401,9 @@
+                 arrayOfOrigAnnoType = types.makeArrayType(origAnnoType);
+             }
+ 
+-            Type currentContainerType = getContainingType(currentAnno, ctx.pos.get(currentAnno));
++            // Only report errors if this isn't the first occurrence I.E. count > 1
++            boolean reportError = count > 1;
++            Type currentContainerType = getContainingType(currentAnno, ctx.pos.get(currentAnno), reportError);
+             if (currentContainerType == null) {
+                 continue;
+             }
+@@ -464,7 +472,8 @@
+ 
+     /** Fetches the actual Type that should be the containing annotation. */
+     private Type getContainingType(Attribute.Compound currentAnno,
+-            DiagnosticPosition pos)
++            DiagnosticPosition pos,
++            boolean reportError)
+     {
+         Type origAnnoType = currentAnno.type;
+         TypeSymbol origAnnoDecl = origAnnoType.tsym;
+@@ -473,7 +482,8 @@
+         // annotation's declaration, or null if it has none
+         Attribute.Compound ca = origAnnoDecl.attribute(syms.repeatableType.tsym);
+         if (ca == null) { // has no Repeatable annotation
+-            log.error(pos, "duplicate.annotation.missing.container", origAnnoType, syms.repeatableType);
++            if (reportError)
++                log.error(pos, "duplicate.annotation.missing.container", origAnnoType, syms.repeatableType);
+             return null;
+         }
+ 
+diff -r 5ddecb91d843 -r f427043f8c65 test/tools/javac/annotations/repeatingAnnotations/DuplicateErrors.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/annotations/repeatingAnnotations/DuplicateErrors.java	Tue Mar 12 17:39:34 2013 +0100
+@@ -0,0 +1,37 @@
++/*
++ * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/**
++ * @test
++ * @bug 7196531
++ * @compile/fail/ref=DuplicateErrors.out  -XDrawDiagnostics DuplicateErrors.java
++ */
++
++
++@interface Foo {}
++
++@Foo
++@Foo
++@Foo
++public class DuplicateErrors {
++}
+diff -r 5ddecb91d843 -r f427043f8c65 test/tools/javac/annotations/repeatingAnnotations/DuplicateErrors.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/annotations/repeatingAnnotations/DuplicateErrors.out	Tue Mar 12 17:39:34 2013 +0100
+@@ -0,0 +1,3 @@
++DuplicateErrors.java:34:1: compiler.err.duplicate.annotation.missing.container: Foo, java.lang.annotation.Repeatable
++DuplicateErrors.java:35:1: compiler.err.duplicate.annotation.missing.container: Foo, java.lang.annotation.Repeatable
++2 errors
+diff -r 5ddecb91d843 -r f427043f8c65 test/tools/javac/annotations/repeatingAnnotations/NoRepeatableAnno.out
+--- a/test/tools/javac/annotations/repeatingAnnotations/NoRepeatableAnno.out	Tue Mar 12 16:02:43 2013 +0000
++++ b/test/tools/javac/annotations/repeatingAnnotations/NoRepeatableAnno.out	Tue Mar 12 17:39:34 2013 +0100
+@@ -1,3 +1,2 @@
+-NoRepeatableAnno.java:11:1: compiler.err.duplicate.annotation.missing.container: Foo, java.lang.annotation.Repeatable
+ NoRepeatableAnno.java:11:6: compiler.err.duplicate.annotation.missing.container: Foo, java.lang.annotation.Repeatable
+-2 errors
++1 error
+diff -r 5ddecb91d843 -r f427043f8c65 test/tools/javac/annotations/typeAnnotations/failures/common/arrays/DuplicateTypeAnnotation.out
+--- a/test/tools/javac/annotations/typeAnnotations/failures/common/arrays/DuplicateTypeAnnotation.out	Tue Mar 12 16:02:43 2013 +0000
++++ b/test/tools/javac/annotations/typeAnnotations/failures/common/arrays/DuplicateTypeAnnotation.out	Tue Mar 12 17:39:34 2013 +0100
+@@ -1,3 +1,2 @@
+-DuplicateTypeAnnotation.java:11:12: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+ DuplicateTypeAnnotation.java:11:15: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+-2 errors
++1 error
+diff -r 5ddecb91d843 -r f427043f8c65 test/tools/javac/annotations/typeAnnotations/failures/common/innertypeparams/DuplicateTypeAnnotation.out
+--- a/test/tools/javac/annotations/typeAnnotations/failures/common/innertypeparams/DuplicateTypeAnnotation.out	Tue Mar 12 16:02:43 2013 +0000
++++ b/test/tools/javac/annotations/typeAnnotations/failures/common/innertypeparams/DuplicateTypeAnnotation.out	Tue Mar 12 17:39:34 2013 +0100
+@@ -1,3 +1,2 @@
+-DuplicateTypeAnnotation.java:11:17: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+ DuplicateTypeAnnotation.java:11:20: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+-2 errors
++1 error
+diff -r 5ddecb91d843 -r f427043f8c65 test/tools/javac/annotations/typeAnnotations/failures/common/newarray/DuplicateTypeAnnotation.out
+--- a/test/tools/javac/annotations/typeAnnotations/failures/common/newarray/DuplicateTypeAnnotation.out	Tue Mar 12 16:02:43 2013 +0000
++++ b/test/tools/javac/annotations/typeAnnotations/failures/common/newarray/DuplicateTypeAnnotation.out	Tue Mar 12 17:39:34 2013 +0100
+@@ -1,3 +1,2 @@
+-DuplicateTypeAnnotation.java:11:29: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+ DuplicateTypeAnnotation.java:11:32: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+-2 errors
++1 error
+diff -r 5ddecb91d843 -r f427043f8c65 test/tools/javac/annotations/typeAnnotations/failures/common/parambounds/DuplicateTypeAnnotation.out
+--- a/test/tools/javac/annotations/typeAnnotations/failures/common/parambounds/DuplicateTypeAnnotation.out	Tue Mar 12 16:02:43 2013 +0000
++++ b/test/tools/javac/annotations/typeAnnotations/failures/common/parambounds/DuplicateTypeAnnotation.out	Tue Mar 12 17:39:34 2013 +0100
+@@ -1,3 +1,2 @@
+-DuplicateTypeAnnotation.java:9:35: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+ DuplicateTypeAnnotation.java:9:38: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+-2 errors
+\ No newline at end of file
++1 error
+diff -r 5ddecb91d843 -r f427043f8c65 test/tools/javac/annotations/typeAnnotations/failures/common/receiver/DuplicateTypeAnnotation.out
+--- a/test/tools/javac/annotations/typeAnnotations/failures/common/receiver/DuplicateTypeAnnotation.out	Tue Mar 12 16:02:43 2013 +0000
++++ b/test/tools/javac/annotations/typeAnnotations/failures/common/receiver/DuplicateTypeAnnotation.out	Tue Mar 12 17:39:34 2013 +0100
+@@ -1,3 +1,2 @@
+-DuplicateTypeAnnotation.java:10:13: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+ DuplicateTypeAnnotation.java:10:16: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+-2 errors
++1 error
+diff -r 5ddecb91d843 -r f427043f8c65 test/tools/javac/annotations/typeAnnotations/failures/common/rest/DuplicateTypeAnnotation.out
+--- a/test/tools/javac/annotations/typeAnnotations/failures/common/rest/DuplicateTypeAnnotation.out	Tue Mar 12 16:02:43 2013 +0000
++++ b/test/tools/javac/annotations/typeAnnotations/failures/common/rest/DuplicateTypeAnnotation.out	Tue Mar 12 17:39:34 2013 +0100
+@@ -1,3 +1,2 @@
+-DuplicateTypeAnnotation.java:11:9: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+ DuplicateTypeAnnotation.java:11:12: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+-2 errors
+\ No newline at end of file
++1 error
+diff -r 5ddecb91d843 -r f427043f8c65 test/tools/javac/annotations/typeAnnotations/failures/common/typeArgs/DuplicateTypeAnnotation.out
+--- a/test/tools/javac/annotations/typeAnnotations/failures/common/typeArgs/DuplicateTypeAnnotation.out	Tue Mar 12 16:02:43 2013 +0000
++++ b/test/tools/javac/annotations/typeAnnotations/failures/common/typeArgs/DuplicateTypeAnnotation.out	Tue Mar 12 17:39:34 2013 +0100
+@@ -1,3 +1,2 @@
+-DuplicateTypeAnnotation.java:10:21: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+ DuplicateTypeAnnotation.java:10:24: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+-2 errors
+\ No newline at end of file
++1 error
+diff -r 5ddecb91d843 -r f427043f8c65 test/tools/javac/annotations/typeAnnotations/failures/common/typeparams/DuplicateTypeAnnotation.out
+--- a/test/tools/javac/annotations/typeAnnotations/failures/common/typeparams/DuplicateTypeAnnotation.out	Tue Mar 12 16:02:43 2013 +0000
++++ b/test/tools/javac/annotations/typeAnnotations/failures/common/typeparams/DuplicateTypeAnnotation.out	Tue Mar 12 17:39:34 2013 +0100
+@@ -1,3 +1,2 @@
+-DuplicateTypeAnnotation.java:9:25: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+ DuplicateTypeAnnotation.java:9:28: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+-2 errors
+\ No newline at end of file
++1 error
+diff -r 5ddecb91d843 -r f427043f8c65 test/tools/javac/annotations/typeAnnotations/failures/common/wildcards/DuplicateTypeAnnotation.out
+--- a/test/tools/javac/annotations/typeAnnotations/failures/common/wildcards/DuplicateTypeAnnotation.out	Tue Mar 12 16:02:43 2013 +0000
++++ b/test/tools/javac/annotations/typeAnnotations/failures/common/wildcards/DuplicateTypeAnnotation.out	Tue Mar 12 17:39:34 2013 +0100
+@@ -1,3 +1,2 @@
+-DuplicateTypeAnnotation.java:10:21: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+ DuplicateTypeAnnotation.java:10:24: compiler.err.duplicate.annotation.missing.container: A, java.lang.annotation.Repeatable
+-2 errors
+\ No newline at end of file
++1 error
+diff -r 5ddecb91d843 -r f427043f8c65 test/tools/javac/annotations/typeAnnotations/newlocations/RepeatingTypeAnnotations.out
+--- a/test/tools/javac/annotations/typeAnnotations/newlocations/RepeatingTypeAnnotations.out	Tue Mar 12 16:02:43 2013 +0000
++++ b/test/tools/javac/annotations/typeAnnotations/newlocations/RepeatingTypeAnnotations.out	Tue Mar 12 17:39:34 2013 +0100
+@@ -1,53 +1,28 @@
+-RepeatingTypeAnnotations.java:39:21: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:39:25: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:41:21: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:41:25: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:42:21: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:42:25: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:50:22: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:50:31: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:52:20: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:52:24: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:61:17: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:61:21: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:63:34: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:63:38: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:65:20: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:65:24: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:72:17: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:72:21: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:77:24: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:77:28: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:79:17: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:79:21: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:79:32: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:79:36: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:81:15: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:81:19: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:85:15: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:85:19: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:85:30: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:85:34: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:89:14: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:89:18: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:89:29: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:89:33: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:93:15: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:93:19: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:93:31: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:93:35: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:97:30: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:97:34: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:97:15: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:97:19: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:101:22: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:101:26: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:101:33: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:101:37: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:101:68: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:101:72: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+-RepeatingTypeAnnotations.java:101:52: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ RepeatingTypeAnnotations.java:101:56: compiler.err.duplicate.annotation.missing.container: TA, java.lang.annotation.Repeatable
+ - compiler.note.unchecked.filename: RepeatingTypeAnnotations.java
+ - compiler.note.unchecked.recompile
+-50 errors
+\ No newline at end of file
++25 errors
+

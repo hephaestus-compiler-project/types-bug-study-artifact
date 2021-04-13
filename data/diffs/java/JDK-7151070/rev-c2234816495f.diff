@@ -1,0 +1,70 @@
+changeset:   1220:c2234816495f
+user:        mcimadamore
+date:        Tue Mar 06 16:48:29 2012 +0000
+summary:     7151070: NullPointerException in Resolve.isAccessible
+
+diff -r 38ae13dcd215 -r c2234816495f src/share/classes/com/sun/tools/javac/comp/Resolve.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Resolve.java	Tue Mar 06 13:29:45 2012 +0000
++++ b/src/share/classes/com/sun/tools/javac/comp/Resolve.java	Tue Mar 06 16:48:29 2012 +0000
+@@ -2097,9 +2097,10 @@
+  *  ResolveError classes, indicating error situations when accessing symbols
+  ****************************************************************************/
+ 
+-    public void logAccessError(Env<AttrContext> env, JCTree tree, Type type) {
+-        AccessError error = new AccessError(env, type.getEnclosingType(), type.tsym);
+-        logResolveError(error, tree.pos(), type.getEnclosingType().tsym, type.getEnclosingType(), null, null, null);
++    //used by TransTypes when checking target type of synthetic cast
++    public void logAccessErrorInternal(Env<AttrContext> env, JCTree tree, Type type) {
++        AccessError error = new AccessError(env, env.enclClass.type, type.tsym);
++        logResolveError(error, tree.pos(), env.enclClass.sym, env.enclClass.type, null, null, null);
+     }
+     //where
+     private void logResolveError(ResolveError error,
+diff -r 38ae13dcd215 -r c2234816495f src/share/classes/com/sun/tools/javac/comp/TransTypes.java
+--- a/src/share/classes/com/sun/tools/javac/comp/TransTypes.java	Tue Mar 06 13:29:45 2012 +0000
++++ b/src/share/classes/com/sun/tools/javac/comp/TransTypes.java	Tue Mar 06 16:48:29 2012 +0000
+@@ -107,7 +107,7 @@
+         make.at(tree.pos);
+         if (!types.isSameType(tree.type, target)) {
+             if (!resolve.isAccessible(env, target.tsym))
+-                resolve.logAccessError(env, tree, target);
++                resolve.logAccessErrorInternal(env, tree, target);
+             tree = make.TypeCast(make.Type(target), tree).setType(target);
+         }
+         make.pos = oldpos;
+diff -r 38ae13dcd215 -r c2234816495f test/tools/javac/generics/7151070/T7151070.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/7151070/T7151070.java	Tue Mar 06 16:48:29 2012 +0000
+@@ -0,0 +1,25 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug     7151070
++ * @summary NullPointerException in Resolve.isAccessible
++ * @compile/fail/ref=T7151070.out -XDrawDiagnostics T7151070.java
++ */
++
++class T7151070a {
++    private static class PrivateCls { }
++    public static class PublicCls extends PrivateCls { }
++
++    public void m(PrivateCls p) { }
++}
++
++class T7151070b {
++    public void test(Test<T7151070a.PublicCls> obj, T7151070a outer) {
++        outer.m(obj.get());
++    }
++
++    public static class Test<T> {
++        public T get() {
++            return null;
++        }
++    }
++}
+diff -r 38ae13dcd215 -r c2234816495f test/tools/javac/generics/7151070/T7151070.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/7151070/T7151070.out	Tue Mar 06 16:48:29 2012 +0000
+@@ -0,0 +1,2 @@
++T7151070.java:17:24: compiler.err.report.access: T7151070a.PrivateCls, private, T7151070a
++1 error
+

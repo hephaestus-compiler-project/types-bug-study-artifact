@@ -1,0 +1,76 @@
+changeset:   1289:934a89402f85
+parent:      1283:4ca599497172
+user:        mcimadamore
+date:        Fri Jul 13 12:58:50 2012 +0100
+summary:     7181578: javac reports uninitialized variable with nested try...finally blocks
+
+diff -r 4ca599497172 -r 934a89402f85 src/share/classes/com/sun/tools/javac/comp/Flow.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Flow.java	Thu Jun 28 09:33:16 2012 -0700
++++ b/src/share/classes/com/sun/tools/javac/comp/Flow.java	Fri Jul 13 12:58:50 2012 +0100
+@@ -746,6 +746,7 @@
+                 pendingExits = prevPendingExits;
+                 alive = true;
+                 scanStat(tree.finalizer);
++                tree.finallyCanCompleteNormally = alive;
+                 if (!alive) {
+                     // discard exits and exceptions from try and finally
+                     thrown = chk.union(thrown, thrownPrev);
+@@ -764,7 +765,6 @@
+                     }
+                     alive = aliveEnd;
+                 }
+-                tree.finallyCanCompleteNormally = alive;
+             } else {
+                 thrown = chk.union(thrown, chk.diff(thrownInTry, caughtInTry));
+                 alive = aliveEnd;
+diff -r 4ca599497172 -r 934a89402f85 test/tools/javac/DefiniteAssignment/T7181578.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/DefiniteAssignment/T7181578.java	Fri Jul 13 12:58:50 2012 +0100
+@@ -0,0 +1,46 @@
++/*
++ * Copyright (c) 2012, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 7181578
++ * @summary javac reports uninitialized variable with nested try...finally blocks
++  *
++ * @compile T7181578.java
++ */
++class T7181578 {
++    String test(boolean cond) {
++        final String s;
++        try {
++            if (cond) {
++                try {
++                    s = "";
++                    return s;
++                } finally { }
++            } else {
++                s = "";
++            }
++            return s; // bug occurs here: mapping is always initialized
++        } finally { }
++    }
++}
+

@@ -1,0 +1,492 @@
+diff --git a/src/main/org/codehaus/groovy/ast/GenericsType.java b/src/main/org/codehaus/groovy/ast/GenericsType.java
+index 7fc10208d3..a82dfc445b 100644
+--- a/src/main/org/codehaus/groovy/ast/GenericsType.java
++++ b/src/main/org/codehaus/groovy/ast/GenericsType.java
+@@ -16,6 +16,8 @@
+ 
+ package org.codehaus.groovy.ast;
+ 
++import static org.codehaus.groovy.ast.ClassHelper.GROOVY_OBJECT_TYPE;
++
+ import org.codehaus.groovy.ast.tools.GenericsUtils;
+ import org.codehaus.groovy.ast.tools.WideningCategories;
+ 
+@@ -194,6 +196,10 @@ public class GenericsType extends ASTNode {
+             if (result) {
+                 return true;
+             }
++            if (GROOVY_OBJECT_TYPE.equals(superOrInterface) && type.getCompileUnit()!=null) {
++                // type is being compiled so it will implement GroovyObject later
++                return true;
++            }
+             if (superOrInterface instanceof WideningCategories.LowestUpperBoundClassNode) {
+                 WideningCategories.LowestUpperBoundClassNode cn = (WideningCategories.LowestUpperBoundClassNode) superOrInterface;
+                 result = implementsInterfaceOrIsSubclassOf(type, cn.getSuperClass());
+diff --git a/src/main/org/codehaus/groovy/transform/stc/DefaultTypeCheckingExtension.java b/src/main/org/codehaus/groovy/transform/stc/DefaultTypeCheckingExtension.java
+index a6499d740e..11d4713079 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/DefaultTypeCheckingExtension.java
++++ b/src/main/org/codehaus/groovy/transform/stc/DefaultTypeCheckingExtension.java
+@@ -16,6 +16,7 @@
+ 
+ package org.codehaus.groovy.transform.stc;
+ 
++import org.codehaus.groovy.ast.ClassHelper;
+ import org.codehaus.groovy.ast.ClassNode;
+ import org.codehaus.groovy.ast.MethodNode;
+ import org.codehaus.groovy.ast.expr.*;
+@@ -103,7 +104,13 @@ public class DefaultTypeCheckingExtension extends TypeCheckingExtension {
+     public List<MethodNode> handleMissingMethod(final ClassNode receiver, final String name, final ArgumentListExpression argumentList, final ClassNode[] argumentTypes, final MethodCall call) {
+         List<MethodNode> result = new LinkedList<MethodNode>();
+         for (TypeCheckingExtension handler : handlers) {
+-            result.addAll(handler.handleMissingMethod(receiver, name, argumentList, argumentTypes, call));
++            List<MethodNode> handlerResult = handler.handleMissingMethod(receiver, name, argumentList, argumentTypes, call);
++            for (MethodNode mn : handlerResult) {
++                if (mn.getDeclaringClass()==null) {
++                    mn.setDeclaringClass(ClassHelper.OBJECT_TYPE);
++                }
++            }
++            result.addAll(handlerResult);
+         }
+         return result;
+     }
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index 6d14bbf060..091d1dedc1 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -955,7 +955,7 @@ public abstract class StaticTypeCheckingSupport {
+                 Person p = foo(b)
+              */
+ 
+-            Parameter[] params = parameterizeArguments(actualReceiver, safeNode);
++            Parameter[] params = makeRawTypes(safeNode.getParameters());
+             if (params.length == safeArgs.length) {
+                 int allPMatch = allParametersAndArgumentsMatch(params, safeArgs);
+                 boolean firstParamMatches = true;
+@@ -1036,6 +1036,16 @@ public abstract class StaticTypeCheckingSupport {
+         return bestChoices;
+     }
+ 
++    private static Parameter[] makeRawTypes(Parameter[] params) {
++        Parameter[] newParam = new Parameter[params.length];
++        for (int i=0; i<params.length; i++) {
++            Parameter oldP = params[i];
++            Parameter newP = new Parameter(makeRawType(oldP.getType()),oldP.getName());
++            newParam[i] = newP;
++        }
++        return newParam;
++    }
++
+     private static ClassNode makeRawType(final ClassNode receiver) {
+         if (receiver.isArray()) {
+             return makeRawType(receiver.getComponentType()).makeArray();
+@@ -1265,11 +1275,10 @@ public abstract class StaticTypeCheckingSupport {
+         }
+         if (CLASS_Type.equals(receiver)
+                 && receiver.isUsingGenerics()
+-                && candidateMethod.getDeclaringClass() != receiver
++                && !candidateMethod.getDeclaringClass().equals(receiver)
+                 && !(candidateMethod instanceof ExtensionMethodNode)) {
+             return typeCheckMethodsWithGenerics(receiver.getGenericsTypes()[0].getType(), arguments, candidateMethod);
+         }
+-        boolean failure = false;
+         // both candidate method and receiver have generic information so a check is possible
+         Parameter[] parameters = candidateMethod.getParameters();
+         GenericsType[] genericsTypes = candidateMethod.getGenericsTypes();
+@@ -1280,10 +1289,15 @@ public abstract class StaticTypeCheckingSupport {
+             dgmArgs[0] = receiver;
+             System.arraycopy(arguments, 0, dgmArgs, 1, arguments.length);
+             MethodNode extensionMethodNode = ((ExtensionMethodNode) candidateMethod).getExtensionMethodNode();
+-            return typeCheckMethodsWithGenerics(extensionMethodNode.getDeclaringClass(), dgmArgs, extensionMethodNode);
+-
+-
++            return typeCheckMethodsWithGenerics(extensionMethodNode.getDeclaringClass(), dgmArgs, extensionMethodNode, true);
++        } else {
++            return typeCheckMethodsWithGenerics(receiver, arguments, candidateMethod, false);
+         }
++    }
++
++    private static boolean typeCheckMethodsWithGenerics(ClassNode receiver, ClassNode[] arguments, MethodNode candidateMethod, boolean isExtensionMethod) {
++        boolean failure = false;
++        Parameter[] parameters = candidateMethod.getParameters();
+         Map<String, GenericsType> classGTs = GenericsUtils.extractPlaceholders(receiver);
+         if (parameters.length > arguments.length || parameters.length==0) {
+             // this is a limitation that must be removed in a future version
+@@ -1300,35 +1314,64 @@ public abstract class StaticTypeCheckingSupport {
+         for (String key: resolvedMethodGenerics.keySet()) classGTs.remove(key); 
+         // then we use the remaining information to refine the given generics
+         applyGenericsConnections(classGTs,resolvedMethodGenerics);
++        // and then start our checks with the receiver
++        failure |= inferenceCheck(Collections.EMPTY_SET, resolvedMethodGenerics, candidateMethod.getDeclaringClass(), receiver, false);
++        // the outside context parts till now define placeholder we are not allowed to
++        // generalize, thus we save that for later use...
++        // extension methods are special, since they set the receiver as 
++        // first parameter. While we normally allow generalization for the first
++        // parameter, in case of an extension method we must not. 
++        Set<String> fixedGenericsPlaceHolders = extractResolvedPlaceHolders(resolvedMethodGenerics);
++
+         for (int i = 0; i < arguments.length; i++) {
+             int pindex = Math.min(i, parameters.length - 1);
+-            Map<String, GenericsType> connections = new HashMap<String, GenericsType>();
+             ClassNode wrappedArgument = arguments[i];
+-            ClassNode type = parameters[pindex].getType();
+-            if (ClassHelper.isPrimitiveType(wrappedArgument)) wrappedArgument = ClassHelper.getWrapper(wrappedArgument);
+-            // the context we compare with in the end is the one of the callsite
+-            // so far we specified the context of the method declaration only
+-            // thus for each argument, we try to find the connected generics first
+-            extractGenericsConnections(connections, wrappedArgument, type);
+-            // each found connection must comply with already found connections
+-            failure |= !compatibleConnections(connections, resolvedMethodGenerics);
+-            // and then apply the found information to refine the method level
+-            // information. This way the method level information slowly turns
+-            // into information for the callsite
+-            applyGenericsConnections(connections, resolvedMethodGenerics);
+-            // since it is possible that the callsite uses some generics as well, 
+-            // we may have to add additional elements here
+-            addMissingEntries(connections, resolvedMethodGenerics);
+-            // to finally see if the parameter and the argument fit togehter,
+-            // we use the provided information to transform the parameter
+-            // into something that can exist in the callsite context
+-            type = applyGenericsContext(resolvedMethodGenerics, type);
+-            // there of course transformed parameter type and argument must fit
+-            failure |= !typeCheckMethodArgumentWithGenerics(type, wrappedArgument, i >= parameters.length - 1);
++            ClassNode type = parameters[pindex].getOriginType();
++
++            failure |= inferenceCheck(fixedGenericsPlaceHolders, resolvedMethodGenerics, type, wrappedArgument,i >= parameters.length - 1);
++
++            // set real fixed generics for extension methods
++            if (isExtensionMethod && i==0) fixedGenericsPlaceHolders = extractResolvedPlaceHolders(resolvedMethodGenerics);
+         }
+         return !failure;
+     }
+ 
++    private static Set<String> extractResolvedPlaceHolders(Map<String, GenericsType> resolvedMethodGenerics) {
++        if (resolvedMethodGenerics.isEmpty()) return Collections.EMPTY_SET;
++        Set<String> result = new HashSet<String>();
++        for (Map.Entry<String, GenericsType> entry : resolvedMethodGenerics.entrySet()) {
++            GenericsType value = entry.getValue();
++            if (value.isPlaceholder() || value.isPlaceholder()) continue;
++            result.add(entry.getKey());
++        }
++        return result;
++    }
++
++    private static boolean inferenceCheck(Set<String> fixedGenericsPlaceHolders, Map<String, GenericsType> resolvedMethodGenerics, ClassNode type, ClassNode wrappedArgument, boolean lastArg) {
++        Map<String, GenericsType> connections = new HashMap<String, GenericsType>();
++        if (ClassHelper.isPrimitiveType(wrappedArgument)) wrappedArgument = ClassHelper.getWrapper(wrappedArgument);
++        // the context we compare with in the end is the one of the callsite
++        // so far we specified the context of the method declaration only
++        // thus for each argument, we try to find the connected generics first
++        extractGenericsConnections(connections, wrappedArgument, type);
++        // each found connection must comply with already found connections
++        boolean failure = !compatibleConnections(connections, resolvedMethodGenerics, fixedGenericsPlaceHolders);
++        // and then apply the found information to refine the method level
++        // information. This way the method level information slowly turns
++        // into information for the callsite
++        applyGenericsConnections(connections, resolvedMethodGenerics);
++        // since it is possible that the callsite uses some generics as well, 
++        // we may have to add additional elements here
++        addMissingEntries(connections, resolvedMethodGenerics);
++        // to finally see if the parameter and the argument fit togehter,
++        // we use the provided information to transform the parameter
++        // into something that can exist in the callsite context
++        type = applyGenericsContext(resolvedMethodGenerics, type);
++        // there of course transformed parameter type and argument must fit
++        failure |= !typeCheckMethodArgumentWithGenerics(type, wrappedArgument, lastArg);
++        return failure;
++    }
++
+     private static GenericsType buildWildcardType(GenericsType origin) {
+         ClassNode lowerBound = origin.getType().getPlainNodeReference();
+         if (origin.getLowerBound()!=null || origin.getUpperBounds()!=null) {
+@@ -1340,7 +1383,7 @@ public abstract class StaticTypeCheckingSupport {
+         return gt;
+     }
+ 
+-    private static boolean compatibleConnections(Map<String, GenericsType> connections, Map<String, GenericsType> resolvedMethodGenerics) 
++    private static boolean compatibleConnections(Map<String, GenericsType> connections, Map<String, GenericsType> resolvedMethodGenerics, Set<String> fixedGenericsPlaceHolders) 
+     {
+         for (Map.Entry<String, GenericsType> entry : connections.entrySet()) {
+             GenericsType resolved = resolvedMethodGenerics.get(entry.getKey());
+@@ -1352,26 +1395,43 @@ public abstract class StaticTypeCheckingSupport {
+             {
+                 continue;
+             }
+-            GenericsType gt = connection;
+-            if (!connection.isWildcard()) gt = buildWildcardType(connection);
+-            if (    resolved.isPlaceholder() && resolved.getUpperBounds()!=null && 
+-                    resolved.getUpperBounds().length==1 && !resolved.getUpperBounds()[0].isGenericsPlaceHolder() && 
+-                    resolved.getUpperBounds()[0].getName().equals("java.lang.Object")) 
+-            {
+-                return true;
+-            }
+-            ClassNode compareNode;
+-            if (resolved.getLowerBound()!=null || resolved.getUpperBounds()!=null) {
+-                compareNode = getCombinedBoundType(resolved);
+-                compareNode = compareNode.redirect().getPlainNodeReference();
+-            } else {
+-                compareNode = resolved.getType().getPlainNodeReference();
++            if (!compatibleConnection(resolved,connection)) {
++                if (    !(resolved.isPlaceholder() || resolved.isWildcard()) &&
++                        !fixedGenericsPlaceHolders.contains(entry.getKey()) &&
++                        compatibleConnection(connection,resolved)) 
++                {
++                    // we did for example find T=String and now check against
++                    // T=Object, which fails the first compatibleConnection check
++                    // but since T=Object works for both, the second one will pass
++                    // and we need to change the type for T to the more general one
++                    resolvedMethodGenerics.put(entry.getKey(),connection);
++                } else {
++                    return false;
++                }
+             }
+-            if (!gt.isCompatibleWith(compareNode)) return false; 
+         }
+         return true;
+     }
+ 
++    private static boolean compatibleConnection(GenericsType resolved, GenericsType connection) {
++        GenericsType gt = connection;
++        if (!connection.isWildcard()) gt = buildWildcardType(connection);
++        if (    resolved.isPlaceholder() && resolved.getUpperBounds()!=null && 
++                resolved.getUpperBounds().length==1 && !resolved.getUpperBounds()[0].isGenericsPlaceHolder() && 
++                resolved.getUpperBounds()[0].getName().equals("java.lang.Object")) 
++        {
++            return true;
++        }
++        ClassNode compareNode;
++        if (resolved.getLowerBound()!=null || resolved.getUpperBounds()!=null) {
++            compareNode = getCombinedBoundType(resolved);
++            compareNode = compareNode.redirect().getPlainNodeReference();
++        } else {
++            compareNode = resolved.getType().getPlainNodeReference();
++        }
++        return gt.isCompatibleWith(compareNode);
++    }
++
+     private static void addMissingEntries(Map<String, GenericsType> connections, Map<String, GenericsType> resolved) {
+         for (Entry<String, GenericsType> entry : connections.entrySet()) {
+             if (resolved.containsKey(entry.getKey())) continue;
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 03ecf23a98..f336fa69ab 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -1604,6 +1604,8 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         if (node != null) {
+             if (node.getParameters().length == 0 && args.length == 1 && implementsInterfaceOrIsSubclassOf(args[0], MAP_TYPE)) {
+                 node = typeCheckMapConstructor(call, receiver, arguments);
++            } else {
++                typeCheckMethodsWithGenericsOrFail(receiver, args, node, call);
+             }
+             if (node != null) storeTargetMethod(call, node);
+         }
+@@ -3544,8 +3546,8 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+             return node;
+         } else if (exp instanceof VariableExpression) {
+             VariableExpression vexp = (VariableExpression) exp;
+-            if (vexp == VariableExpression.THIS_EXPRESSION) return typeCheckingContext.getEnclosingClassNode();
+-            if (vexp == VariableExpression.SUPER_EXPRESSION) return typeCheckingContext.getEnclosingClassNode().getSuperClass();
++            if (vexp == VariableExpression.THIS_EXPRESSION) return makeThis();
++            if (vexp == VariableExpression.SUPER_EXPRESSION) return makeSuper();
+             final Variable variable = vexp.getAccessedVariable();
+             if (variable instanceof FieldNode) {
+                 checkOrMarkPrivateAccess((FieldNode) variable);
+@@ -3638,6 +3640,28 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         return exp instanceof VariableExpression ? ((VariableExpression) exp).getOriginType() : ((Expression) exp).getType();
+     }
+ 
++    private ClassNode makeSuper() {
++        ClassNode ret = typeCheckingContext.getEnclosingClassNode().getSuperClass();
++        if (typeCheckingContext.isInStaticContext) {
++            ClassNode staticRet = CLASS_Type.getPlainNodeReference();
++            GenericsType gt = new GenericsType(ret);
++            staticRet.setGenericsTypes(new GenericsType[]{gt});
++            ret = staticRet;
++        }
++        return ret;
++    }
++
++    private ClassNode makeThis() {
++        ClassNode ret = typeCheckingContext.getEnclosingClassNode(); 
++        if (typeCheckingContext.isInStaticContext) {
++            ClassNode staticRet = CLASS_Type.getPlainNodeReference();
++            GenericsType gt = new GenericsType(ret);
++            staticRet.setGenericsTypes(new GenericsType[]{gt});
++            ret = staticRet;
++        }
++        return ret;
++    }
++
+     /**
+      * Stores the inferred return type of a closure or a method. We are using a separate key to store
+      * inferred return type because the inferred type of a closure is {@link Closure}, which is different
+diff --git a/src/test/groovy/bugs/Groovy6786Bug.groovy b/src/test/groovy/bugs/Groovy6786Bug.groovy
+index 5e57b4635a..beb181d90f 100644
+--- a/src/test/groovy/bugs/Groovy6786Bug.groovy
++++ b/src/test/groovy/bugs/Groovy6786Bug.groovy
+@@ -5,7 +5,6 @@ import groovy.transform.stc.StaticTypeCheckingTestCase
+ 
+ class Groovy6786Bug extends StaticTypeCheckingTestCase {
+     
+-    @NotYetImplemented
+     void testGenericAddAll() {
+         assertScript '''
+ 
+@@ -31,7 +30,6 @@ class Groovy6786Bug extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
+-    @NotYetImplemented
+     void testGuavaCacheBuilderLikeGenerics() {
+         assertScript '''
+             class Class1 {
+diff --git a/src/test/groovy/transform/stc/GenericsSTCTest.groovy b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+index 5789ffcf83..bbe2328e49 100644
+--- a/src/test/groovy/transform/stc/GenericsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+@@ -46,7 +46,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+         shouldFailWithMessages '''
+             List<String> list = []
+             list.add(1)
+-        ''', "Cannot find matching method java.util.List#add(int)"
++        ''', "Cannot call java.util.List <String>#add(java.lang.String) with arguments [int]"
+     }
+ 
+     void testAddOnList2() {
+@@ -112,7 +112,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+         shouldFailWithMessages '''
+             List<Integer> list = new LinkedList<>()
+             list.add 'Hello'
+-        ''', 'Cannot find matching method java.util.LinkedList#add(java.lang.String)'
++        ''', 'Cannot call java.util.LinkedList <java.lang.Integer>#add(java.lang.Integer) with arguments [java.lang.String]'
+     }
+ 
+     void testAddOnListWithDiamondAndWrongTypeUsingLeftShift() {
+@@ -195,7 +195,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+     void testLinkedListWithListArgumentAndWrongElementTypes() {
+         shouldFailWithMessages '''
+             List<String> list = new LinkedList<String>([1,2,3])
+-        ''', 'Cannot find matching method java.util.LinkedList#<init>(java.util.List <java.lang.Integer>)'
++        ''', 'Cannot call java.util.LinkedList <String>#<init>(java.util.Collection <java.lang.Object extends java.lang.String>) with arguments [java.util.List <java.lang.Integer>]'
+     }
+ 
+     void testCompatibleGenericAssignmentWithInferrence() {
+@@ -390,7 +390,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+         shouldFailWithMessages '''
+             Map<String, Integer> map = new HashMap<String,Integer>()
+             map.put('hello', new Object())
+-        ''', 'Cannot find matching method java.util.HashMap#put(java.lang.String, java.lang.Object)'
++        ''', 'Cannot call java.util.HashMap <String, Integer>#put(java.lang.String, java.lang.Integer) with arguments [java.lang.String, java.lang.Object]'
+     }
+ 
+     void testPutMethodWithPrimitiveValueAndArrayPut() {
+@@ -461,7 +461,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+             }
+         }
+         new ClassB()
+-        ''', 'Cannot find matching method groovy.transform.stc.GenericsSTCTest$ClassA#bar'
++        ''', 'Cannot call <X> groovy.transform.stc.GenericsSTCTest$ClassA <Long>#bar(java.lang.Class <Long>) with arguments [java.lang.Class <java.lang.Object extends java.lang.Object>]'
+     }
+ 
+     // GROOVY-5516
+@@ -484,7 +484,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+             List<String> list = ['a','b','c']
+             Collection<Integer> e = (Collection<Integer>) [1,2,3]
+             boolean r = list.addAll(e)
+-        ''', 'Cannot call <T> java.util.List <java.lang.String>#addAll(T[]) with arguments [java.util.Collection <Integer>]'
++        ''', 'Cannot call java.util.List <java.lang.String>#addAll(java.util.Collection <java.lang.Object extends java.lang.String>) with arguments [java.util.Collection <Integer>]'
+     }
+ 
+     // GROOVY-5528
+@@ -706,7 +706,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+             })
+             Map<Date, Date> map = new HashMap<>()
+             map.put('foo', new Date())
+-        ''', 'Cannot find matching method java.util.HashMap#put(java.lang.String, java.util.Date)'
++        ''', 'Cannot call java.util.HashMap <java.util.Date, java.util.Date>#put(java.util.Date, java.util.Date) with arguments [java.lang.String, java.util.Date]'
+     }
+     void testInferDiamondForAssignmentWithDatesAndIllegalKeyUsingSquareBracket() {
+         shouldFailWithMessages '''
+@@ -744,7 +744,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+             })
+             Map<Date, Date> map = new HashMap<>()
+             map.put(new Date(), 'foo')
+-        ''', 'Cannot find matching method java.util.HashMap#put(java.util.Date, java.lang.String)'
++        ''', 'Cannot call java.util.HashMap <java.util.Date, java.util.Date>#put(java.util.Date, java.util.Date) with arguments [java.util.Date, java.lang.String]'
+     }
+     void testInferDiamondForAssignmentWithDatesAndIllegalValueUsingSquareBracket() {
+         shouldFailWithMessages '''
+@@ -1153,7 +1153,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+                 Foo<Map> f = new Foo<Map>("a",1)
+             }
+             bar()
+-        ''', '[Static type checking] - Cannot find matching method Foo#<init>(java.lang.String, int)'
++        ''', '[Static type checking] - Cannot call Foo <Map>#<init>(java.util.Map, java.util.Map) with arguments [java.lang.String, int]'
+     }
+     
+     // Groovy-5742
+@@ -1210,7 +1210,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+             List<Object> l = new ArrayList<>()
+             assert foo(l) == 1
+         ''',
+-        'Cannot find matching method'
++        '#foo(java.util.List <A extends A>) with arguments [java.util.ArrayList <java.lang.Object>]'
+     }
+     
+     void testMethodLevelGenericsForMethodCall() {
+@@ -1264,7 +1264,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+             }
+             GoodCodeRed.foo()
+         ''',
+-        "Cannot find matching method"
++        "Cannot call <T> GoodCodeRed <Long>#attach(GoodCodeRed <Long>) with arguments [GoodCodeRed <Integer>]"
+     }
+     
+     void testHiddenGenerics() {
+@@ -1493,6 +1493,21 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+             new Class1().method3(["a"],["b"])
+         '''
+     }
++    
++    // GROOVY-6761
++    void testInVariantAndContraVariantGenerics() {
++        assertScript '''
++            class Thing {
++              public <O> void contravariant(Class<? super O> type, O object) {}
++              public <O> void invariant(Class<O> type, O object) {}
++              void m() {
++                invariant(String, "foo")
++                contravariant(String, "foo") // fails, can't find method
++              }
++            }
++            new Thing().m()
++        '''
++    }
+ 
+     static class MyList extends LinkedList<String> {}
+ 
+diff --git a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+index bc3bd4c7e5..68694d36b3 100644
+--- a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+@@ -188,7 +188,7 @@ class MethodCallsSTCTest extends StaticTypeCheckingTestCase {
+             B c = new B<Integer>()
+             String[] args = ['a','b','c']
+             assert c.identity(args) == args
+-        ''', 'Cannot find matching method groovy.transform.stc.MethodCallsSTCTest$MyMethodCallTestClass2#identity(java.lang.String[])'
++        ''', 'Cannot call groovy.transform.stc.MethodCallsSTCTest$MyMethodCallTestClass2 <Integer>#identity(java.lang.Integer[]) with arguments [java.lang.String[]]'
+     }
+ 
+     void testMethodCallFromSuperOwner() {
+diff --git a/src/test/org/codehaus/groovy/transform/BuilderTransformTest.groovy b/src/test/org/codehaus/groovy/transform/BuilderTransformTest.groovy
+index 150d540cef..dd80d60a49 100644
+--- a/src/test/org/codehaus/groovy/transform/BuilderTransformTest.groovy
++++ b/src/test/org/codehaus/groovy/transform/BuilderTransformTest.groovy
+@@ -373,7 +373,7 @@ class BuilderTransformTest extends CompilableTestSupport {
+                 new Person(Person.createInitializer().firstName("John").lastName("Smith"))
+             }
+         '''
+-        assert message.contains('[Static type checking] - Cannot find matching method Person#<init>')
++        assert message.contains('[Static type checking] - Cannot call Person#<init>')
+         assert message =~ /.*SET.*SET.*UNSET.*/
+     }
+ 

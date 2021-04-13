@@ -1,0 +1,622 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/cfg/WhenChecker.java b/compiler/frontend/src/org/jetbrains/kotlin/cfg/WhenChecker.java
+index 94793287460..711fc310381 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/cfg/WhenChecker.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/cfg/WhenChecker.java
+@@ -16,12 +16,12 @@
+ 
+ package org.jetbrains.kotlin.cfg;
+ 
++import com.intellij.codeInsight.AnnotationUtil;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
+-import org.jetbrains.kotlin.descriptors.ClassDescriptor;
+-import org.jetbrains.kotlin.descriptors.ClassKind;
+-import org.jetbrains.kotlin.descriptors.DeclarationDescriptor;
++import org.jetbrains.kotlin.descriptors.*;
++import org.jetbrains.kotlin.name.FqName;
+ import org.jetbrains.kotlin.psi.*;
+ import org.jetbrains.kotlin.resolve.BindingContext;
+ import org.jetbrains.kotlin.resolve.BindingTrace;
+@@ -46,6 +46,23 @@ public final class WhenChecker {
+         return !isUnit && !isStatement && !isWhenExhaustive(expression, trace);
+     }
+ 
++    private static final FqName notNullAnnotationName = new FqName(AnnotationUtil.NOT_NULL);
++
++    public static boolean isExhaustiveWhenOnPlatformNullableEnum(@NotNull JetWhenExpression expression, @NotNull BindingTrace trace) {
++        JetType type = whenSubjectType(expression, trace.getBindingContext());
++        if (type == null) return false;
++        ClassDescriptor classDescriptor = TypeUtils.getClassDescriptor(type);
++        return (isPlatformEnum(type, classDescriptor)
++                && isWhenOnEnumExhaustive(expression, trace, classDescriptor)
++                // nullable from Kotlin side
++                && TypeUtils.isNullableType(type)
++                // and from Java side too
++                && type.getAnnotations().findAnnotation(notNullAnnotationName) == null
++                && type.getAnnotations().findExternalAnnotation(notNullAnnotationName) == null
++                // but no null case
++                && !containsNullCase(expression, trace));
++    }
++
+     public static boolean isWhenByEnum(@NotNull JetWhenExpression expression, @NotNull BindingContext context) {
+         return getClassDescriptorOfTypeIfEnum(whenSubjectType(expression, context)) != null;
+     }
+@@ -53,9 +70,8 @@ public final class WhenChecker {
+     @Nullable
+     private static ClassDescriptor getClassDescriptorOfTypeIfEnum(@Nullable JetType type) {
+         if (type == null) return null;
+-        DeclarationDescriptor declarationDescriptor = type.getConstructor().getDeclarationDescriptor();
+-        if (!(declarationDescriptor instanceof ClassDescriptor)) return null;
+-        ClassDescriptor classDescriptor = (ClassDescriptor) declarationDescriptor;
++        ClassDescriptor classDescriptor = TypeUtils.getClassDescriptor(type);
++        if (classDescriptor == null) return null;
+         if (classDescriptor.getKind() != ClassKind.ENUM_CLASS || classDescriptor.getModality().isOverridable()) return null;
+ 
+         return classDescriptor;
+@@ -98,6 +114,12 @@ public final class WhenChecker {
+         return notEmpty;
+     }
+ 
++    private static boolean isPlatformEnum(@NotNull JetType type, @Nullable ClassDescriptor classDescriptor) {
++        // instanceof JetClass are Kotlin types, as well as nullable types
++        return classDescriptor != null && classDescriptor.getKind() == ClassKind.ENUM_CLASS
++               && !(type instanceof JetClass) && !type.isMarkedNullable();
++    }
++    
+     public static boolean isWhenExhaustive(@NotNull JetWhenExpression expression, @NotNull BindingTrace trace) {
+         JetType type = whenSubjectType(expression, trace.getBindingContext());
+         if (type == null) return false;
+@@ -116,7 +138,7 @@ public final class WhenChecker {
+         else {
+             exhaustive = isWhenOnEnumExhaustive(expression, trace, classDescriptor);
+         }
+-        if (exhaustive && (!TypeUtils.isNullableType(type) || containsNullCase(expression, trace))) {
++        if (exhaustive && (!TypeUtils.isNullableType(type) || containsNullCase(expression, trace) || isPlatformEnum(type, classDescriptor))) {
+             trace.record(BindingContext.EXHAUSTIVE_WHEN, expression);
+             return true;
+         }
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+index d17fb7e6d2d..bc1aac565dc 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+@@ -618,6 +618,7 @@ public interface Errors {
+     DiagnosticFactory0<JetWhenCondition> EXPECTED_CONDITION = DiagnosticFactory0.create(ERROR);
+     DiagnosticFactory0<JetWhenEntry> ELSE_MISPLACED_IN_WHEN = DiagnosticFactory0.create(ERROR, ELSE_ENTRY);
+     DiagnosticFactory0<JetWhenExpression> NO_ELSE_IN_WHEN = DiagnosticFactory0.create(ERROR, WHEN_EXPRESSION);
++    DiagnosticFactory0<JetExpression> WHEN_ENUM_CAN_BE_NULL_IN_JAVA = DiagnosticFactory0.create(WARNING);
+ 
+     // Type mismatch
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+index f8ea8a6d2a5..170195ccce1 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+@@ -385,6 +385,8 @@ public class DefaultErrorMessages {
+         MAP.put(ELSE_MISPLACED_IN_WHEN, "'else' entry must be the last one in a when-expression");
+ 
+         MAP.put(NO_ELSE_IN_WHEN, "'when' expression must contain 'else' branch");
++        MAP.put(WHEN_ENUM_CAN_BE_NULL_IN_JAVA, "Enum argument ''{0}'' can be null in Java, but exhaustive when contains no null branch");
++
+         MAP.put(TYPE_MISMATCH_IN_RANGE, "Type mismatch: incompatible types of range and element checked in it");
+         MAP.put(CYCLIC_INHERITANCE_HIERARCHY, "There's a cycle in the inheritance hierarchy for this type");
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/PatternMatchingTypingVisitor.java b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/PatternMatchingTypingVisitor.java
+index 1418ec69ccf..c6f362812db 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/PatternMatchingTypingVisitor.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/PatternMatchingTypingVisitor.java
+@@ -21,6 +21,7 @@ import com.intellij.openapi.util.Ref;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
++import org.jetbrains.kotlin.cfg.WhenChecker;
+ import org.jetbrains.kotlin.diagnostics.Errors;
+ import org.jetbrains.kotlin.psi.*;
+ import org.jetbrains.kotlin.resolve.BindingContext;
+@@ -129,6 +130,11 @@ public class PatternMatchingTypingVisitor extends ExpressionTypingVisitor {
+         if (commonDataFlowInfo == null) {
+             commonDataFlowInfo = context.dataFlowInfo;
+         }
++        // Check for conditionally-exhaustive platform enums, see KT-6399
++        if (expression.getElseExpression() == null
++            && WhenChecker.isExhaustiveWhenOnPlatformNullableEnum(expression, context.trace)) {
++            context.trace.report(WHEN_ENUM_CAN_BE_NULL_IN_JAVA.on(expression.getSubjectExpression()));
++        }
+ 
+         return TypeInfoFactoryPackage.createTypeInfo(expressionTypes.isEmpty() ? null : DataFlowUtils.checkImplicitCast(
+                                                              CommonSupertypes.commonSupertype(expressionTypes), expression,
+diff --git a/compiler/testData/diagnostics/tests/when/ElseOnNullableEnum.kt b/compiler/testData/diagnostics/tests/when/ElseOnNullableEnum.kt
+index 787d09c9927..ed89017a4c7 100644
+--- a/compiler/testData/diagnostics/tests/when/ElseOnNullableEnum.kt
++++ b/compiler/testData/diagnostics/tests/when/ElseOnNullableEnum.kt
+@@ -22,7 +22,7 @@ fun withNullableNothing(e: E?) = when (e) {
+     nullableNothing() -> null
+ }
+ 
+-fun platformType() = <!NO_ELSE_IN_WHEN!>when<!> (J.foo()) {
++fun platformType() = when (<!WHEN_ENUM_CAN_BE_NULL_IN_JAVA!>J.foo()<!>) {
+     E.A -> 7
+     E.B -> 8
+ }
+diff --git a/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnum.kt b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnum.kt
+new file mode 100644
+index 00000000000..dff3fe24e60
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnum.kt
+@@ -0,0 +1,21 @@
++// See KT-6399: exhaustive whens on platform enums
++
++// FILE: J.java
++
++public enum J {
++    A, B;
++
++    public static J create() {
++        return J.A;
++    }
++}
++
++// FILE: K.kt
++
++fun foo(): Int {
++    // When is exhaustive (count a platform enum as a special case)
++    return when (<!WHEN_ENUM_CAN_BE_NULL_IN_JAVA!>J.create()<!>) {
++        J.A -> 1
++        J.B -> 2
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnum.txt b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnum.txt
+new file mode 100644
+index 00000000000..86c67a05e99
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnum.txt
+@@ -0,0 +1,38 @@
++package
++
++internal fun foo(): kotlin.Int
++
++public final enum class J : kotlin.Enum<J!> {
++    public enum entry A : J {
++        private constructor A()
++        public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++        public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public enum entry B : J {
++        private constructor B()
++        public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++        public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public constructor J()
++    public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++    public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++    public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    // Static members
++    public open fun create(): J!
++    public final /*synthesized*/ fun valueOf(/*0*/ value: kotlin.String): J
++    public final /*synthesized*/ fun values(): kotlin.Array<J>
++}
+diff --git a/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumAnnotated.kt b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumAnnotated.kt
+new file mode 100644
+index 00000000000..6820a883e59
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumAnnotated.kt
+@@ -0,0 +1,23 @@
++// See KT-6399: exhaustive whens on platform enums
++
++// FILE: J.java
++
++import org.jetbrains.annotations.*;
++
++public enum J {
++    A, B;
++
++    @NotNull public static J create() {
++        return J.A;
++    }
++}
++
++// FILE: K.kt
++
++fun foo(): Int {
++    // When is exhaustive (count a platform enum as a special case)
++    return when (J.create()) {
++        J.A -> 1
++        J.B -> 2
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumAnnotated.txt b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumAnnotated.txt
+new file mode 100644
+index 00000000000..0f5c9acb5f8
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumAnnotated.txt
+@@ -0,0 +1,38 @@
++package
++
++internal fun foo(): kotlin.Int
++
++public final enum class J : kotlin.Enum<J!> {
++    public enum entry A : J {
++        private constructor A()
++        public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++        public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public enum entry B : J {
++        private constructor B()
++        public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++        public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public constructor J()
++    public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++    public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++    public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    // Static members
++    org.jetbrains.annotations.NotNull() public open fun create(): J!
++    public final /*synthesized*/ fun valueOf(/*0*/ value: kotlin.String): J
++    public final /*synthesized*/ fun values(): kotlin.Array<J>
++}
+diff --git a/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumElse.kt b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumElse.kt
+new file mode 100644
+index 00000000000..bd311096cf2
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumElse.kt
+@@ -0,0 +1,21 @@
++// See KT-6399: exhaustive whens on platform enums
++
++// FILE: J.java
++
++public enum J {
++    A, B;
++
++    public static J create() {
++        return J.A;
++    }
++}
++
++// FILE: K.kt
++
++fun foo(): Int {
++    return when (J.create()) {
++        J.A -> 1
++        J.B -> 2
++        else -> 0
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumElse.txt b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumElse.txt
+new file mode 100644
+index 00000000000..86c67a05e99
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumElse.txt
+@@ -0,0 +1,38 @@
++package
++
++internal fun foo(): kotlin.Int
++
++public final enum class J : kotlin.Enum<J!> {
++    public enum entry A : J {
++        private constructor A()
++        public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++        public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public enum entry B : J {
++        private constructor B()
++        public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++        public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public constructor J()
++    public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++    public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++    public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    // Static members
++    public open fun create(): J!
++    public final /*synthesized*/ fun valueOf(/*0*/ value: kotlin.String): J
++    public final /*synthesized*/ fun values(): kotlin.Array<J>
++}
+diff --git a/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumNull.kt b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumNull.kt
+new file mode 100644
+index 00000000000..c809bee2c2b
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumNull.kt
+@@ -0,0 +1,22 @@
++// See KT-6399: exhaustive whens on platform enums
++
++// FILE: J.java
++
++public enum J {
++    A, B;
++
++    public static J create() {
++        return J.A;
++    }
++}
++
++// FILE: K.kt
++
++fun foo(): Int {
++    // When is exhaustive including null
++    return when (J.create()) {
++        J.A -> 1
++        J.B -> 2
++        null -> 0
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumNull.txt b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumNull.txt
+new file mode 100644
+index 00000000000..86c67a05e99
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumNull.txt
+@@ -0,0 +1,38 @@
++package
++
++internal fun foo(): kotlin.Int
++
++public final enum class J : kotlin.Enum<J!> {
++    public enum entry A : J {
++        private constructor A()
++        public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++        public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public enum entry B : J {
++        private constructor B()
++        public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++        public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public constructor J()
++    public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++    public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++    public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    // Static members
++    public open fun create(): J!
++    public final /*synthesized*/ fun valueOf(/*0*/ value: kotlin.String): J
++    public final /*synthesized*/ fun values(): kotlin.Array<J>
++}
+diff --git a/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumStatement.kt b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumStatement.kt
+new file mode 100644
+index 00000000000..744c6fbe580
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumStatement.kt
+@@ -0,0 +1,20 @@
++// See KT-6399: exhaustive whens on platform enums
++
++// FILE: J.java
++
++public enum J {
++    A, B;
++
++    public static J create() {
++        return J.A;
++    }
++}
++
++// FILE: K.kt
++
++fun foo(): Int {
++    when (<!WHEN_ENUM_CAN_BE_NULL_IN_JAVA!>J.create()<!>) {
++        J.A -> return 1
++        J.B -> return 2
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumStatement.txt b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumStatement.txt
+new file mode 100644
+index 00000000000..86c67a05e99
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumStatement.txt
+@@ -0,0 +1,38 @@
++package
++
++internal fun foo(): kotlin.Int
++
++public final enum class J : kotlin.Enum<J!> {
++    public enum entry A : J {
++        private constructor A()
++        public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++        public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public enum entry B : J {
++        private constructor B()
++        public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++        public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public constructor J()
++    public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++    public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++    public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    // Static members
++    public open fun create(): J!
++    public final /*synthesized*/ fun valueOf(/*0*/ value: kotlin.String): J
++    public final /*synthesized*/ fun values(): kotlin.Array<J>
++}
+diff --git a/compiler/testData/diagnostics/tests/when/NonExhaustivePlatformEnum.kt b/compiler/testData/diagnostics/tests/when/NonExhaustivePlatformEnum.kt
+new file mode 100644
+index 00000000000..da8465bb7dd
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/when/NonExhaustivePlatformEnum.kt
+@@ -0,0 +1,20 @@
++// See KT-6399: exhaustive whens on platform enums
++
++// FILE: J.java
++
++public enum J {
++    A, B;
++
++    public static J create() {
++        return J.A;
++    }
++}
++
++// FILE: K.kt
++
++fun foo(): Int {
++    // When is not-exhaustive
++    return <!NO_ELSE_IN_WHEN!>when<!> (J.create()) {
++        J.A -> 1
++    }
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/when/NonExhaustivePlatformEnum.txt b/compiler/testData/diagnostics/tests/when/NonExhaustivePlatformEnum.txt
+new file mode 100644
+index 00000000000..86c67a05e99
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/when/NonExhaustivePlatformEnum.txt
+@@ -0,0 +1,38 @@
++package
++
++internal fun foo(): kotlin.Int
++
++public final enum class J : kotlin.Enum<J!> {
++    public enum entry A : J {
++        private constructor A()
++        public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++        public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public enum entry B : J {
++        private constructor B()
++        public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++        public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public constructor J()
++    public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: J!): kotlin.Int
++    public final override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final override /*1*/ /*fake_override*/ fun name(): kotlin.String
++    public final override /*1*/ /*fake_override*/ fun ordinal(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    // Static members
++    public open fun create(): J!
++    public final /*synthesized*/ fun valueOf(/*0*/ value: kotlin.String): J
++    public final /*synthesized*/ fun values(): kotlin.Array<J>
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
+index 696624602b7..4439504a88e 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
+@@ -13026,6 +13026,36 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("ExhaustivePlatformEnum.kt")
++            public void testExhaustivePlatformEnum() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnum.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("ExhaustivePlatformEnumAnnotated.kt")
++            public void testExhaustivePlatformEnumAnnotated() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumAnnotated.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("ExhaustivePlatformEnumElse.kt")
++            public void testExhaustivePlatformEnumElse() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumElse.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("ExhaustivePlatformEnumNull.kt")
++            public void testExhaustivePlatformEnumNull() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumNull.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("ExhaustivePlatformEnumStatement.kt")
++            public void testExhaustivePlatformEnumStatement() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/when/ExhaustivePlatformEnumStatement.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("ExhaustiveReturn.kt")
+             public void testExhaustiveReturn() throws Exception {
+                 String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/when/ExhaustiveReturn.kt");
+@@ -13086,6 +13116,12 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("NonExhaustivePlatformEnum.kt")
++            public void testNonExhaustivePlatformEnum() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/when/NonExhaustivePlatformEnum.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("PropertyNotInitialized.kt")
+             public void testPropertyNotInitialized() throws Exception {
+                 String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/when/PropertyNotInitialized.kt");

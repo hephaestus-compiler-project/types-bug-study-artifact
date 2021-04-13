@@ -1,0 +1,36 @@
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Infer.scala b/src/compiler/scala/tools/nsc/typechecker/Infer.scala
+index 9f7bdf7aff5..c188c326c38 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Infer.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Infer.scala
+@@ -1254,7 +1254,6 @@ trait Infer extends Checkable {
+       def isFreeTypeParamOfTerm(sym: Symbol) = (
+         sym.isAbstractType
+           && sym.owner.isTerm
+-          && !sym.info.bounds.exists(_.typeParams.nonEmpty)
+         )
+ 
+       // Intentionally *not* using `Type#typeSymbol` here, which would normalize `tp`
+diff --git a/test/files/pos/hkgadt.scala b/test/files/pos/hkgadt.scala
+new file mode 100644
+index 00000000000..efd7d3df21a
+--- /dev/null
++++ b/test/files/pos/hkgadt.scala
+@@ -0,0 +1,18 @@
++package test
++
++object HKGADT {
++  sealed trait Foo[F[_]]
++  final case class Bar() extends Foo[List]
++
++  def frob[F[_]](foo: Foo[F]): F[Int] =
++    foo match {
++      case Bar() =>
++         List(1)
++    }
++
++  sealed trait Foo1[F]
++  final case class Bar1() extends Foo1[Int]
++  def frob1[A](foo: Foo1[A]) = foo match {
++    case Bar1() => 1
++  }
++}

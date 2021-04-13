@@ -1,0 +1,468 @@
+changeset:   47959:5dd899009525
+user:        mcimadamore
+date:        Wed Nov 29 17:31:23 2017 +0000
+summary:     8191802: Upward projection result is A<? extends Number> instead of A<? super Integer>
+
+diff -r d34958cb3163 -r 5dd899009525 src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java	Wed Nov 29 09:25:25 2017 -0800
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java	Wed Nov 29 17:31:23 2017 +0000
+@@ -237,7 +237,7 @@
+      * {@code upwards(List<#CAP1>, [#CAP2]) = List<#CAP1> }
+      * {@code downwards(List<#CAP1>, [#CAP1]) = not defined }
+      */
+-    class TypeProjection extends StructuralTypeMapping<ProjectionKind> {
++    class TypeProjection extends TypeMapping<ProjectionKind> {
+ 
+         List<Type> vars;
+         Set<Type> seen = new HashSet<>();
+@@ -257,13 +257,21 @@
+                 Type outer = t.getEnclosingType();
+                 Type outer1 = visit(outer, pkind);
+                 List<Type> typarams = t.getTypeArguments();
+-                List<Type> typarams1 = typarams.map(ta -> mapTypeArgument(ta, pkind));
+-                if (typarams1.stream().anyMatch(ta -> ta.hasTag(BOT))) {
+-                    //not defined
+-                    return syms.botType;
++                List<Type> formals = t.tsym.type.getTypeArguments();
++                ListBuffer<Type> typarams1 = new ListBuffer<>();
++                boolean changed = false;
++                for (Type actual : typarams) {
++                    Type t2 = mapTypeArgument(t, formals.head.getUpperBound(), actual, pkind);
++                    if (t2.hasTag(BOT)) {
++                        //not defined
++                        return syms.botType;
++                    }
++                    typarams1.add(t2);
++                    changed |= actual != t2;
++                    formals = formals.tail;
+                 }
+-                if (outer1 == outer && typarams1 == typarams) return t;
+-                else return new ClassType(outer1, typarams1, t.tsym, t.getMetadata()) {
++                if (outer1 == outer && !changed) return t;
++                else return new ClassType(outer1, typarams1.toList(), t.tsym, t.getMetadata()) {
+                     @Override
+                     protected boolean needsStripping() {
+                         return true;
+@@ -272,21 +280,23 @@
+             }
+         }
+ 
+-        protected Type makeWildcard(Type upper, Type lower) {
+-            BoundKind bk;
+-            Type bound;
+-            if (upper.hasTag(BOT)) {
+-                upper = syms.objectType;
+-            }
+-            boolean isUpperObject = isSameType(upper, syms.objectType);
+-            if (!lower.hasTag(BOT) && isUpperObject) {
+-                bound = lower;
+-                bk = SUPER;
++        @Override
++        public Type visitArrayType(ArrayType t, ProjectionKind s) {
++            Type elemtype = t.elemtype;
++            Type elemtype1 = visit(elemtype, s);
++            if (elemtype1 == elemtype) {
++                return t;
++            } else if (elemtype1.hasTag(BOT)) {
++                //undefined
++                return syms.botType;
+             } else {
+-                bound = upper;
+-                bk = isUpperObject ? UNBOUND : EXTENDS;
+-            }
+-            return new WildcardType(bound, bk, syms.boundClass);
++                return new ArrayType(elemtype1, t.tsym, t.metadata) {
++                    @Override
++                    protected boolean needsStripping() {
++                        return true;
++                    }
++                };
++            }
+         }
+ 
+         @Override
+@@ -322,33 +332,79 @@
+             }
+         }
+ 
+-        @Override
+-        public Type visitWildcardType(WildcardType wt, ProjectionKind pkind) {
+-            switch (pkind) {
+-                case UPWARDS:
+-                    return wt.isExtendsBound() ?
+-                            wt.type.map(this, pkind) :
+-                            syms.objectType;
+-                case DOWNWARDS:
+-                    return wt.isSuperBound() ?
+-                            wt.type.map(this, pkind) :
+-                            syms.botType;
+-                default:
+-                    Assert.error();
+-                    return null;
+-            }
++        private Type mapTypeArgument(Type site, Type declaredBound, Type t, ProjectionKind pkind) {
++            return t.containsAny(vars) ?
++                    t.map(new TypeArgumentProjection(site, declaredBound), pkind) :
++                    t;
+         }
+ 
+-        private Type mapTypeArgument(Type t, ProjectionKind pkind) {
+-            if (!t.containsAny(vars)) {
+-                return t;
+-            } else if (!t.hasTag(WILDCARD) && pkind == ProjectionKind.DOWNWARDS) {
+-                //not defined
+-                return syms.botType;
+-            } else {
+-                Type upper = t.map(this, pkind);
+-                Type lower = t.map(this, pkind.complement());
+-                return makeWildcard(upper, lower);
++        class TypeArgumentProjection extends TypeMapping<ProjectionKind> {
++
++            Type site;
++            Type declaredBound;
++
++            TypeArgumentProjection(Type site, Type declaredBound) {
++                this.site = site;
++                this.declaredBound = declaredBound;
++            }
++
++            @Override
++            public Type visitType(Type t, ProjectionKind pkind) {
++                //type argument is some type containing restricted vars
++                if (pkind == ProjectionKind.DOWNWARDS) {
++                    //not defined
++                    return syms.botType;
++                }
++                Type upper = t.map(TypeProjection.this, ProjectionKind.UPWARDS);
++                Type lower = t.map(TypeProjection.this, ProjectionKind.DOWNWARDS);
++                List<Type> formals = site.tsym.type.getTypeArguments();
++                BoundKind bk;
++                Type bound;
++                if (!isSameType(upper, syms.objectType) &&
++                        (declaredBound.containsAny(formals) ||
++                         !isSubtype(declaredBound, upper))) {
++                    bound = upper;
++                    bk = EXTENDS;
++                } else if (!lower.hasTag(BOT)) {
++                    bound = lower;
++                    bk = SUPER;
++                } else {
++                    bound = syms.objectType;
++                    bk = UNBOUND;
++                }
++                return makeWildcard(bound, bk);
++            }
++
++            @Override
++            public Type visitWildcardType(WildcardType wt, ProjectionKind pkind) {
++                //type argument is some wildcard whose bound contains restricted vars
++                Type bound = syms.botType;
++                BoundKind bk = wt.kind;
++                switch (wt.kind) {
++                    case EXTENDS:
++                        bound = wt.type.map(TypeProjection.this, pkind);
++                        if (bound.hasTag(BOT)) {
++                            return syms.botType;
++                        }
++                        break;
++                    case SUPER:
++                        bound = wt.type.map(TypeProjection.this, pkind.complement());
++                        if (bound.hasTag(BOT)) {
++                            bound = syms.objectType;
++                            bk = UNBOUND;
++                        }
++                        break;
++                }
++                return makeWildcard(bound, bk);
++            }
++
++            private Type makeWildcard(Type bound, BoundKind bk) {
++                return new WildcardType(bound, bk, syms.boundClass) {
++                    @Override
++                    protected boolean needsStripping() {
++                        return true;
++                    }
++                };
+             }
+         }
+     }
+diff -r d34958cb3163 -r 5dd899009525 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Check.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Check.java	Wed Nov 29 09:25:25 2017 -0800
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Check.java	Wed Nov 29 17:31:23 2017 +0000
+@@ -946,8 +946,6 @@
+         }
+ 
+     Type checkLocalVarType(DiagnosticPosition pos, Type t, Name name) {
+-        //upward project the initializer type
+-        t = types.upward(t, types.captures(t));
+         //check that resulting type is not the null type
+         if (t.hasTag(BOT)) {
+             log.error(pos, Errors.CantInferLocalVarType(name, Fragments.LocalCantInferNull));
+@@ -956,7 +954,9 @@
+             log.error(pos, Errors.CantInferLocalVarType(name, Fragments.LocalCantInferVoid));
+             return types.createErrorType(t);
+         }
+-        return t;
++
++        //upward project the initializer type
++        return types.upward(t, types.captures(t));
+     }
+ 
+     Type checkMethod(final Type mtype,
+diff -r d34958cb3163 -r 5dd899009525 test/langtools/jdk/jshell/TypeNameTest.java
+--- a/test/langtools/jdk/jshell/TypeNameTest.java	Wed Nov 29 09:25:25 2017 -0800
++++ b/test/langtools/jdk/jshell/TypeNameTest.java	Wed Nov 29 17:31:23 2017 +0000
+@@ -23,7 +23,7 @@
+ 
+ /*
+  * @test
+- * @bug 8144903 8171981
++ * @bug 8144903 8171981 8191802
+  * @summary Tests for determining the type from the expression
+  * @build KullaTesting TestingInputStream
+  * @run testng TypeNameTest
+@@ -55,7 +55,7 @@
+ 
+         assertEval("class D<T extends CharSequence> { D<? super T> getS() { return null; } }");
+         assertEval("D<?> d = new D<String>();");
+-        assertType("d.getS()", "D<? extends CharSequence>");
++        assertType("d.getS()", "D<?>");
+         assertType("null", "Object");
+         assertType("Class.forName( \"java.util.ArrayList\" )", "Class<?>");
+         assertType("new ArrayList<Boolean>() {}", "ArrayList<Boolean>");
+@@ -68,7 +68,7 @@
+         assertEval("interface J extends A, I {}");
+         assertEval("interface K extends A, I {}");
+         assertEval("class P<T extends A & I> {}");
+-        assertType("(P<?>) null", "P<? extends Object>");
++        assertType("(P<?>) null", "P<?>");
+     }
+ 
+     public void testConditionals() {
+diff -r d34958cb3163 -r 5dd899009525 test/langtools/tools/javac/lvti/T8191893.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/lvti/T8191893.java	Wed Nov 29 17:31:23 2017 +0000
+@@ -0,0 +1,49 @@
++/*
++ * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8191802 8191893
++ * @summary Upward projection result is A<? extends Number> instead of A<? super Integer>
++ * @compile T8191893.java
++ */
++
++class T8191893 {
++
++    static class A<E> { }
++
++    <T> A<? super T> m(T t) {
++        return null;
++    }
++
++    <U> A<? super A<? super U>> m2(A<? super U> u) {
++        return null;
++    }
++
++    void test() {
++        var varValue = m2(m(10));
++        A<? super A<Object>> expectedTypeValue = varValue;
++    }
++}
+diff -r d34958cb3163 -r 5dd899009525 test/langtools/tools/javac/lvti/T8191959.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/lvti/T8191959.java	Wed Nov 29 17:31:23 2017 +0000
+@@ -0,0 +1,48 @@
++/*
++ * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8191802 8191959
++ * @summary Upward projection result is A<? extends Number> instead of A<? super Integer>
++ * @compile T8191959.java
++ */
++
++public class T8191959 {
++    static class A<E> { }
++
++    <T> A<? super T> m(T t) {
++        return null;
++    }
++
++    <U> A<? super A<? extends U>> m2(A<? super U> u) {
++        return null;
++    }
++
++    void test() {
++        var varValue = m2(m(10));
++        A<? super A<? extends Integer>> expectedTypeValue = varValue;
++    }
++}
+diff -r d34958cb3163 -r 5dd899009525 test/langtools/tools/javac/lvti/TestBadArray.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/lvti/TestBadArray.java	Wed Nov 29 17:31:23 2017 +0000
+@@ -0,0 +1,40 @@
++/*
++ * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8191802
++ * @summary Upward projection result is A<? extends Number> instead of A<? super Integer>
++ * @compile TestBadArray.java
++ */
++
++import java.util.List;
++
++class TestArr {
++    <Z> List<? super Z[]> m(List<Z> z) { return null; }
++    void test(List<? extends Number> l) {
++        var v = m(l);
++    }
++}
+diff -r d34958cb3163 -r 5dd899009525 test/langtools/tools/javac/lvti/harness/UpperBounds.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/lvti/harness/UpperBounds.java	Wed Nov 29 17:31:23 2017 +0000
+@@ -0,0 +1,73 @@
++/*
++ * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8191802
++ * @summary Upward projection result is A<? extends Number> instead of A<? super Integer>
++ * @modules jdk.compiler/com.sun.source.tree
++ *          jdk.compiler/com.sun.source.util
++ *          jdk.compiler/com.sun.tools.javac.api
++ *          jdk.compiler/com.sun.tools.javac.code
++ *          jdk.compiler/com.sun.tools.javac.util
++ * @build LocalVariableInferenceTester
++ * @run main LocalVariableInferenceTester UpperBounds.java
++ */
++class UpperBounds {
++
++    static class A<T extends Number> { }
++
++    static class C<T extends Comparable<T>> { }
++
++    void test1(A<? super Integer> s) {
++        //U is not Object, Bi is not fbound and U is not more specific than Bi, use "? super L"
++        @InferredType("UpperBounds.A<? super java.lang.Integer>")
++        var x = s;
++    }
++
++    void test2(C<? super Integer> s) {
++        //U is not Object, Bi is fbound, use "? extends L"
++        @InferredType("UpperBounds.C<? extends java.lang.Comparable<?>>")
++        var x = s;
++    }
++
++    void test3(A<? extends Object> s) {
++        //U is not Object, Bi is not fbound and U is not more specific than Bi, L is undefined, use "?"
++        @InferredType("UpperBounds.A<?>")
++        var x = s;
++    }
++
++    void test4(A<? extends Integer> s) {
++        //U is not Object, Bi is not fbound and U is more specific than Bi, use "? extends U"
++        @InferredType("UpperBounds.A<? extends java.lang.Integer>")
++        var x = s;
++    }
++
++    void test5(A<? extends Object> s) {
++        //U is not Object, Bi is not fbound and U is not more specific than Bi, L is undefined, use "?"
++        @InferredType("UpperBounds.A<?>")
++        var x = s;
++    }
++}
+

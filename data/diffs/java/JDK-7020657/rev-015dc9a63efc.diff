@@ -1,0 +1,105 @@
+changeset:   888:015dc9a63efc
+parent:      883:75e25df50873
+user:        mcimadamore
+date:        Wed Feb 23 14:16:12 2011 +0000
+summary:     7020657: Javac rejects a fairly common idiom with raw override and interfaces
+
+diff -r 75e25df50873 -r 015dc9a63efc src/share/classes/com/sun/tools/javac/comp/Check.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Check.java	Fri Feb 18 15:55:20 2011 -0800
++++ b/src/share/classes/com/sun/tools/javac/comp/Check.java	Wed Feb 23 14:16:12 2011 +0000
+@@ -1679,7 +1679,8 @@
+                             "(" + types.memberType(t2, s2).getParameterTypes() + ")");
+                         return s2;
+                     }
+-                } else if (checkNameClash((ClassSymbol)site.tsym, s1, s2)) {
++                } else if (checkNameClash((ClassSymbol)site.tsym, s1, s2) &&
++                        !checkCommonOverriderIn(s1, s2, site)) {
+                     log.error(pos,
+                             "name.clash.same.erasure.no.override",
+                             s1, s1.location(),
+diff -r 75e25df50873 -r 015dc9a63efc test/tools/javac/generics/7020657/T7020657neg.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/7020657/T7020657neg.java	Wed Feb 23 14:16:12 2011 +0000
+@@ -0,0 +1,23 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 7020657 6985719
++ *
++ * @summary  Javac rejects a fairly common idiom with raw override and interfaces
++ * @author Maurizio Cimadamore
++ * @compile/fail/ref=T7020657neg.out -XDrawDiagnostics T7020657neg.java
++ *
++ */
++
++import java.util.*;
++
++class T7020657neg {
++    interface A {
++        int get(List<String> l);
++    }
++
++    interface B  {
++        int get(List<Integer> l);
++    }
++
++    interface C extends A, B { }
++}
+diff -r 75e25df50873 -r 015dc9a63efc test/tools/javac/generics/7020657/T7020657neg.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/7020657/T7020657neg.out	Wed Feb 23 14:16:12 2011 +0000
+@@ -0,0 +1,2 @@
++T7020657neg.java:22:5: compiler.err.name.clash.same.erasure.no.override: get(java.util.List<java.lang.Integer>), T7020657neg.B, get(java.util.List<java.lang.String>), T7020657neg.A
++1 error
+diff -r 75e25df50873 -r 015dc9a63efc test/tools/javac/generics/7020657/T7020657pos.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/7020657/T7020657pos.java	Wed Feb 23 14:16:12 2011 +0000
+@@ -0,0 +1,48 @@
++/*
++ * Copyright (c) 2011, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 7020657 6985719
++ *
++ * @summary  Javac rejects a fairly common idiom with raw override and interfaces
++ * @author Robert Field
++ * @compile T7020657pos.java
++ *
++ */
++
++import java.util.*;
++
++class T7020657pos {
++    interface A {
++        int get(List<String> l);
++    }
++
++    interface B  {
++        int get(List<Integer> l);
++    }
++
++    interface C extends A, B {
++        int get(List l);
++    }
++}
+

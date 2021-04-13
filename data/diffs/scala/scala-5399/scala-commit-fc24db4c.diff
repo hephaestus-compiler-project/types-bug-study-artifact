@@ -1,0 +1,64 @@
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Typers.scala b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+index e643a91da7..b0f6e44e88 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Typers.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+@@ -2237,7 +2237,7 @@ trait Typers extends Modes with Adaptations with Taggings {
+     // takes untyped sub-trees of a match and type checks them
+     def typedMatch(selector: Tree, cases: List[CaseDef], mode: Int, pt: Type, tree: Tree = EmptyTree): Match = {
+       val selector1  = checkDead(typed(selector, EXPRmode | BYVALmode, WildcardType))
+-      val selectorTp = packCaptured(selector1.tpe.widen)
++      val selectorTp = packCaptured(selector1.tpe.widen).skolemizeExistential(context.owner, selector)
+       val casesTyped = typedCases(cases, selectorTp, pt)
+ 
+       val (resTp, needAdapt) =
+diff --git a/test/files/pos/t5399.scala b/test/files/pos/t5399.scala
+new file mode 100644
+index 0000000000..ebae7dbd9e
+--- /dev/null
++++ b/test/files/pos/t5399.scala
+@@ -0,0 +1,45 @@
++class Test {
++  class A[T]
++  class B[T](val a: A[T])
++
++  case class CaseClass[T](x: T)
++
++  def break(existB: B[_]) =
++    CaseClass(existB.a) match { case CaseClass(_) => }
++}
++
++class Foo {
++  trait Init[T]
++  class ScopedKey[T] extends Init[T]
++
++  trait Setting[T] {
++    val key: ScopedKey[T]
++  }
++
++  case class ScopedKey1[T](val foo: Init[T]) extends ScopedKey[T]
++
++  val scalaHome: Setting[Option[String]] = null
++  val scalaVersion: Setting[String] = null
++
++  def testPatternMatch(s: Setting[_]) {
++    s.key match {
++      case ScopedKey1(scalaHome.key | scalaVersion.key) => ()
++    }
++  }
++}
++
++class Test2 {
++  type AnyCyclic = Execute[Task]#CyclicException[_]
++
++  trait Task[T]
++
++  trait Execute[A[_] <: AnyRef] {
++    class CyclicException[T](val caller: A[T], val target: A[T])
++  }
++
++  def convertCyclic(c: AnyCyclic): String =
++    (c.caller, c.target) match {
++      case (caller: Task[_], target: Task[_]) => "bazinga!"
++    }
++}
++

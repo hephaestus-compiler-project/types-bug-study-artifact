@@ -1,0 +1,156 @@
+diff --git a/compiler/src/dotty/tools/dotc/core/TypeApplications.scala b/compiler/src/dotty/tools/dotc/core/TypeApplications.scala
+index 59243d7e19eb..ec2b72a1508d 100644
+--- a/compiler/src/dotty/tools/dotc/core/TypeApplications.scala
++++ b/compiler/src/dotty/tools/dotc/core/TypeApplications.scala
+@@ -461,7 +461,7 @@ class TypeApplications(val self: Type) extends AnyVal {
+    *  otherwise return Nil.
+    *  Existential types in arguments are returned as TypeBounds instances.
+    */
+-  final def argInfos(implicit ctx: Context): List[Type] = self match {
++  final def argInfos(implicit ctx: Context): List[Type] = self.stripTypeVar.stripAnnots match {
+     case AppliedType(tycon, args) => args
+     case _ => Nil
+   }
+diff --git a/compiler/src/dotty/tools/dotc/transform/Splicer.scala b/compiler/src/dotty/tools/dotc/transform/Splicer.scala
+index a566f90cf38d..7900810e0185 100644
+--- a/compiler/src/dotty/tools/dotc/transform/Splicer.scala
++++ b/compiler/src/dotty/tools/dotc/transform/Splicer.scala
+@@ -318,7 +318,10 @@ object Splicer {
+ 
+       case Inlined(EmptyTree, Nil, expansion) => interpretTree(expansion)
+ 
+-      case Typed(SeqLiteral(elems, _), _) =>
++      case Typed(expr, _) =>
++        interpretTree(expr)
++
++      case SeqLiteral(elems, _) =>
+         interpretVarargs(elems.map(e => interpretTree(e)))
+ 
+       case _ =>
+diff --git a/compiler/src/dotty/tools/dotc/typer/Checking.scala b/compiler/src/dotty/tools/dotc/typer/Checking.scala
+index a853965ea1bf..4e33016e89b3 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Checking.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Checking.scala
+@@ -678,29 +678,39 @@ trait Checking {
+     val purityLevel = if (isFinal) Idempotent else Pure
+     tree.tpe.widenTermRefExpr match {
+       case tp: ConstantType if exprPurity(tree) >= purityLevel => // ok
+-      case tp =>
+-        def isCaseClassApply(sym: Symbol): Boolean =
+-          sym.name == nme.apply && sym.is(Synthetic) && sym.owner.is(Module) && sym.owner.companionClass.is(Case)
+-        def isCaseClassNew(sym: Symbol): Boolean =
+-          sym.isPrimaryConstructor && sym.owner.is(Case) && sym.owner.isStatic
+-        def isCaseObject(sym: Symbol): Boolean = {
+-          // TODO add alias to Nil in scala package
+-          sym.is(Case) && sym.is(Module)
+-        }
+-        val allow =
+-          ctx.erasedTypes ||
+-          ctx.inInlineMethod ||
+-          (tree.symbol.isStatic && isCaseObject(tree.symbol) || isCaseClassApply(tree.symbol)) ||
+-          isCaseClassNew(tree.symbol)
+-        if (!allow) ctx.error(em"$what must be a known value", tree.pos)
+-        else {
+-          def checkArgs(tree: Tree): Unit = tree match {
+-            case Apply(fn, args) =>
+-              args.foreach(arg => checkInlineConformant(arg, isFinal, what))
+-              checkArgs(fn)
+-            case _ =>
+-          }
+-          checkArgs(tree)
++      case _ =>
++        tree match {
++          case Typed(expr, _) =>
++            checkInlineConformant(expr, isFinal, what)
++          case SeqLiteral(elems, _) =>
++            elems.foreach(elem => checkInlineConformant(elem, isFinal, what))
++          case Apply(fn, List(arg)) if defn.WrapArrayMethods().contains(fn.symbol) =>
++            checkInlineConformant(arg, isFinal, what)
++          case _ =>
++            def isCaseClassApply(sym: Symbol): Boolean =
++              sym.name == nme.apply && sym.is(Synthetic) && sym.owner.is(Module) && sym.owner.companionClass.is(Case)
++            def isCaseClassNew(sym: Symbol): Boolean =
++              sym.isPrimaryConstructor && sym.owner.is(Case) && sym.owner.isStatic
++            def isCaseObject(sym: Symbol): Boolean = {
++              // TODO add alias to Nil in scala package
++              sym.is(Case) && sym.is(Module)
++            }
++            val allow =
++              ctx.erasedTypes ||
++              ctx.inInlineMethod ||
++              (tree.symbol.isStatic && isCaseObject(tree.symbol) || isCaseClassApply(tree.symbol)) ||
++              isCaseClassNew(tree.symbol)
++
++            if (!allow) ctx.error(em"$what must be a known value", tree.pos)
++            else {
++              def checkArgs(tree: Tree): Unit = tree match {
++                case Apply(fn, args) =>
++                  args.foreach(arg => checkInlineConformant(arg, isFinal, what))
++                  checkArgs(fn)
++                case _ =>
++              }
++              checkArgs(tree)
++            }
+         }
+     }
+   }
+diff --git a/compiler/test/dotc/run-test-pickling.blacklist b/compiler/test/dotc/run-test-pickling.blacklist
+index 432d926ec813..a325fa8a995d 100644
+--- a/compiler/test/dotc/run-test-pickling.blacklist
++++ b/compiler/test/dotc/run-test-pickling.blacklist
+@@ -22,6 +22,7 @@ i4803f
+ i4947b
+ i5119
+ i5119b
++i5188a
+ inline-varargs-1
+ implicitShortcut
+ inline-case-objects
+diff --git a/tests/pos/i5188.scala b/tests/pos/i5188.scala
+new file mode 100644
+index 000000000000..26fdaa729d08
+--- /dev/null
++++ b/tests/pos/i5188.scala
+@@ -0,0 +1,4 @@
++object Test {
++  inline def sum(inline args: Int*): Int = 0
++  sum(1, 2, 3)
++}
+\ No newline at end of file
+diff --git a/tests/run/i5188a.check b/tests/run/i5188a.check
+new file mode 100644
+index 000000000000..d6d579b01993
+--- /dev/null
++++ b/tests/run/i5188a.check
+@@ -0,0 +1,4 @@
++0
++1
++3
++6
+diff --git a/tests/run/i5188a/Macro_1.scala b/tests/run/i5188a/Macro_1.scala
+new file mode 100644
+index 000000000000..77f6183df67c
+--- /dev/null
++++ b/tests/run/i5188a/Macro_1.scala
+@@ -0,0 +1,6 @@
++import scala.quoted._
++
++object Lib {
++  inline def sum(inline args: Int*): Int = ~impl(args: _*)
++  def impl(args: Int*): Expr[Int] = args.sum.toExpr
++}
+diff --git a/tests/run/i5188a/Test_2.scala b/tests/run/i5188a/Test_2.scala
+new file mode 100644
+index 000000000000..189edde7e212
+--- /dev/null
++++ b/tests/run/i5188a/Test_2.scala
+@@ -0,0 +1,9 @@
++
++object Test {
++  def main(args: Array[String]): Unit = {
++    println(Lib.sum())
++    println(Lib.sum(1))
++    println(Lib.sum(1, 2))
++    println(Lib.sum(1, 2, 3))
++  }
++}

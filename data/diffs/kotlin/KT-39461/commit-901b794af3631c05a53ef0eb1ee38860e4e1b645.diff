@@ -1,0 +1,241 @@
+diff --git a/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java b/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
+index ab17638b1e7..78afcf54b85 100644
+--- a/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
++++ b/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
+@@ -10286,6 +10286,11 @@ public class FirOldFrontendDiagnosticsTestGenerated extends AbstractFirOldFronte
+             runTest("compiler/testData/diagnostics/tests/inference/resolveWithUnknownLambdaParameterType.kt");
+         }
+ 
++        @TestMetadata("returningLambdaInSuspendContext.kt")
++        public void testReturningLambdaInSuspendContext() throws Exception {
++            runTest("compiler/testData/diagnostics/tests/inference/returningLambdaInSuspendContext.kt");
++        }
++
+         @TestMetadata("starApproximation.kt")
+         public void testStarApproximation() throws Exception {
+             runTest("compiler/testData/diagnostics/tests/inference/starApproximation.kt");
+diff --git a/compiler/frontend.java/src/org/jetbrains/kotlin/resolve/jvm/checkers/SuspensionPointInsideMutexLockChecker.kt b/compiler/frontend.java/src/org/jetbrains/kotlin/resolve/jvm/checkers/SuspensionPointInsideMutexLockChecker.kt
+index e2bf4312e67..40863635b9e 100644
+--- a/compiler/frontend.java/src/org/jetbrains/kotlin/resolve/jvm/checkers/SuspensionPointInsideMutexLockChecker.kt
++++ b/compiler/frontend.java/src/org/jetbrains/kotlin/resolve/jvm/checkers/SuspensionPointInsideMutexLockChecker.kt
+@@ -25,7 +25,8 @@ class SuspensionPointInsideMutexLockChecker : CallChecker {
+         val descriptor = resolvedCall.candidateDescriptor
+         if (descriptor !is FunctionDescriptor || !descriptor.isSuspend) return
+ 
+-        val enclosingSuspendFunctionSource = findEnclosingSuspendFunction(context)?.source?.getPsi() ?: return
++        val enclosingSuspendFunctionSource =
++            findEnclosingSuspendFunction(context, resolvedCall.call.callElement)?.source?.getPsi() ?: return
+ 
+         // Search for `synchronized` call
+         var parent = reportOn
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/checkers/coroutineCallChecker.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/checkers/coroutineCallChecker.kt
+index 97856fc5fb1..20c37070fa0 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/checkers/coroutineCallChecker.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/checkers/coroutineCallChecker.kt
+@@ -12,13 +12,12 @@ import org.jetbrains.kotlin.descriptors.*
+ import org.jetbrains.kotlin.diagnostics.DiagnosticSink
+ import org.jetbrains.kotlin.diagnostics.Errors
+ import org.jetbrains.kotlin.name.Name
+-import org.jetbrains.kotlin.psi.KtCodeFragment
+-import org.jetbrains.kotlin.psi.KtExpression
+-import org.jetbrains.kotlin.psi.KtThisExpression
++import org.jetbrains.kotlin.psi.*
+ import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
+ import org.jetbrains.kotlin.resolve.BindingContext
+ import org.jetbrains.kotlin.resolve.DescriptorUtils
+ import org.jetbrains.kotlin.resolve.calls.callUtil.isCallableReference
++import org.jetbrains.kotlin.resolve.calls.context.CallResolutionContext
+ import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
+ import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameSafe
+ import org.jetbrains.kotlin.resolve.inline.InlineUtil
+@@ -50,11 +49,28 @@ fun PropertyDescriptor.isBuiltInCoroutineContext(languageVersionSettings: Langua
+ 
+ private val ALLOWED_SCOPE_KINDS = setOf(LexicalScopeKind.FUNCTION_INNER_SCOPE, LexicalScopeKind.FUNCTION_HEADER_FOR_DESTRUCTURING)
+ 
+-fun findEnclosingSuspendFunction(context: CallCheckerContext): FunctionDescriptor? = context.scope
+-    .parentsWithSelf.firstOrNull {
+-    it is LexicalScope && it.kind in ALLOWED_SCOPE_KINDS &&
+-            it.ownerDescriptor.safeAs<FunctionDescriptor>()?.isSuspend == true
+-}?.cast<LexicalScope>()?.ownerDescriptor?.cast()
++fun findEnclosingSuspendFunction(context: CallCheckerContext, checkingCall: KtElement): FunctionDescriptor? {
++    /*
++     * If checking call isn't equal to call in resolution context, we should look at lexical scope from trace.
++     * It means there is a parent function analysis of which isn't completed yet
++     * and their lexical scope in the resolution context isn't recorded yet (but there is lexical scope with not completed descriptor in trace).
++     * Example (suggest that we're analyzing the last expression of lambda now):
++     *      fun main() {
++     *          runBlocking {
++     *              retry { 1 } // `fun main` lexical scope in the resolution context, `runBlocking { ... }` one in the recorded in trace lexical scope
++     *          }
++     *      }
++     */
++    val scope = if (context.resolutionContext !is CallResolutionContext<*> || context.resolutionContext.call.callElement == checkingCall) {
++        context.scope
++    } else {
++        context.trace.get(BindingContext.LEXICAL_SCOPE, checkingCall)
++    }
++
++    return scope?.parentsWithSelf?.firstOrNull {
++        it is LexicalScope && it.kind in ALLOWED_SCOPE_KINDS && it.ownerDescriptor.safeAs<FunctionDescriptor>()?.isSuspend == true
++    }?.cast<LexicalScope>()?.ownerDescriptor?.cast()
++}
+ 
+ object CoroutineSuspendCallChecker : CallChecker {
+     override fun check(resolvedCall: ResolvedCall<*>, reportOn: PsiElement, context: CallCheckerContext) {
+@@ -69,12 +85,11 @@ object CoroutineSuspendCallChecker : CallChecker {
+             else -> return
+         }
+ 
+-        val enclosingSuspendFunction = findEnclosingSuspendFunction(context)
++        val callElement = resolvedCall.call.callElement as KtExpression
++        val enclosingSuspendFunction = findEnclosingSuspendFunction(context, callElement)
+ 
+         when {
+             enclosingSuspendFunction != null -> {
+-                val callElement = resolvedCall.call.callElement as KtExpression
+-
+                 if (!InlineUtil.checkNonLocalReturnUsage(enclosingSuspendFunction, callElement, context.resolutionContext)) {
+                     var shouldReport = true
+ 
+diff --git a/compiler/testData/diagnostics/tests/inference/returningLambdaInSuspendContext.fir.kt b/compiler/testData/diagnostics/tests/inference/returningLambdaInSuspendContext.fir.kt
+new file mode 100644
+index 00000000000..017adc2125d
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/returningLambdaInSuspendContext.fir.kt
+@@ -0,0 +1,39 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER -UNCHECKED_CAST -UNUSED_LAMBDA_EXPRESSION
++
++class Foo {
++    suspend operator fun <T> invoke(body: suspend (Int) -> T) = null as T
++    suspend fun <T> bar(body: suspend (Int) -> T) = null as T
++}
++
++fun <T> runBlocking(block: suspend () -> T) = null as T
++
++public inline fun <T, R> T.run(block: T.() -> R) = null as R
++
++fun main() {
++    val retry = Foo()
++
++    runBlocking {
++        retry { 1 } // OK only after fix
++    }
++    runBlocking {
++        retry { 1 } // OK
++        1
++    }
++    runBlocking {
++        retry.bar { 1 } // OK
++    }
++    runBlocking {
++        { retry { 1 } } // should be error
++    }
++    runBlocking {
++        10.run { retry { 1 } } // should be OK
++    }
++    runBlocking {
++        10.run { retry { 1 } } // should be OK
++        1
++    }
++    runBlocking {
++        { retry { 1 } } // should be error
++        1
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/returningLambdaInSuspendContext.kt b/compiler/testData/diagnostics/tests/inference/returningLambdaInSuspendContext.kt
+new file mode 100644
+index 00000000000..927e84a1cd5
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/returningLambdaInSuspendContext.kt
+@@ -0,0 +1,39 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER -UNCHECKED_CAST -UNUSED_LAMBDA_EXPRESSION
++
++class Foo {
++    suspend operator fun <T> invoke(body: suspend (Int) -> T) = null as T
++    suspend fun <T> bar(body: suspend (Int) -> T) = null as T
++}
++
++fun <T> runBlocking(block: suspend () -> T) = null as T
++
++public inline fun <T, R> T.run(block: T.() -> R) = null as R
++
++fun main() {
++    val retry = Foo()
++
++    runBlocking {
++        retry { 1 } // OK only after fix
++    }
++    runBlocking {
++        retry { 1 } // OK
++        1
++    }
++    runBlocking {
++        retry.bar { 1 } // OK
++    }
++    runBlocking {
++        { <!NON_LOCAL_SUSPENSION_POINT!>retry<!> { 1 } } // should be error
++    }
++    runBlocking {
++        10.run { retry { 1 } } // should be OK
++    }
++    runBlocking {
++        10.run { retry { 1 } } // should be OK
++        1
++    }
++    runBlocking {
++        { <!NON_LOCAL_SUSPENSION_POINT!>retry<!> { 1 } } // should be error
++        1
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/returningLambdaInSuspendContext.txt b/compiler/testData/diagnostics/tests/inference/returningLambdaInSuspendContext.txt
+new file mode 100644
+index 00000000000..ee7325b836b
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/returningLambdaInSuspendContext.txt
+@@ -0,0 +1,14 @@
++package
++
++public fun main(): kotlin.Unit
++public fun </*0*/ T> runBlocking(/*0*/ block: suspend () -> T): T
++public inline fun </*0*/ T, /*1*/ R> T.run(/*0*/ block: T.() -> R): R
++
++public final class Foo {
++    public constructor Foo()
++    public final suspend fun </*0*/ T> bar(/*0*/ body: suspend (kotlin.Int) -> T): T
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final suspend operator fun </*0*/ T> invoke(/*0*/ body: suspend (kotlin.Int) -> T): T
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 82b8bb57b76..81a5d70080b 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -10293,6 +10293,11 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTestWithFirVali
+                 runTest("compiler/testData/diagnostics/tests/inference/resolveWithUnknownLambdaParameterType.kt");
+             }
+ 
++            @TestMetadata("returningLambdaInSuspendContext.kt")
++            public void testReturningLambdaInSuspendContext() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/inference/returningLambdaInSuspendContext.kt");
++            }
++
+             @TestMetadata("starApproximation.kt")
+             public void testStarApproximation() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/inference/starApproximation.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index 2f7d0852b39..0312e6c83e2 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -10288,6 +10288,11 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                 runTest("compiler/testData/diagnostics/tests/inference/resolveWithUnknownLambdaParameterType.kt");
+             }
+ 
++            @TestMetadata("returningLambdaInSuspendContext.kt")
++            public void testReturningLambdaInSuspendContext() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/inference/returningLambdaInSuspendContext.kt");
++            }
++
+             @TestMetadata("starApproximation.kt")
+             public void testStarApproximation() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/inference/starApproximation.kt");

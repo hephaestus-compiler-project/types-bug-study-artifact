@@ -1,0 +1,94 @@
+changeset:   158:5e54a59bcee7
+user:        mcimadamore
+date:        Fri Oct 24 12:45:47 2008 +0100
+summary:     6680106: StackOverFlowError for Cyclic inheritance in TypeParameters with ArrayType Bounds
+
+diff -r c6e3fc6dda61 -r 5e54a59bcee7 src/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Oct 23 18:29:11 2008 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/Attr.java	Fri Oct 24 12:45:47 2008 +0100
+@@ -2520,7 +2520,10 @@
+             // accept class or interface or typevar as first bound.
+             Type b = checkBase(bs.head, tree.bounds.head, env, false, false, false);
+             boundSet.add(types.erasure(b));
+-            if (b.tag == TYPEVAR) {
++            if (b.isErroneous()) {
++                a.bound = b;
++            }
++            else if (b.tag == TYPEVAR) {
+                 // if first bound was a typevar, do not accept further bounds.
+                 if (tree.bounds.tail.nonEmpty()) {
+                     log.error(tree.bounds.tail.head.pos(),
+@@ -2534,7 +2537,9 @@
+                 for (JCExpression bound : tree.bounds.tail) {
+                     bs = bs.tail;
+                     Type i = checkBase(bs.head, bound, env, false, true, false);
+-                    if (i.tag == CLASS)
++                    if (i.isErroneous())
++                        a.bound = i;
++                    else if (i.tag == CLASS)
+                         chk.checkNotRepeated(bound.pos(), types.erasure(i), boundSet);
+                 }
+             }
+diff -r c6e3fc6dda61 -r 5e54a59bcee7 test/tools/javac/generics/typevars/6680106/T6680106.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/typevars/6680106/T6680106.java	Fri Oct 24 12:45:47 2008 +0100
+@@ -0,0 +1,40 @@
++/*
++ * Copyright 2008 Sun Microsystems, Inc.  All Rights Reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa Clara,
++ * CA 95054 USA or visit www.sun.com if you need additional information or
++ * have any questions.
++ */
++
++/*
++ * @test
++ * @bug     6680106
++ * @summary StackOverFlowError for Cyclic inheritance in TypeParameters with ArrayType Bounds
++ * @author  Maurizio Cimadamore
++ * @compile/fail/ref=T6680106.out -XDrawDiagnostics T6680106.java
++ */
++
++class T6680106 {
++    class A0 {}
++    class A1<T extends T[]> {}
++    class A2<T extends S[], S extends T[]> {}
++    class A3<T extends S[], S extends U[], U extends T[]> {}
++    class A5<T extends A0 & T[]> {}
++    class A6<T extends A0 & S[], S extends A0 & T[]> {}
++    class A7<T extends A0 & S[], S extends A0 & U[], U extends A0 & T[]> {}
++}
+diff -r c6e3fc6dda61 -r 5e54a59bcee7 test/tools/javac/generics/typevars/6680106/T6680106.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/typevars/6680106/T6680106.out	Fri Oct 24 12:45:47 2008 +0100
+@@ -0,0 +1,13 @@
++T6680106.java:34:25: compiler.err.type.found.req: T[], (- compiler.misc.type.req.class)
++T6680106.java:35:25: compiler.err.type.found.req: S[], (- compiler.misc.type.req.class)
++T6680106.java:35:40: compiler.err.type.found.req: T[], (- compiler.misc.type.req.class)
++T6680106.java:36:25: compiler.err.type.found.req: S[], (- compiler.misc.type.req.class)
++T6680106.java:36:40: compiler.err.type.found.req: U[], (- compiler.misc.type.req.class)
++T6680106.java:36:55: compiler.err.type.found.req: T[], (- compiler.misc.type.req.class)
++T6680106.java:37:30: compiler.err.type.found.req: T[], (- compiler.misc.type.req.class)
++T6680106.java:38:30: compiler.err.type.found.req: S[], (- compiler.misc.type.req.class)
++T6680106.java:38:50: compiler.err.type.found.req: T[], (- compiler.misc.type.req.class)
++T6680106.java:39:30: compiler.err.type.found.req: S[], (- compiler.misc.type.req.class)
++T6680106.java:39:50: compiler.err.type.found.req: U[], (- compiler.misc.type.req.class)
++T6680106.java:39:70: compiler.err.type.found.req: T[], (- compiler.misc.type.req.class)
++12 errors
+\ No newline at end of file
+

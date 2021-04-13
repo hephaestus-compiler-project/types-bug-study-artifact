@@ -1,0 +1,104 @@
+diff --git a/compiler/testData/diagnostics/tests/kt13401.kt b/compiler/testData/diagnostics/tests/kt13401.kt
+new file mode 100644
+index 00000000000..d429c0366ab
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/kt13401.kt
+@@ -0,0 +1,15 @@
++// See KT-13401: SOE in VarianceChecker
++interface Rec<T: Rec<T>> {
++    fun t(): T
++}
++interface Super<out U> {
++    fun foo(p: Rec<*>) = p.t()
++}
++// Related variance errors
++class Owner<in T> {
++    inner class Inner<U : <!TYPE_VARIANCE_CONFLICT!>T<!>>(val u: U) {
++        fun getT() = u
++    }
++
++    fun foo(arg: Inner<*>) = arg.getT()
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/kt13401.txt b/compiler/testData/diagnostics/tests/kt13401.txt
+new file mode 100644
+index 00000000000..879c71b95a9
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/kt13401.txt
+@@ -0,0 +1,32 @@
++package
++
++public final class Owner</*0*/ in T> {
++    public constructor Owner</*0*/ in T>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final fun foo(/*0*/ arg: Owner<T>.Inner<*>): kotlin.Any?
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner</*0*/ U : T> /*captured type parameters: /*1*/ in T*/ {
++        public constructor Inner</*0*/ U : T>(/*0*/ u: U)
++        public final val u: U
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final fun getT(): U
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
++
++public interface Rec</*0*/ T : Rec<T>> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract fun t(): T
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface Super</*0*/ out U> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open fun foo(/*0*/ p: Rec<*>): Rec<*>
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index aa4eb65b985..0a4a31a1069 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -355,6 +355,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("kt13401.kt")
++        public void testKt13401() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/kt13401.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("kt310.kt")
+         public void testKt310() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/kt310.kt");
+diff --git a/core/descriptors/src/org/jetbrains/kotlin/types/VarianceChecker.kt b/core/descriptors/src/org/jetbrains/kotlin/types/VarianceChecker.kt
+index 78da59f82d6..90c09ad11ff 100644
+--- a/core/descriptors/src/org/jetbrains/kotlin/types/VarianceChecker.kt
++++ b/core/descriptors/src/org/jetbrains/kotlin/types/VarianceChecker.kt
+@@ -56,7 +56,7 @@ fun <D : TypeHolder<D>> D.checkTypePosition(
+ 
+     var noError = true
+     for (argument in arguments) {
+-        if (argument == null || argument.typeParameter == null) continue
++        if (argument == null || argument.typeParameter == null || argument.projection.isStarProjection) continue
+ 
+         val projectionKind = TypeCheckingProcedure.getEffectiveProjectionKind(argument.typeParameter!!, argument.projection)!!
+         val newPosition = when (projectionKind) {
+diff --git a/idea/testData/inspections/addVarianceModifier/recursiveGeneric.kt b/idea/testData/inspections/addVarianceModifier/recursiveGeneric.kt
+new file mode 100644
+index 00000000000..d546f3ad410
+--- /dev/null
++++ b/idea/testData/inspections/addVarianceModifier/recursiveGeneric.kt
+@@ -0,0 +1,7 @@
++// See KT-13401
++interface Rec<T: Rec<T>> {
++    fun t(): T
++}
++interface Super<U> {
++    fun foo(p: Rec<*>) = p.t()
++}
+\ No newline at end of file

@@ -1,0 +1,312 @@
+changeset:   1609:08782b8b03ce
+user:        mcimadamore
+date:        Thu Feb 28 14:05:52 2013 +0000
+summary:     8008537: Missing method reference lookup error when unbound search finds a static method
+
+diff -r 332f23993353 -r 08782b8b03ce src/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Feb 28 14:05:44 2013 +0000
++++ b/src/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Feb 28 14:05:52 2013 +0000
+@@ -2624,7 +2624,34 @@
+             that.sym = refSym.baseSymbol();
+             that.kind = lookupHelper.referenceKind(that.sym);
+ 
++            if (desc.getReturnType() == Type.recoveryType) {
++                // stop here
++                result = that.type = target;
++                return;
++            }
++
+             if (resultInfo.checkContext.deferredAttrContext().mode == AttrMode.CHECK) {
++
++                if (!that.kind.isUnbound() &&
++                        that.getMode() == ReferenceMode.INVOKE &&
++                        TreeInfo.isStaticSelector(that.expr, names) &&
++                        !that.sym.isStatic()) {
++                    log.error(that.expr.pos(), "invalid.mref", Kinds.kindName(that.getMode()),
++                            diags.fragment("non-static.cant.be.ref", Kinds.kindName(refSym), refSym));
++                    result = that.type = types.createErrorType(target);
++                    return;
++                }
++
++                if (that.kind.isUnbound() &&
++                        that.getMode() == ReferenceMode.INVOKE &&
++                        TreeInfo.isStaticSelector(that.expr, names) &&
++                        that.sym.isStatic()) {
++                    log.error(that.expr.pos(), "invalid.mref", Kinds.kindName(that.getMode()),
++                            diags.fragment("static.method.in.unbound.lookup", Kinds.kindName(refSym), refSym));
++                    result = that.type = types.createErrorType(target);
++                    return;
++                }
++
+                 if (that.sym.isStatic() && TreeInfo.isStaticSelector(that.expr, names) &&
+                         exprType.getTypeArguments().nonEmpty()) {
+                     //static ref with class type-args
+@@ -2649,12 +2676,6 @@
+                 }
+             }
+ 
+-            if (desc.getReturnType() == Type.recoveryType) {
+-                // stop here
+-                result = that.type = target;
+-                return;
+-            }
+-
+             that.sym = refSym.baseSymbol();
+             that.kind = lookupHelper.referenceKind(that.sym);
+ 
+diff -r 332f23993353 -r 08782b8b03ce src/share/classes/com/sun/tools/javac/comp/Resolve.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Resolve.java	Thu Feb 28 14:05:44 2013 +0000
++++ b/src/share/classes/com/sun/tools/javac/comp/Resolve.java	Thu Feb 28 14:05:52 2013 +0000
+@@ -2661,22 +2661,12 @@
+             super(referenceTree, name, site, argtypes, typeargtypes, maxPhase);
+         }
+ 
+-        protected Symbol lookupReferenceInternal(Env<AttrContext> env, MethodResolutionPhase phase) {
++        @Override
++        final Symbol lookup(Env<AttrContext> env, MethodResolutionPhase phase) {
+             return findMethod(env, site, name, argtypes, typeargtypes,
+                     phase.isBoxingRequired(), phase.isVarargsRequired(), syms.operatorNames.contains(name));
+         }
+ 
+-        protected Symbol adjustLookupResult(Env<AttrContext> env, Symbol sym) {
+-            return !TreeInfo.isStaticSelector(referenceTree.expr, names) ||
+-                        sym.kind != MTH ||
+-                        sym.isStatic() ? sym : new StaticError(sym);
+-        }
+-
+-        @Override
+-        final Symbol lookup(Env<AttrContext> env, MethodResolutionPhase phase) {
+-            return adjustLookupResult(env, lookupReferenceInternal(env, phase));
+-        }
+-
+         @Override
+         ReferenceLookupHelper unboundLookup() {
+             if (TreeInfo.isStaticSelector(referenceTree.expr, names) &&
+@@ -2721,11 +2711,6 @@
+         }
+ 
+         @Override
+-        protected Symbol adjustLookupResult(Env<AttrContext> env, Symbol sym) {
+-            return sym.kind != MTH || !sym.isStatic() ? sym : new StaticError(sym);
+-        }
+-
+-        @Override
+         ReferenceLookupHelper unboundLookup() {
+             return this;
+         }
+diff -r 332f23993353 -r 08782b8b03ce src/share/classes/com/sun/tools/javac/resources/compiler.properties
+--- a/src/share/classes/com/sun/tools/javac/resources/compiler.properties	Thu Feb 28 14:05:44 2013 +0000
++++ b/src/share/classes/com/sun/tools/javac/resources/compiler.properties	Thu Feb 28 14:05:52 2013 +0000
+@@ -1901,6 +1901,10 @@
+ compiler.misc.non-static.cant.be.ref=\
+     non-static {0} {1} cannot be referenced from a static context
+ 
++# 0: symbol kind, 1: symbol
++compiler.misc.static.method.in.unbound.lookup=\
++    static {0} {1} found in unbound lookup
++
+ ## Both arguments ({0}, {1}) are "kindname"s.  {0} is a comma-separated list
+ ## of kindnames (the list should be identical to that provided in source.
+ compiler.err.unexpected.type=\
+diff -r 332f23993353 -r 08782b8b03ce test/tools/javac/diags/examples/NonStaticCantBeRefFragment.java
+--- a/test/tools/javac/diags/examples/NonStaticCantBeRefFragment.java	Thu Feb 28 14:05:44 2013 +0000
++++ b/test/tools/javac/diags/examples/NonStaticCantBeRefFragment.java	Thu Feb 28 14:05:52 2013 +0000
+@@ -21,9 +21,8 @@
+  * questions.
+  */
+ 
+-// key: compiler.err.prob.found.req
+ // key: compiler.misc.non-static.cant.be.ref
+-// key: compiler.misc.invalid.mref
++// key: compiler.err.invalid.mref
+ 
+ class NonStaticCantBeRefFragment {
+ 
+diff -r 332f23993353 -r 08782b8b03ce test/tools/javac/diags/examples/StaticMethodInUnboundLookup.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/diags/examples/StaticMethodInUnboundLookup.java	Thu Feb 28 14:05:52 2013 +0000
+@@ -0,0 +1,36 @@
++/*
++ * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++// key: compiler.err.invalid.mref
++// key: compiler.misc.static.method.in.unbound.lookup
++
++class StaticBoundMref {
++
++    interface SAM {
++        void m(StaticBoundMref m);
++    }
++
++    SAM s = StaticBoundMref::m;
++
++    static void m() { }
++}
+diff -r 332f23993353 -r 08782b8b03ce test/tools/javac/lambda/MethodReference22.java
+--- a/test/tools/javac/lambda/MethodReference22.java	Thu Feb 28 14:05:44 2013 +0000
++++ b/test/tools/javac/lambda/MethodReference22.java	Thu Feb 28 14:05:52 2013 +0000
+@@ -48,19 +48,19 @@
+     }
+ 
+     static void test2() {
+-        SAM2 s1 = MethodReference22::m1; //ok
+-        call2(MethodReference22::m1); //ok
+-        SAM2 s2 = MethodReference22::m2; //ok
+-        call2(MethodReference22::m2); //ok
+-        SAM2 s3 = MethodReference22::m3; //fail
+-        call2(MethodReference22::m3); //fail
+-        SAM2 s4 = MethodReference22::m4; //fail
+-        call2(MethodReference22::m4); //fail
++        SAM2 s1 = MethodReference22::m1; //ambiguous
++        call2(MethodReference22::m1); //ambiguous
++        SAM2 s2 = MethodReference22::m2; //ambiguous
++        call2(MethodReference22::m2); //ambiguous
++        SAM2 s3 = MethodReference22::m3; //ambiguous
++        call2(MethodReference22::m3); //ambiguous
++        SAM2 s4 = MethodReference22::m4; //ambiguous
++        call2(MethodReference22::m4); //ambiguous
+     }
+ 
+     static void test3() {
+-        call3(MethodReference22::m1); //ok
+-        call3(MethodReference22::m2); //ambiguous
++        call3(MethodReference22::m1); //fail
++        call3(MethodReference22::m2); //ok
+         call3(MethodReference22::m3); //ok
+         call3(MethodReference22::m4); //fail
+     }
+diff -r 332f23993353 -r 08782b8b03ce test/tools/javac/lambda/MethodReference22.out
+--- a/test/tools/javac/lambda/MethodReference22.out	Thu Feb 28 14:05:44 2013 +0000
++++ b/test/tools/javac/lambda/MethodReference22.out	Thu Feb 28 14:05:52 2013 +0000
+@@ -1,11 +1,15 @@
+-MethodReference22.java:40:19: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m1(java.lang.String)))
+-MethodReference22.java:41:9: compiler.err.cant.apply.symbol: kindname.method, call1, MethodReference22.SAM1, @999, kindname.class, MethodReference22, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m1(java.lang.String))))
+-MethodReference22.java:46:19: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m4(java.lang.String)))
+-MethodReference22.java:47:9: compiler.err.cant.apply.symbol: kindname.method, call1, MethodReference22.SAM1, @1270, kindname.class, MethodReference22, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m4(java.lang.String))))
+-MethodReference22.java:55:19: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m3(MethodReference22,java.lang.String)))
+-MethodReference22.java:56:9: compiler.err.cant.apply.symbol: kindname.method, call2, MethodReference22.SAM2, @1574, kindname.class, MethodReference22, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m3(MethodReference22,java.lang.String))))
++MethodReference22.java:40:19: compiler.err.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m1(java.lang.String))
++MethodReference22.java:41:15: compiler.err.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m1(java.lang.String))
++MethodReference22.java:46:19: compiler.err.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m4(java.lang.String))
++MethodReference22.java:47:15: compiler.err.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m4(java.lang.String))
++MethodReference22.java:51:19: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.ref.ambiguous: m1, kindname.method, m1(MethodReference22,java.lang.String), MethodReference22, kindname.method, m1(java.lang.String), MethodReference22))
++MethodReference22.java:52:9: compiler.err.cant.apply.symbol: kindname.method, call2, MethodReference22.SAM2, @1401, kindname.class, MethodReference22, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.ref.ambiguous: m1, kindname.method, m1(MethodReference22,java.lang.String), MethodReference22, kindname.method, m1(java.lang.String), MethodReference22)))
++MethodReference22.java:53:19: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.ref.ambiguous: m2, kindname.method, m2(MethodReference22,java.lang.String), MethodReference22, kindname.method, m2(java.lang.String), MethodReference22))
++MethodReference22.java:54:9: compiler.err.cant.apply.symbol: kindname.method, call2, MethodReference22.SAM2, @1504, kindname.class, MethodReference22, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.ref.ambiguous: m2, kindname.method, m2(MethodReference22,java.lang.String), MethodReference22, kindname.method, m2(java.lang.String), MethodReference22)))
++MethodReference22.java:55:19: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.ref.ambiguous: m3, kindname.method, m3(MethodReference22,java.lang.String), MethodReference22, kindname.method, m3(java.lang.String), MethodReference22))
++MethodReference22.java:56:9: compiler.err.cant.apply.symbol: kindname.method, call2, MethodReference22.SAM2, @1607, kindname.class, MethodReference22, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.ref.ambiguous: m3, kindname.method, m3(MethodReference22,java.lang.String), MethodReference22, kindname.method, m3(java.lang.String), MethodReference22)))
+ MethodReference22.java:57:19: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.ref.ambiguous: m4, kindname.method, m4(MethodReference22,java.lang.String), MethodReference22, kindname.method, m4(java.lang.String), MethodReference22))
+-MethodReference22.java:58:9: compiler.err.cant.apply.symbol: kindname.method, call2, MethodReference22.SAM2, @1667, kindname.class, MethodReference22, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.ref.ambiguous: m4, kindname.method, m4(MethodReference22,java.lang.String), MethodReference22, kindname.method, m4(java.lang.String), MethodReference22)))
+-MethodReference22.java:63:9: compiler.err.ref.ambiguous: call3, kindname.method, call3(MethodReference22.SAM1), MethodReference22, kindname.method, call3(MethodReference22.SAM2), MethodReference22
+-MethodReference22.java:65:9: compiler.err.cant.apply.symbols: kindname.method, call3, @1881,{(compiler.misc.inapplicable.method: kindname.method, MethodReference22, call3(MethodReference22.SAM1), (compiler.misc.no.conforming.assignment.exists: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m4(java.lang.String))))),(compiler.misc.inapplicable.method: kindname.method, MethodReference22, call3(MethodReference22.SAM2), (compiler.misc.no.conforming.assignment.exists: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.ref.ambiguous: m4, kindname.method, m4(MethodReference22,java.lang.String), MethodReference22, kindname.method, m4(java.lang.String), MethodReference22))))}
+-10 errors
++MethodReference22.java:58:9: compiler.err.cant.apply.symbol: kindname.method, call2, MethodReference22.SAM2, @1710, kindname.class, MethodReference22, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.ref.ambiguous: m4, kindname.method, m4(MethodReference22,java.lang.String), MethodReference22, kindname.method, m4(java.lang.String), MethodReference22)))
++MethodReference22.java:62:15: compiler.err.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m1(java.lang.String))
++MethodReference22.java:65:15: compiler.err.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m4(java.lang.String))
++14 errors
+diff -r 332f23993353 -r 08782b8b03ce test/tools/javac/lambda/MethodReference28.out
+--- a/test/tools/javac/lambda/MethodReference28.out	Thu Feb 28 14:05:44 2013 +0000
++++ b/test/tools/javac/lambda/MethodReference28.out	Thu Feb 28 14:05:52 2013 +0000
+@@ -1,7 +1,7 @@
+ MethodReference28.java:31:19: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.cant.apply.symbol: kindname.method, static_m2, java.lang.Integer,java.lang.Integer, int, kindname.class, MethodReference28, (compiler.misc.arg.length.mismatch)))
+ MethodReference28.java:32:19: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.cant.apply.symbol: kindname.method, static_m3, java.lang.String, int, kindname.class, MethodReference28, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.inconvertible.types: int, java.lang.String))))
+ MethodReference28.java:33:19: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.cant.apply.symbol: kindname.method, static_m4, java.lang.String[], int, kindname.class, MethodReference28, (compiler.misc.varargs.argument.mismatch: (compiler.misc.inconvertible.types: int, java.lang.String))))
+-MethodReference28.java:37:19: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m1(java.lang.Integer)))
++MethodReference28.java:37:19: compiler.err.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, m1(java.lang.Integer))
+ MethodReference28.java:38:19: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.cant.apply.symbol: kindname.method, m2, java.lang.Integer,java.lang.Integer, int, kindname.class, MethodReference28, (compiler.misc.arg.length.mismatch)))
+ MethodReference28.java:39:19: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.cant.apply.symbol: kindname.method, m3, java.lang.String, int, kindname.class, MethodReference28, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.inconvertible.types: int, java.lang.String))))
+ MethodReference28.java:40:19: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.cant.apply.symbol: kindname.method, m4, java.lang.String[], int, kindname.class, MethodReference28, (compiler.misc.varargs.argument.mismatch: (compiler.misc.inconvertible.types: int, java.lang.String))))
+diff -r 332f23993353 -r 08782b8b03ce test/tools/javac/lambda/MethodReference51.out
+--- a/test/tools/javac/lambda/MethodReference51.out	Thu Feb 28 14:05:44 2013 +0000
++++ b/test/tools/javac/lambda/MethodReference51.out	Thu Feb 28 14:05:52 2013 +0000
+@@ -2,6 +2,6 @@
+ MethodReference51.java:40:21: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.cant.apply.symbol: kindname.method, f, java.lang.String, int, kindname.class, MethodReference51, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.inconvertible.types: int, java.lang.String))))
+ MethodReference51.java:41:21: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.cant.apply.symbols: kindname.method, g, int,{(compiler.misc.inapplicable.method: kindname.method, MethodReference51, g(java.lang.Integer,java.lang.Number), (compiler.misc.arg.length.mismatch)),(compiler.misc.inapplicable.method: kindname.method, MethodReference51, g(java.lang.Number,java.lang.Integer), (compiler.misc.arg.length.mismatch))}))
+ MethodReference51.java:42:32: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.ref.ambiguous: g, kindname.method, g(java.lang.Integer,java.lang.Number), MethodReference51, kindname.method, g(java.lang.Number,java.lang.Integer), MethodReference51))
+-MethodReference51.java:43:21: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, h(int)))
++MethodReference51.java:43:21: compiler.err.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, h(int))
+ MethodReference51.java:44:21: compiler.err.prob.found.req: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.not.def.access.class.intf.cant.access: j(int), MethodReference51.Foo))
+ 6 errors
+diff -r 332f23993353 -r 08782b8b03ce test/tools/javac/lambda/TargetType60.java
+--- a/test/tools/javac/lambda/TargetType60.java	Thu Feb 28 14:05:44 2013 +0000
++++ b/test/tools/javac/lambda/TargetType60.java	Thu Feb 28 14:05:52 2013 +0000
+@@ -29,10 +29,24 @@
+     void m012(String s) { }
+     void m012(String s1, String s2) { }
+ 
++    void n0() { }
++    void n1(String s) { }
++    void n2(TargetType60 rec, String s2) { }
++
++    void n01() { }
++    void n01(String s) { }
++
++    void n012() { }
++    void n012(String s) { }
++    void n012(TargetType60 rec, String s2) { }
++
+     static String g(Sam0 s) { return null; }
+     static <U> U g(Sam1<U> s) { return null; }
+     static <U> U g(Sam2<U,String> s) { return null; }
+ 
++    static <U> U u(Sam1<U> s) { return null; }
++    static <U> U u(Sam2<U,String> s) { return null; }
++
+     void testBound() {
+         String s1 = g(this::m0); //ok - resolves to g(Sam0)
+         String s2 = g(this::m1); //ok - resolves to g(Sam1)
+@@ -42,10 +56,10 @@
+     }
+ 
+     static void testUnbound() {
+-        TargetType60 s1 = g(TargetType60::m0); //ok - resolves to g(Sam1)
+-        TargetType60 s2 = g(TargetType60::m1); //ok - resolves to g(Sam2)
+-        TargetType60 s3 = g(TargetType60::m2); //none is applicable
+-        TargetType60 s4 = g(TargetType60::m01);//ambiguous (g(Sam1), g(Sam2) apply)
+-        TargetType60 s5 = g(TargetType60::m012);//ambiguous (g(Sam1), g(Sam2) apply)
++        TargetType60 s1 = u(TargetType60::n0); //ok - resolves to u(Sam1)
++        TargetType60 s2 = u(TargetType60::n1); //ambiguous (u(Sam1), u(Sam2) apply)
++        TargetType60 s3 = u(TargetType60::n2); //none is applicable
++        TargetType60 s4 = u(TargetType60::n01);//ambiguous (u(Sam1), u(Sam2) apply)
++        TargetType60 s5 = u(TargetType60::n012);//ambiguous (u(Sam1), u(Sam2) apply)
+     }
+ }
+diff -r 332f23993353 -r 08782b8b03ce test/tools/javac/lambda/TargetType60.out
+--- a/test/tools/javac/lambda/TargetType60.out	Thu Feb 28 14:05:44 2013 +0000
++++ b/test/tools/javac/lambda/TargetType60.out	Thu Feb 28 14:05:52 2013 +0000
+@@ -1,6 +1,8 @@
+-TargetType60.java:40:21: compiler.err.ref.ambiguous: g, kindname.method, g(TargetType60.Sam0), TargetType60, kindname.method, <U>g(TargetType60.Sam1<U>), TargetType60
+-TargetType60.java:41:21: compiler.err.ref.ambiguous: g, kindname.method, <U>g(TargetType60.Sam1<U>), TargetType60, kindname.method, <U>g(TargetType60.Sam2<U,java.lang.String>), TargetType60
+-TargetType60.java:47:27: compiler.err.cant.apply.symbols: kindname.method, g, @1304,{(compiler.misc.inapplicable.method: kindname.method, TargetType60, g(TargetType60.Sam0), (compiler.misc.no.conforming.assignment.exists: (compiler.misc.invalid.mref: kindname.method, (compiler.misc.cant.apply.symbol: kindname.method, m2, java.lang.String,java.lang.String, compiler.misc.no.args, kindname.class, TargetType60, (compiler.misc.arg.length.mismatch))))),(compiler.misc.inapplicable.method: kindname.method, TargetType60, <U>g(TargetType60.Sam1<U>), (compiler.misc.infer.no.conforming.assignment.exists: U, (compiler.misc.incompatible.arg.types.in.mref))),(compiler.misc.inapplicable.method: kindname.method, TargetType60, <U>g(TargetType60.Sam2<U,java.lang.String>), (compiler.misc.infer.no.conforming.assignment.exists: U, (compiler.misc.incompatible.arg.types.in.mref)))}
+-TargetType60.java:48:27: compiler.err.ref.ambiguous: g, kindname.method, <U>g(TargetType60.Sam1<U>), TargetType60, kindname.method, <U>g(TargetType60.Sam2<U,java.lang.String>), TargetType60
+-TargetType60.java:49:27: compiler.err.ref.ambiguous: g, kindname.method, <U>g(TargetType60.Sam1<U>), TargetType60, kindname.method, <U>g(TargetType60.Sam2<U,java.lang.String>), TargetType60
+-5 errors
++TargetType60.java:54:21: compiler.err.ref.ambiguous: g, kindname.method, g(TargetType60.Sam0), TargetType60, kindname.method, <U>g(TargetType60.Sam1<U>), TargetType60
++TargetType60.java:55:21: compiler.err.ref.ambiguous: g, kindname.method, <U>g(TargetType60.Sam1<U>), TargetType60, kindname.method, <U>g(TargetType60.Sam2<U,java.lang.String>), TargetType60
++TargetType60.java:60:27: compiler.err.ref.ambiguous: u, kindname.method, <U>u(TargetType60.Sam1<U>), TargetType60, kindname.method, <U>u(TargetType60.Sam2<U,java.lang.String>), TargetType60
++TargetType60.java:60:28: compiler.err.prob.found.req: (compiler.misc.infer.no.conforming.assignment.exists: U, (compiler.misc.invalid.mref: kindname.method, (compiler.misc.cant.apply.symbol: kindname.method, n1, java.lang.String, TargetType60, kindname.class, TargetType60, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.inconvertible.types: TargetType60, java.lang.String)))))
++TargetType60.java:61:29: compiler.err.invalid.mref: kindname.method, (compiler.misc.non-static.cant.be.ref: kindname.method, n2(TargetType60,java.lang.String))
++TargetType60.java:62:27: compiler.err.ref.ambiguous: u, kindname.method, <U>u(TargetType60.Sam1<U>), TargetType60, kindname.method, <U>u(TargetType60.Sam2<U,java.lang.String>), TargetType60
++TargetType60.java:63:27: compiler.err.ref.ambiguous: u, kindname.method, <U>u(TargetType60.Sam1<U>), TargetType60, kindname.method, <U>u(TargetType60.Sam2<U,java.lang.String>), TargetType60
++7 errors
+

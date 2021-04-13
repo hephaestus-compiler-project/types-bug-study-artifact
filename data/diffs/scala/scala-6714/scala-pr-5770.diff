@@ -1,0 +1,111 @@
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Typers.scala b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+index 8333d5d295fe..3a06c904b8e3 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Typers.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+@@ -4754,7 +4754,7 @@ trait Typers extends Adaptations with Tags with TypersTracking with PatternTyper
+               Select(vble.duplicate, prefix) setPos fun.pos.focus, args) setPos tree.pos.makeTransparent
+           ) setPos tree.pos
+ 
+-        def mkUpdate(table: Tree, indices: List[Tree]) =
++        def mkUpdate(table: Tree, indices: List[Tree], argss: List[List[Tree]]) =
+           gen.evalOnceAll(table :: indices, context.owner, context.unit) {
+             case tab :: is =>
+               def mkCall(name: Name, extraArgs: Tree*) = (
+@@ -4763,9 +4763,10 @@ trait Typers extends Adaptations with Tags with TypersTracking with PatternTyper
+                   is.map(i => i()) ++ extraArgs
+                 ) setPos tree.pos
+               )
++              def mkApplies(core: Tree) = argss.foldLeft(core)((x, args) => Apply(x, args))
+               mkCall(
+                 nme.update,
+-                Apply(Select(mkCall(nme.apply), prefix) setPos fun.pos, args) setPos tree.pos
++                Apply(Select(mkApplies(mkCall(nme.apply)), prefix) setPos fun.pos, args) setPos tree.pos
+               )
+             case _ => EmptyTree
+           }
+@@ -4780,9 +4781,18 @@ trait Typers extends Adaptations with Tags with TypersTracking with PatternTyper
+               mkAssign(Select(qq1, vname) setPos qual.pos)
+             }
+ 
++          case Apply(fn, extra) if qual.isInstanceOf[ApplyToImplicitArgs] =>
++            fn match {
++              case treeInfo.Applied(Select(table, nme.apply), _, indices :: Nil) =>
++                // table(indices)(implicits)
++                mkUpdate(table, indices, extra :: Nil)
++              case _  => UnexpectedTreeAssignmentConversionError(qual)
++            }
++
+           case Apply(fn, indices) =>
+             fn match {
+-              case treeInfo.Applied(Select(table, nme.apply), _, _) => mkUpdate(table, indices)
++              case treeInfo.Applied(Select(table, nme.apply), _, Nil) =>
++                mkUpdate(table, indices, Nil)
+               case _  => UnexpectedTreeAssignmentConversionError(qual)
+             }
+         }
+diff --git a/test/files/neg/t6714.check b/test/files/neg/t6714.check
+new file mode 100644
+index 000000000000..eb8b6251d44c
+--- /dev/null
++++ b/test/files/neg/t6714.check
+@@ -0,0 +1,7 @@
++t6714.scala:19: error: Unexpected tree during assignment conversion.
++  a(1)(9000) += 20  // Not OK
++      ^
++t6714.scala:21: error: Unexpected tree during assignment conversion.
++  b(1)(5) += 20     // Not OK
++      ^
++two errors found
+diff --git a/test/files/neg/t6714.scala b/test/files/neg/t6714.scala
+new file mode 100644
+index 000000000000..2cb3414e2f08
+--- /dev/null
++++ b/test/files/neg/t6714.scala
+@@ -0,0 +1,22 @@
++
++case class A(a: Int, index: Int) {
++  def apply(i: Int)(implicit ev: Int): A = new A(ev, i)
++  def update(i: Int, value: Int): A = if (i == index) A(i, value) else A(i, 0)
++  def +(j: Int) = a + j
++}
++
++case class B(a: Int, index: Int) {
++  def apply(i: Int)(j: Int)(implicit ev: Int): B = new B(j + ev, i)
++  def update(i: Int, value: Int): B = if (i == index) B(i, value) else B(i, 0)
++  def +(j: Int) = a + j
++}
++
++object Test extends App {
++  implicit def ev: Int = 8000
++  val a = A(5, 1)
++  a(1) = 10         // OK
++  a(1) += 20        // OK
++  a(1)(9000) += 20  // Not OK
++  val b = B(5, 1)
++  b(1)(5) += 20     // Not OK
++}
+diff --git a/test/files/run/t6714.scala b/test/files/run/t6714.scala
+new file mode 100644
+index 000000000000..eb7434e49bcf
+--- /dev/null
++++ b/test/files/run/t6714.scala
+@@ -0,0 +1,19 @@
++
++case class A(a: Int, index: Int) {
++  def apply(i: Int)(implicit ev: Int): A = new A(ev, i)
++  def update(i: Int, value: Int): A = if (i == index) A(i, value) else A(i, 0)
++  def +(j: Int) = a + j
++}
++
++object Test extends App {
++  def checkA(x: A, y: Int, z: Int) = assert(x == A(y, z))
++  implicit def ev: Int = 8000
++  val a = A(5, 1)
++  checkA(a(1) = 10, 1, 10)
++  checkA(a(1) += 20, 1, 8020)
++}
++
++/*
++ A(1,10)
++ A(1,8020) // was A(8000,0)
++ */

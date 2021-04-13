@@ -1,0 +1,222 @@
+diff --git a/src/main/java/org/codehaus/groovy/control/ResolveVisitor.java b/src/main/java/org/codehaus/groovy/control/ResolveVisitor.java
+index d5d0bf9b67..45ac027794 100644
+--- a/src/main/java/org/codehaus/groovy/control/ResolveVisitor.java
++++ b/src/main/java/org/codehaus/groovy/control/ResolveVisitor.java
+@@ -1303,14 +1303,24 @@ public class ResolveVisitor extends ClassCodeExpressionTransformer {
+     public void visitClass(ClassNode node) {
+         ClassNode oldNode = currentClass;
+ 
++        currentClass = node;
++
+         if (node instanceof InnerClassNode) {
+             if (Modifier.isStatic(node.getModifiers())) {
+                 genericParameterNames = new HashMap<String, GenericsType>();
+             }
++
++            InnerClassNode innerClassNode = (InnerClassNode) node;
++            if (innerClassNode.isAnonymous()) {
++                MethodNode enclosingMethod = innerClassNode.getEnclosingMethod();
++                if (null != enclosingMethod) {
++                    resolveGenericsHeader(enclosingMethod.getGenericsTypes());
++                }
++            }
+         } else {
+             genericParameterNames = new HashMap<String, GenericsType>();
+         }
+-        currentClass = node;
++
+         resolveGenericsHeader(node.getGenericsTypes());
+ 
+         ModuleNode module = node.getModule();
+diff --git a/src/test/groovy/bugs/groovy6742/DeferredResult.java b/src/test/groovy/bugs/groovy6742/DeferredResult.java
+new file mode 100644
+index 0000000000..e61e7ef967
+--- /dev/null
++++ b/src/test/groovy/bugs/groovy6742/DeferredResult.java
+@@ -0,0 +1,26 @@
++/*
++ *  Licensed to the Apache Software Foundation (ASF) under one
++ *  or more contributor license agreements.  See the NOTICE file
++ *  distributed with this work for additional information
++ *  regarding copyright ownership.  The ASF licenses this file
++ *  to you under the Apache License, Version 2.0 (the
++ *  "License"); you may not use this file except in compliance
++ *  with the License.  You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ *  Unless required by applicable law or agreed to in writing,
++ *  software distributed under the License is distributed on an
++ *  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++ *  KIND, either express or implied.  See the License for the
++ *  specific language governing permissions and limitations
++ *  under the License.
++ */
++
++package groovy.bugs.groovy6742;
++
++public class DeferredResult<T> {
++    public boolean setResult(T result) {
++        return true;
++    }
++}
+diff --git a/src/test/groovy/bugs/groovy6742/Function.java b/src/test/groovy/bugs/groovy6742/Function.java
+new file mode 100644
+index 0000000000..b0e6b42f34
+--- /dev/null
++++ b/src/test/groovy/bugs/groovy6742/Function.java
+@@ -0,0 +1,24 @@
++/*
++ *  Licensed to the Apache Software Foundation (ASF) under one
++ *  or more contributor license agreements.  See the NOTICE file
++ *  distributed with this work for additional information
++ *  regarding copyright ownership.  The ASF licenses this file
++ *  to you under the Apache License, Version 2.0 (the
++ *  "License"); you may not use this file except in compliance
++ *  with the License.  You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ *  Unless required by applicable law or agreed to in writing,
++ *  software distributed under the License is distributed on an
++ *  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++ *  KIND, either express or implied.  See the License for the
++ *  specific language governing permissions and limitations
++ *  under the License.
++ */
++
++package groovy.bugs.groovy6742;
++
++public interface Function<F, T> {
++    T apply(F input);
++}
+diff --git a/src/test/groovy/bugs/groovy6742/FutureCallback.java b/src/test/groovy/bugs/groovy6742/FutureCallback.java
+new file mode 100644
+index 0000000000..9295f032ad
+--- /dev/null
++++ b/src/test/groovy/bugs/groovy6742/FutureCallback.java
+@@ -0,0 +1,24 @@
++/*
++ *  Licensed to the Apache Software Foundation (ASF) under one
++ *  or more contributor license agreements.  See the NOTICE file
++ *  distributed with this work for additional information
++ *  regarding copyright ownership.  The ASF licenses this file
++ *  to you under the Apache License, Version 2.0 (the
++ *  "License"); you may not use this file except in compliance
++ *  with the License.  You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ *  Unless required by applicable law or agreed to in writing,
++ *  software distributed under the License is distributed on an
++ *  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++ *  KIND, either express or implied.  See the License for the
++ *  specific language governing permissions and limitations
++ *  under the License.
++ */
++
++package groovy.bugs.groovy6742;
++
++public interface FutureCallback<V> {
++    void onSuccess(V result);
++}
+\ No newline at end of file
+diff --git a/src/test/groovy/bugs/groovy6742/Groovy6742Bug.groovy b/src/test/groovy/bugs/groovy6742/Groovy6742Bug.groovy
+new file mode 100644
+index 0000000000..61f5f5d16b
+--- /dev/null
++++ b/src/test/groovy/bugs/groovy6742/Groovy6742Bug.groovy
+@@ -0,0 +1,93 @@
++/*
++ *  Licensed to the Apache Software Foundation (ASF) under one
++ *  or more contributor license agreements.  See the NOTICE file
++ *  distributed with this work for additional information
++ *  regarding copyright ownership.  The ASF licenses this file
++ *  to you under the Apache License, Version 2.0 (the
++ *  "License"); you may not use this file except in compliance
++ *  with the License.  You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ *  Unless required by applicable law or agreed to in writing,
++ *  software distributed under the License is distributed on an
++ *  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++ *  KIND, either express or implied.  See the License for the
++ *  specific language governing permissions and limitations
++ *  under the License.
++ */
++
++
++
++
++package groovy.bugs.groovy6742
++
++class Groovy6742Bug extends GroovyTestCase {
++    void test1() {
++        assertScript '''
++            package groovy.bugs.groovy6742
++            
++            @groovy.transform.TypeChecked
++            class Issue1 {
++                public void issue(){
++                    Function<String,String> function = new Function<String,String>() {
++                        @Override
++                        String apply(String input) {
++                            return "ok"
++                        }
++                    }
++                }
++            }
++            
++            assert true
++        '''
++    }
++
++    void test2() {
++        assertScript '''
++            package groovy.bugs.groovy6742
++            
++            @groovy.transform.TypeChecked
++            class Issue2 {
++                public void issue() {
++                    transform(new Function<String, String>() {
++                        @Override
++                        String apply(String input) {
++                            return "ok"
++                        }
++                    })
++                }
++            
++                public <I, O> void transform(Function<? super I, ? extends O> function) {
++            
++                }
++            }
++            
++            assert true
++        '''
++    }
++
++    void test3() {
++        assertScript '''
++            package groovy.bugs.groovy6742
++            
++            //@groovy.transform.TypeChecked
++            class Issue3 {
++                public static <F, T> FutureCallback<F> deferredCallback(DeferredResult<T> deferredResult, final Function<F, T> function) {
++                    return new FutureCallback<F>() {
++                        private F f = null
++                        F f2 = null
++                        
++                        @Override
++                        void onSuccess(F result) {
++                            deferredResult.setResult(function.apply(result))
++                        }
++                    };
++                }
++            }
++            
++            assert true
++        '''
++    }
++
++}

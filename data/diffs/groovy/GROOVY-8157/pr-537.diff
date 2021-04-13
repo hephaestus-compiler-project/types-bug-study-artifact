@@ -1,0 +1,46 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 47cf49272cb..c1548aa5671 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -3457,6 +3457,9 @@ protected void storeType(Expression exp, ClassNode cn) {
+             if (accessedVariable != null && accessedVariable != exp && accessedVariable instanceof VariableExpression) {
+                 storeType((Expression) accessedVariable, cn);
+             }
++            if (accessedVariable instanceof Parameter) {
++                ((Parameter) accessedVariable).putNodeMetaData(StaticTypesMarker.INFERRED_TYPE, cn);
++            }
+             if (var.isClosureSharedVariable() && cn!=null) {
+                 List<ClassNode> assignedTypes = typeCheckingContext.closureSharedVariablesAssignmentTypes.get(var);
+                 if (assignedTypes == null) {
+@@ -4022,6 +4025,7 @@ protected ClassNode getType(ASTNode exp) {
+                     storeType((VariableExpression)exp, type);
+                     return type;
+                 }
++                return getType((Parameter) variable);
+             }
+         }
+ 
+diff --git a/src/test/groovy/transform/stc/STCAssignmentTest.groovy b/src/test/groovy/transform/stc/STCAssignmentTest.groovy
+index e17428997b9..7b4030416fb 100644
+--- a/src/test/groovy/transform/stc/STCAssignmentTest.groovy
++++ b/src/test/groovy/transform/stc/STCAssignmentTest.groovy
+@@ -830,5 +830,19 @@ class STCAssignmentTest extends StaticTypeCheckingTestCase {
+             assert d.method() == "hello"
+         '''
+     }
++
++    //GROOVY-8157
++    void testFlowTypingAfterParameterAssignment() {
++        assertScript '''
++            class A {}
++            class B extends A { def bbb() { 42 } }
++
++            def fooParameterAssignment(A a) {
++                a = new B()
++                a.bbb()
++            }
++            assert fooParameterAssignment(null) == 42            
++        '''
++    }
+ }
+ 

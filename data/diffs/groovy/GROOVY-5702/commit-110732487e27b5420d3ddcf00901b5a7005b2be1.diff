@@ -1,0 +1,82 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 167ba2e416..697fbc6080 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -2392,14 +2392,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         } else {
+             methods = receiver.getMethods(name);
+             if (receiver.isInterface()) {
+-                ClassNode[] interfaces = receiver.getInterfaces();
+-                if (interfaces != null && interfaces.length > 0) {
+-                    methods = new ArrayList<MethodNode>(methods);
+-                    for (ClassNode node : interfaces) {
+-                        List<MethodNode> intfMethods = node.getMethods(name);
+-                        methods.addAll(intfMethods);
+-                    }
+-                }
++                methods = collectAllInterfaceMethodsByName(receiver, name, methods);
+                 methods.addAll(OBJECT_TYPE.getMethods(name));
+             }
+             if (closureExpression == null) {
+@@ -2464,6 +2457,11 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+             }
+         }
+ 
++        if (methods.isEmpty()) {
++            // look at the interfaces, there's a chance that a method is not implemented and we should not hide the
++            // error from the compiler
++            methods = collectAllInterfaceMethodsByName(receiver, name, methods);
++        }
+ 
+         List<MethodNode> chosen = chooseBestMethod(receiver, methods, args);
+         if (!chosen.isEmpty()) return chosen;
+@@ -2501,6 +2499,18 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         return EMPTY_METHODNODE_LIST;
+     }
+ 
++    private List<MethodNode> collectAllInterfaceMethodsByName(final ClassNode receiver, final String name, List<MethodNode> methods) {
++        ClassNode[] interfaces = receiver.getInterfaces();
++        if (interfaces != null && interfaces.length > 0) {
++            methods = new ArrayList<MethodNode>(methods);
++            for (ClassNode node : interfaces) {
++                List<MethodNode> intfMethods = node.getMethods(name);
++                methods.addAll(intfMethods);
++            }
++        }
++        return methods;
++    }
++
+     protected ClassNode getType(ASTNode exp) {
+         ClassNode cn = (ClassNode) exp.getNodeMetaData(StaticTypesMarker.INFERRED_TYPE);
+         if (cn != null) return cn;
+diff --git a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+index f7495611a0..8129a55d23 100644
+--- a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+@@ -803,6 +803,26 @@ class MethodCallsSTCTest extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
++    // GROOVY-5702
++    void testShouldFindInterfaceMethod() {
++        assertScript '''
++
++            interface OtherCloseable {
++                void close()
++            }
++
++            abstract class MyCloseableChannel implements OtherCloseable {  }
++
++            class Test {
++                static void test(MyCloseableChannel mc) {
++                    mc?.close()
++                }
++            }
++
++            Test.test(null)
++        '''
++    }
++
+     static class MyMethodCallTestClass {
+ 
+         static int mul(int... args) { args.toList().inject(1) { x,y -> x*y } }

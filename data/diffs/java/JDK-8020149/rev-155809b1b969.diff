@@ -1,0 +1,153 @@
+changeset:   1902:155809b1b969
+user:        mcimadamore
+date:        Wed Jul 17 14:19:02 2013 +0100
+summary:     8020149: Graph inference: wrong logic for picking best variable to solve
+
+diff -r fae8f309ff80 -r 155809b1b969 src/share/classes/com/sun/tools/javac/comp/Infer.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Infer.java	Wed Jul 17 14:16:25 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/Infer.java	Wed Jul 17 14:19:02 2013 +0100
+@@ -41,9 +41,11 @@
+ import com.sun.tools.javac.comp.Resolve.InapplicableMethodException;
+ import com.sun.tools.javac.comp.Resolve.VerboseResolutionMode;
+ 
++import java.util.Comparator;
+ import java.util.HashMap;
+ import java.util.Map;
+ import java.util.Set;
++import java.util.TreeSet;
+ 
+ import java.util.ArrayList;
+ import java.util.Collections;
+@@ -909,27 +911,32 @@
+         }
+ 
+         /**
+-         * Computes the cost associated with a given node; the cost is computed
+-         * as the total number of type-variables that should be eagerly instantiated
+-         * in order to get to some of the variables in {@code varsToSolve} from
+-         * a given node
++         * Computes the minimum path that goes from a given node to any of the nodes
++         * containing a variable in {@code varsToSolve}. For any given path, the cost
++         * is computed as the total number of type-variables that should be eagerly
++         * instantiated across that path.
+          */
+-        void computeCostIfNeeded(Node n, Map<Node, Integer> costMap) {
+-            if (costMap.containsKey(n)) {
+-                return;
+-            } else if (!Collections.disjoint(n.data, varsToSolve)) {
+-                costMap.put(n, n.data.size());
++        int computeMinPath(InferenceGraph g, Node n) {
++            return computeMinPath(g, n, List.<Node>nil(), 0);
++        }
++
++        int computeMinPath(InferenceGraph g, Node n, List<Node> path, int cost) {
++            if (path.contains(n)) return Integer.MAX_VALUE;
++            List<Node> path2 = path.prepend(n);
++            int cost2 = cost + n.data.size();
++            if (!Collections.disjoint(n.data, varsToSolve)) {
++                return cost2;
+             } else {
+-                int subcost = Integer.MAX_VALUE;
+-                costMap.put(n, subcost); //avoid loops
+-                for (Node n2 : n.getDependencies()) {
+-                    computeCostIfNeeded(n2, costMap);
+-                    subcost = Math.min(costMap.get(n2), subcost);
++               int bestPath = Integer.MAX_VALUE;
++               for (Node n2 : g.nodes) {
++                   if (n2.deps.contains(n)) {
++                       int res = computeMinPath(g, n2, path2, cost2);
++                       if (res < bestPath) {
++                           bestPath = res;
++                       }
++                   }
+                 }
+-                //update cost map to reflect real cost
+-                costMap.put(n, subcost == Integer.MAX_VALUE ?
+-                        Integer.MAX_VALUE :
+-                        n.data.size() + subcost);
++               return bestPath;
+             }
+         }
+ 
+@@ -938,21 +945,20 @@
+          */
+         @Override
+         public Node pickNode(final InferenceGraph g) {
+-            final Map<Node, Integer> costMap = new HashMap<Node, Integer>();
+-            ArrayList<Node> leaves = new ArrayList<Node>();
++            final Map<Node, Integer> leavesMap = new HashMap<Node, Integer>();
+             for (Node n : g.nodes) {
+-                computeCostIfNeeded(n, costMap);
+                 if (n.isLeaf(n)) {
+-                    leaves.add(n);
++                    leavesMap.put(n, computeMinPath(g, n));
+                 }
+             }
+-            Assert.check(!leaves.isEmpty(), "No nodes to solve!");
+-            Collections.sort(leaves, new java.util.Comparator<Node>() {
++            Assert.check(!leavesMap.isEmpty(), "No nodes to solve!");
++            TreeSet<Node> orderedLeaves = new TreeSet<Node>(new Comparator<Node>() {
+                 public int compare(Node n1, Node n2) {
+-                    return costMap.get(n1) - costMap.get(n2);
++                    return leavesMap.get(n1) - leavesMap.get(n2);
+                 }
+             });
+-            return leaves.get(0);
++            orderedLeaves.addAll(leavesMap.keySet());
++            return orderedLeaves.first();
+         }
+     }
+ 
+diff -r fae8f309ff80 -r 155809b1b969 test/tools/javac/generics/inference/8020149/T8020149.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/8020149/T8020149.java	Wed Jul 17 14:19:02 2013 +0100
+@@ -0,0 +1,48 @@
++/*
++ * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/**
++ * @test
++ * @bug 8020149
++ * @summary Graph inference: wrong logic for picking best variable to solve
++ * @compile T8020149.java
++ */
++class T8020149 {
++    static class TestData<X,Y> { }
++
++    interface Foo<X, Y extends Foo<X, Y>> { }
++
++    interface IntFoo extends Foo<Integer, IntFoo> { }
++
++    interface Function<X, Y> {
++        Y apply(X x);
++    }
++
++    void test(TestData<Integer, IntFoo> data) {
++       m1(data, s->s);
++       m2(data, s->s);
++    }
++
++    <E, E_OUT extends Foo<E, E_OUT>, W, W_IN extends Foo<W, W_IN>> void m1(TestData<W, W_IN> data, Function<W_IN, E_OUT> m) {  }
++    <W, W_IN extends Foo<W, W_IN>, E, E_OUT extends Foo<E, E_OUT>> void m2(TestData<W, W_IN> data, Function<W_IN, E_OUT> m) {  }
++}
+

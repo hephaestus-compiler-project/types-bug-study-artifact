@@ -1,0 +1,181 @@
+diff --git a/src/main/org/codehaus/groovy/ast/GenericsType.java b/src/main/org/codehaus/groovy/ast/GenericsType.java
+index b3a04ea5e0..5c5ff60c37 100644
+--- a/src/main/org/codehaus/groovy/ast/GenericsType.java
++++ b/src/main/org/codehaus/groovy/ast/GenericsType.java
+@@ -165,10 +165,6 @@ public class GenericsType extends ASTNode {
+             if (result) {
+                 return true;
+             }
+-            if (ClassHelper.GSTRING_TYPE.equals(type) && ClassHelper.STRING_TYPE.equals(superOrInterface)) {
+-                // GROOVY-5559
+-                return true;
+-            }
+             if (superOrInterface instanceof WideningCategories.LowestUpperBoundClassNode) {
+                 WideningCategories.LowestUpperBoundClassNode cn = (WideningCategories.LowestUpperBoundClassNode) superOrInterface;
+                 result = implementsInterfaceOrIsSubclassOf(type, cn.getSuperClass());
+@@ -236,10 +232,6 @@ public class GenericsType extends ASTNode {
+             }
+             // if this is not a generics placeholder, first compare that types represent the same type
+             if ((type!=null && !type.equals(classNode))) {
+-                if (ClassHelper.GSTRING_TYPE.equals(classNode) && ClassHelper.STRING_TYPE.equals(type)) {
+-                    // GROOVY-5559
+-                    return true;
+-                }
+                 return false;
+             }
+             // last, we could have the spec saying List<String> and a classnode saying List<Integer> so
+@@ -415,6 +407,7 @@ public class GenericsType extends ASTNode {
+      * @return the parameterized superclass
+      */
+     private static ClassNode getParameterizedSuperClass(ClassNode classNode) {
++        if (ClassHelper.OBJECT_TYPE.equals(classNode)) return null;
+         ClassNode superClass = classNode.getUnresolvedSuperClass();
+         if (superClass==null) {
+             return ClassHelper.OBJECT_TYPE;
+diff --git a/src/main/org/codehaus/groovy/ast/tools/WideningCategories.java b/src/main/org/codehaus/groovy/ast/tools/WideningCategories.java
+index d3f68e8c9a..a16cecab1e 100644
+--- a/src/main/org/codehaus/groovy/ast/tools/WideningCategories.java
++++ b/src/main/org/codehaus/groovy/ast/tools/WideningCategories.java
+@@ -344,12 +344,6 @@ public class WideningCategories {
+             }
+         }
+ 
+-        // GROOVY-5559: Consider GString a "substitute" for String
+-        if (GSTRING_TYPE.equals(a) && STRING_TYPE.equals(b)
+-                || STRING_TYPE.equals(a) && GSTRING_TYPE.equals(b)) {
+-            return STRING_TYPE;
+-        }
+-
+         // handle interfaces
+         boolean isInterfaceA = a.isInterface();
+         boolean isInterfaceB = b.isInterface();
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index 1be810b011..5310a4f7be 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -62,6 +62,11 @@ public abstract class StaticTypeCheckingSupport {
+                 put(ClassHelper.Double_TYPE, 5);
+             }});
+ 
++    final static ClassNode GSTRING_STRING_CLASSNODE = WideningCategories.lowestUpperBound(
++            ClassHelper.STRING_TYPE,
++            ClassHelper.GSTRING_TYPE
++    );
++
+     /**
+      * This is for internal use only. When an argument method is null, we cannot determine its type, so
+      * we use this one as a wildcard.
+@@ -1216,4 +1221,46 @@ public abstract class StaticTypeCheckingSupport {
+         }
+ 
+     }
++
++    /**
++     * @return true if the class node is either a GString or the LUB of String and GString.
++     */
++    public static boolean isGStringOrGStringStringLUB(ClassNode node) {
++        return ClassHelper.GSTRING_TYPE.equals(node)
++                || GSTRING_STRING_CLASSNODE.equals(node);
++    }
++
++    /**
++     * @param node the node to be tested
++     * @return true if the node is using generics types and one of those types is a gstring or string/gstring lub
++     */
++    public static boolean isParameterizedWithGStringOrGStringString(ClassNode node) {
++        if (node.isArray()) return isParameterizedWithGStringOrGStringString(node.getComponentType());
++        if (node.isUsingGenerics()) {
++            GenericsType[] genericsTypes = node.getGenericsTypes();
++            if (genericsTypes!=null) {
++                for (GenericsType genericsType : genericsTypes) {
++                    if (isGStringOrGStringStringLUB(genericsType.getType())) return true;
++                }
++            }
++        }
++        return node.getSuperClass() != null && isParameterizedWithGStringOrGStringString(node.getUnresolvedSuperClass());
++    }
++
++    /**
++     * @param node the node to be tested
++     * @return true if the node is using generics types and one of those types is a string
++     */
++    public static boolean isParameterizedWithString(ClassNode node) {
++        if (node.isArray()) return isParameterizedWithString(node.getComponentType());
++        if (node.isUsingGenerics()) {
++            GenericsType[] genericsTypes = node.getGenericsTypes();
++            if (genericsTypes!=null) {
++                for (GenericsType genericsType : genericsTypes) {
++                    if (STRING_TYPE.equals(genericsType.getType())) return true;
++                }
++            }
++        }
++        return node.getSuperClass() != null && isParameterizedWithString(node.getUnresolvedSuperClass());
++    }
+ }
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index e5208042be..9eb630680e 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -645,9 +645,14 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                 if (!incomplete) {
+                     GenericsType gt = GenericsUtils.buildWildcardType(leftExpressionType);
+                     if (!UNKNOWN_PARAMETER_TYPE.equals(inferredRightExpressionType) && !gt.isCompatibleWith(inferredRightExpressionType)) {
+-                        addStaticTypeError("Incompatible generic argument types. Cannot assign "
++                        if (isParameterizedWithString(leftExpressionType) && isParameterizedWithGStringOrGStringString(inferredRightExpressionType)) {
++                            addStaticTypeError("You are trying to use a GString in place of a String in a type which explicitely declares accepting String. " +
++                                    "Make sure you use toString() to all of your GString values.", assignmentExpression.getRightExpression());
++                        } else {
++                            addStaticTypeError("Incompatible generic argument types. Cannot assign "
+                                 + inferredRightExpressionType.toString(false)
+-                                + " to: " + leftExpressionType.toString(false), assignmentExpression);
++                                + " to: " + leftExpressionType.toString(false), assignmentExpression.getRightExpression());
++                        }
+                     }
+                 }
+             }
+diff --git a/src/test/groovy/transform/stc/GenericsSTCTest.groovy b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+index 5dade4ed43..8891631ebe 100644
+--- a/src/test/groovy/transform/stc/GenericsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+@@ -493,33 +493,33 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+     }
+ 
+     // GROOVY-5559
+-    void testGStringInListShouldBeConsideredAsAString() {
+-        assertScript '''
++    void testGStringInListShouldNotBeConsideredAsAString() {
++        assertScript '''import org.codehaus.groovy.ast.tools.WideningCategories.LowestUpperBoundClassNode as LUB
+         def bar = 1
+         @ASTTest(phase=INSTRUCTION_SELECTION, value={
+             assert node.getNodeMetaData(INFERRED_TYPE) == LIST_TYPE
+-            assert node.getNodeMetaData(INFERRED_TYPE).genericsTypes[0].type == STRING_TYPE
++            assert node.getNodeMetaData(INFERRED_TYPE).genericsTypes[0].type instanceof LUB
+         })
+         def list = ["foo", "$bar"]
+         '''
+ 
+-        assertScript '''
++        shouldFailWithMessages '''import org.codehaus.groovy.ast.tools.WideningCategories.LowestUpperBoundClassNode as LUB
+         def bar = 1
+         @ASTTest(phase=INSTRUCTION_SELECTION, value={
+             assert node.getNodeMetaData(INFERRED_TYPE) == LIST_TYPE
+-            assert node.getNodeMetaData(INFERRED_TYPE).genericsTypes[0].type == STRING_TYPE
++            assert node.getNodeMetaData(INFERRED_TYPE).genericsTypes[0].type instanceof LUB
+         })
+         List<String> list = ["foo", "$bar"]
+-        '''
++        ''', 'You are trying to use a GString'
+ 
+-        assertScript '''
++        shouldFailWithMessages '''
+         def bar = 1
+         @ASTTest(phase=INSTRUCTION_SELECTION, value={
+             assert node.getNodeMetaData(INFERRED_TYPE) == LIST_TYPE
+             assert node.getNodeMetaData(INFERRED_TYPE).genericsTypes[0].type == GSTRING_TYPE
+         })
+         List<String> list = ["$bar"] // single element means no LUB
+-        '''
++        ''', 'You are trying to use a GString'
+     }
+ 
+     // GROOVY-5559: related behaviour

@@ -1,0 +1,43 @@
+diff --git a/compiler/src/dotty/tools/dotc/transform/Erasure.scala b/compiler/src/dotty/tools/dotc/transform/Erasure.scala
+index f448025207..77d2eb7199 100644
+--- a/compiler/src/dotty/tools/dotc/transform/Erasure.scala
++++ b/compiler/src/dotty/tools/dotc/transform/Erasure.scala
+@@ -388,7 +388,7 @@ object Erasure {
+         case Block(_, tpt) => tpt // erase type aliases (statements) from type block
+         case tpt => tpt
+       }
+-      val tpt2 = promote(tpt1)
++      val tpt2 = typedType(tpt1)
+       val expr1 = typed(expr, tpt2.tpe)
+       assignType(untpd.cpy.Typed(tree)(expr1, tpt2), tpt2)
+     }
+@@ -736,6 +736,9 @@ object Erasure {
+     override def typedTypeDef(tdef: untpd.TypeDef, sym: Symbol)(implicit ctx: Context): Tree =
+       EmptyTree
+ 
++    override def typedAnnotated(tree: untpd.Annotated, pt: Type)(implicit ctx: Context): Tree =
++      typed(tree.arg, pt)
++
+     override def typedStats(stats: List[untpd.Tree], exprOwner: Symbol)(implicit ctx: Context): List[Tree] = {
+       val stats1 =
+         if (takesBridges(ctx.owner)) new Bridges(ctx.owner.asClass, erasurePhase).add(stats)
+diff --git a/tests/pos/i7041.scala b/tests/pos/i7041.scala
+new file mode 100644
+index 0000000000..7c0eba57e4
+--- /dev/null
++++ b/tests/pos/i7041.scala
+@@ -0,0 +1,13 @@
++import scala.util.control.NonLocalReturns._
++
++inline def (op: => T) rescue[T, E <: Throwable] (fallback: PartialFunction[E, T]) =
++  try op
++  catch {
++    case ex: ReturnThrowable[_] => throw ex
++    case ex: E =>
++      if (fallback.isDefinedAt(ex))  fallback(ex) else throw ex
++  }
++
++def test: Unit = {
++  9 / 0 rescue { case _: ArithmeticException => 10 }
++}
+\ No newline at end of file

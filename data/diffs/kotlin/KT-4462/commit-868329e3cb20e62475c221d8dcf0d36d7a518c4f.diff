@@ -1,0 +1,894 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/cfg/JetControlFlowProcessor.java b/compiler/frontend/src/org/jetbrains/kotlin/cfg/JetControlFlowProcessor.java
+index 6f2768b24e0..fb013009623 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/cfg/JetControlFlowProcessor.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/cfg/JetControlFlowProcessor.java
+@@ -44,6 +44,7 @@ import org.jetbrains.kotlin.resolve.BindingContextUtils;
+ import org.jetbrains.kotlin.resolve.BindingTrace;
+ import org.jetbrains.kotlin.resolve.CompileTimeConstantUtils;
+ import org.jetbrains.kotlin.resolve.calls.model.*;
++import org.jetbrains.kotlin.resolve.calls.tasks.ExplicitReceiverKind;
+ import org.jetbrains.kotlin.resolve.constants.CompileTimeConstant;
+ import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluator;
+ import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver;
+@@ -505,8 +506,7 @@ public class JetControlFlowProcessor {
+             generateInstructions(lhs.getArrayExpression());
+ 
+             Map<PseudoValue, ReceiverValue> receiverValues = getReceiverValues(setResolvedCall);
+-            SmartFMap<PseudoValue, ValueParameterDescriptor> argumentValues =
+-                    getArraySetterArguments(rhsDeferredValue, setResolvedCall);
++            SmartFMap<PseudoValue, ValueParameterDescriptor> argumentValues = getArraySetterArguments(rhsDeferredValue, setResolvedCall);
+ 
+             builder.call(parentExpression, setResolvedCall, receiverValues, argumentValues);
+         }
+@@ -1552,13 +1552,8 @@ public class JetControlFlowProcessor {
+         private InstructionWithValue generateCall(@NotNull ResolvedCall<?> resolvedCall) {
+             JetElement callElement = resolvedCall.getCall().getCallElement();
+ 
+-            if (resolvedCall instanceof VariableAsFunctionResolvedCall) {
+-                VariableAsFunctionResolvedCall variableAsFunctionResolvedCall = (VariableAsFunctionResolvedCall) resolvedCall;
+-                return generateCall(variableAsFunctionResolvedCall.getFunctionCall());
+-            }
+-
+-            CallableDescriptor resultingDescriptor = resolvedCall.getResultingDescriptor();
+             Map<PseudoValue, ReceiverValue> receivers = getReceiverValues(resolvedCall);
++
+             SmartFMap<PseudoValue, ValueParameterDescriptor> parameterValues = SmartFMap.emptyMap();
+             for (ValueArgument argument : resolvedCall.getCall().getValueArguments()) {
+                 ArgumentMapping argumentMapping = resolvedCall.getArgumentMapping(argument);
+@@ -1572,7 +1567,7 @@ public class JetControlFlowProcessor {
+                 }
+             }
+ 
+-            if (resultingDescriptor instanceof VariableDescriptor) {
++            if (resolvedCall.getResultingDescriptor() instanceof VariableDescriptor) {
+                 // If a callee of the call is just a variable (without 'invoke'), 'read variable' is generated.
+                 // todo : process arguments for such a case (KT-5387)
+                 JetExpression callExpression = callElement instanceof JetExpression ? (JetExpression) callElement : null;
+@@ -1582,13 +1577,35 @@ public class JetControlFlowProcessor {
+                         : "Variable-based call with non-empty argument list: " + callElement.getText();
+                 return builder.readVariable(callExpression, resolvedCall, receivers);
+             }
++
+             mark(resolvedCall.getCall().getCallElement());
+             return builder.call(callElement, resolvedCall, receivers, parameterValues);
+         }
+ 
+         @NotNull
+         private Map<PseudoValue, ReceiverValue> getReceiverValues(ResolvedCall<?> resolvedCall) {
++            PseudoValue varCallResult = null;
++            ReceiverValue explicitReceiver = ReceiverValue.NO_RECEIVER;
++            if (resolvedCall instanceof VariableAsFunctionResolvedCall) {
++                varCallResult = generateCall(((VariableAsFunctionResolvedCall) resolvedCall).getVariableCall()).getOutputValue();
++
++                ExplicitReceiverKind kind = resolvedCall.getExplicitReceiverKind();
++                //noinspection EnumSwitchStatementWhichMissesCases
++                switch (kind) {
++                    case DISPATCH_RECEIVER:
++                        explicitReceiver = resolvedCall.getDispatchReceiver();
++                        break;
++                    case EXTENSION_RECEIVER:
++                    case BOTH_RECEIVERS:
++                        explicitReceiver = resolvedCall.getExtensionReceiver();
++                        break;
++                }
++            }
++
+             SmartFMap<PseudoValue, ReceiverValue> receiverValues = SmartFMap.emptyMap();
++            if (explicitReceiver.exists() && varCallResult != null) {
++                receiverValues = receiverValues.plus(varCallResult, explicitReceiver);
++            }
+             JetElement callElement = resolvedCall.getCall().getCallElement();
+             receiverValues = getReceiverValues(callElement, resolvedCall.getDispatchReceiver(), receiverValues);
+             receiverValues = getReceiverValues(callElement, resolvedCall.getExtensionReceiver(), receiverValues);
+@@ -1601,7 +1618,7 @@ public class JetControlFlowProcessor {
+                 ReceiverValue receiver,
+                 SmartFMap<PseudoValue, ReceiverValue> receiverValues
+         ) {
+-            if (!receiver.exists()) return receiverValues;
++            if (!receiver.exists() || receiverValues.containsValue(receiver)) return receiverValues;
+ 
+             if (receiver instanceof ThisReceiver) {
+                 receiverValues = receiverValues.plus(createSyntheticValue(callElement, MagicKind.IMPLICIT_RECEIVER), receiver);
+diff --git a/compiler/testData/cfg/conventions/complexAssignmentWithGetSetViaVar.instructions b/compiler/testData/cfg/conventions/complexAssignmentWithGetSetViaVar.instructions
+new file mode 100644
+index 00000000000..1ab832bc036
+--- /dev/null
++++ b/compiler/testData/cfg/conventions/complexAssignmentWithGetSetViaVar.instructions
+@@ -0,0 +1,106 @@
++== Bar ==
++class Bar {
++    fun invoke(x: Int): Int = x
++    fun invoke(x: Int, y: Int) {}
++}
++---------------------
++L0:
++  1 <START>
++L1:
++    <END>      NEXT:[<SINK>]
++error:
++    <ERROR>    PREV:[]
++sink:
++    <SINK>     PREV:[<ERROR>, <END>]
++=====================
++== invoke ==
++fun invoke(x: Int): Int = x
++---------------------
++L0:
++  1 <START>
++    v(x: Int)
++    magic[FAKE_INITIALIZER](x: Int) -> <v0>
++    w(x|<v0>)
++    r(x) -> <v1>
++    ret(*|<v1>) L1
++L1:
++    <END>                                      NEXT:[<SINK>]
++error:
++    <ERROR>                                    PREV:[]
++sink:
++    <SINK>                                     PREV:[<ERROR>, <END>]
++=====================
++== invoke ==
++fun invoke(x: Int, y: Int) {}
++---------------------
++L0:
++  1 <START>
++    v(x: Int)
++    magic[FAKE_INITIALIZER](x: Int) -> <v0>
++    w(x|<v0>)
++    v(y: Int)
++    magic[FAKE_INITIALIZER](y: Int) -> <v1>
++    w(y|<v1>)
++  2 mark({})
++    read (Unit)
++L1:
++  1 <END>                                      NEXT:[<SINK>]
++error:
++    <ERROR>                                    PREV:[]
++sink:
++    <SINK>                                     PREV:[<ERROR>, <END>]
++=====================
++== Foo ==
++class Foo {
++    val get: Bar = Bar()
++    val set: Bar = Bar()
++}
++---------------------
++L0:
++  1 <START>
++    v(val get: Bar = Bar())
++    mark(Bar())
++    call(Bar(), <init>) -> <v0>
++    w(get|<v0>)
++    v(val set: Bar = Bar())
++    mark(Bar())
++    call(Bar(), <init>) -> <v1>
++    w(set|<v1>)
++L1:
++    <END>                          NEXT:[<SINK>]
++error:
++    <ERROR>                        PREV:[]
++sink:
++    <SINK>                         PREV:[<ERROR>, <END>]
++=====================
++== test ==
++fun test(foo: Foo) {
++    foo[1] += 2
++}
++---------------------
++L0:
++  1 <START>
++    v(foo: Foo)
++    magic[FAKE_INITIALIZER](foo: Foo) -> <v0>
++    w(foo|<v0>)
++  2 mark({ foo[1] += 2 })
++    mark(foo[1])
++    r(foo) -> <v1>
++    r(foo[1]|<v1>) -> <v2>
++    r(1) -> <v3>
++    mark(foo[1])
++    call(foo[1], invoke|<v2>, <v3>) -> <v4>
++    r(2) -> <v5>
++    mark(foo[1] += 2)
++    call(foo[1] += 2, plus|<v4>, <v5>) -> <v6>
++    r(foo) -> <v7>
++    r(foo[1]|<v7>) -> <v8>
++    r(1) -> <v9>
++    call(foo[1] += 2, invoke|<v8>, <v9>, <v6>) -> <v10>
++L1:
++  1 <END>                                                  NEXT:[<SINK>]
++error:
++    <ERROR>                                                PREV:[]
++sink:
++    <SINK>                                                 PREV:[<ERROR>, <END>]
++=====================
+diff --git a/compiler/testData/cfg/conventions/complexAssignmentWithGetSetViaVar.kt b/compiler/testData/cfg/conventions/complexAssignmentWithGetSetViaVar.kt
+new file mode 100644
+index 00000000000..cc5b0539703
+--- /dev/null
++++ b/compiler/testData/cfg/conventions/complexAssignmentWithGetSetViaVar.kt
+@@ -0,0 +1,13 @@
++class Bar {
++    fun invoke(x: Int): Int = x
++    fun invoke(x: Int, y: Int) {}
++}
++
++class Foo {
++    val get: Bar = Bar()
++    val set: Bar = Bar()
++}
++
++fun test(foo: Foo) {
++    foo[1] += 2
++}
+\ No newline at end of file
+diff --git a/compiler/testData/cfg/conventions/complexAssignmentWithGetSetViaVar.values b/compiler/testData/cfg/conventions/complexAssignmentWithGetSetViaVar.values
+new file mode 100644
+index 00000000000..78544ae2525
+--- /dev/null
++++ b/compiler/testData/cfg/conventions/complexAssignmentWithGetSetViaVar.values
+@@ -0,0 +1,41 @@
++== Bar ==
++class Bar {
++    fun invoke(x: Int): Int = x
++    fun invoke(x: Int, y: Int) {}
++}
++---------------------
++=====================
++== invoke ==
++fun invoke(x: Int): Int = x
++---------------------
++    <v0>: Int   NEW: magic[FAKE_INITIALIZER](x: Int) -> <v0>
++x   <v1>: Int   NEW: r(x) -> <v1>
++=====================
++== invoke ==
++fun invoke(x: Int, y: Int) {}
++---------------------
++    <v0>: Int   NEW: magic[FAKE_INITIALIZER](x: Int) -> <v0>
++    <v1>: Int   NEW: magic[FAKE_INITIALIZER](y: Int) -> <v1>
++=====================
++== Foo ==
++class Foo {
++    val get: Bar = Bar()
++    val set: Bar = Bar()
++}
++---------------------
++Bar()   <v0>: Bar   NEW: call(Bar(), <init>) -> <v0>
++Bar()   <v1>: Bar   NEW: call(Bar(), <init>) -> <v1>
++=====================
++== test ==
++fun test(foo: Foo) {
++    foo[1] += 2
++}
++---------------------
++                  <v0>: Foo   NEW: magic[FAKE_INITIALIZER](foo: Foo) -> <v0>
++foo               <v7>: Foo   NEW: r(foo) -> <v7>
++1                 <v9>: Int   NEW: r(1) -> <v9>
++foo[1]            <v8>: Bar   NEW: r(foo[1]|<v7>) -> <v8>
++2                 <v5>: Int   NEW: r(2) -> <v5>
++foo[1] += 2       <v10>: *    NEW: call(foo[1] += 2, invoke|<v8>, <v9>, <v6>) -> <v10>
++{ foo[1] += 2 }   <v10>: *    COPY
++=====================
+diff --git a/compiler/testData/cfg/conventions/complexAssignmentWithSetViaVar.instructions b/compiler/testData/cfg/conventions/complexAssignmentWithSetViaVar.instructions
+new file mode 100644
+index 00000000000..803b819cd32
+--- /dev/null
++++ b/compiler/testData/cfg/conventions/complexAssignmentWithSetViaVar.instructions
+@@ -0,0 +1,99 @@
++== Bar ==
++class Bar {
++    fun invoke(x: Int, y: Int) {}
++}
++---------------------
++L0:
++  1 <START>
++L1:
++    <END>      NEXT:[<SINK>]
++error:
++    <ERROR>    PREV:[]
++sink:
++    <SINK>     PREV:[<ERROR>, <END>]
++=====================
++== invoke ==
++fun invoke(x: Int, y: Int) {}
++---------------------
++L0:
++  1 <START>
++    v(x: Int)
++    magic[FAKE_INITIALIZER](x: Int) -> <v0>
++    w(x|<v0>)
++    v(y: Int)
++    magic[FAKE_INITIALIZER](y: Int) -> <v1>
++    w(y|<v1>)
++  2 mark({})
++    read (Unit)
++L1:
++  1 <END>                                      NEXT:[<SINK>]
++error:
++    <ERROR>                                    PREV:[]
++sink:
++    <SINK>                                     PREV:[<ERROR>, <END>]
++=====================
++== Foo ==
++class Foo {
++    val set: Bar = Bar()
++}
++---------------------
++L0:
++  1 <START>
++    v(val set: Bar = Bar())
++    mark(Bar())
++    call(Bar(), <init>) -> <v0>
++    w(set|<v0>)
++L1:
++    <END>                          NEXT:[<SINK>]
++error:
++    <ERROR>                        PREV:[]
++sink:
++    <SINK>                         PREV:[<ERROR>, <END>]
++=====================
++== get ==
++fun Foo.get(x: Int): Int = x
++---------------------
++L0:
++  1 <START>
++    v(x: Int)
++    magic[FAKE_INITIALIZER](x: Int) -> <v0>
++    w(x|<v0>)
++    r(x) -> <v1>
++    ret(*|<v1>) L1
++L1:
++    <END>                                      NEXT:[<SINK>]
++error:
++    <ERROR>                                    PREV:[]
++sink:
++    <SINK>                                     PREV:[<ERROR>, <END>]
++=====================
++== test ==
++fun test(foo: Foo) {
++    foo[1] += 2
++}
++---------------------
++L0:
++  1 <START>
++    v(foo: Foo)
++    magic[FAKE_INITIALIZER](foo: Foo) -> <v0>
++    w(foo|<v0>)
++  2 mark({ foo[1] += 2 })
++    mark(foo[1])
++    r(foo) -> <v1>
++    r(1) -> <v2>
++    mark(foo[1])
++    call(foo[1], get|<v1>, <v2>) -> <v3>
++    r(2) -> <v4>
++    mark(foo[1] += 2)
++    call(foo[1] += 2, plus|<v3>, <v4>) -> <v5>
++    r(foo) -> <v6>
++    r(foo[1]|<v6>) -> <v7>
++    r(1) -> <v8>
++    call(foo[1] += 2, invoke|<v7>, <v8>, <v5>) -> <v9>
++L1:
++  1 <END>                                                 NEXT:[<SINK>]
++error:
++    <ERROR>                                               PREV:[]
++sink:
++    <SINK>                                                PREV:[<ERROR>, <END>]
++=====================
+diff --git a/compiler/testData/cfg/conventions/complexAssignmentWithSetViaVar.kt b/compiler/testData/cfg/conventions/complexAssignmentWithSetViaVar.kt
+new file mode 100644
+index 00000000000..031b314f778
+--- /dev/null
++++ b/compiler/testData/cfg/conventions/complexAssignmentWithSetViaVar.kt
+@@ -0,0 +1,13 @@
++class Bar {
++    fun invoke(x: Int, y: Int) {}
++}
++
++class Foo {
++    val set: Bar = Bar()
++}
++
++fun Foo.get(x: Int): Int = x
++
++fun test(foo: Foo) {
++    foo[1] += 2
++}
+\ No newline at end of file
+diff --git a/compiler/testData/cfg/conventions/complexAssignmentWithSetViaVar.values b/compiler/testData/cfg/conventions/complexAssignmentWithSetViaVar.values
+new file mode 100644
+index 00000000000..c31a2b98eed
+--- /dev/null
++++ b/compiler/testData/cfg/conventions/complexAssignmentWithSetViaVar.values
+@@ -0,0 +1,38 @@
++== Bar ==
++class Bar {
++    fun invoke(x: Int, y: Int) {}
++}
++---------------------
++=====================
++== invoke ==
++fun invoke(x: Int, y: Int) {}
++---------------------
++    <v0>: Int   NEW: magic[FAKE_INITIALIZER](x: Int) -> <v0>
++    <v1>: Int   NEW: magic[FAKE_INITIALIZER](y: Int) -> <v1>
++=====================
++== Foo ==
++class Foo {
++    val set: Bar = Bar()
++}
++---------------------
++Bar()   <v0>: Bar   NEW: call(Bar(), <init>) -> <v0>
++=====================
++== get ==
++fun Foo.get(x: Int): Int = x
++---------------------
++    <v0>: Int   NEW: magic[FAKE_INITIALIZER](x: Int) -> <v0>
++x   <v1>: Int   NEW: r(x) -> <v1>
++=====================
++== test ==
++fun test(foo: Foo) {
++    foo[1] += 2
++}
++---------------------
++                  <v0>: Foo   NEW: magic[FAKE_INITIALIZER](foo: Foo) -> <v0>
++foo               <v6>: Foo   NEW: r(foo) -> <v6>
++1                 <v8>: Int   NEW: r(1) -> <v8>
++foo[1]            <v7>: Bar   NEW: r(foo[1]|<v6>) -> <v7>
++2                 <v4>: Int   NEW: r(2) -> <v4>
++foo[1] += 2       <v9>: *     NEW: call(foo[1] += 2, invoke|<v7>, <v8>, <v5>) -> <v9>
++{ foo[1] += 2 }   <v9>: *     COPY
++=====================
+diff --git a/compiler/testData/cfg/conventions/getViaVar.instructions b/compiler/testData/cfg/conventions/getViaVar.instructions
+new file mode 100644
+index 00000000000..2c943772eb3
+--- /dev/null
++++ b/compiler/testData/cfg/conventions/getViaVar.instructions
+@@ -0,0 +1,100 @@
++== Bar ==
++class Bar {
++    fun invoke(x: Int): Int = x
++}
++---------------------
++L0:
++  1 <START>
++L1:
++    <END>      NEXT:[<SINK>]
++error:
++    <ERROR>    PREV:[]
++sink:
++    <SINK>     PREV:[<ERROR>, <END>]
++=====================
++== invoke ==
++fun invoke(x: Int): Int = x
++---------------------
++L0:
++  1 <START>
++    v(x: Int)
++    magic[FAKE_INITIALIZER](x: Int) -> <v0>
++    w(x|<v0>)
++    r(x) -> <v1>
++    ret(*|<v1>) L1
++L1:
++    <END>                                      NEXT:[<SINK>]
++error:
++    <ERROR>                                    PREV:[]
++sink:
++    <SINK>                                     PREV:[<ERROR>, <END>]
++=====================
++== Foo ==
++class Foo {
++    val get: Bar = Bar()
++}
++---------------------
++L0:
++  1 <START>
++    v(val get: Bar = Bar())
++    mark(Bar())
++    call(Bar(), <init>) -> <v0>
++    w(get|<v0>)
++L1:
++    <END>                          NEXT:[<SINK>]
++error:
++    <ERROR>                        PREV:[]
++sink:
++    <SINK>                         PREV:[<ERROR>, <END>]
++=====================
++== test1 ==
++fun test1(foo: Foo) {
++    foo[1]
++}
++---------------------
++L0:
++  1 <START>
++    v(foo: Foo)
++    magic[FAKE_INITIALIZER](foo: Foo) -> <v0>
++    w(foo|<v0>)
++  2 mark({ foo[1] })
++    mark(foo[1])
++    r(foo) -> <v1>
++    r(foo[1]|<v1>) -> <v2>
++    r(1) -> <v3>
++    mark(foo[1])
++    call(foo[1], invoke|<v2>, <v3>) -> <v4>
++L1:
++  1 <END>                                        NEXT:[<SINK>]
++error:
++    <ERROR>                                      PREV:[]
++sink:
++    <SINK>                                       PREV:[<ERROR>, <END>]
++=====================
++== test2 ==
++fun test2(foo: Foo, get: Foo.(Int) -> Int) {
++    foo[1]
++}
++---------------------
++L0:
++  1 <START>
++    v(foo: Foo)
++    magic[FAKE_INITIALIZER](foo: Foo) -> <v0>
++    w(foo|<v0>)
++    v(get: Foo.(Int) -> Int)
++    magic[FAKE_INITIALIZER](get: Foo.(Int) -> Int) -> <v1>
++    w(get|<v1>)
++  2 mark({ foo[1] })
++    mark(foo[1])
++    r(foo) -> <v2>
++    r(foo[1]|<v2>) -> <v3>
++    r(1) -> <v4>
++    mark(foo[1])
++    call(foo[1], invoke|<v3>, <v4>) -> <v5>
++L1:
++  1 <END>                                                     NEXT:[<SINK>]
++error:
++    <ERROR>                                                   PREV:[]
++sink:
++    <SINK>                                                    PREV:[<ERROR>, <END>]
++=====================
+diff --git a/compiler/testData/cfg/conventions/getViaVar.kt b/compiler/testData/cfg/conventions/getViaVar.kt
+new file mode 100644
+index 00000000000..64863114b31
+--- /dev/null
++++ b/compiler/testData/cfg/conventions/getViaVar.kt
+@@ -0,0 +1,15 @@
++class Bar {
++    fun invoke(x: Int): Int = x
++}
++
++class Foo {
++    val get: Bar = Bar()
++}
++
++fun test1(foo: Foo) {
++    foo[1]
++}
++
++fun test2(foo: Foo, get: Foo.(Int) -> Int) {
++    foo[1]
++}
+\ No newline at end of file
+diff --git a/compiler/testData/cfg/conventions/getViaVar.values b/compiler/testData/cfg/conventions/getViaVar.values
+new file mode 100644
+index 00000000000..07c89479ef0
+--- /dev/null
++++ b/compiler/testData/cfg/conventions/getViaVar.values
+@@ -0,0 +1,42 @@
++== Bar ==
++class Bar {
++    fun invoke(x: Int): Int = x
++}
++---------------------
++=====================
++== invoke ==
++fun invoke(x: Int): Int = x
++---------------------
++    <v0>: Int   NEW: magic[FAKE_INITIALIZER](x: Int) -> <v0>
++x   <v1>: Int   NEW: r(x) -> <v1>
++=====================
++== Foo ==
++class Foo {
++    val get: Bar = Bar()
++}
++---------------------
++Bar()   <v0>: Bar   NEW: call(Bar(), <init>) -> <v0>
++=====================
++== test1 ==
++fun test1(foo: Foo) {
++    foo[1]
++}
++---------------------
++             <v0>: Foo   NEW: magic[FAKE_INITIALIZER](foo: Foo) -> <v0>
++foo          <v1>: Foo   NEW: r(foo) -> <v1>
++1            <v3>: Int   NEW: r(1) -> <v3>
++foo[1]       <v4>: *     NEW: call(foo[1], invoke|<v2>, <v3>) -> <v4>
++{ foo[1] }   <v4>: *     COPY
++=====================
++== test2 ==
++fun test2(foo: Foo, get: Foo.(Int) -> Int) {
++    foo[1]
++}
++---------------------
++             <v0>: Foo                     NEW: magic[FAKE_INITIALIZER](foo: Foo) -> <v0>
++             <v1>: {<: Foo.(Int) -> Int}   NEW: magic[FAKE_INITIALIZER](get: Foo.(Int) -> Int) -> <v1>
++foo          <v2>: Foo                     NEW: r(foo) -> <v2>
++1            <v4>: Int                     NEW: r(1) -> <v4>
++foo[1]       <v5>: *                       NEW: call(foo[1], invoke|<v3>, <v4>) -> <v5>
++{ foo[1] }   <v5>: *                       COPY
++=====================
+diff --git a/compiler/testData/cfg/conventions/setViaVar.instructions b/compiler/testData/cfg/conventions/setViaVar.instructions
+new file mode 100644
+index 00000000000..16ea555c066
+--- /dev/null
++++ b/compiler/testData/cfg/conventions/setViaVar.instructions
+@@ -0,0 +1,103 @@
++== Bar ==
++class Bar {
++    fun invoke(x: Int, y: Int) {}
++}
++---------------------
++L0:
++  1 <START>
++L1:
++    <END>      NEXT:[<SINK>]
++error:
++    <ERROR>    PREV:[]
++sink:
++    <SINK>     PREV:[<ERROR>, <END>]
++=====================
++== invoke ==
++fun invoke(x: Int, y: Int) {}
++---------------------
++L0:
++  1 <START>
++    v(x: Int)
++    magic[FAKE_INITIALIZER](x: Int) -> <v0>
++    w(x|<v0>)
++    v(y: Int)
++    magic[FAKE_INITIALIZER](y: Int) -> <v1>
++    w(y|<v1>)
++  2 mark({})
++    read (Unit)
++L1:
++  1 <END>                                      NEXT:[<SINK>]
++error:
++    <ERROR>                                    PREV:[]
++sink:
++    <SINK>                                     PREV:[<ERROR>, <END>]
++=====================
++== Foo ==
++class Foo {
++    val set: Bar = Bar()
++}
++---------------------
++L0:
++  1 <START>
++    v(val set: Bar = Bar())
++    mark(Bar())
++    call(Bar(), <init>) -> <v0>
++    w(set|<v0>)
++L1:
++    <END>                          NEXT:[<SINK>]
++error:
++    <ERROR>                        PREV:[]
++sink:
++    <SINK>                         PREV:[<ERROR>, <END>]
++=====================
++== test1 ==
++fun test1(foo: Foo) {
++    foo[1] = 2
++}
++---------------------
++L0:
++  1 <START>
++    v(foo: Foo)
++    magic[FAKE_INITIALIZER](foo: Foo) -> <v0>
++    w(foo|<v0>)
++  2 mark({ foo[1] = 2 })
++    mark(foo[1])
++    r(foo) -> <v1>
++    r(foo[1]|<v1>) -> <v2>
++    r(1) -> <v3>
++    r(2) -> <v4>
++    call(foo[1] = 2, invoke|<v2>, <v3>, <v4>) -> <v5>
++L1:
++  1 <END>                                                NEXT:[<SINK>]
++error:
++    <ERROR>                                              PREV:[]
++sink:
++    <SINK>                                               PREV:[<ERROR>, <END>]
++=====================
++== test2 ==
++fun test2(foo: Foo, set: Foo.(Int, Int) -> Int) {
++    foo[1] = 2
++}
++---------------------
++L0:
++  1 <START>
++    v(foo: Foo)
++    magic[FAKE_INITIALIZER](foo: Foo) -> <v0>
++    w(foo|<v0>)
++    v(set: Foo.(Int, Int) -> Int)
++    magic[FAKE_INITIALIZER](set: Foo.(Int, Int) -> Int) -> <v1>
++    w(set|<v1>)
++  2 mark({ foo[1] = 2 })
++    mark(foo[1])
++    r(foo) -> <v2>
++    r(foo[1]|<v2>) -> <v3>
++    r(1) -> <v4>
++    r(2) -> <v5>
++    call(foo[1] = 2, invoke|<v3>, <v4>, <v5>) -> <v6>
++L1:
++  1 <END>                                                          NEXT:[<SINK>]
++error:
++    <ERROR>                                                        PREV:[]
++sink:
++    <SINK>                                                         PREV:[<ERROR>, <END>]
++=====================
+diff --git a/compiler/testData/cfg/conventions/setViaVar.kt b/compiler/testData/cfg/conventions/setViaVar.kt
+new file mode 100644
+index 00000000000..05a19d6bd12
+--- /dev/null
++++ b/compiler/testData/cfg/conventions/setViaVar.kt
+@@ -0,0 +1,15 @@
++class Bar {
++    fun invoke(x: Int, y: Int) {}
++}
++
++class Foo {
++    val set: Bar = Bar()
++}
++
++fun test1(foo: Foo) {
++    foo[1] = 2
++}
++
++fun test2(foo: Foo, set: Foo.(Int, Int) -> Int) {
++    foo[1] = 2
++}
+\ No newline at end of file
+diff --git a/compiler/testData/cfg/conventions/setViaVar.values b/compiler/testData/cfg/conventions/setViaVar.values
+new file mode 100644
+index 00000000000..14506459408
+--- /dev/null
++++ b/compiler/testData/cfg/conventions/setViaVar.values
+@@ -0,0 +1,46 @@
++== Bar ==
++class Bar {
++    fun invoke(x: Int, y: Int) {}
++}
++---------------------
++=====================
++== invoke ==
++fun invoke(x: Int, y: Int) {}
++---------------------
++    <v0>: Int   NEW: magic[FAKE_INITIALIZER](x: Int) -> <v0>
++    <v1>: Int   NEW: magic[FAKE_INITIALIZER](y: Int) -> <v1>
++=====================
++== Foo ==
++class Foo {
++    val set: Bar = Bar()
++}
++---------------------
++Bar()   <v0>: Bar   NEW: call(Bar(), <init>) -> <v0>
++=====================
++== test1 ==
++fun test1(foo: Foo) {
++    foo[1] = 2
++}
++---------------------
++                 <v0>: Foo   NEW: magic[FAKE_INITIALIZER](foo: Foo) -> <v0>
++foo              <v1>: Foo   NEW: r(foo) -> <v1>
++1                <v3>: Int   NEW: r(1) -> <v3>
++foo[1]           <v2>: Bar   NEW: r(foo[1]|<v1>) -> <v2>
++2                <v4>: Int   NEW: r(2) -> <v4>
++foo[1] = 2       <v5>: *     NEW: call(foo[1] = 2, invoke|<v2>, <v3>, <v4>) -> <v5>
++{ foo[1] = 2 }   <v5>: *     COPY
++=====================
++== test2 ==
++fun test2(foo: Foo, set: Foo.(Int, Int) -> Int) {
++    foo[1] = 2
++}
++---------------------
++                 <v0>: Foo                          NEW: magic[FAKE_INITIALIZER](foo: Foo) -> <v0>
++                 <v1>: {<: Foo.(Int, Int) -> Int}   NEW: magic[FAKE_INITIALIZER](set: Foo.(Int, Int) -> Int) -> <v1>
++foo              <v2>: Foo                          NEW: r(foo) -> <v2>
++1                <v4>: Int                          NEW: r(1) -> <v4>
++foo[1]           <v3>: Bar                          NEW: r(foo[1]|<v2>) -> <v3>
++2                <v5>: Int                          NEW: r(2) -> <v5>
++foo[1] = 2       <v6>: *                            NEW: call(foo[1] = 2, invoke|<v3>, <v4>, <v5>) -> <v6>
++{ foo[1] = 2 }   <v6>: *                            COPY
++=====================
+diff --git a/compiler/tests/org/jetbrains/kotlin/cfg/ControlFlowTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/cfg/ControlFlowTestGenerated.java
+index 8d22e020d0c..54bb798da90 100644
+--- a/compiler/tests/org/jetbrains/kotlin/cfg/ControlFlowTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/cfg/ControlFlowTestGenerated.java
+@@ -247,12 +247,30 @@ public class ControlFlowTestGenerated extends AbstractControlFlowTest {
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("complexAssignmentWithGetSetViaVar.kt")
++        public void testComplexAssignmentWithGetSetViaVar() throws Exception {
++            String fileName = JetTestUtils.navigationMetadata("compiler/testData/cfg/conventions/complexAssignmentWithGetSetViaVar.kt");
++            doTest(fileName);
++        }
++
++        @TestMetadata("complexAssignmentWithSetViaVar.kt")
++        public void testComplexAssignmentWithSetViaVar() throws Exception {
++            String fileName = JetTestUtils.navigationMetadata("compiler/testData/cfg/conventions/complexAssignmentWithSetViaVar.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("equals.kt")
+         public void testEquals() throws Exception {
+             String fileName = JetTestUtils.navigationMetadata("compiler/testData/cfg/conventions/equals.kt");
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("getViaVar.kt")
++        public void testGetViaVar() throws Exception {
++            String fileName = JetTestUtils.navigationMetadata("compiler/testData/cfg/conventions/getViaVar.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("incrementAtTheEnd.kt")
+         public void testIncrementAtTheEnd() throws Exception {
+             String fileName = JetTestUtils.navigationMetadata("compiler/testData/cfg/conventions/incrementAtTheEnd.kt");
+@@ -270,6 +288,12 @@ public class ControlFlowTestGenerated extends AbstractControlFlowTest {
+             String fileName = JetTestUtils.navigationMetadata("compiler/testData/cfg/conventions/notEqual.kt");
+             doTest(fileName);
+         }
++
++        @TestMetadata("setViaVar.kt")
++        public void testSetViaVar() throws Exception {
++            String fileName = JetTestUtils.navigationMetadata("compiler/testData/cfg/conventions/setViaVar.kt");
++            doTest(fileName);
++        }
+     }
+ 
+     @TestMetadata("compiler/testData/cfg/deadCode")
+diff --git a/compiler/tests/org/jetbrains/kotlin/cfg/PseudoValueTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/cfg/PseudoValueTestGenerated.java
+index 2cc9a7b5bd3..7017601bb43 100644
+--- a/compiler/tests/org/jetbrains/kotlin/cfg/PseudoValueTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/cfg/PseudoValueTestGenerated.java
+@@ -249,12 +249,30 @@ public class PseudoValueTestGenerated extends AbstractPseudoValueTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("complexAssignmentWithGetSetViaVar.kt")
++            public void testComplexAssignmentWithGetSetViaVar() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/cfg/conventions/complexAssignmentWithGetSetViaVar.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("complexAssignmentWithSetViaVar.kt")
++            public void testComplexAssignmentWithSetViaVar() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/cfg/conventions/complexAssignmentWithSetViaVar.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("equals.kt")
+             public void testEquals() throws Exception {
+                 String fileName = JetTestUtils.navigationMetadata("compiler/testData/cfg/conventions/equals.kt");
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("getViaVar.kt")
++            public void testGetViaVar() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/cfg/conventions/getViaVar.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("incrementAtTheEnd.kt")
+             public void testIncrementAtTheEnd() throws Exception {
+                 String fileName = JetTestUtils.navigationMetadata("compiler/testData/cfg/conventions/incrementAtTheEnd.kt");
+@@ -272,6 +290,12 @@ public class PseudoValueTestGenerated extends AbstractPseudoValueTest {
+                 String fileName = JetTestUtils.navigationMetadata("compiler/testData/cfg/conventions/notEqual.kt");
+                 doTest(fileName);
+             }
++
++            @TestMetadata("setViaVar.kt")
++            public void testSetViaVar() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/cfg/conventions/setViaVar.kt");
++                doTest(fileName);
++            }
+         }
+ 
+         @TestMetadata("compiler/testData/cfg/deadCode")

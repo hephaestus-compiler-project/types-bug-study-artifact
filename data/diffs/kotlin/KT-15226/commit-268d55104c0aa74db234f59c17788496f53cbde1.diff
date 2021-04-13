@@ -1,0 +1,629 @@
+diff --git a/compiler/frontend.java/src/org/jetbrains/kotlin/resolve/jvm/JvmDelegationFilter.kt b/compiler/frontend.java/src/org/jetbrains/kotlin/resolve/jvm/JvmDelegationFilter.kt
+new file mode 100644
+index 00000000000..1f7542afd3a
+--- /dev/null
++++ b/compiler/frontend.java/src/org/jetbrains/kotlin/resolve/jvm/JvmDelegationFilter.kt
+@@ -0,0 +1,35 @@
++/*
++ * Copyright 2010-2016 JetBrains s.r.o.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package org.jetbrains.kotlin.resolve.jvm
++
++import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor
++import org.jetbrains.kotlin.descriptors.Modality
++import org.jetbrains.kotlin.load.java.descriptors.JavaMethodDescriptor
++import org.jetbrains.kotlin.resolve.DescriptorUtils
++import org.jetbrains.kotlin.resolve.lazy.DelegationFilter
++
++object JvmDelegationFilter : DelegationFilter {
++
++    override fun filter(interfaceMember: CallableMemberDescriptor): Boolean {
++        //We always have only one implementation otherwise it's an error in kotlin and java
++        return !isJavaDefaultMethod(DescriptorUtils.unwrapFakeOverride(interfaceMember))
++    }
++
++    private fun isJavaDefaultMethod(interfaceMember: CallableMemberDescriptor): Boolean {
++        return interfaceMember is JavaMethodDescriptor && interfaceMember.modality != Modality.ABSTRACT
++    }
++}
+diff --git a/compiler/frontend.java/src/org/jetbrains/kotlin/resolve/jvm/platform/JvmPlatformConfigurator.kt b/compiler/frontend.java/src/org/jetbrains/kotlin/resolve/jvm/platform/JvmPlatformConfigurator.kt
+index f9d06fc0afc..ff31209f052 100644
+--- a/compiler/frontend.java/src/org/jetbrains/kotlin/resolve/jvm/platform/JvmPlatformConfigurator.kt
++++ b/compiler/frontend.java/src/org/jetbrains/kotlin/resolve/jvm/platform/JvmPlatformConfigurator.kt
+@@ -24,10 +24,12 @@ import org.jetbrains.kotlin.resolve.PlatformConfigurator
+ import org.jetbrains.kotlin.resolve.calls.checkers.ReifiedTypeParameterSubstitutionChecker
+ import org.jetbrains.kotlin.resolve.checkers.MissingDependencyClassChecker
+ import org.jetbrains.kotlin.resolve.checkers.HeaderImplDeclarationChecker
++import org.jetbrains.kotlin.resolve.jvm.JvmDelegationFilter
+ import org.jetbrains.kotlin.resolve.jvm.JvmOverloadFilter
+ import org.jetbrains.kotlin.resolve.jvm.JvmTypeSpecificityComparator
+ import org.jetbrains.kotlin.resolve.jvm.RuntimeAssertionsTypeChecker
+ import org.jetbrains.kotlin.resolve.jvm.checkers.*
++import org.jetbrains.kotlin.resolve.lazy.DelegationFilter
+ import org.jetbrains.kotlin.synthetic.JavaSyntheticConstructorsProvider
+ import org.jetbrains.kotlin.synthetic.JavaSyntheticScopes
+ import org.jetbrains.kotlin.types.DynamicTypesSettings
+@@ -82,7 +84,9 @@ object JvmPlatformConfigurator : PlatformConfigurator(
+ 
+         overloadFilter = JvmOverloadFilter,
+ 
+-        platformToKotlinClassMap = JavaToKotlinClassMap.INSTANCE
++        platformToKotlinClassMap = JavaToKotlinClassMap.INSTANCE,
++
++        delegationFilter = JvmDelegationFilter
+ ) {
+     override fun configureModuleComponents(container: StorageComponentContainer) {
+         container.useImpl<JvmReflectionAPICallChecker>()
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/DelegationResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/DelegationResolver.kt
+index 8d069e38b31..328f2038e64 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/DelegationResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/DelegationResolver.kt
+@@ -24,6 +24,7 @@ import org.jetbrains.kotlin.psi.KtDelegatedSuperTypeEntry
+ import org.jetbrains.kotlin.psi.KtPureClassOrObject
+ import org.jetbrains.kotlin.psi.KtTypeReference
+ import org.jetbrains.kotlin.resolve.OverridingUtil.OverrideCompatibilityInfo.Result.OVERRIDABLE
++import org.jetbrains.kotlin.resolve.lazy.DelegationFilter
+ import org.jetbrains.kotlin.types.KotlinType
+ import org.jetbrains.kotlin.types.TypeUtils
+ 
+@@ -32,8 +33,9 @@ class DelegationResolver<T : CallableMemberDescriptor> private constructor(
+         private val ownerDescriptor: ClassDescriptor,
+         private val existingMembers: Collection<CallableDescriptor>,
+         private val trace: BindingTrace,
+-        private val memberExtractor: DelegationResolver.MemberExtractor<T>,
+-        private val typeResolver: DelegationResolver.TypeResolver
++        private val memberExtractor: MemberExtractor<T>,
++        private val typeResolver: TypeResolver,
++        private val delegationFilter: DelegationFilter
+ ) {
+ 
+     private fun generateDelegatedMembers(): Collection<T> {
+@@ -86,7 +88,9 @@ class DelegationResolver<T : CallableMemberDescriptor> private constructor(
+                     memberExtractor.getMembersByType(it)
+                 } ?: emptyList<CallableMemberDescriptor>()
+         return memberExtractor.getMembersByType(interfaceType).filter { descriptor ->
+-            descriptor.isOverridable && !classSupertypeMembers.any { isOverridableBy(it, descriptor)  }
++            descriptor.isOverridable &&
++            !classSupertypeMembers.any { isOverridableBy(it, descriptor) } &&
++            delegationFilter.filter(descriptor)
+         }
+     }
+ 
+@@ -105,9 +109,10 @@ class DelegationResolver<T : CallableMemberDescriptor> private constructor(
+                 existingMembers: Collection<CallableDescriptor>,
+                 trace: BindingTrace,
+                 memberExtractor: MemberExtractor<T>,
+-                typeResolver: TypeResolver
++                typeResolver: TypeResolver,
++                delegationFilter: DelegationFilter
+         ): Collection<T> =
+-                DelegationResolver(classOrObject, ownerDescriptor, existingMembers, trace, memberExtractor, typeResolver)
++                DelegationResolver(classOrObject, ownerDescriptor, existingMembers, trace, memberExtractor, typeResolver, delegationFilter)
+                         .generateDelegatedMembers()
+ 
+         private fun isOverridingAnyOf(
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/TargetPlatform.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/TargetPlatform.kt
+index 8aa98d7a148..df25d5852a6 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/TargetPlatform.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/TargetPlatform.kt
+@@ -24,6 +24,7 @@ import org.jetbrains.kotlin.platform.PlatformToKotlinClassMap
+ import org.jetbrains.kotlin.resolve.calls.checkers.*
+ import org.jetbrains.kotlin.resolve.calls.results.TypeSpecificityComparator
+ import org.jetbrains.kotlin.resolve.checkers.*
++import org.jetbrains.kotlin.resolve.lazy.DelegationFilter
+ import org.jetbrains.kotlin.resolve.scopes.SyntheticConstructorsProvider
+ import org.jetbrains.kotlin.resolve.scopes.SyntheticScopes
+ import org.jetbrains.kotlin.types.DynamicTypesSettings
+@@ -50,8 +51,10 @@ abstract class TargetPlatform(val platformName: String) {
+         }
+ 
+         override val platformConfigurator =
+-                object : PlatformConfigurator(DynamicTypesSettings(), listOf(), listOf(), listOf(), listOf(), listOf(),
+-                                              IdentifierChecker.DEFAULT, OverloadFilter.DEFAULT, PlatformToKotlinClassMap.EMPTY) {
++                object : PlatformConfigurator(
++                        DynamicTypesSettings(), listOf(), listOf(), listOf(), listOf(), listOf(),
++                        IdentifierChecker.DEFAULT, OverloadFilter.DEFAULT, PlatformToKotlinClassMap.EMPTY, DelegationFilter.DEFAULT
++                ) {
+                     override fun configureModuleComponents(container: StorageComponentContainer) {
+                         container.useInstance(SyntheticScopes.Empty)
+                         container.useInstance(SyntheticConstructorsProvider.Empty)
+@@ -94,7 +97,8 @@ abstract class PlatformConfigurator(
+         private val additionalAnnotationCheckers: List<AdditionalAnnotationChecker>,
+         private val identifierChecker: IdentifierChecker,
+         private val overloadFilter: OverloadFilter,
+-        private val platformToKotlinClassMap: PlatformToKotlinClassMap
++        private val platformToKotlinClassMap: PlatformToKotlinClassMap,
++        private val delegationFilter: DelegationFilter
+ ) {
+     private val declarationCheckers: List<DeclarationChecker> = DEFAULT_DECLARATION_CHECKERS + additionalDeclarationCheckers
+     private val callCheckers: List<CallChecker> = DEFAULT_CALL_CHECKERS + additionalCallCheckers
+@@ -113,6 +117,7 @@ abstract class PlatformConfigurator(
+         useInstance(identifierChecker)
+         useInstance(overloadFilter)
+         useInstance(platformToKotlinClassMap)
++        useInstance(delegationFilter)
+     }
+ }
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/DelegationFilter.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/DelegationFilter.kt
+new file mode 100644
+index 00000000000..ba8ca3d315d
+--- /dev/null
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/DelegationFilter.kt
+@@ -0,0 +1,28 @@
++/*
++ * Copyright 2010-2016 JetBrains s.r.o.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ * http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package org.jetbrains.kotlin.resolve.lazy
++
++import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor
++
++interface DelegationFilter {
++
++    fun filter(interfaceMember: CallableMemberDescriptor): Boolean
++
++    object DEFAULT : DelegationFilter {
++        override fun filter(interfaceMember: CallableMemberDescriptor) = true
++    }
++}
+\ No newline at end of file
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/LazyClassContext.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/LazyClassContext.kt
+index a780ec5360c..ffc15aaabaf 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/LazyClassContext.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/LazyClassContext.kt
+@@ -40,4 +40,5 @@ interface LazyClassContext {
+     val supertypeLoopChecker: SupertypeLoopChecker
+     val languageVersionSettings: LanguageVersionSettings
+     val syntheticResolveExtension: SyntheticResolveExtension
++    val delegationFilter: DelegationFilter
+ }
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/ResolveSession.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/ResolveSession.java
+index d6aeb0687de..d59f7066e4a 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/ResolveSession.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/ResolveSession.java
+@@ -81,6 +81,7 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
+     private LocalDescriptorResolver localDescriptorResolver;
+     private SupertypeLoopChecker supertypeLoopsResolver;
+     private LanguageVersionSettings languageVersionSettings;
++    private DelegationFilter delegationFilter;
+ 
+     private final SyntheticResolveExtension syntheticResolveExtension;
+ 
+@@ -134,6 +135,12 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
+         this.languageVersionSettings = languageVersionSettings;
+     }
+ 
++
++    @Inject
++    public void setDelegationFilter(@NotNull  DelegationFilter delegationFilter) {
++        this.delegationFilter = delegationFilter;
++    }
++
+     // Only calls from injectors expected
+     @Deprecated
+     public ResolveSession(
+@@ -445,6 +452,12 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
+         return languageVersionSettings;
+     }
+ 
++    @NotNull
++    @Override
++    public DelegationFilter getDelegationFilter() {
++        return delegationFilter;
++    }
++
+     @NotNull
+     @Override
+     public SyntheticResolveExtension getSyntheticResolveExtension() {
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/descriptors/LazyClassMemberScope.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/descriptors/LazyClassMemberScope.kt
+index 67c49e3d682..dc97543a794 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/descriptors/LazyClassMemberScope.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/descriptors/LazyClassMemberScope.kt
+@@ -295,7 +295,9 @@ open class LazyClassMemberScope(
+             override fun getMembersByType(type: KotlinType): Collection<T> =
+                     extractor.extract(type, name)
+         }
+-        return DelegationResolver.generateDelegatedMembers(classOrObject, thisDescriptor, existingDescriptors, trace, lazyMemberExtractor, lazyTypeResolver)
++        return DelegationResolver.generateDelegatedMembers(
++                classOrObject, thisDescriptor, existingDescriptors, trace, lazyMemberExtractor, lazyTypeResolver, c.delegationFilter
++        )
+     }
+ 
+     private fun addDataClassMethods(result: MutableCollection<DeclarationDescriptor>, location: LookupLocation) {
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/LocalClassifierAnalyzer.kt b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/LocalClassifierAnalyzer.kt
+index f7e652ccd36..79d5145c438 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/LocalClassifierAnalyzer.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/LocalClassifierAnalyzer.kt
+@@ -60,7 +60,8 @@ class LocalClassifierAnalyzer(
+         private val platform: TargetPlatform,
+         private val lookupTracker: LookupTracker,
+         private val supertypeLoopChecker: SupertypeLoopChecker,
+-        private val languageVersionSettings: LanguageVersionSettings
++        private val languageVersionSettings: LanguageVersionSettings,
++        private val delegationFilter: DelegationFilter
+ ) {
+     fun processClassOrObject(
+             scope: LexicalWritableScope?,
+@@ -91,7 +92,8 @@ class LocalClassifierAnalyzer(
+                         annotationResolver,
+                         supertypeLoopChecker,
+                         languageVersionSettings,
+-                        SyntheticResolveExtension.getInstance(project)
++                        SyntheticResolveExtension.getInstance(project),
++                        delegationFilter
+                 )
+         )
+ 
+@@ -116,7 +118,8 @@ class LocalClassDescriptorHolder(
+         val annotationResolver: AnnotationResolver,
+         val supertypeLoopChecker: SupertypeLoopChecker,
+         val languageVersionSettings: LanguageVersionSettings,
+-        val syntheticResolveExtension: SyntheticResolveExtension
++        val syntheticResolveExtension: SyntheticResolveExtension,
++        val delegationFilter: DelegationFilter
+ ) {
+     // We do not need to synchronize here, because this code is used strictly from one thread
+     private var classDescriptor: ClassDescriptor? = null
+@@ -154,6 +157,7 @@ class LocalClassDescriptorHolder(
+                         override val supertypeLoopChecker = this@LocalClassDescriptorHolder.supertypeLoopChecker
+                         override val languageVersionSettings = this@LocalClassDescriptorHolder.languageVersionSettings
+                         override val syntheticResolveExtension = this@LocalClassDescriptorHolder.syntheticResolveExtension
++                        override val delegationFilter: DelegationFilter = this@LocalClassDescriptorHolder.delegationFilter
+                     }
+                     ,
+                     containingDeclaration,
+diff --git a/compiler/testData/codegen/java8/box/delegationBy/byMiddleInterface.kt b/compiler/testData/codegen/java8/box/delegationBy/byMiddleInterface.kt
+new file mode 100644
+index 00000000000..e61798bbfb4
+--- /dev/null
++++ b/compiler/testData/codegen/java8/box/delegationBy/byMiddleInterface.kt
+@@ -0,0 +1,27 @@
++
++// FILE: Base.java
++
++public interface Base {
++    String getValue();
++
++    default String test() {
++        return getValue();
++    }
++}
++
++// FILE: main.kt
++
++public interface BaseKotlin : Base {
++}
++
++
++class Fail : BaseKotlin {
++    override fun getValue() = "Fail"
++}
++
++fun box(): String {
++    val z = object : BaseKotlin by Fail() {
++        override fun getValue() = "OK"
++    }
++    return z.test()
++}
+diff --git a/compiler/testData/codegen/java8/box/delegationBy/defaultOverride.kt b/compiler/testData/codegen/java8/box/delegationBy/defaultOverride.kt
+new file mode 100644
+index 00000000000..ba59e8dc681
+--- /dev/null
++++ b/compiler/testData/codegen/java8/box/delegationBy/defaultOverride.kt
+@@ -0,0 +1,31 @@
++
++// FILE: Base.java
++
++public interface Base {
++    String getValue();
++
++    default String test() {
++        return getValue();
++    }
++}
++
++// FILE: main.kt
++
++public interface BaseKotlin : Base {
++    override fun getValue() = "OK"
++
++    override fun test(): String {
++        return getValue();
++    }
++}
++
++class OK : BaseKotlin {
++    override fun getValue() = "OK"
++}
++
++fun box(): String {
++    val ok = object : BaseKotlin by OK() {
++        override fun getValue() = "Fail"
++    }
++    return ok.test()
++}
+diff --git a/compiler/testData/codegen/java8/box/delegationBy/diamond.kt b/compiler/testData/codegen/java8/box/delegationBy/diamond.kt
+new file mode 100644
+index 00000000000..cb26c763b83
+--- /dev/null
++++ b/compiler/testData/codegen/java8/box/delegationBy/diamond.kt
+@@ -0,0 +1,35 @@
++// FILE: Base.java
++
++public interface Base {
++    String getValue();
++
++    default String test() {
++        return getValue();
++    }
++}
++
++// FILE: Base2.java
++public interface Base2 extends Base {
++
++    default String test() {
++        return "O"  + getValue();
++    }
++}
++
++
++// FILE: main.kt
++
++interface KBase : Base
++
++interface Derived : KBase, Base2
++
++class Fail : Derived {
++    override fun getValue() = "Fail"
++}
++
++fun box(): String {
++    val z = object : Derived by Fail() {
++        override fun getValue() = "K"
++    }
++    return z.test()
++}
+diff --git a/compiler/testData/codegen/java8/box/delegationBy/diamond2.kt b/compiler/testData/codegen/java8/box/delegationBy/diamond2.kt
+new file mode 100644
+index 00000000000..e20f1abdc40
+--- /dev/null
++++ b/compiler/testData/codegen/java8/box/delegationBy/diamond2.kt
+@@ -0,0 +1,35 @@
++// FILE: Base.java
++
++public interface Base {
++    String getValue();
++
++    default String test()
++    {
++        return getValue();
++    }
++}
++
++// FILE: Base2.java
++public interface Base2 extends Base {
++
++}
++
++
++// FILE: main.kt
++
++interface KBase : Base {
++    override fun test() = "O" + getValue()
++}
++
++interface Derived : KBase, Base2
++
++class K : Derived {
++    override fun getValue() = "K"
++}
++
++fun box(): String {
++    val z = object : Derived by K() {
++        override fun getValue() = "Fail"
++    }
++    return z.test()
++}
+diff --git a/compiler/testData/codegen/java8/box/delegationBy/inClassDeclaration.kt b/compiler/testData/codegen/java8/box/delegationBy/inClassDeclaration.kt
+new file mode 100644
+index 00000000000..ebd32d9c9a4
+--- /dev/null
++++ b/compiler/testData/codegen/java8/box/delegationBy/inClassDeclaration.kt
+@@ -0,0 +1,22 @@
++// FILE: Base.java
++
++public interface Base {
++    String getValue();
++
++    default String test() {
++        return getValue();
++    }
++}
++
++// FILE: main.kt
++class Fail : Base {
++    override fun getValue() = "Fail"
++}
++
++class Derived : Base by Fail() {
++    override fun getValue() = "OK"
++}
++
++fun box(): String {
++    return Derived().test()
++}
+diff --git a/compiler/testData/codegen/java8/box/delegationBy/mixed.kt b/compiler/testData/codegen/java8/box/delegationBy/mixed.kt
+new file mode 100644
+index 00000000000..cd10329cc85
+--- /dev/null
++++ b/compiler/testData/codegen/java8/box/delegationBy/mixed.kt
+@@ -0,0 +1,32 @@
++// FILE: Base.java
++
++public interface Base extends KBase {
++    String getValue();
++
++    default String test() {
++        return getValue();
++    }
++}
++
++// FILE: main.kt
++interface KBase {
++    fun getValue(): String
++
++    fun test(): String
++}
++
++class Fail : Base {
++    override fun getValue() = "Fail"
++}
++
++fun box(): String {
++    val z1 = object : KBase by Fail() {
++        override fun getValue() = "OK"
++    }
++    if (z1.test() != "Fail") return "fail 1"
++
++    val z2 = object : Base by Fail() {
++        override fun getValue() = "OK"
++    }
++    return z2.test()
++}
+diff --git a/compiler/testData/codegen/java8/box/delegationBy/simple.kt b/compiler/testData/codegen/java8/box/delegationBy/simple.kt
+new file mode 100644
+index 00000000000..eaf9ff3385e
+--- /dev/null
++++ b/compiler/testData/codegen/java8/box/delegationBy/simple.kt
+@@ -0,0 +1,21 @@
++// FILE: Base.java
++
++public interface Base {
++    String getValue();
++
++    default String test() {
++        return getValue();
++    }
++}
++
++// FILE: main.kt
++class Fail : Base {
++    override fun getValue() = "Fail"
++}
++
++fun box(): String {
++    val z = object : Base by Fail() {
++        override fun getValue() = "OK"
++    }
++    return z.test()
++}
+diff --git a/compiler/tests-java8/tests/org/jetbrains/kotlin/codegen/BlackBoxWithJava8CodegenTestGenerated.java b/compiler/tests-java8/tests/org/jetbrains/kotlin/codegen/BlackBoxWithJava8CodegenTestGenerated.java
+index cc35d7e0a7e..3b0bd2299c0 100644
+--- a/compiler/tests-java8/tests/org/jetbrains/kotlin/codegen/BlackBoxWithJava8CodegenTestGenerated.java
++++ b/compiler/tests-java8/tests/org/jetbrains/kotlin/codegen/BlackBoxWithJava8CodegenTestGenerated.java
+@@ -120,6 +120,57 @@ public class BlackBoxWithJava8CodegenTestGenerated extends AbstractBlackBoxCodeg
+         doTest(fileName);
+     }
+ 
++    @TestMetadata("compiler/testData/codegen/java8/box/delegationBy")
++    @TestDataPath("$PROJECT_ROOT")
++    @RunWith(JUnit3RunnerWithInners.class)
++    public static class DelegationBy extends AbstractBlackBoxCodegenTest {
++        public void testAllFilesPresentInDelegationBy() throws Exception {
++            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/codegen/java8/box/delegationBy"), Pattern.compile("^(.+)\\.kt$"), TargetBackend.ANY, true);
++        }
++
++        @TestMetadata("byMiddleInterface.kt")
++        public void testByMiddleInterface() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/java8/box/delegationBy/byMiddleInterface.kt");
++            doTest(fileName);
++        }
++
++        @TestMetadata("defaultOverride.kt")
++        public void testDefaultOverride() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/java8/box/delegationBy/defaultOverride.kt");
++            doTest(fileName);
++        }
++
++        @TestMetadata("diamond.kt")
++        public void testDiamond() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/java8/box/delegationBy/diamond.kt");
++            doTest(fileName);
++        }
++
++        @TestMetadata("diamond2.kt")
++        public void testDiamond2() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/java8/box/delegationBy/diamond2.kt");
++            doTest(fileName);
++        }
++
++        @TestMetadata("inClassDeclaration.kt")
++        public void testInClassDeclaration() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/java8/box/delegationBy/inClassDeclaration.kt");
++            doTest(fileName);
++        }
++
++        @TestMetadata("mixed.kt")
++        public void testMixed() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/java8/box/delegationBy/mixed.kt");
++            doTest(fileName);
++        }
++
++        @TestMetadata("simple.kt")
++        public void testSimple() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/java8/box/delegationBy/simple.kt");
++            doTest(fileName);
++        }
++    }
++
+     @TestMetadata("compiler/testData/codegen/java8/box/jvm8")
+     @TestDataPath("$PROJECT_ROOT")
+     @RunWith(JUnit3RunnerWithInners.class)
+diff --git a/js/js.frontend/src/org/jetbrains/kotlin/js/resolve/JsPlatformConfigurator.kt b/js/js.frontend/src/org/jetbrains/kotlin/js/resolve/JsPlatformConfigurator.kt
+index f4b0af0b4e5..df870dfd1c0 100644
+--- a/js/js.frontend/src/org/jetbrains/kotlin/js/resolve/JsPlatformConfigurator.kt
++++ b/js/js.frontend/src/org/jetbrains/kotlin/js/resolve/JsPlatformConfigurator.kt
+@@ -26,6 +26,7 @@ import org.jetbrains.kotlin.resolve.OverloadFilter
+ import org.jetbrains.kotlin.resolve.PlatformConfigurator
+ import org.jetbrains.kotlin.resolve.calls.checkers.ReifiedTypeParameterSubstitutionChecker
+ import org.jetbrains.kotlin.resolve.checkers.HeaderImplDeclarationChecker
++import org.jetbrains.kotlin.resolve.lazy.DelegationFilter
+ import org.jetbrains.kotlin.resolve.scopes.SyntheticConstructorsProvider
+ import org.jetbrains.kotlin.resolve.scopes.SyntheticScopes
+ import org.jetbrains.kotlin.types.DynamicTypesAllowed
+@@ -45,7 +46,8 @@ object JsPlatformConfigurator : PlatformConfigurator(
+         additionalAnnotationCheckers = listOf(),
+         identifierChecker = IdentifierChecker.DEFAULT,
+         overloadFilter = OverloadFilter.DEFAULT,
+-        platformToKotlinClassMap = PlatformToKotlinClassMap.EMPTY
++        platformToKotlinClassMap = PlatformToKotlinClassMap.EMPTY,
++        delegationFilter = DelegationFilter.DEFAULT
+ ) {
+     override fun configureModuleComponents(container: StorageComponentContainer) {
+         container.useImpl<JsCallChecker>()

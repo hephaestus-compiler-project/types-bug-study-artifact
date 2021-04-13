@@ -1,0 +1,345 @@
+changeset:   2249:66570bfdbdd7
+user:        jfranck
+date:        Thu Jan 23 14:09:29 2014 +0100
+summary:     8029017: ElementType.TYPE_USE should be a logical superset of ElementType.TYPE and ANNOTATION_TYPE
+
+diff -r aec87f856502 -r 66570bfdbdd7 src/share/classes/com/sun/tools/javac/comp/Check.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Check.java	Thu Jan 23 20:51:25 2014 +0000
++++ b/src/share/classes/com/sun/tools/javac/comp/Check.java	Thu Jan 23 14:09:29 2014 +0100
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 1999, 2013, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 1999, 2014, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -2779,7 +2779,7 @@
+         validateDocumented(t.tsym, s, pos);
+         validateInherited(t.tsym, s, pos);
+         validateTarget(t.tsym, s, pos);
+-        validateDefault(t.tsym, s, pos);
++        validateDefault(t.tsym, pos);
+     }
+ 
+     private void validateValue(TypeSymbol container, TypeSymbol contained, DiagnosticPosition pos) {
+@@ -2898,7 +2898,9 @@
+ 
+ 
+     /** Checks that s is a subset of t, with respect to ElementType
+-     * semantics, specifically {ANNOTATION_TYPE} is a subset of {TYPE}
++     * semantics, specifically {ANNOTATION_TYPE} is a subset of {TYPE},
++     * and {TYPE_USE} covers the set {ANNOTATION_TYPE, TYPE, TYPE_USE,
++     * TYPE_PARAMETER}.
+      */
+     private boolean isTargetSubsetOf(Set<Name> s, Set<Name> t) {
+         // Check that all elements in s are present in t
+@@ -2911,6 +2913,12 @@
+                 } else if (n1 == names.TYPE && n2 == names.ANNOTATION_TYPE) {
+                     currentElementOk = true;
+                     break;
++                } else if (n1 == names.TYPE_USE &&
++                        (n2 == names.TYPE ||
++                         n2 == names.ANNOTATION_TYPE ||
++                         n2 == names.TYPE_PARAMETER)) {
++                    currentElementOk = true;
++                    break;
+                 }
+             }
+             if (!currentElementOk)
+@@ -2919,7 +2927,7 @@
+         return true;
+     }
+ 
+-    private void validateDefault(Symbol container, Symbol contained, DiagnosticPosition pos) {
++    private void validateDefault(Symbol container, DiagnosticPosition pos) {
+         // validate that all other elements of containing type has defaults
+         Scope scope = container.members();
+         for(Symbol elm : scope.getElements()) {
+diff -r aec87f856502 -r 66570bfdbdd7 test/tools/javac/annotations/repeatingAnnotations/8029017/TypeUseTarget.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/annotations/repeatingAnnotations/8029017/TypeUseTarget.java	Thu Jan 23 14:09:29 2014 +0100
+@@ -0,0 +1,129 @@
++/*
++ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/**
++ * @test
++ * @bug 8029017
++ * @summary sanity testing of ElementType validation for repeating annotations
++ * @compile TypeUseTarget.java
++ */
++
++import java.lang.annotation.*;
++
++public class TypeUseTarget {}
++
++
++// Case 1:
++@Target({
++    ElementType.TYPE_USE,
++})
++@Repeatable(Case1Container.class)
++@interface Case1 {}
++
++@Target({
++    ElementType.ANNOTATION_TYPE,
++    ElementType.TYPE,
++    ElementType.TYPE_USE,
++    ElementType.TYPE_PARAMETER,
++})
++@interface Case1Container {
++  Case1[] value();
++}
++
++
++// Case 2:
++@Target({
++    ElementType.TYPE_USE,
++})
++@Repeatable(Case2Container.class)
++@interface Case2 {}
++
++@Target({
++    ElementType.ANNOTATION_TYPE,
++    ElementType.TYPE,
++    ElementType.TYPE_USE,
++})
++@interface Case2Container {
++  Case2[] value();
++}
++
++
++// Case 3:
++@Target({
++    ElementType.TYPE_USE,
++})
++@Repeatable(Case3Container.class)
++@interface Case3 {}
++
++@Target({
++    ElementType.ANNOTATION_TYPE,
++    ElementType.TYPE,
++})
++@interface Case3Container {
++  Case3[] value();
++}
++
++
++// Case 4:
++@Target({
++    ElementType.TYPE_USE,
++})
++@Repeatable(Case4Container.class)
++@interface Case4 {}
++
++@Target({
++    ElementType.ANNOTATION_TYPE,
++})
++@interface Case4Container {
++  Case4[] value();
++}
++
++
++// Case 5:
++@Target({
++    ElementType.TYPE_USE,
++})
++@Repeatable(Case5Container.class)
++@interface Case5 {}
++
++@Target({
++    ElementType.TYPE,
++})
++@interface Case5Container {
++  Case5[] value();
++}
++
++
++// Case 6:
++@Target({
++    ElementType.TYPE_USE,
++})
++@Repeatable(Case6Container.class)
++@interface Case6 {}
++
++@Target({
++    ElementType.TYPE_PARAMETER,
++})
++@interface Case6Container {
++  Case6[] value();
++}
+diff -r aec87f856502 -r 66570bfdbdd7 test/tools/javac/annotations/repeatingAnnotations/8029017/TypeUseTargetNeg.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/annotations/repeatingAnnotations/8029017/TypeUseTargetNeg.java	Thu Jan 23 14:09:29 2014 +0100
+@@ -0,0 +1,100 @@
++/**
++ * @test /nodynamiccopyright/
++ * @bug 8029017
++ * @summary sanity testing of ElementType validation for repeating annotations
++ * @compile/fail/ref=TypeUseTargetNeg.out -XDrawDiagnostics TypeUseTargetNeg.java
++ */
++
++import java.lang.annotation.*;
++
++public class TypeUseTargetNeg {}
++
++// Case 1:
++@Target({
++    ElementType.TYPE_USE,
++})
++@Repeatable(FooContainer.class)
++@interface Foo {}
++
++@Target({
++    ElementType.ANNOTATION_TYPE,
++    ElementType.TYPE,
++    ElementType.TYPE_USE,
++    ElementType.TYPE_PARAMETER,
++    ElementType.FIELD,
++
++})
++@interface FooContainer {
++  Foo[] value();
++}
++
++
++// Case 2:
++@Target({
++    ElementType.TYPE_USE,
++})
++@Repeatable(BarContainer.class)
++@interface Bar {}
++
++@Target({
++    ElementType.ANNOTATION_TYPE,
++    ElementType.TYPE,
++    ElementType.TYPE_USE,
++    ElementType.METHOD,
++})
++@interface BarContainer {
++  Bar[] value();
++}
++
++
++// Case 3:
++@Target({
++    ElementType.TYPE_USE,
++})
++@Repeatable(BazContainer.class)
++@interface Baz {}
++
++@Target({
++    ElementType.ANNOTATION_TYPE,
++    ElementType.TYPE,
++    ElementType.PARAMETER,
++})
++@interface BazContainer {
++  Baz[] value();
++}
++
++
++// Case 4:
++@Target({
++    ElementType.TYPE_USE,
++})
++@Repeatable(QuxContainer.class)
++@interface Qux {}
++
++@interface QuxContainer {
++  Qux[] value();
++}
++
++
++// Case 5:
++@Target({})
++@Repeatable(QuuxContainer.class)
++@interface Quux {}
++
++@Target({
++    ElementType.TYPE_PARAMETER,
++})
++@interface QuuxContainer {
++  Quux[] value();
++}
++
++// Case 6:
++@Repeatable(QuuuxContainer.class)
++@interface Quuux {}
++
++@Target({
++    ElementType.TYPE_USE,
++})
++@interface QuuuxContainer {
++  Quuux[] value();
++}
+diff -r aec87f856502 -r 66570bfdbdd7 test/tools/javac/annotations/repeatingAnnotations/8029017/TypeUseTargetNeg.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/annotations/repeatingAnnotations/8029017/TypeUseTargetNeg.out	Thu Jan 23 14:09:29 2014 +0100
+@@ -0,0 +1,7 @@
++TypeUseTargetNeg.java:16:1: compiler.err.invalid.repeatable.annotation.incompatible.target: FooContainer, Foo
++TypeUseTargetNeg.java:36:1: compiler.err.invalid.repeatable.annotation.incompatible.target: BarContainer, Bar
++TypeUseTargetNeg.java:54:1: compiler.err.invalid.repeatable.annotation.incompatible.target: BazContainer, Baz
++TypeUseTargetNeg.java:71:1: compiler.err.invalid.repeatable.annotation.incompatible.target: QuxContainer, Qux
++TypeUseTargetNeg.java:81:1: compiler.err.invalid.repeatable.annotation.incompatible.target: QuuxContainer, Quux
++TypeUseTargetNeg.java:92:1: compiler.err.invalid.repeatable.annotation.incompatible.target: QuuuxContainer, Quuux
++6 errors
+diff -r aec87f856502 -r 66570bfdbdd7 test/tools/javac/annotations/repeatingAnnotations/combo/TargetAnnoCombo.java
+--- a/test/tools/javac/annotations/repeatingAnnotations/combo/TargetAnnoCombo.java	Thu Jan 23 20:51:25 2014 +0000
++++ b/test/tools/javac/annotations/repeatingAnnotations/combo/TargetAnnoCombo.java	Thu Jan 23 14:09:29 2014 +0100
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2013, 2014, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -23,7 +23,7 @@
+ 
+ /*
+  * @test
+- * @bug      7151010 8006547 8007766
++ * @bug      7151010 8006547 8007766 8029017
+  * @summary  Default test cases for running combinations for Target values
+  * @build    Helper
+  * @run main TargetAnnoCombo
+@@ -145,11 +145,19 @@
+ 
+             Set<ElementType> tempBaseSet = EnumSet.noneOf(ElementType.class);
+             tempBaseSet.addAll(baseAnnotations);
++
+             // If BaseAnno has TYPE, then ANNOTATION_TYPE is allowed by default.
+             if (baseAnnotations.contains(TYPE)) {
+                 tempBaseSet.add(ANNOTATION_TYPE);
+             }
+ 
++            // If BaseAnno has TYPE_USE, then add the extra allowed types
++            if (baseAnnotations.contains(TYPE_USE)) {
++                tempBaseSet.add(ANNOTATION_TYPE);
++                tempBaseSet.add(TYPE);
++                tempBaseSet.add(TYPE_PARAMETER);
++            }
++
+             // If containerAnno has no @Target, only valid case if baseAnnoTarget has
+             // all targets defined else invalid set.
+             if (containerAnnotations == null) {
+

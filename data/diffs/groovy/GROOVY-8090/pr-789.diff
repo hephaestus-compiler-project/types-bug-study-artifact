@@ -1,0 +1,95 @@
+diff --git a/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index 061cfb71959..55c6992b917 100644
+--- a/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -1563,6 +1563,14 @@ private static boolean inferenceCheck(Set<GenericsTypeName> fixedGenericsPlaceHo
+         // the context we compare with in the end is the one of the callsite
+         // so far we specified the context of the method declaration only
+         // thus for each argument, we try to find the connected generics first
++        if (lastArg &&
++                type.isArray() && type.getComponentType().isGenericsPlaceHolder() &&
++                !wrappedArgument.isArray() && wrappedArgument.isGenericsPlaceHolder()) {
++            // GROOVY-8090 handle generics varargs, e.g. `U x = ...; Arrays.asList(x)`
++            // we should connect the type of vararg(e.g. T is the type of T...) to the argument type
++
++            type = type.getComponentType();
++        }
+         extractGenericsConnections(connections, wrappedArgument, type);
+         // each found connection must comply with already found connections
+         boolean failure = !compatibleConnections(connections, resolvedMethodGenerics, fixedGenericsPlaceHolders);
+diff --git a/src/test/groovy/bugs/Groovy8090Bug.groovy b/src/test/groovy/bugs/Groovy8090Bug.groovy
+new file mode 100644
+index 00000000000..2af6267e9c4
+--- /dev/null
++++ b/src/test/groovy/bugs/Groovy8090Bug.groovy
+@@ -0,0 +1,70 @@
++/*
++ *  Licensed to the Apache Software Foundation (ASF) under one
++ *  or more contributor license agreements.  See the NOTICE file
++ *  distributed with this work for additional information
++ *  regarding copyright ownership.  The ASF licenses this file
++ *  to you under the Apache License, Version 2.0 (the
++ *  "License"); you may not use this file except in compliance
++ *  with the License.  You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ *  Unless required by applicable law or agreed to in writing,
++ *  software distributed under the License is distributed on an
++ *  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++ *  KIND, either express or implied.  See the License for the
++ *  specific language governing permissions and limitations
++ *  under the License.
++ */
++package groovy.bugs
++
++import gls.CompilableTestSupport
++import groovy.transform.NotYetImplemented
++
++class Groovy8090Bug extends CompilableTestSupport {
++    void testGroovy8090() {
++        assertScript '''
++        import static java.util.Arrays.asList
++        
++        @groovy.transform.CompileStatic
++        class Main {
++            final <T> Iterable<T> foo(T instance) { asList(instance) }
++            final <U> Iterable<U> bar(U instance) { asList(instance) }
++            final Iterable<String> baz(String instance) { asList(instance) }
++        }
++        
++        new Main().with {
++            assert foo('A') + bar('B') + baz('C') == ['A', 'B', 'C']
++        }
++        '''
++    }
++
++    void test2() {
++        assertScript '''
++        @groovy.transform.CompileStatic
++        class Main {
++            final <U> Iterable<U> bar(U instance) { Arrays.asList(instance) }
++        }
++        
++        assert new Main().bar('B') == ['B']
++        '''
++    }
++
++    void test3() {
++        assertScript '''
++        @groovy.transform.CompileStatic
++        class Arraysx {
++            static <T> List<T> asList(T a) {
++                return [a]
++            }
++        }
++        
++        @groovy.transform.CompileStatic
++        class Main {
++            final <U> Iterable<U> bar(U instance) { Arraysx.asList(instance) }
++        }
++        
++        assert new Main().bar('B') == ['B']
++        '''
++    }
++}

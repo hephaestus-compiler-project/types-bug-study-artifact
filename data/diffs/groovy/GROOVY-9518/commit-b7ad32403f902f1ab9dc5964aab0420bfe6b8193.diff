@@ -1,0 +1,95 @@
+diff --git a/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index fec7971ca1..f33fb0c5c0 100644
+--- a/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -2185,18 +2185,21 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+ 
+     @Override
+     public void visitConstructorCallExpression(final ConstructorCallExpression call) {
+-        super.visitConstructorCallExpression(call);
+         if (extension.beforeMethodCall(call)) {
+             extension.afterMethodCall(call);
+             return;
+         }
+-        ClassNode receiver = call.isThisCall() ? typeCheckingContext.getEnclosingClassNode() :
+-                call.isSuperCall() ? typeCheckingContext.getEnclosingClassNode().getSuperClass() : call.getType();
++        ClassNode receiver = call.getType();
++        if (call.isThisCall()) {
++            receiver = typeCheckingContext.getEnclosingClassNode();
++        } else if (call.isSuperCall()) {
++            receiver = typeCheckingContext.getEnclosingClassNode().getSuperClass();
++        }
+         Expression arguments = call.getArguments();
+-
+         ArgumentListExpression argumentList = InvocationWriter.makeArgumentList(arguments);
+ 
+         checkForbiddenSpreadArgument(argumentList);
++        visitMethodCallArguments(receiver, argumentList, false, null);
+ 
+         ClassNode[] args = getArgumentTypes(argumentList);
+         if (args.length > 0 &&
+@@ -2226,7 +2229,10 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+             } else {
+                 typeCheckMethodsWithGenericsOrFail(receiver, args, node, call);
+             }
+-            if (node != null) storeTargetMethod(call, node);
++            if (node != null) {
++                storeTargetMethod(call, node);
++                visitMethodCallArguments(receiver, argumentList, true, node);
++            }
+         }
+ 
+         // GROOVY-9327: check for AIC in STC method with non-STC enclosing class
+diff --git a/src/test/groovy/transform/stc/ClosureParamTypeInferenceSTCTest.groovy b/src/test/groovy/transform/stc/ClosureParamTypeInferenceSTCTest.groovy
+index 3539e25e4a..373b11fb02 100644
+--- a/src/test/groovy/transform/stc/ClosureParamTypeInferenceSTCTest.groovy
++++ b/src/test/groovy/transform/stc/ClosureParamTypeInferenceSTCTest.groovy
+@@ -545,7 +545,7 @@ import groovy.transform.stc.ClosureParams
+             assert sum == 110
+         '''
+     }
+-    
++
+     void testInferenceForDGM_upto() {
+         assertScript '''
+             BigDecimal sum = 0
+@@ -1340,4 +1340,39 @@ method()
+             assert foo() == ['FEE', 'FO']
+         '''
+     }
++
++    void testGroovy9518() {
++        assertScript '''
++            class C {
++                C(String s, Comparable<List<Integer>> c) {
++                }
++            }
++
++            new C('blah', { list -> list.get(0) })
++        '''
++    }
++
++    void testGroovy9518a() {
++        assertScript '''
++            class C {
++                C(String s, Comparable<List<Integer>> c) {
++                }
++            }
++
++            new C('blah', { it.get(0) })
++        '''
++    }
++
++    void testGroovy9518b() {
++        assertScript '''
++            import groovy.transform.stc.*
++
++            class C {
++                C(String s, @ClosureParams(value=SimpleType, options='java.util.List') Closure<Integer> c) {
++                }
++            }
++
++            new C('blah', { list -> list.get(0) })
++        '''
++    }
+ }

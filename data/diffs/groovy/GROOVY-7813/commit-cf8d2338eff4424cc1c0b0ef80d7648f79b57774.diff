@@ -1,0 +1,108 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index ae869616a9..6d3afb7f9b 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -2897,27 +2897,34 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                 List<MethodNode> mn = null;
+                 Receiver<String> chosenReceiver = null;
+                 for (Receiver<String> currentReceiver : receivers) {
+-                    mn = findMethod(currentReceiver.getType(), name, args);
++                    ClassNode receiverType = currentReceiver.getType();
++                    mn = findMethod(receiverType, name, args);
+ 
+                     // if the receiver is "this" or "implicit this", then we must make sure that the compatible
+                     // methods are only static if we are in a static context
+-                    if (!mn.isEmpty() && typeCheckingContext.isInStaticContext && (call.isImplicitThis()
+-                            || (objectExpression instanceof VariableExpression && ((VariableExpression) objectExpression).isThisExpression()))) {
+-                        // we create a separate method list just to be able to print out
++                    // if we are not in a static context but the the current receiver is a static class, we must
++                    // ensure that all methods are either static or declared by the current receiver or a superclass
++                    if (!mn.isEmpty()
++                            && (typeCheckingContext.isInStaticContext || (receiverType.getModifiers() & Opcodes.ACC_STATIC) != 0)
++                            && (call.isImplicitThis() || (objectExpression instanceof VariableExpression && ((VariableExpression) objectExpression).isThisExpression()))) {
++                        // we create separate method lists just to be able to print out
+                         // a nice error message to the user
+-                        List<MethodNode> staticMethods = new LinkedList<MethodNode>();
+-                        List<MethodNode> nonStaticMethods = new LinkedList<MethodNode>();
++                        // a method is accessible if it is static, or if we are not in a static context and it is
++                        // declared by the current receiver or a superclass
++                        List<MethodNode> accessibleMethods = new LinkedList<MethodNode>();
++                        List<MethodNode> inaccessibleMethods = new LinkedList<MethodNode>();
+                         for (final MethodNode node : mn) {
+-                            if (node.isStatic()) {
+-                                staticMethods.add(node);
++                            if (node.isStatic()
++                                    || (!typeCheckingContext.isInStaticContext && implementsInterfaceOrIsSubclassOf(receiverType, node.getDeclaringClass()))) {
++                                accessibleMethods.add(node);
+                             } else {
+-                                nonStaticMethods.add(node);
++                                inaccessibleMethods.add(node);
+                             }
+                         }
+-                        mn = staticMethods;
+-                        if (staticMethods.isEmpty()) {
++                        mn = accessibleMethods;
++                        if (accessibleMethods.isEmpty()) {
+                             // choose an arbitrary method to display an error message
+-                            MethodNode node = nonStaticMethods.get(0);
++                            MethodNode node = inaccessibleMethods.get(0);
+                             ClassNode owner = node.getDeclaringClass();
+                             addStaticTypeError("Non static method " + owner.getName() + "#" + node.getName() + " cannot be called from static context", call);
+                         }
+diff --git a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+index b62909b2ec..aa37ecf82f 100644
+--- a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+@@ -1040,6 +1040,52 @@ class MethodCallsSTCTest extends StaticTypeCheckingTestCase {
+             '''
+     }
+ 
++    //GROOVY-7813
++    void testNonStaticOuterMethodCannotBeCalledFromStaticClass() {
++        shouldFailWithMessages '''
++            class Foo {
++                def bar() { 2 }
++
++                static class Baz {
++                    def doBar() { bar() }
++                }
++            }
++            null
++        ''', 'Non static method Foo#bar cannot be called from static context'
++    }
++
++    void testStaticOuterMethodCanBeCalledFromStaticClass() {
++        assertScript '''
++            class Foo {
++                static def bar() { 2 }
++
++                static class Baz {
++                    def doBar() {
++                        bar()
++                    }
++                }
++            }
++            assert new Foo.Baz().doBar() == 2
++        '''
++    }
++
++    void testInheritedMethodCanBeCalledFromStaticClass() {
++        assertScript '''
++            class Bar {
++                def bar() { 1 }
++            }
++
++            class Foo {
++                static class Baz extends Bar {
++                    def doBar() {
++                        bar()
++                    }
++                }
++            }
++            assert new Foo.Baz().doBar() == 1
++        '''
++    }
++
+     static class MyMethodCallTestClass {
+ 
+         static int mul(int... args) { args.toList().inject(1) { x,y -> x*y } }

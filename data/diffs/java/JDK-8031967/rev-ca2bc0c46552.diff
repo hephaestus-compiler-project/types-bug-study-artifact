@@ -1,0 +1,371 @@
+changeset:   2440:ca2bc0c46552
+user:        jlahoda
+date:        Fri May 30 12:54:16 2014 +0200
+summary:     8031967: For some sources compiler compiles for ever
+
+diff -r 9955b8180ff6 -r ca2bc0c46552 src/share/classes/com/sun/tools/javac/comp/DeferredAttr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/DeferredAttr.java	Thu May 29 15:28:01 2014 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/DeferredAttr.java	Fri May 30 12:54:16 2014 +0200
+@@ -1221,25 +1221,102 @@
+             }
+ 
+             //slow path
++            Symbol sym = quicklyResolveMethod(env, tree);
++
++            if (sym == null) {
++                result = ArgumentExpressionKind.POLY;
++                return;
++            }
++
++            result = analyzeCandidateMethods(sym, ArgumentExpressionKind.PRIMITIVE,
++                    argumentKindAnalyzer);
++        }
++        //where
++            private boolean isSimpleReceiver(JCTree rec) {
++                switch (rec.getTag()) {
++                    case IDENT:
++                        return true;
++                    case SELECT:
++                        return isSimpleReceiver(((JCFieldAccess)rec).selected);
++                    case TYPEAPPLY:
++                    case TYPEARRAY:
++                        return true;
++                    case ANNOTATED_TYPE:
++                        return isSimpleReceiver(((JCAnnotatedType)rec).underlyingType);
++                    case APPLY:
++                        return true;
++                    default:
++                        return false;
++                }
++            }
++            private ArgumentExpressionKind reduce(ArgumentExpressionKind kind) {
++                return argumentKindAnalyzer.reduce(result, kind);
++            }
++            MethodAnalyzer<ArgumentExpressionKind> argumentKindAnalyzer =
++                    new MethodAnalyzer<ArgumentExpressionKind>() {
++                @Override
++                public ArgumentExpressionKind process(MethodSymbol ms) {
++                    return ArgumentExpressionKind.methodKind(ms, types);
++                }
++                @Override
++                public ArgumentExpressionKind reduce(ArgumentExpressionKind kind1,
++                                                     ArgumentExpressionKind kind2) {
++                    switch (kind1) {
++                        case PRIMITIVE: return kind2;
++                        case NO_POLY: return kind2.isPoly() ? kind2 : kind1;
++                        case POLY: return kind1;
++                        default:
++                            Assert.error();
++                            return null;
++                    }
++                }
++                @Override
++                public boolean shouldStop(ArgumentExpressionKind result) {
++                    return result.isPoly();
++                }
++            };
++
++        @Override
++        public void visitLiteral(JCLiteral tree) {
++            Type litType = attr.litType(tree.typetag);
++            result = ArgumentExpressionKind.standaloneKind(litType, types);
++        }
++
++        @Override
++        void skip(JCTree tree) {
++            result = ArgumentExpressionKind.NO_POLY;
++        }
++
++        private Symbol quicklyResolveMethod(Env<AttrContext> env, final JCMethodInvocation tree) {
+             final JCExpression rec = tree.meth.hasTag(SELECT) ?
+                     ((JCFieldAccess)tree.meth).selected :
+                     null;
+ 
+             if (rec != null && !isSimpleReceiver(rec)) {
+-                //give up if receiver is too complex (to cut down analysis time)
+-                result = ArgumentExpressionKind.POLY;
+-                return;
++                return null;
+             }
+ 
+-            Type site = rec != null ?
+-                    attribSpeculative(rec, env, attr.unknownTypeExprInfo).type :
+-                    env.enclClass.sym.type;
++            Type site;
+ 
+-            while (site.hasTag(TYPEVAR)) {
+-                site = site.getUpperBound();
++            if (rec != null) {
++                if (rec.hasTag(APPLY)) {
++                    Symbol recSym = quicklyResolveMethod(env, (JCMethodInvocation) rec);
++                    if (recSym == null)
++                        return null;
++                    Symbol resolvedReturnType =
++                            analyzeCandidateMethods(recSym, syms.errSymbol, returnSymbolAnalyzer);
++                    if (resolvedReturnType == null)
++                        return null;
++                    site = resolvedReturnType.type;
++                } else {
++                    site = attribSpeculative(rec, env, attr.unknownTypeExprInfo).type;
++                }
++            } else {
++                site = env.enclClass.sym.type;
+             }
+ 
+             List<Type> args = rs.dummyArgs(tree.args.length());
++            Name name = TreeInfo.name(tree.meth);
+ 
+             Resolve.LookupHelper lh = rs.new LookupHelper(name, site, args, List.<Type>nil(), MethodResolutionPhase.VARARITY) {
+                 @Override
+@@ -1254,61 +1331,60 @@
+                 }
+             };
+ 
+-            Symbol sym = rs.lookupMethod(env, tree, site.tsym, rs.arityMethodCheck, lh);
++            return rs.lookupMethod(env, tree, site.tsym, rs.arityMethodCheck, lh);
++        }
++        //where:
++            MethodAnalyzer<Symbol> returnSymbolAnalyzer = new MethodAnalyzer<Symbol>() {
++                @Override
++                public Symbol process(MethodSymbol ms) {
++                    ArgumentExpressionKind kind = ArgumentExpressionKind.methodKind(ms, types);
++                    return kind != ArgumentExpressionKind.POLY ? ms.getReturnType().tsym : null;
++                }
++                @Override
++                public Symbol reduce(Symbol s1, Symbol s2) {
++                    return s1 == syms.errSymbol ? s2 : s1 == s2 ? s1 : null;
++                }
++                @Override
++                public boolean shouldStop(Symbol result) {
++                    return result == null;
++                }
++            };
+ 
+-            if (sym.kind == Kinds.AMBIGUOUS) {
+-                Resolve.AmbiguityError err = (Resolve.AmbiguityError)sym.baseSymbol();
+-                result = ArgumentExpressionKind.PRIMITIVE;
+-                for (Symbol s : err.ambiguousSyms) {
+-                    if (result.isPoly()) break;
+-                    if (s.kind == Kinds.MTH) {
+-                        result = reduce(ArgumentExpressionKind.methodKind(s, types));
++        /**
++         * Process the result of Resolve.lookupMethod. If sym is a method symbol, the result of
++         * MethodAnalyzer.process is returned. If sym is an ambiguous symbol, all the candidate
++         * methods are inspected one by one, using MethodAnalyzer.process. The outcomes are
++         * reduced using MethodAnalyzer.reduce (using defaultValue as the first value over which
++         * the reduction runs). MethodAnalyzer.shouldStop can be used to stop the inspection early.
++         */
++        <E> E analyzeCandidateMethods(Symbol sym, E defaultValue, MethodAnalyzer<E> analyzer) {
++            switch (sym.kind) {
++                case Kinds.MTH:
++                    return analyzer.process((MethodSymbol) sym);
++                case Kinds.AMBIGUOUS:
++                    Resolve.AmbiguityError err = (Resolve.AmbiguityError)sym.baseSymbol();
++                    E res = defaultValue;
++                    for (Symbol s : err.ambiguousSyms) {
++                        if (s.kind == Kinds.MTH) {
++                            res = analyzer.reduce(res, analyzer.process((MethodSymbol) s));
++                            if (analyzer.shouldStop(res))
++                                return res;
++                        }
+                     }
+-                }
+-            } else {
+-                result = (sym.kind == Kinds.MTH) ?
+-                    ArgumentExpressionKind.methodKind(sym, types) :
+-                    ArgumentExpressionKind.NO_POLY;
++                    return res;
++                default:
++                    return defaultValue;
+             }
+         }
+-        //where
+-            private boolean isSimpleReceiver(JCTree rec) {
+-                switch (rec.getTag()) {
+-                    case IDENT:
+-                        return true;
+-                    case SELECT:
+-                        return isSimpleReceiver(((JCFieldAccess)rec).selected);
+-                    case TYPEAPPLY:
+-                    case TYPEARRAY:
+-                        return true;
+-                    case ANNOTATED_TYPE:
+-                        return isSimpleReceiver(((JCAnnotatedType)rec).underlyingType);
+-                    default:
+-                        return false;
+-                }
+-            }
+-            private ArgumentExpressionKind reduce(ArgumentExpressionKind kind) {
+-                switch (result) {
+-                    case PRIMITIVE: return kind;
+-                    case NO_POLY: return kind.isPoly() ? kind : result;
+-                    case POLY: return result;
+-                    default:
+-                        Assert.error();
+-                        return null;
+-                }
+-            }
++    }
+ 
+-        @Override
+-        public void visitLiteral(JCLiteral tree) {
+-            Type litType = attr.litType(tree.typetag);
+-            result = ArgumentExpressionKind.standaloneKind(litType, types);
+-        }
++    /** Analyzer for methods - used by analyzeCandidateMethods. */
++    interface MethodAnalyzer<E> {
++        E process(MethodSymbol ms);
++        E reduce(E e1, E e2);
++        boolean shouldStop(E result);
++    }
+ 
+-        @Override
+-        void skip(JCTree tree) {
+-            result = ArgumentExpressionKind.NO_POLY;
+-        }
+-    }
+     //where
+     private EnumSet<JCTree.Tag> deferredCheckerTags =
+             EnumSet.of(LAMBDA, REFERENCE, PARENS, TYPECAST,
+diff -r 9955b8180ff6 -r ca2bc0c46552 test/tools/javac/lambda/T8031967.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/T8031967.java	Fri May 30 12:54:16 2014 +0200
+@@ -0,0 +1,137 @@
++/*
++ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8031967
++ * @summary Ensure javac can handle very deeply nested chain of method invocations occurring as
++ *          a parameter to other method invocations.
++ * @run main T8031967
++ */
++
++import java.io.IOException;
++import java.net.URI;
++import java.util.Arrays;
++import java.util.List;
++
++import javax.tools.DiagnosticListener;
++import javax.tools.JavaCompiler;
++import javax.tools.JavaFileObject;
++import javax.tools.SimpleJavaFileObject;
++import javax.tools.ToolProvider;
++
++import com.sun.source.util.JavacTask;
++
++public class T8031967 {
++
++    public static void main(String... args) throws IOException {
++        new T8031967().run();
++    }
++
++    final int depth = 50;
++
++    private void run() throws IOException {
++        runTestCase(true);
++        runTestCase(false);
++    }
++
++    private void runTestCase(boolean withErrors) throws IOException {
++        StringBuilder code = new StringBuilder();
++
++        code.append("public class Test {\n" +
++                    "    private void test() {\n" +
++                    "        GroupLayout l = new GroupLayout();\n" +
++                    "        l.setHorizontalGroup(\n");
++
++        gen(code, depth);
++        code.append("        );\n" +
++                    "    }\n");
++        if (!withErrors) {
++            code.append("    class GroupLayout {\n" +
++                        "        ParallelGroup createParallelGroup() {return null;}\n" +
++                        "        ParallelGroup createParallelGroup(int i) {return null;}\n" +
++                        "        ParallelGroup createParallelGroup(int i, int j) {return null;}\n" +
++                        "        void setHorizontalGroup(Group g) { }\n" +
++                        "    }\n" +
++                        "    \n" +
++                        "    class Group {\n" +
++                        "        Group addGroup(Group g) { return this; }\n" +
++                        "        Group addGroup(int i, Group g) { return this; }\n" +
++                        "        Group addGap(int i) { return this; }\n" +
++                        "        Group addGap(long l) { return this; }\n" +
++                        "        Group addGap(int i, int j) { return this; }\n" +
++                        "        Group addComponent(Object c) { return this; }\n" +
++                        "        Group addComponent(int i, Object c) { return this; }\n" +
++                        "    }\n" +
++                        "    class ParallelGroup extends Group {\n" +
++                        "        Group addGroup(Group g) { return this; }\n" +
++                        "        Group addGroup(int i, Group g) { return this; }\n" +
++                        "        Group addGap(int i) { return this; }\n" +
++                        "        Group addGap(int i, int j) { return this; }\n" +
++                        "        Group addComponent(Object c) { return this; }\n" +
++                        "        Group addComponent(int i, Object c) { return this; }\n" +
++                        "    }\n");
++        }
++
++        code.append("}\n");
++
++        JavaSource source = new JavaSource(code.toString());
++        List<JavaSource> sourceList = Arrays.asList(source);
++        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
++        DiagnosticListener<JavaFileObject> noErrors = (diagnostic) -> {
++            throw new IllegalStateException("Should not produce errors: " + diagnostic);
++        };
++        JavacTask task = (JavacTask) compiler.getTask(null, null, withErrors ? null : noErrors,
++                null, null, sourceList);
++
++        task.analyze();
++    }
++
++    private void gen(StringBuilder code, int depth) {
++        code.append("l.createParallelGroup()\n");
++        if (depth > 0) {
++            code.append(".addGroup(\n");
++            gen(code, depth - 1);
++            code.append(")");
++        }
++
++        code.append(".addGap(1)\n" +
++                    ".addComponent(new Object())\n" +
++                    ".addGap(1)\n" +
++                    ".addComponent(new Object())");
++    }
++
++    class JavaSource extends SimpleJavaFileObject {
++
++        final String code;
++        public JavaSource(String code) {
++            super(URI.create("myfo:/Test.java"), JavaFileObject.Kind.SOURCE);
++            this.code = code;
++        }
++
++        @Override
++        public CharSequence getCharContent(boolean ignoreEncodingErrors) {
++            return code;
++        }
++    }
++}
+

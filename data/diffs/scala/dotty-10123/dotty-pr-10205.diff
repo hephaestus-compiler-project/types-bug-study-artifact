@@ -1,0 +1,113 @@
+diff --git a/compiler/src/dotty/tools/dotc/typer/Inferencing.scala b/compiler/src/dotty/tools/dotc/typer/Inferencing.scala
+index 2ad8d7ef9ca0..ef49574a46e7 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Inferencing.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Inferencing.scala
+@@ -81,6 +81,28 @@ object Inferencing {
+     if (depVars.nonEmpty) instantiateSelected(tp, depVars.toList)
+   }
+ 
++  /** If `tp` is top-level type variable with a lower bound in the current constraint,
++   *  instantiate it from below. We also look for TypeVars whereever their instantiation
++   *  could uncover new type members.
++   */
++  def couldInstantiateTypeVar(tp: Type)(using Context): Boolean = tp.dealias match
++    case tvar: TypeVar
++    if !tvar.isInstantiated
++       && ctx.typerState.constraint.contains(tvar)
++       && tvar.hasLowerBound =>
++      tvar.instantiate(fromBelow = true)
++      true
++    case AppliedType(tycon, _) =>
++      couldInstantiateTypeVar(tycon)
++    case RefinedType(parent, _, _) =>
++      couldInstantiateTypeVar(parent)
++    case tp: AndOrType =>
++      couldInstantiateTypeVar(tp.tp1) || couldInstantiateTypeVar(tp.tp2)
++    case AnnotatedType(tp, _) =>
++      couldInstantiateTypeVar(tp)
++    case _ =>
++      false
++
+   /** The accumulator which forces type variables using the policy encoded in `force`
+    *  and returns whether the type is fully defined. The direction in which
+    *  a type variable is instantiated is determined as follows:
+diff --git a/compiler/src/dotty/tools/dotc/typer/TypeAssigner.scala b/compiler/src/dotty/tools/dotc/typer/TypeAssigner.scala
+index 2787a62509af..b58e05e1129d 100644
+--- a/compiler/src/dotty/tools/dotc/typer/TypeAssigner.scala
++++ b/compiler/src/dotty/tools/dotc/typer/TypeAssigner.scala
+@@ -12,6 +12,7 @@ import config.Printers.typr
+ import ast.Trees._
+ import NameOps._
+ import ProtoTypes._
++import Inferencing.couldInstantiateTypeVar
+ import collection.mutable
+ import reporting._
+ import Checking.{checkNoPrivateLeaks, checkNoWildcard}
+@@ -159,6 +160,9 @@ trait TypeAssigner {
+       TryDynamicCallType
+     else if (qualType.isErroneous || name.toTermName == nme.ERROR)
+       UnspecifiedErrorType
++    else if couldInstantiateTypeVar(qualType) then
++      // try again with more defined qualifier type
++      selectionType(tree, qual1)
+     else if (name == nme.CONSTRUCTOR)
+       errorType(ex"$qualType does not have a constructor", tree.srcPos)
+     else {
+diff --git a/tests/neg/i10082.scala b/tests/pos/i10082.scala
+similarity index 100%
+rename from tests/neg/i10082.scala
+rename to tests/pos/i10082.scala
+diff --git a/tests/pos/i10123.scala b/tests/pos/i10123.scala
+new file mode 100644
+index 000000000000..101989128a37
+--- /dev/null
++++ b/tests/pos/i10123.scala
+@@ -0,0 +1,19 @@
++class D
++class C[+T](x: T)
++
++class Foo() {
++  val status: Int = 0
++}
++
++object Main {
++  implicit class RichC[T](c: C[T]) {
++    def await(implicit d: D = ???): T = ???
++  }
++
++  def test1: Int = {
++    val foo = new C(new Foo()).await
++    foo.status
++  }
++
++  val test2 = new C(new Foo()).await.status
++}
+\ No newline at end of file
+diff --git a/tests/pos/i9567.scala b/tests/pos/i9567.scala
+new file mode 100644
+index 000000000000..d1af00680388
+--- /dev/null
++++ b/tests/pos/i9567.scala
+@@ -0,0 +1,22 @@
++// object Test {
++//   val x: Int => Int = identity
++// }
++
++trait Foo[F[_]] {
++  def foo[G[x] >: F[x]]: G[Unit]
++}
++
++trait M[A] {
++  def bla: Int = 1
++  def baz(f: Int => Int): Int = f(1)
++}
++
++object Test {
++  def bar(x: Foo[M]): Unit = {
++    // error: value bla is not a member of G[Unit], where:    G is a type variable with constraint >: M and <: [x] =>> Any
++    x.foo.bla
++
++    // error: value bla is not a member of G[Unit], where:    G is a type variable with constraint >: M and <: [x] =>> Any
++    x.foo.baz(x => x)
++  }
++}

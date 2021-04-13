@@ -1,0 +1,178 @@
+changeset:   3331:09cd25821441
+user:        mcimadamore
+date:        Fri Apr 08 10:52:26 2016 +0100
+summary:     8152832: Type inference regression in javac
+
+diff -r bd919db5c123 -r 09cd25821441 src/jdk.compiler/share/classes/com/sun/tools/javac/code/Type.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Type.java	Thu Apr 07 11:03:13 2016 -0700
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Type.java	Fri Apr 08 10:52:26 2016 +0100
+@@ -2000,7 +2000,10 @@
+             }
+             uv2.inst = inst;
+             uv2.listener = listener;
+-            uv2.incorporationActions = new ArrayDeque<>(incorporationActions);
++            uv2.incorporationActions = new ArrayDeque<>();
++            for (IncorporationAction action : incorporationActions) {
++                uv2.incorporationActions.add(action.dup(uv2));
++            }
+         }
+ 
+         @Override
+diff -r bd919db5c123 -r 09cd25821441 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Infer.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Infer.java	Thu Apr 07 11:03:13 2016 -0700
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Infer.java	Fri Apr 08 10:52:26 2016 +0100
+@@ -716,6 +716,8 @@
+             this.t = t;
+         }
+ 
++        public abstract IncorporationAction dup(UndetVar that);
++
+         /**
+          * Incorporation action entry-point. Subclasses should define the logic associated with
+          * this incorporation action.
+@@ -765,6 +767,11 @@
+         }
+ 
+         @Override
++        public IncorporationAction dup(UndetVar that) {
++            return new CheckBounds(that, t, typeFunc, optFilter, from);
++        }
++
++        @Override
+         void apply(InferenceContext inferenceContext, Warner warn) {
+             t = typeFunc.apply(inferenceContext, t);
+             if (optFilter != null && optFilter.test(inferenceContext, t)) return;
+@@ -832,6 +839,11 @@
+         }
+ 
+         @Override
++        public IncorporationAction dup(UndetVar that) {
++            return new EqCheckLegacy(that, t, from);
++        }
++
++        @Override
+         EnumSet<InferenceBound> boundsToCheck() {
+             return (from == InferenceBound.EQ) ?
+                             EnumSet.allOf(InferenceBound.class) :
+@@ -847,8 +859,17 @@
+         EnumSet<InferenceBound> to;
+ 
+         CheckInst(UndetVar uv, InferenceBound ib, InferenceBound... rest) {
++            this(uv, EnumSet.of(ib, rest));
++        }
++
++        CheckInst(UndetVar uv, EnumSet<InferenceBound> to) {
+             super(uv, uv.getInst(), InferenceBound.EQ);
+-            this.to = EnumSet.of(ib, rest);
++            this.to = to;
++        }
++
++        @Override
++        public IncorporationAction dup(UndetVar that) {
++            return new CheckInst(that, to);
+         }
+ 
+         @Override
+@@ -871,6 +892,11 @@
+         }
+ 
+         @Override
++        public IncorporationAction dup(UndetVar that) {
++            return new SubstBounds(that);
++        }
++
++        @Override
+         void apply(InferenceContext inferenceContext, Warner warn) {
+             for (Type undet : inferenceContext.undetvars) {
+                 //we could filter out variables not mentioning uv2...
+@@ -910,6 +936,11 @@
+         }
+ 
+         @Override
++        public IncorporationAction dup(UndetVar that) {
++            return new CheckUpperBounds(that, t);
++        }
++
++        @Override
+         void apply(InferenceContext inferenceContext, Warner warn) {
+             List<Type> boundList = uv.getBounds(InferenceBound.UPPER).stream()
+                     .collect(types.closureCollector(true, types::isSameType));
+@@ -958,6 +989,11 @@
+             this.ib = ib;
+         }
+ 
++        @Override
++        public IncorporationAction dup(UndetVar that) {
++            return new PropagateBounds(that, t, ib);
++        }
++
+         void apply(InferenceContext inferenceContext, Warner warner) {
+             Type undetT = inferenceContext.asUndetVar(t);
+             if (undetT.hasTag(UNDETVAR) && !((UndetVar)undetT).isCaptured()) {
+diff -r bd919db5c123 -r 09cd25821441 test/tools/javac/generics/inference/8152832/T8152832.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/8152832/T8152832.java	Fri Apr 08 10:52:26 2016 +0100
+@@ -0,0 +1,61 @@
++/*
++ * Copyright (c) 2016, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/**
++ * @test
++ * @bug 8152832
++ * @summary Type inference regression in javac
++ * @compile T8152832.java
++ */
++
++import java.util.function.*;
++import java.util.stream.*;
++import java.util.*;
++
++class T8152832 {
++    interface MyStream<T> extends Stream<T> {
++        public <U> List<U> toFlatList(Function<? super T, ? extends Collection<U>> mapper);
++    }
++
++    static class MyStreamSupplier<T> {
++        public MyStream<T> get() {
++            return null;
++        }
++    }
++
++    public static <T> void myStream(Supplier<Stream<T>> base, Consumer<MyStreamSupplier<T>> consumer) {
++    }
++
++    public static void assertEquals(Object expected, Object actual) {
++    }
++
++    public void test() {
++        List<List<String>> strings = Arrays.asList();
++        List<String> expectedList = Arrays.asList();
++        myStream(strings::stream, supplier -> {
++            assertEquals(expectedList, supplier.get().toFlatList(Function.identity()));
++        });
++    }
++}
+\ No newline at end of file
+

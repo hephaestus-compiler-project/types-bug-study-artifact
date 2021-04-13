@@ -1,0 +1,293 @@
+changeset:   3819:49170d831308
+user:        dlsmith
+date:        Wed Dec 14 17:56:11 2016 -0700
+summary:     8075793: Source incompatibility for inference using -source 7
+
+diff -r 957e5bde3296 -r 49170d831308 src/jdk.compiler/share/classes/com/sun/tools/javac/code/Source.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Source.java	Wed Dec 14 20:34:19 2016 +0000
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Source.java	Wed Dec 14 17:56:11 2016 -0700
+@@ -209,6 +209,9 @@
+     public boolean allowPostApplicabilityVarargsAccessCheck() {
+         return compareTo(JDK1_8) >= 0;
+     }
++    public boolean mapCapturesToBounds() {
++        return compareTo(JDK1_8) < 0;
++    }
+     public boolean allowPrivateSafeVarargs() {
+         return compareTo(JDK1_9) >= 0;
+     }
+diff -r 957e5bde3296 -r 49170d831308 src/jdk.compiler/share/classes/com/sun/tools/javac/code/Type.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Type.java	Wed Dec 14 20:34:19 2016 +0000
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Type.java	Wed Dec 14 17:56:11 2016 -0700
+@@ -2082,6 +2082,21 @@
+ 
+         /** add a bound of a given kind - this might trigger listener notification */
+         public final void addBound(InferenceBound ib, Type bound, Types types) {
++            // Per JDK-8075793: in pre-8 sources, follow legacy javac behavior
++            // when capture variables are inferred as bounds: for lower bounds,
++            // map to the capture variable's upper bound; for upper bounds,
++            // if the capture variable has a lower bound, map to that type
++            if (types.mapCapturesToBounds) {
++                switch (ib) {
++                    case LOWER:
++                        bound = types.cvarUpperBound(bound);
++                        break;
++                    case UPPER:
++                        Type altBound = types.cvarLowerBound(bound);
++                        if (!altBound.hasTag(TypeTag.BOT)) bound = altBound;
++                        break;
++                }
++            }
+             addBound(ib, bound, types, false);
+         }
+ 
+diff -r 957e5bde3296 -r 49170d831308 src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java	Wed Dec 14 20:34:19 2016 +0000
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java	Wed Dec 14 17:56:11 2016 -0700
+@@ -88,6 +88,7 @@
+     final Names names;
+     final boolean allowObjectToPrimitiveCast;
+     final boolean allowDefaultMethods;
++    final boolean mapCapturesToBounds;
+     final Check chk;
+     final Enter enter;
+     JCDiagnostic.Factory diags;
+@@ -112,6 +113,7 @@
+         Source source = Source.instance(context);
+         allowObjectToPrimitiveCast = source.allowObjectToPrimitiveCast();
+         allowDefaultMethods = source.allowDefaultMethods();
++        mapCapturesToBounds = source.mapCapturesToBounds();
+         chk = Check.instance(context);
+         enter = Enter.instance(context);
+         capturedName = names.fromString("<captured wildcard>");
+diff -r 957e5bde3296 -r 49170d831308 test/tools/javac/generics/inference/CaptureLowerBound.java
+--- a/test/tools/javac/generics/inference/CaptureLowerBound.java	Wed Dec 14 20:34:19 2016 +0000
++++ b/test/tools/javac/generics/inference/CaptureLowerBound.java	Wed Dec 14 17:56:11 2016 -0700
+@@ -1,31 +1,9 @@
+ /*
+- * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
+- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+- *
+- * This code is free software; you can redistribute it and/or modify it
+- * under the terms of the GNU General Public License version 2 only, as
+- * published by the Free Software Foundation.
+- *
+- * This code is distributed in the hope that it will be useful, but WITHOUT
+- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+- * version 2 for more details (a copy is included in the LICENSE file that
+- * accompanied this code).
+- *
+- * You should have received a copy of the GNU General Public License version
+- * 2 along with this work; if not, write to the Free Software Foundation,
+- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+- *
+- * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+- * or visit www.oracle.com if you need additional information or have any
+- * questions.
+- */
+-
+-/*
+- * @test
++ * @test /nodynamiccopyright/
+  * @bug 8039214
+  * @summary Capture variable as an inference variable's lower bound
+  * @compile CaptureLowerBound.java
++ * @compile/fail/ref=CaptureLowerBound7.out -Xlint:-options -source 7 -XDrawDiagnostics CaptureLowerBound.java
+  */
+ 
+ public class CaptureLowerBound {
+diff -r 957e5bde3296 -r 49170d831308 test/tools/javac/generics/inference/CaptureLowerBound7.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/CaptureLowerBound7.out	Wed Dec 14 17:56:11 2016 -0700
+@@ -0,0 +1,2 @@
++CaptureLowerBound.java:17:7: compiler.err.cant.apply.symbol: kindname.method, m, CaptureLowerBound.I<? extends X,X>, CaptureLowerBound.C<compiler.misc.type.captureof: 1, ?>, kindname.class, CaptureLowerBound, (compiler.misc.inferred.do.not.conform.to.lower.bounds: compiler.misc.type.captureof: 1, ?, java.lang.Object)
++1 error
+diff -r 957e5bde3296 -r 49170d831308 test/tools/javac/generics/inference/CaptureLowerBoundArray.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/CaptureLowerBoundArray.java	Wed Dec 14 17:56:11 2016 -0700
+@@ -0,0 +1,22 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8075793
++ * @summary Capture variable as an inference lower bound followed by an array write
++ * @compile/fail/ref=CaptureLowerBoundArray.out -XDrawDiagnostics CaptureLowerBoundArray.java
++ * @compile -Xlint:-options -source 7 CaptureLowerBoundArray.java
++ */
++
++class CaptureLowerBoundArray {
++
++    interface I<T> {
++        T[] getArray();
++    }
++
++    <T> T[] m(T[] arg) { return null; }
++
++    void test(I<? extends Exception> i) {
++        m(i.getArray())[0] = new Exception();
++    }
++
++
++}
+diff -r 957e5bde3296 -r 49170d831308 test/tools/javac/generics/inference/CaptureLowerBoundArray.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/CaptureLowerBoundArray.out	Wed Dec 14 17:56:11 2016 -0700
+@@ -0,0 +1,2 @@
++CaptureLowerBoundArray.java:18:30: compiler.err.prob.found.req: (compiler.misc.inconvertible.types: java.lang.Exception, compiler.misc.type.captureof: 1, ? extends java.lang.Exception)
++1 error
+diff -r 957e5bde3296 -r 49170d831308 test/tools/javac/generics/inference/CaptureLowerBoundAssign.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/CaptureLowerBoundAssign.java	Wed Dec 14 17:56:11 2016 -0700
+@@ -0,0 +1,42 @@
++/*
++ * Copyright (c) 2016, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8075793
++ * @summary Capture variable as an inference lower bound followed by an invariant assignment
++ * @compile CaptureLowerBoundAssign.java
++ * @compile -Xlint:-options -source 7 CaptureLowerBoundAssign.java
++ */
++
++class CaptureLowerBoundAssign {
++
++    static class C<T> {}
++
++    <T> C<T> m(C<? extends T> x) { return null; }
++
++    void test(C<? extends Number> arg) {
++        C<Number> c = m(arg);
++    }
++
++}
+\ No newline at end of file
+diff -r 957e5bde3296 -r 49170d831308 test/tools/javac/generics/inference/CaptureLowerBoundDeref.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/CaptureLowerBoundDeref.java	Wed Dec 14 17:56:11 2016 -0700
+@@ -0,0 +1,24 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8075793
++ * @summary Capture variable as an inference lower bound followed by a member reference
++ * @compile/fail/ref=CaptureLowerBoundDeref.out -XDrawDiagnostics CaptureLowerBoundDeref.java
++ * @compile -Xlint:-options -source 7 CaptureLowerBoundDeref.java
++ */
++
++class CaptureLowerBoundDeref {
++
++    interface Wrapper<T> {
++        I<T> get();
++    }
++
++    interface I<T> {}
++
++    interface K<T> { void take(T arg); }
++
++    <T> K<T> m(I<? extends T> arg) { return null; }
++
++    void test(Wrapper<?> w) {
++        m(w.get()).take(new Object());
++    }
++}
+\ No newline at end of file
+diff -r 957e5bde3296 -r 49170d831308 test/tools/javac/generics/inference/CaptureLowerBoundDeref.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/CaptureLowerBoundDeref.out	Wed Dec 14 17:56:11 2016 -0700
+@@ -0,0 +1,2 @@
++CaptureLowerBoundDeref.java:22:19: compiler.err.cant.apply.symbol: kindname.method, take, compiler.misc.type.captureof: 1, ?, java.lang.Object, kindname.interface, CaptureLowerBoundDeref.K<T>, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.inconvertible.types: java.lang.Object, compiler.misc.type.captureof: 1, ?))
++1 error
+diff -r 957e5bde3296 -r 49170d831308 test/tools/javac/generics/inference/CaptureLowerBoundNeg.java
+--- a/test/tools/javac/generics/inference/CaptureLowerBoundNeg.java	Wed Dec 14 20:34:19 2016 +0000
++++ b/test/tools/javac/generics/inference/CaptureLowerBoundNeg.java	Wed Dec 14 17:56:11 2016 -0700
+@@ -3,6 +3,7 @@
+  * @bug 8039214
+  * @summary Capture variable as an inference variable's lower bound
+  * @compile/fail/ref=CaptureLowerBoundNeg.out -XDrawDiagnostics CaptureLowerBoundNeg.java
++ * @compile -Xlint:-options -source 7 CaptureLowerBoundNeg.java
+  */
+ 
+ public class CaptureLowerBoundNeg {
+diff -r 957e5bde3296 -r 49170d831308 test/tools/javac/generics/inference/CaptureLowerBoundNeg.out
+--- a/test/tools/javac/generics/inference/CaptureLowerBoundNeg.out	Wed Dec 14 20:34:19 2016 +0000
++++ b/test/tools/javac/generics/inference/CaptureLowerBoundNeg.out	Wed Dec 14 17:56:11 2016 -0700
+@@ -1,2 +1,2 @@
+-CaptureLowerBoundNeg.java:16:29: compiler.err.cant.apply.symbol: kindname.method, take, compiler.misc.type.captureof: 1, ? extends java.lang.Object, java.lang.Object, kindname.class, CaptureLowerBoundNeg.D<T>, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.inconvertible.types: java.lang.Object, compiler.misc.type.captureof: 1, ? extends java.lang.Object))
++CaptureLowerBoundNeg.java:17:29: compiler.err.cant.apply.symbol: kindname.method, take, compiler.misc.type.captureof: 1, ? extends java.lang.Object, java.lang.Object, kindname.class, CaptureLowerBoundNeg.D<T>, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.inconvertible.types: java.lang.Object, compiler.misc.type.captureof: 1, ? extends java.lang.Object))
+ 1 error
+diff -r 957e5bde3296 -r 49170d831308 test/tools/javac/generics/inference/CaptureUpperBoundDeref.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/CaptureUpperBoundDeref.java	Wed Dec 14 17:56:11 2016 -0700
+@@ -0,0 +1,22 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8075793
++ * @summary Capture variable as an inference upper bound followed by a member reference
++ * @compile/fail/ref=CaptureUpperBoundDeref.out -XDrawDiagnostics CaptureUpperBoundDeref.java
++ * @compile -Xlint:-options -source 7 CaptureUpperBoundDeref.java
++ */
++
++class CaptureUpperBoundDeref {
++
++    interface Wrapper<T> {
++        I<T> get();
++    }
++
++    interface I<T> {}
++
++    <T> T m(I<? super T> arg) { return null; }
++
++    void test(Wrapper<? super String> w) {
++        m(w.get()).substring(0);
++    }
++}
+\ No newline at end of file
+diff -r 957e5bde3296 -r 49170d831308 test/tools/javac/generics/inference/CaptureUpperBoundDeref.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/CaptureUpperBoundDeref.out	Wed Dec 14 17:56:11 2016 -0700
+@@ -0,0 +1,2 @@
++CaptureUpperBoundDeref.java:20:19: compiler.err.cant.resolve.location.args: kindname.method, substring, , int, (compiler.misc.location: kindname.class, java.lang.Object, null)
++1 error
+diff -r 957e5bde3296 -r 49170d831308 test/tools/javac/generics/inference/NestedCapture.java
+--- a/test/tools/javac/generics/inference/NestedCapture.java	Wed Dec 14 20:34:19 2016 +0000
++++ b/test/tools/javac/generics/inference/NestedCapture.java	Wed Dec 14 17:56:11 2016 -0700
+@@ -26,6 +26,7 @@
+  * @bug 8039214
+  * @summary Capture variable passed through multiple levels of nested inference
+  * @compile NestedCapture.java
++ * @compile -Xlint:-options -source 7 NestedCapture.java
+  */
+ 
+ abstract class NestedCapture {
+diff -r 957e5bde3296 -r 49170d831308 test/tools/javac/generics/inference/NestedWildcards.java
+--- a/test/tools/javac/generics/inference/NestedWildcards.java	Wed Dec 14 20:34:19 2016 +0000
++++ b/test/tools/javac/generics/inference/NestedWildcards.java	Wed Dec 14 17:56:11 2016 -0700
+@@ -26,6 +26,7 @@
+  * @bug 8039214
+  * @summary Nested generic methods that work on wildcard-parameterized types
+  * @compile NestedWildcards.java
++ * @compile -Xlint:-options -source 7 NestedWildcards.java
+  */
+ 
+ public class NestedWildcards {
+

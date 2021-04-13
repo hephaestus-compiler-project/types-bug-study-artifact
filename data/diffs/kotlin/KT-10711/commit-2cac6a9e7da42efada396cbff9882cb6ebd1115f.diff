@@ -1,0 +1,1497 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/ArgumentTypeResolver.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/ArgumentTypeResolver.java
+index d3226cbaa76..e8a3288beee 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/ArgumentTypeResolver.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/ArgumentTypeResolver.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2010-2016 JetBrains s.r.o.
++ * Copyright 2010-2017 JetBrains s.r.o.
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallCompleter.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallCompleter.kt
+index b5caa1f3fd6..4685fb6750d 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallCompleter.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallCompleter.kt
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2010-2016 JetBrains s.r.o.
++ * Copyright 2010-2017 JetBrains s.r.o.
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -18,6 +18,7 @@ package org.jetbrains.kotlin.resolve.calls
+ 
+ import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+ import org.jetbrains.kotlin.builtins.getReturnTypeFromFunctionType
++import org.jetbrains.kotlin.builtins.getValueParameterTypesFromFunctionType
+ import org.jetbrains.kotlin.builtins.isFunctionType
+ import org.jetbrains.kotlin.config.CompilerConfiguration
+ import org.jetbrains.kotlin.config.LanguageVersionSettings
+@@ -157,14 +158,13 @@ class CallCompleter(
+         val expectedReturnType =
+                 if (call.isCallableReference()) {
+                     // TODO: compute generic type argument for R in the kotlin.Function<R> supertype (KT-12963)
+-                    // TODO: also add constraints for parameter types (KT-12964)
+                     if (!TypeUtils.noExpectedType(expectedType) && expectedType.isFunctionType) expectedType.getReturnTypeFromFunctionType()
+                     else TypeUtils.NO_EXPECTED_TYPE
+                 }
+                 else expectedType
+ 
+-        fun ConstraintSystem.Builder.returnTypeInSystem(): KotlinType? =
+-                returnType?.let {
++        fun ConstraintSystem.Builder.typeInSystem(type: KotlinType?): KotlinType? =
++                type?.let {
+                     val substitutor = typeVariableSubstitutors[call.toHandle()] ?: error("No substitutor for call: $call")
+                     substitutor.substitute(it, Variance.INVARIANT)
+                 }
+@@ -178,7 +178,7 @@ class CallCompleter(
+ 
+         if (returnType != null && !TypeUtils.noExpectedType(expectedReturnType)) {
+             updateSystemIfNeeded { builder ->
+-                val returnTypeInSystem = builder.returnTypeInSystem()
++                val returnTypeInSystem = builder.typeInSystem(returnType)
+                 if (returnTypeInSystem != null) {
+                     builder.addSubtypeConstraint(returnTypeInSystem, expectedReturnType, EXPECTED_TYPE_POSITION.position())
+                     builder.build()
+@@ -202,7 +202,7 @@ class CallCompleter(
+ 
+         if (returnType != null && expectedReturnType === TypeUtils.UNIT_EXPECTED_TYPE) {
+             updateSystemIfNeeded { builder ->
+-                val returnTypeInSystem = builder.returnTypeInSystem()
++                val returnTypeInSystem = builder.typeInSystem(returnType)
+                 if (returnTypeInSystem != null) {
+                     builder.addSubtypeConstraint(returnTypeInSystem, builtIns.unitType, EXPECTED_TYPE_POSITION.position())
+                     val system = builder.build()
+@@ -212,6 +212,16 @@ class CallCompleter(
+             }
+         }
+ 
++        if (call.isCallableReference() && !TypeUtils.noExpectedType(expectedType) && expectedType.isFunctionType) {
++            updateSystemIfNeeded { builder ->
++                candidateDescriptor.valueParameters.zip(expectedType.getValueParameterTypesFromFunctionType()).forEach { (parameter, argument) ->
++                    val valueParameterInSystem = builder.typeInSystem(parameter.type)
++                    builder.addSubtypeConstraint(valueParameterInSystem, argument.type, VALUE_PARAMETER_POSITION.position(parameter.index))
++                }
++
++                builder.build()
++            }
++        }
+ 
+         val builder = constraintSystem!!.toBuilder()
+         builder.fixVariables()
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallExpressionResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallExpressionResolver.kt
+index ef80268a291..79214422a53 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallExpressionResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallExpressionResolver.kt
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2010-2016 JetBrains s.r.o.
++ * Copyright 2010-2017 JetBrains s.r.o.
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.kt
+index 66147b39d6f..88f3a56b4ed 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.kt
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2010-2016 JetBrains s.r.o.
++ * Copyright 2010-2017 JetBrains s.r.o.
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/GenericCandidateResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/GenericCandidateResolver.kt
+index 706445bd2df..bde9597595d 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/GenericCandidateResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/GenericCandidateResolver.kt
+@@ -26,6 +26,7 @@ import org.jetbrains.kotlin.descriptors.ValueParameterDescriptor
+ import org.jetbrains.kotlin.descriptors.impl.TypeAliasConstructorDescriptor
+ import org.jetbrains.kotlin.psi.*
+ import org.jetbrains.kotlin.resolve.FunctionDescriptorUtil
++import org.jetbrains.kotlin.resolve.TemporaryBindingTrace
+ import org.jetbrains.kotlin.resolve.calls.callResolverUtil.*
+ import org.jetbrains.kotlin.resolve.calls.callResolverUtil.ResolveArgumentsMode.RESOLVE_FUNCTION_ARGUMENTS
+ import org.jetbrains.kotlin.resolve.calls.callResolverUtil.ResolveArgumentsMode.SHAPE_FUNCTION_ARGUMENTS
+@@ -51,8 +52,11 @@ import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver
+ import org.jetbrains.kotlin.types.*
+ import org.jetbrains.kotlin.types.TypeUtils.DONT_CARE
+ import org.jetbrains.kotlin.types.checker.KotlinTypeChecker
++import org.jetbrains.kotlin.types.expressions.ControlStructureTypingUtils.ResolveConstruct
+ import org.jetbrains.kotlin.types.expressions.ExpressionTypingUtils
+ 
++private val SPECIAL_FUNCTION_NAMES = ResolveConstruct.values().map { it.specialFunctionName }.toSet()
++
+ class GenericCandidateResolver(
+         private val argumentTypeResolver: ArgumentTypeResolver,
+         private val coroutineInferenceSupport: CoroutineInferenceSupport
+@@ -186,6 +190,9 @@ class GenericCandidateResolver(
+         if (addConstraintForNestedCall(argumentExpression, constraintPosition, builder, newContext, effectiveExpectedType)) return
+ 
+         val type = updateResultTypeForSmartCasts(typeInfoForCall.type, argumentExpression, context.replaceDataFlowInfo(dataFlowInfoForArgument))
++
++        if (argumentExpression is KtCallableReferenceExpression && type == null) return
++
+         builder.addSubtypeConstraint(
+                 type,
+                 builder.compositeSubstitutor().substitute(effectiveExpectedType, Variance.INVARIANT),
+@@ -273,8 +280,28 @@ class GenericCandidateResolver(
+                         addConstraintForFunctionLiteralArgument(functionLiteral, valueArgument, valueParameterDescriptor, constraintSystem, newContext,
+                                                                 resolvedCall.candidateDescriptor.returnType)
+                     }
++
++                    // as inference for callable references depends on expected type,
++                    // we should postpone reporting errors on them until all types will be inferred
++
++                    // We do not replace trace for special calls (e.g. if-expressions) because of their specific analysis
++                    // For example, type info for arguments is needed before call will be completed (See ControlStructureTypingVisitor.visitIfExpression)
++                    val temporaryContextForCall = if (resolvedCall.candidateDescriptor.name in SPECIAL_FUNCTION_NAMES) {
++                        newContext
++                    }
++                    else {
++                        val temporaryBindingTrace = TemporaryBindingTrace.create(
++                                newContext.trace, "Trace to complete argument for call that might be not resulting call")
++                        newContext.replaceBindingTrace(temporaryBindingTrace)
++                    }
++
+                     ArgumentTypeResolver.getCallableReferenceExpressionIfAny(argumentExpression, newContext)?.let { callableReference ->
+-                        addConstraintForCallableReference(callableReference, valueArgument, valueParameterDescriptor, constraintSystem, newContext)
++                        addConstraintForCallableReference(
++                                callableReference,
++                                valueArgument,
++                                valueParameterDescriptor,
++                                constraintSystem,
++                                temporaryContextForCall)
+                     }
+                 }
+             }
+@@ -376,7 +403,7 @@ class GenericCandidateResolver(
+         val expectedType = getExpectedTypeForCallableReference(callableReference, constraintSystem, context, effectiveExpectedType)
+                            ?: return
+         if (!ReflectionTypes.isCallableType(expectedType)) return
+-        val resolvedType = getResolvedTypeForCallableReference(callableReference, context, expectedType, valueArgument)
++        val resolvedType = getResolvedTypeForCallableReference(callableReference, context, expectedType, valueArgument) ?: return
+         val position = VALUE_PARAMETER_POSITION.position(valueParameterDescriptor.index)
+         constraintSystem.addSubtypeConstraint(
+                 resolvedType,
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ControlStructureTypingUtils.java b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ControlStructureTypingUtils.java
+index 36b484da670..df1e9ad8898 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ControlStructureTypingUtils.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ControlStructureTypingUtils.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2010-2016 JetBrains s.r.o.
++ * Copyright 2010-2017 JetBrains s.r.o.
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -77,6 +77,14 @@ public class ControlStructureTypingUtils {
+         public String getName() {
+             return name;
+         }
++
++        public Name getSpecialFunctionName() {
++            return Name.identifier("<SPECIAL-FUNCTION-FOR-" + name.toUpperCase() + "-RESOLVE>");
++        }
++
++        public Name getSpecialTypeParameterName() {
++            return Name.identifier("<TYPE-PARAMETER-FOR-" + name.toUpperCase() + "-RESOLVE>");
++        }
+     }
+ 
+     private final CallResolver callResolver;
+@@ -139,16 +147,14 @@ public class ControlStructureTypingUtils {
+     ) {
+         assert argumentNames.size() == isArgumentNullable.size();
+ 
+-        String constructionName = construct.getName().toUpperCase();
+-        Name specialFunctionName = Name.identifier("<SPECIAL-FUNCTION-FOR-" + constructionName + "-RESOLVE>");
+-
+         SimpleFunctionDescriptorImpl function = SimpleFunctionDescriptorImpl.create(
+-                moduleDescriptor, Annotations.Companion.getEMPTY(), specialFunctionName, CallableMemberDescriptor.Kind.DECLARATION, SourceElement.NO_SOURCE
++                moduleDescriptor, Annotations.Companion.getEMPTY(), construct.getSpecialFunctionName(),
++                CallableMemberDescriptor.Kind.DECLARATION, SourceElement.NO_SOURCE
+         );
+ 
+         TypeParameterDescriptor typeParameter = TypeParameterDescriptorImpl.createWithDefaultBound(
+                 function, Annotations.Companion.getEMPTY(), false, Variance.INVARIANT,
+-                Name.identifier("<TYPE-PARAMETER-FOR-" + constructionName + "-RESOLVE>"), 0);
++                construct.getSpecialTypeParameterName(), 0);
+ 
+         KotlinType type = typeParameter.getDefaultType();
+         KotlinType nullableType = TypeUtils.makeNullable(type);
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt
+index 07f4e91d604..c502de18686 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2010-2016 JetBrains s.r.o.
++ * Copyright 2010-2017 JetBrains s.r.o.
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -606,11 +606,16 @@ class DoubleColonExpressionResolver(
+             outerContext: ResolutionContext<*>,
+             resolutionMode: ResolveArgumentsMode
+     ): OverloadResolutionResults<CallableDescriptor>? {
+-        val call = CallMaker.makeCall(reference, receiver, null, reference, emptyList())
++        // we should preserve information about `call` because callable references are analyzed two times,
++        // otherwise there will be not completed calls in trace
++        val call = outerContext.trace[BindingContext.CALL, reference] ?: CallMaker.makeCall(reference, receiver, null, reference, emptyList())
+         val temporaryTrace = TemporaryTraceAndCache.create(outerContext, traceTitle, reference)
+         val newContext =
+                 if (resolutionMode == ResolveArgumentsMode.SHAPE_FUNCTION_ARGUMENTS)
+-                    outerContext.replaceTraceAndCache(temporaryTrace).replaceExpectedType(TypeUtils.NO_EXPECTED_TYPE)
++                    outerContext
++                            .replaceTraceAndCache(temporaryTrace)
++                            .replaceExpectedType(TypeUtils.NO_EXPECTED_TYPE)
++                            .replaceContextDependency(ContextDependency.DEPENDENT)
+                 else
+                     outerContext.replaceTraceAndCache(temporaryTrace)
+ 
+diff --git a/compiler/testData/codegen/box/callableReference/function/genericCallableReferenceArguments.kt b/compiler/testData/codegen/box/callableReference/function/genericCallableReferenceArguments.kt
+new file mode 100644
+index 00000000000..2627cd1c316
+--- /dev/null
++++ b/compiler/testData/codegen/box/callableReference/function/genericCallableReferenceArguments.kt
+@@ -0,0 +1,29 @@
++// IGNORE_BACKEND: JS
++
++// WITH_RUNTIME
++// WITH_REFLECT
++
++import kotlin.test.assertEquals
++
++fun <T, R> foo(x: T): R = TODO()
++fun <T> fooReturnInt(x: T): Int = 1
++
++inline fun <reified T, reified R> check(x: T, y: R, f: (T) -> R, tType: String, rType: String) {
++    assertEquals(tType, T::class.simpleName)
++    assertEquals(rType, R::class.simpleName)
++}
++
++inline fun <reified T, reified R> check(f: (T) -> R, g: (T) -> R, tType: String, rType: String) {
++    assertEquals(tType, T::class.simpleName)
++    assertEquals(rType, R::class.simpleName)
++}
++
++fun box(): String {
++    check("", 1, ::foo, "String", "Int")
++    check("", 1, ::fooReturnInt, "String", "Int")
++    check("", "", ::fooReturnInt, "String", "Any")
++
++    check(Int::toString, ::foo, "Int", "String")
++
++    return "OK"
++}
+\ No newline at end of file
+diff --git a/compiler/testData/codegen/box/callableReference/function/genericCallableReferencesWithNullableTypes.kt b/compiler/testData/codegen/box/callableReference/function/genericCallableReferencesWithNullableTypes.kt
+new file mode 100644
+index 00000000000..2343ce2ba54
+--- /dev/null
++++ b/compiler/testData/codegen/box/callableReference/function/genericCallableReferencesWithNullableTypes.kt
+@@ -0,0 +1,30 @@
++// IGNORE_BACKEND: JS
++
++// WITH_RUNTIME
++// WITH_REFLECT
++
++import kotlin.test.assertEquals
++
++fun <T, R> foo(x: T): R = TODO()
++
++inline fun <reified T, reified R> bar(x: T, y: R, f: (T) -> R, tType: String, rType: String): Pair<T, R?> {
++    assertEquals(tType, T::class.simpleName)
++    assertEquals(rType, R::class.simpleName)
++    return Pair(x, y)
++}
++
++data class Pair<A, B>(val a: A, val b: B)
++
++fun box(): String {
++    bar(1, "", ::foo, "Int", "String")
++
++    val s1: Pair<Int, String?> = bar(1, "", ::foo, "Int", "String")
++    val (a: Int, b: String?) = bar(1, "", ::foo, "Int", "String")
++
++    val ns: String? = null
++    bar(ns, ns, ::foo, "String", "String")
++
++    val s2: Pair<Int?, String?> = bar(null, null, ::foo, "Int", "String")
++
++    return "OK"
++}
+\ No newline at end of file
+diff --git a/compiler/testData/codegen/box/callableReference/function/genericCallableReferencesWithOverload.kt b/compiler/testData/codegen/box/callableReference/function/genericCallableReferencesWithOverload.kt
+new file mode 100644
+index 00000000000..a699a9be9e9
+--- /dev/null
++++ b/compiler/testData/codegen/box/callableReference/function/genericCallableReferencesWithOverload.kt
+@@ -0,0 +1,23 @@
++// IGNORE_BACKEND: JS
++
++// WITH_RUNTIME
++// WITH_REFLECT
++
++import kotlin.test.assertEquals
++
++fun foo(x: Int?) {}
++fun foo(y: String?) {}
++fun foo(z: Boolean) {}
++
++inline fun <reified T> bar(f: (T) -> Unit, tType: String): T? {
++    assertEquals(tType, T::class.simpleName)
++    return null
++}
++
++fun box(): String {
++    val a1: Int? = bar(::foo, "Int")
++    val a2: String? = bar(::foo, "String")
++    val a3: Boolean? = bar<Boolean>(::foo, "Boolean")
++
++    return "OK"
++}
+\ No newline at end of file
+diff --git a/compiler/testData/codegen/box/callableReference/function/genericWithDependentType.kt b/compiler/testData/codegen/box/callableReference/function/genericWithDependentType.kt
+new file mode 100644
+index 00000000000..79959ec1436
+--- /dev/null
++++ b/compiler/testData/codegen/box/callableReference/function/genericWithDependentType.kt
+@@ -0,0 +1,8 @@
++// WITH_RUNTIME
++
++class Wrapper<T>(val value: T)
++
++fun box(): String {
++    val ls = listOf("OK").map(::Wrapper)
++    return ls[0].value
++}
+diff --git a/compiler/testData/codegen/box/callableReference/function/specialCalls.kt b/compiler/testData/codegen/box/callableReference/function/specialCalls.kt
+new file mode 100644
+index 00000000000..bfebd392d74
+--- /dev/null
++++ b/compiler/testData/codegen/box/callableReference/function/specialCalls.kt
+@@ -0,0 +1,29 @@
++fun baz(i: Int) = i
++fun <T> bar(x: T): T = x
++
++fun nullableFun(): ((Int) -> Int)? = null
++
++fun box(): String {
++    val x1: (Int) -> Int = bar(if (true) ::baz else ::baz)
++    val x2: (Int) -> Int = bar(nullableFun() ?: ::baz)
++    val x3: (Int) -> Int = bar(::baz ?: ::baz)
++
++    val i = 0
++    val x4: (Int) -> Int = bar(when (i) {
++                                   10 -> ::baz
++                                   20 -> ::baz
++                                   else -> ::baz
++                               })
++
++    val x5: (Int) -> Int = bar(::baz!!)
++
++    if (x1(1) != 1) return "fail 1"
++    if (x2(1) != 1) return "fail 2"
++    if (x3(1) != 1) return "fail 3"
++    if (x4(1) != 1) return "fail 4"
++    if (x5(1) != 1) return "fail 5"
++
++    if ((if (true) ::baz else ::baz)(1) != 1) return "fail 6"
++
++    return "OK"
++}
+\ No newline at end of file
+diff --git a/compiler/testData/codegen/light-analysis/callableReference/function/genericCallableReferenceArguments.txt b/compiler/testData/codegen/light-analysis/callableReference/function/genericCallableReferenceArguments.txt
+new file mode 100644
+index 00000000000..a0a06ba0205
+--- /dev/null
++++ b/compiler/testData/codegen/light-analysis/callableReference/function/genericCallableReferenceArguments.txt
+@@ -0,0 +1,8 @@
++@kotlin.Metadata
++public final class GenericCallableReferenceArgumentsKt {
++    public final static @org.jetbrains.annotations.NotNull method box(): java.lang.String
++    private final static method check(p0: java.lang.Object, p1: java.lang.Object, p2: kotlin.jvm.functions.Function1, p3: java.lang.String, p4: java.lang.String): void
++    private final static method check(p0: kotlin.jvm.functions.Function1, p1: kotlin.jvm.functions.Function1, p2: java.lang.String, p3: java.lang.String): void
++    public final static method foo(p0: java.lang.Object): java.lang.Object
++    public final static method fooReturnInt(p0: java.lang.Object): int
++}
+diff --git a/compiler/testData/codegen/light-analysis/callableReference/function/genericCallableReferencesWithNullableTypes.txt b/compiler/testData/codegen/light-analysis/callableReference/function/genericCallableReferencesWithNullableTypes.txt
+new file mode 100644
+index 00000000000..18c06f550a0
+--- /dev/null
++++ b/compiler/testData/codegen/light-analysis/callableReference/function/genericCallableReferencesWithNullableTypes.txt
+@@ -0,0 +1,22 @@
++@kotlin.Metadata
++public final class GenericCallableReferencesWithNullableTypesKt {
++    private final static method bar(p0: java.lang.Object, p1: java.lang.Object, p2: kotlin.jvm.functions.Function1, p3: java.lang.String, p4: java.lang.String): Pair
++    public final static @org.jetbrains.annotations.NotNull method box(): java.lang.String
++    public final static method foo(p0: java.lang.Object): java.lang.Object
++}
++
++@kotlin.Metadata
++public final class Pair {
++    private final field a: java.lang.Object
++    private final field b: java.lang.Object
++    public method <init>(p0: java.lang.Object, p1: java.lang.Object): void
++    public final method component1(): java.lang.Object
++    public final method component2(): java.lang.Object
++    public synthetic static method copy$default(p0: Pair, p1: java.lang.Object, p2: java.lang.Object, p3: int, p4: java.lang.Object): Pair
++    public final @org.jetbrains.annotations.NotNull method copy(p0: java.lang.Object, p1: java.lang.Object): Pair
++    public method equals(p0: java.lang.Object): boolean
++    public final method getA(): java.lang.Object
++    public final method getB(): java.lang.Object
++    public method hashCode(): int
++    public method toString(): java.lang.String
++}
+diff --git a/compiler/testData/codegen/light-analysis/callableReference/function/genericCallableReferencesWithOverload.txt b/compiler/testData/codegen/light-analysis/callableReference/function/genericCallableReferencesWithOverload.txt
+new file mode 100644
+index 00000000000..d4a68178146
+--- /dev/null
++++ b/compiler/testData/codegen/light-analysis/callableReference/function/genericCallableReferencesWithOverload.txt
+@@ -0,0 +1,8 @@
++@kotlin.Metadata
++public final class GenericCallableReferencesWithOverloadKt {
++    private final static method bar(p0: kotlin.jvm.functions.Function1, p1: java.lang.String): java.lang.Object
++    public final static @org.jetbrains.annotations.NotNull method box(): java.lang.String
++    public final static method foo(@org.jetbrains.annotations.Nullable p0: java.lang.Integer): void
++    public final static method foo(@org.jetbrains.annotations.Nullable p0: java.lang.String): void
++    public final static method foo(p0: boolean): void
++}
+diff --git a/compiler/testData/codegen/light-analysis/callableReference/function/genericWithDependentType.txt b/compiler/testData/codegen/light-analysis/callableReference/function/genericWithDependentType.txt
+new file mode 100644
+index 00000000000..80d99d02ed5
+--- /dev/null
++++ b/compiler/testData/codegen/light-analysis/callableReference/function/genericWithDependentType.txt
+@@ -0,0 +1,11 @@
++@kotlin.Metadata
++public final class GenericWithDependentTypeKt {
++    public final static @org.jetbrains.annotations.NotNull method box(): java.lang.String
++}
++
++@kotlin.Metadata
++public final class Wrapper {
++    private final field value: java.lang.Object
++    public method <init>(p0: java.lang.Object): void
++    public final method getValue(): java.lang.Object
++}
+diff --git a/compiler/testData/codegen/light-analysis/callableReference/function/specialCalls.txt b/compiler/testData/codegen/light-analysis/callableReference/function/specialCalls.txt
+new file mode 100644
+index 00000000000..f611cf368c1
+--- /dev/null
++++ b/compiler/testData/codegen/light-analysis/callableReference/function/specialCalls.txt
+@@ -0,0 +1,7 @@
++@kotlin.Metadata
++public final class SpecialCallsKt {
++    public final static method bar(p0: java.lang.Object): java.lang.Object
++    public final static method baz(p0: int): int
++    public final static @org.jetbrains.annotations.NotNull method box(): java.lang.String
++    public final static @org.jetbrains.annotations.Nullable method nullableFun(): kotlin.jvm.functions.Function1
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/argumentAndReturnExpectedType.kt b/compiler/testData/diagnostics/tests/callableReference/generic/argumentAndReturnExpectedType.kt
+new file mode 100644
+index 00000000000..8b31dedd962
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/argumentAndReturnExpectedType.kt
+@@ -0,0 +1,36 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -UNUSED_VARIABLE, -UNUSED_PARAMETER
++
++fun <T, R> foo(x: T): R = TODO()
++
++fun <T> fooReturnInt(x: T): Int = 1
++fun <T> fooTakeString(x: String): T = TODO()
++
++fun <T, R> bar(x: T, y: R, f: (T) -> R): Pair<T, R> = TODO()
++fun <T, R> baz(f: (T) -> R, g: (T) -> R): Pair<T, R> = TODO()
++
++class Pair<A, B>(val a: A, val b: B)
++
++fun test1() {
++    bar("", 1, ::foo).checkType { _<Pair<String, Int>>() }
++    bar("", 1, ::fooReturnInt).checkType { _<Pair<String, Int>>() }
++    bar("", 1, ::fooTakeString).checkType { _<Pair<String, Int>>() }
++    bar("", "", ::fooReturnInt).checkType { _<Pair<String, Any>>() }
++
++    val x: String = <!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>bar("", "", ::fooReturnInt)<!>
++
++    baz(Int::toString, ::foo).checkType { _<Pair<Int, String>>() }
++}
++
++fun <T> listOf(): List<T> = TODO()
++fun <T> setOf(): Set<T> = TODO()
++
++fun <T> test2(x: T) {
++    bar(x, x, ::foo).checkType { _<Pair<T, T>>() }
++    bar(x, 1, ::foo).checkType { _<Pair<T, Int>>() }
++    bar(1, x, ::foo).checkType { _<Pair<Int, T>>() }
++
++    bar(listOf<T>(), setOf<T>(), ::foo).checkType { _<Pair<List<T>, Set<T>>> () }
++    bar(listOf<T>(), 1, ::foo).checkType { _<Pair<List<T>, Int>>() }
++    bar(1, listOf<T>(), ::foo).checkType { _<Pair<Int, List<T>>>() }
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/argumentAndReturnExpectedType.txt b/compiler/testData/diagnostics/tests/callableReference/generic/argumentAndReturnExpectedType.txt
+new file mode 100644
+index 00000000000..c313a1bd1e9
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/argumentAndReturnExpectedType.txt
+@@ -0,0 +1,20 @@
++package
++
++public fun </*0*/ T, /*1*/ R> bar(/*0*/ x: T, /*1*/ y: R, /*2*/ f: (T) -> R): Pair<T, R>
++public fun </*0*/ T, /*1*/ R> baz(/*0*/ f: (T) -> R, /*1*/ g: (T) -> R): Pair<T, R>
++public fun </*0*/ T, /*1*/ R> foo(/*0*/ x: T): R
++public fun </*0*/ T> fooReturnInt(/*0*/ x: T): kotlin.Int
++public fun </*0*/ T> fooTakeString(/*0*/ x: kotlin.String): T
++public fun </*0*/ T> listOf(): kotlin.collections.List<T>
++public fun </*0*/ T> setOf(): kotlin.collections.Set<T>
++public fun test1(): kotlin.Unit
++public fun </*0*/ T> test2(/*0*/ x: T): kotlin.Unit
++
++public final class Pair</*0*/ A, /*1*/ B> {
++    public constructor Pair</*0*/ A, /*1*/ B>(/*0*/ a: A, /*1*/ b: B)
++    public final val a: A
++    public final val b: B
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/argumentExpectedType.kt b/compiler/testData/diagnostics/tests/callableReference/generic/argumentExpectedType.kt
+new file mode 100644
+index 00000000000..895abad9df6
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/argumentExpectedType.kt
+@@ -0,0 +1,12 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++
++class Case<T>
++fun <T> test(case: Case<T>) {}
++fun runTest(method: (Case<Any>) -> Unit) {}
++
++fun <T> runTestGeneric(f: (Case<T>) -> Unit) {}
++
++fun test() {
++    runTest(::test)
++    runTestGeneric<Int>(::test)
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/argumentExpectedType.txt b/compiler/testData/diagnostics/tests/callableReference/generic/argumentExpectedType.txt
+new file mode 100644
+index 00000000000..92487742dc5
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/argumentExpectedType.txt
+@@ -0,0 +1,13 @@
++package
++
++public fun runTest(/*0*/ method: (Case<kotlin.Any>) -> kotlin.Unit): kotlin.Unit
++public fun </*0*/ T> runTestGeneric(/*0*/ f: (Case<T>) -> kotlin.Unit): kotlin.Unit
++public fun test(): kotlin.Unit
++public fun </*0*/ T> test(/*0*/ case: Case<T>): kotlin.Unit
++
++public final class Case</*0*/ T> {
++    public constructor Case</*0*/ T>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/dependOnArgumentType.kt b/compiler/testData/diagnostics/tests/callableReference/generic/dependOnArgumentType.kt
+new file mode 100644
+index 00000000000..730c5c8c92a
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/dependOnArgumentType.kt
+@@ -0,0 +1,29 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++
++// FILE: A.java
++
++public class A {
++    public static void invokeLater(Runnable doRun) {
++    }
++}
++
++// FILE: 1.kt
++
++fun <T> foo(t: T, x: (() -> Unit) -> Unit) {}
++
++fun <T> bar(s: T) {}
++fun <T> complex(t: T, f: (T) -> Unit) {}
++
++fun test1() {
++    foo(1, A::invokeLater)
++    foo(1, ::bar)
++
++    complex(1, ::bar)
++}
++
++fun <R> test2(x: R) {
++    foo(x, A::invokeLater)
++    foo(x, ::bar)
++
++    complex(x, ::bar)
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/dependOnArgumentType.txt b/compiler/testData/diagnostics/tests/callableReference/generic/dependOnArgumentType.txt
+new file mode 100644
+index 00000000000..be9d1228a12
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/dependOnArgumentType.txt
+@@ -0,0 +1,18 @@
++package
++
++public fun </*0*/ T> bar(/*0*/ s: T): kotlin.Unit
++public fun </*0*/ T> complex(/*0*/ t: T, /*1*/ f: (T) -> kotlin.Unit): kotlin.Unit
++public fun </*0*/ T> foo(/*0*/ t: T, /*1*/ x: (() -> kotlin.Unit) -> kotlin.Unit): kotlin.Unit
++public fun test1(): kotlin.Unit
++public fun </*0*/ R> test2(/*0*/ x: R): kotlin.Unit
++
++public open class A {
++    public constructor A()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    // Static members
++    public final /*synthesized*/ fun invokeLater(/*0*/ doRun: (() -> kotlin.Unit)!): kotlin.Unit
++    public open fun invokeLater(/*0*/ doRun: java.lang.Runnable!): kotlin.Unit
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/expectedFunctionType.kt b/compiler/testData/diagnostics/tests/callableReference/generic/expectedFunctionType.kt
+new file mode 100644
+index 00000000000..967c2c40b74
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/expectedFunctionType.kt
+@@ -0,0 +1,24 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++
++class A1 {
++    fun <T> a1(t: T): Unit {}
++    fun test1(): (String) -> Unit = A1()::a1
++}
++
++class A2 {
++    fun <K, V> a2(key: K): V = TODO()
++
++    fun test1(): (String) -> Unit = A2()::a2
++    fun <T3> test2(): (T3) -> T3 = A2()::a2
++}
++
++class A3<T> {
++    fun <V> a3(key: T): V = TODO()
++
++    fun test1(): (T) -> Int = this::a3
++    fun test2(): (T) -> Unit = A3<T>()::a3
++    fun test3(): (Int) -> String = A3<Int>()::a3
++
++    fun <R> test4(): (R) -> Unit = <!TYPE_MISMATCH!>this::<!TYPE_INFERENCE_PARAMETER_CONSTRAINT_ERROR!>a3<!><!>
++    fun <R> test5(): (T) -> R = this::a3
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/expectedFunctionType.txt b/compiler/testData/diagnostics/tests/callableReference/generic/expectedFunctionType.txt
+new file mode 100644
+index 00000000000..4d89904d9b2
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/expectedFunctionType.txt
+@@ -0,0 +1,33 @@
++package
++
++public final class A1 {
++    public constructor A1()
++    public final fun </*0*/ T> a1(/*0*/ t: T): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun test1(): (kotlin.String) -> kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class A2 {
++    public constructor A2()
++    public final fun </*0*/ K, /*1*/ V> a2(/*0*/ key: K): V
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun test1(): (kotlin.String) -> kotlin.Unit
++    public final fun </*0*/ T3> test2(): (T3) -> T3
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class A3</*0*/ T> {
++    public constructor A3</*0*/ T>()
++    public final fun </*0*/ V> a3(/*0*/ key: T): V
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun test1(): (T) -> kotlin.Int
++    public final fun test2(): (T) -> kotlin.Unit
++    public final fun test3(): (kotlin.Int) -> kotlin.String
++    public final fun </*0*/ R> test4(): (R) -> kotlin.Unit
++    public final fun </*0*/ R> test5(): (T) -> R
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/explicitTypeArguments.kt b/compiler/testData/diagnostics/tests/callableReference/generic/explicitTypeArguments.kt
+new file mode 100644
+index 00000000000..d2733cf12db
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/explicitTypeArguments.kt
+@@ -0,0 +1,24 @@
++// !DIAGNOSTICS: -UNUSED_VARIABLE, -UNUSED_PARAMETER
++
++fun <T> takeFun(f: (T) -> Unit) {}
++fun <T, R> callFun(f: (T) -> R): R = TODO()
++
++fun <T> foo(s: T) {}
++fun <T : <!FINAL_UPPER_BOUND!>Int<!>> fooInt(s: T) {}
++
++open class Wrapper<T>(val value: T)
++fun <T, R : Wrapper<in T>> createWrapper(s: T): R = TODO()
++
++fun <T> Wrapper<T>.baz(transform: (T) -> Unit): T = TODO()
++
++fun test() {
++    takeFun<String>(::foo)
++    takeFun<String>(::<!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooInt<!>)
++
++    callFun<String, Wrapper<String>>(::createWrapper)
++    callFun<Int, Wrapper<Number>>(::createWrapper)
++    callFun<String, Wrapper<*>>(::createWrapper)
++    callFun<String, Wrapper<Int>>(::<!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>createWrapper<!>)
++
++    callFun<Int, Wrapper<Int>>(::createWrapper).baz(::foo)
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/explicitTypeArguments.txt b/compiler/testData/diagnostics/tests/callableReference/generic/explicitTypeArguments.txt
+new file mode 100644
+index 00000000000..d41eb0e4490
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/explicitTypeArguments.txt
+@@ -0,0 +1,17 @@
++package
++
++public fun </*0*/ T, /*1*/ R> callFun(/*0*/ f: (T) -> R): R
++public fun </*0*/ T, /*1*/ R : Wrapper<in T>> createWrapper(/*0*/ s: T): R
++public fun </*0*/ T> foo(/*0*/ s: T): kotlin.Unit
++public fun </*0*/ T : kotlin.Int> fooInt(/*0*/ s: T): kotlin.Unit
++public fun </*0*/ T> takeFun(/*0*/ f: (T) -> kotlin.Unit): kotlin.Unit
++public fun test(): kotlin.Unit
++public fun </*0*/ T> Wrapper<T>.baz(/*0*/ transform: (T) -> kotlin.Unit): T
++
++public open class Wrapper</*0*/ T> {
++    public constructor Wrapper</*0*/ T>(/*0*/ value: T)
++    public final val value: T
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/genericExtensionFunction.kt b/compiler/testData/diagnostics/tests/callableReference/generic/genericExtensionFunction.kt
+new file mode 100644
+index 00000000000..620bc4e16f6
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/genericExtensionFunction.kt
+@@ -0,0 +1,30 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -UNUSED_PARAMETER, -UNUSED_VARIABLE
++
++class Wrapper
++
++fun <R, S> Wrapper.foo(x: R): S = TODO()
++fun Wrapper.fooIntString(x: Int): String = ""
++fun <T> Wrapper.fooReturnString(x: T): String = ""
++fun <T> Wrapper.fooTakeInt(x: Int): T = TODO()
++
++fun <T, R, S> bar(f: T.(R) -> S): Tripple<T, R, S> = TODO()
++fun <T, R, S> baz(x: T, y: R, z: S, f: T.(R) -> S): Tripple<T, R, S> = TODO()
++
++class Tripple<A, B, C>(val a: A, val b: B, val c: C)
++
++fun test1() {
++    val x: Wrapper.(String) -> Boolean = Wrapper::foo
++    bar<Wrapper, Double, Float>(Wrapper::foo).checkType { _<Tripple<Wrapper, Double, Float>>() }
++    bar(Wrapper::fooIntString).checkType { _<Tripple<Wrapper, Int, String>>() }
++}
++
++fun <T> test2() {
++    bar<Wrapper, Int, String>(Wrapper::fooReturnString).checkType { _<Tripple<Wrapper, Int, String>>() }
++    bar<Wrapper, T, String>(Wrapper::fooReturnString).checkType { _<Tripple<Wrapper, T, String>>() }
++    bar<Wrapper, T, T>(Wrapper::<!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>fooReturnString<!>)
++    bar<Wrapper, Int, Int>(Wrapper::<!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>fooReturnString<!>)
++
++    bar<Wrapper, Int, T>(Wrapper::fooTakeInt).checkType { _<Tripple<Wrapper, Int, T>>() }
++    bar<Wrapper, Int, String>(Wrapper::fooTakeInt).checkType { _<Tripple<Wrapper, Int, String>>() }
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/genericExtensionFunction.txt b/compiler/testData/diagnostics/tests/callableReference/generic/genericExtensionFunction.txt
+new file mode 100644
+index 00000000000..3c472cbfa09
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/genericExtensionFunction.txt
+@@ -0,0 +1,27 @@
++package
++
++public fun </*0*/ T, /*1*/ R, /*2*/ S> bar(/*0*/ f: T.(R) -> S): Tripple<T, R, S>
++public fun </*0*/ T, /*1*/ R, /*2*/ S> baz(/*0*/ x: T, /*1*/ y: R, /*2*/ z: S, /*3*/ f: T.(R) -> S): Tripple<T, R, S>
++public fun test1(): kotlin.Unit
++public fun </*0*/ T> test2(): kotlin.Unit
++public fun </*0*/ R, /*1*/ S> Wrapper.foo(/*0*/ x: R): S
++public fun Wrapper.fooIntString(/*0*/ x: kotlin.Int): kotlin.String
++public fun </*0*/ T> Wrapper.fooReturnString(/*0*/ x: T): kotlin.String
++public fun </*0*/ T> Wrapper.fooTakeInt(/*0*/ x: kotlin.Int): T
++
++public final class Tripple</*0*/ A, /*1*/ B, /*2*/ C> {
++    public constructor Tripple</*0*/ A, /*1*/ B, /*2*/ C>(/*0*/ a: A, /*1*/ b: B, /*2*/ c: C)
++    public final val a: A
++    public final val b: B
++    public final val c: C
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Wrapper {
++    public constructor Wrapper()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/genericFunctionsWithNullableTypes.kt b/compiler/testData/diagnostics/tests/callableReference/generic/genericFunctionsWithNullableTypes.kt
+new file mode 100644
+index 00000000000..0f5aa5cf865
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/genericFunctionsWithNullableTypes.kt
+@@ -0,0 +1,36 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -UNUSED_PARAMETER, -UNUSED_VARIABLE
++
++fun <T, R> foo(x: T): R = TODO()
++fun <T, R> bar(x: T, y: R, f: (T) -> R): Pair<T, R?> = TODO()
++
++inline fun <reified T, reified R> baz(x: T, y: R, f: (T) -> R) {}
++
++data class Pair<A, B>(val a: A, val b: B)
++
++fun <T> test(x: T) {
++    bar(1, "", ::foo).checkType { _<Pair<Int, String?>>() }
++    bar(null, "", ::foo).checkType { _<Pair<Nothing?, String?>>() }
++    bar(1, null, ::foo).checkType { _<Pair<Int, Nothing?>>() }
++    bar(null, null, ::foo).checkType { _<Pair<Nothing?, Nothing?>>() }
++    bar(1, x, ::foo).checkType { _<Pair<Int, T?>>() }
++
++    val s1: Pair<Int, String?> = bar(1, "", ::foo)
++    val (a: Int, b: String?) = bar(1, "", ::foo)
++
++    val s2: Pair<Int?, String?> = bar(null, null, ::foo)
++
++    baz<Int?, String?>(null, null, ::foo)
++
++    baz<Int, String?>(<!NULL_FOR_NONNULL_TYPE!>null<!>, null, ::foo)
++    baz<Int?, String>(null, <!NULL_FOR_NONNULL_TYPE!>null<!>, ::foo)
++    <!REIFIED_TYPE_FORBIDDEN_SUBSTITUTION!>baz<!>(null, "", ::foo)
++    <!REIFIED_TYPE_FORBIDDEN_SUBSTITUTION!>baz<!>(1, null, ::foo)
++    <!REIFIED_TYPE_FORBIDDEN_SUBSTITUTION, REIFIED_TYPE_FORBIDDEN_SUBSTITUTION!>baz<!>(null, null, ::foo)
++
++    val s3: Pair<Int, String?> = <!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>bar(null, null, ::<!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>foo<!>)<!>
++    val s4: Pair<Int?, String> = <!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>bar(null, null, ::<!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>foo<!>)<!>
++
++    val s5: Pair<Int, String> = <!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>bar(1, "", ::foo)<!>
++    val (a1: Int, b1: String) = <!COMPONENT_FUNCTION_RETURN_TYPE_MISMATCH!>bar(1, "", ::foo)<!>
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/genericFunctionsWithNullableTypes.txt b/compiler/testData/diagnostics/tests/callableReference/generic/genericFunctionsWithNullableTypes.txt
+new file mode 100644
+index 00000000000..cdd70dbdafa
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/genericFunctionsWithNullableTypes.txt
+@@ -0,0 +1,18 @@
++package
++
++public fun </*0*/ T, /*1*/ R> bar(/*0*/ x: T, /*1*/ y: R, /*2*/ f: (T) -> R): Pair<T, R?>
++public inline fun </*0*/ reified T, /*1*/ reified R> baz(/*0*/ x: T, /*1*/ y: R, /*2*/ f: (T) -> R): kotlin.Unit
++public fun </*0*/ T, /*1*/ R> foo(/*0*/ x: T): R
++public fun </*0*/ T> test(/*0*/ x: T): kotlin.Unit
++
++public final data class Pair</*0*/ A, /*1*/ B> {
++    public constructor Pair</*0*/ A, /*1*/ B>(/*0*/ a: A, /*1*/ b: B)
++    public final val a: A
++    public final val b: B
++    public final operator /*synthesized*/ fun component1(): A
++    public final operator /*synthesized*/ fun component2(): B
++    public final /*synthesized*/ fun copy(/*0*/ a: A = ..., /*1*/ b: B = ...): Pair<A, B>
++    public open override /*1*/ /*synthesized*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*synthesized*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*synthesized*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/kt7470.kt b/compiler/testData/diagnostics/tests/callableReference/generic/kt7470.kt
+new file mode 100644
+index 00000000000..8a20367ae65
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/kt7470.kt
+@@ -0,0 +1,8 @@
++// !DIAGNOSTICS: -UNUSED_VARIABLE
++
++
++fun <T> shuffle(x: List<T>): List<T> = x
++
++fun bar() {
++    val s: (List<String>) -> List<String> = ::shuffle
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/kt7470.txt b/compiler/testData/diagnostics/tests/callableReference/generic/kt7470.txt
+new file mode 100644
+index 00000000000..27f047243f0
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/kt7470.txt
+@@ -0,0 +1,4 @@
++package
++
++public fun bar(): kotlin.Unit
++public fun </*0*/ T> shuffle(/*0*/ x: kotlin.collections.List<T>): kotlin.collections.List<T>
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/nestedCallWithOverload.kt b/compiler/testData/diagnostics/tests/callableReference/generic/nestedCallWithOverload.kt
+new file mode 100644
+index 00000000000..a794a1de2bb
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/nestedCallWithOverload.kt
+@@ -0,0 +1,21 @@
++// !DIAGNOSTICS: -UNUSED_VARIABLE, -UNUSED_PARAMETER
++
++fun foo(i: Int) {}
++fun foo(s: String) {}
++fun <T> id(x: T): T = x
++fun <T> baz(x: T, y: T): T = TODO()
++
++fun test() {
++    val x1: (Int) -> Unit = id(id(::foo))
++    val x2: (Int) -> Unit = baz(id(::foo), ::foo)
++    val x3: (Int) -> Unit = baz(id(::foo), id(id(::foo)))
++    val x4: (String) -> Unit = baz(id(::foo), id(id(::foo)))
++    val x5: (Double) -> Unit = baz(id(::<!NONE_APPLICABLE!>foo<!>), id(id(::<!NONE_APPLICABLE!>foo<!>)))
++
++
++    id<(Int) -> Unit>(id(id(::foo)))
++    id(id<(Int) -> Unit>(::foo))
++    baz<(Int) -> Unit>(id(::foo), id(id(::foo)))
++    baz(id(::foo), id(id<(Int) -> Unit>(::foo)))
++    baz(id(::foo), id<(Int) -> Unit>(id(::foo)))
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/nestedCallWithOverload.txt b/compiler/testData/diagnostics/tests/callableReference/generic/nestedCallWithOverload.txt
+new file mode 100644
+index 00000000000..289ec3b9a40
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/nestedCallWithOverload.txt
+@@ -0,0 +1,7 @@
++package
++
++public fun </*0*/ T> baz(/*0*/ x: T, /*1*/ y: T): T
++public fun foo(/*0*/ i: kotlin.Int): kotlin.Unit
++public fun foo(/*0*/ s: kotlin.String): kotlin.Unit
++public fun </*0*/ T> id(/*0*/ x: T): T
++public fun test(): kotlin.Unit
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/resolutionGenericCallableWithNullableTypes.kt b/compiler/testData/diagnostics/tests/callableReference/generic/resolutionGenericCallableWithNullableTypes.kt
+new file mode 100644
+index 00000000000..108efaf38c3
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/resolutionGenericCallableWithNullableTypes.kt
+@@ -0,0 +1,22 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -UNUSED_PARAMETER, -UNUSED_VARIABLE
++
++fun foo(x: Int?) {}
++fun foo(y: String?) {}
++fun foo(z: Boolean) {}
++
++fun <T> baz(element: (T) -> Unit): T? = null
++
++fun test1() {
++    val a1: Int? = baz(::foo)
++    val a2: String? = baz(::foo)
++    val a3: Boolean? = baz<Boolean>(::foo)
++
++    baz<Int>(::foo).checkType { _<Int?>() }
++    baz<String>(::foo).checkType { _<String?>() }
++    baz<Boolean>(::foo).checkType { _<Boolean?>() }
++
++    val b1: Int = <!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>baz(::foo)<!>
++    val b2: String = <!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>baz(::foo)<!>
++    val b3: Boolean = <!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>baz(::foo)<!>
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/resolutionGenericCallableWithNullableTypes.txt b/compiler/testData/diagnostics/tests/callableReference/generic/resolutionGenericCallableWithNullableTypes.txt
+new file mode 100644
+index 00000000000..032f77c9ecd
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/resolutionGenericCallableWithNullableTypes.txt
+@@ -0,0 +1,7 @@
++package
++
++public fun </*0*/ T> baz(/*0*/ element: (T) -> kotlin.Unit): T?
++public fun foo(/*0*/ z: kotlin.Boolean): kotlin.Unit
++public fun foo(/*0*/ x: kotlin.Int?): kotlin.Unit
++public fun foo(/*0*/ y: kotlin.String?): kotlin.Unit
++public fun test1(): kotlin.Unit
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/resolutionWithGenericCallable.kt b/compiler/testData/diagnostics/tests/callableReference/generic/resolutionWithGenericCallable.kt
+new file mode 100644
+index 00000000000..725b51f54a5
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/resolutionWithGenericCallable.kt
+@@ -0,0 +1,21 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER, -UNUSED_VARIABLE
++
++fun test() {
++    val a1: Array<Double.(Double) -> Double> = arrayOf(Double::plus, Double::minus)
++    val a2: Array<Double.(Int) -> Double> = arrayOf(Double::plus, Double::minus)
++
++    val a3: Array<Int.(Int) -> Double> = arrayOf(Double::<!NONE_APPLICABLE!>plus<!>, Double::<!NONE_APPLICABLE!>minus<!>)
++    val a4: Array<Int.(Double) -> Double> = arrayOf(Int::plus, Double::<!NONE_APPLICABLE!>minus<!>)
++    val a5: Array<Double.(Double) -> Double> = arrayOf(Double::plus, Int::<!NONE_APPLICABLE!>minus<!>)
++}
++
++fun foo(x: Int) {}
++fun foo(y: String) {}
++
++fun <T> bar(x: T, f: (T) -> Unit) {}
++
++fun test2() {
++    bar(1, ::foo)
++    bar("", ::foo)
++    bar(1.0, ::<!NONE_APPLICABLE!>foo<!>)
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/resolutionWithGenericCallable.txt b/compiler/testData/diagnostics/tests/callableReference/generic/resolutionWithGenericCallable.txt
+new file mode 100644
+index 00000000000..c0e16803e3d
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/resolutionWithGenericCallable.txt
+@@ -0,0 +1,7 @@
++package
++
++public fun </*0*/ T> bar(/*0*/ x: T, /*1*/ f: (T) -> kotlin.Unit): kotlin.Unit
++public fun foo(/*0*/ x: kotlin.Int): kotlin.Unit
++public fun foo(/*0*/ y: kotlin.String): kotlin.Unit
++public fun test(): kotlin.Unit
++public fun test2(): kotlin.Unit
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/specialCalls.kt b/compiler/testData/diagnostics/tests/callableReference/generic/specialCalls.kt
+new file mode 100644
+index 00000000000..2b20a44c4ff
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/specialCalls.kt
+@@ -0,0 +1,23 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER, -UNUSED_VARIABLE
++
++fun baz(i: Int) = i
++fun <T> bar(x: T): T = TODO()
++
++fun nullableFun(): ((Int) -> Int)? = null
++
++fun test() {
++    val x1: (Int) -> Int = bar(if (true) ::baz else ::baz)
++    val x2: (Int) -> Int = bar(nullableFun() ?: ::baz)
++    val x3: (Int) -> Int = bar(::baz <!USELESS_ELVIS!>?: ::baz<!>)
++
++    val i = 0
++    val x4: (Int) -> Int = bar(when (i) {
++                                   10 -> ::baz
++                                   20 -> ::baz
++                                   else -> ::baz
++                               })
++
++    val x5: (Int) -> Int = bar(::baz<!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>)
++
++    (if (true) ::baz else ::baz)(1)
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/specialCalls.txt b/compiler/testData/diagnostics/tests/callableReference/generic/specialCalls.txt
+new file mode 100644
+index 00000000000..c6f425ac033
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/specialCalls.txt
+@@ -0,0 +1,6 @@
++package
++
++public fun </*0*/ T> bar(/*0*/ x: T): T
++public fun baz(/*0*/ i: kotlin.Int): kotlin.Int
++public fun nullableFun(): ((kotlin.Int) -> kotlin.Int)?
++public fun test(): kotlin.Unit
+diff --git a/compiler/testData/diagnostics/tests/callableReference/kt15439_completeCall.kt b/compiler/testData/diagnostics/tests/callableReference/kt15439_completeCall.kt
+new file mode 100644
+index 00000000000..2305ed384be
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/kt15439_completeCall.kt
+@@ -0,0 +1,11 @@
++// !DIAGNOSTICS: -UNUSED_VARIABLE, -UNUSED_VARIABLE
++
++fun test() {
++    data class Pair<F, S>(val first: F, val second: S)
++    val (x, y) =
++            Pair(1,
++                 if (1 == 1)
++                     Pair<String, String>::first
++                 else
++                     Pair<String, String>::second)
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/callableReference/kt15439_completeCall.txt b/compiler/testData/diagnostics/tests/callableReference/kt15439_completeCall.txt
+new file mode 100644
+index 00000000000..93e27f34c8c
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/kt15439_completeCall.txt
+@@ -0,0 +1,3 @@
++package
++
++public fun test(): kotlin.Unit
+diff --git a/compiler/testData/diagnostics/tests/callableReference/resolve/withGenericFun.kt b/compiler/testData/diagnostics/tests/callableReference/resolve/withGenericFun.kt
+index f4f17184fd5..caf1bbf4d4e 100644
+--- a/compiler/testData/diagnostics/tests/callableReference/resolve/withGenericFun.kt
++++ b/compiler/testData/diagnostics/tests/callableReference/resolve/withGenericFun.kt
+@@ -7,4 +7,4 @@ fun foo(s: String) {}
+ 
+ val x1 = apply(1, ::foo)
+ val x2 = apply("hello", ::foo)
+-val x3 = apply(true, ::<!NONE_APPLICABLE!>foo<!>)
+\ No newline at end of file
++val x3 = <!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>apply<!>(true, ::<!NONE_APPLICABLE!>foo<!>)
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/regressions/ea72837.kt b/compiler/testData/diagnostics/tests/regressions/ea72837.kt
+index 45ff901ec27..f424abf6add 100644
+--- a/compiler/testData/diagnostics/tests/regressions/ea72837.kt
++++ b/compiler/testData/diagnostics/tests/regressions/ea72837.kt
+@@ -4,6 +4,6 @@ fun h(x: () -> Unit) = 1
+ 
+ fun foo() {
+     <!UNRESOLVED_REFERENCE!>f<!>(::<!SYNTAX!><!>)
+-    g(::<!SYNTAX!><!>)
++    <!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>g<!>(::<!SYNTAX!><!>)
+     h(::<!SYNTAX!><!>)
+ }
+diff --git a/compiler/tests-ir-jvm/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java b/compiler/tests-ir-jvm/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
+index 75e58b26875..6cd2342b0d8 100644
+--- a/compiler/tests-ir-jvm/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
++++ b/compiler/tests-ir-jvm/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
+@@ -1768,12 +1768,36 @@ public class IrBlackBoxCodegenTestGenerated extends AbstractIrBlackBoxCodegenTes
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("genericCallableReferenceArguments.kt")
++            public void testGenericCallableReferenceArguments() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericCallableReferenceArguments.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("genericCallableReferencesWithNullableTypes.kt")
++            public void testGenericCallableReferencesWithNullableTypes() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericCallableReferencesWithNullableTypes.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("genericCallableReferencesWithOverload.kt")
++            public void testGenericCallableReferencesWithOverload() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericCallableReferencesWithOverload.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("genericMember.kt")
+             public void testGenericMember() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericMember.kt");
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("genericWithDependentType.kt")
++            public void testGenericWithDependentType() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericWithDependentType.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("getArityViaFunctionImpl.kt")
+             public void testGetArityViaFunctionImpl() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/getArityViaFunctionImpl.kt");
+@@ -1858,6 +1882,12 @@ public class IrBlackBoxCodegenTestGenerated extends AbstractIrBlackBoxCodegenTes
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("specialCalls.kt")
++            public void testSpecialCalls() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/specialCalls.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("topLevelFromClass.kt")
+             public void testTopLevelFromClass() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/topLevelFromClass.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 2ee280d7721..25f6c8268aa 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -1732,6 +1732,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("kt15439_completeCall.kt")
++            public void testKt15439_completeCall() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/kt15439_completeCall.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("kt7430_wrongClassOnLHS.kt")
+             public void testKt7430_wrongClassOnLHS() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/kt7430_wrongClassOnLHS.kt");
+@@ -2208,6 +2214,48 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                     KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/diagnostics/tests/callableReference/generic"), Pattern.compile("^(.+)\\.kt$"), TargetBackend.ANY, true);
+                 }
+ 
++                @TestMetadata("argumentAndReturnExpectedType.kt")
++                public void testArgumentAndReturnExpectedType() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/argumentAndReturnExpectedType.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("argumentExpectedType.kt")
++                public void testArgumentExpectedType() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/argumentExpectedType.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("dependOnArgumentType.kt")
++                public void testDependOnArgumentType() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/dependOnArgumentType.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("expectedFunctionType.kt")
++                public void testExpectedFunctionType() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/expectedFunctionType.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("explicitTypeArguments.kt")
++                public void testExplicitTypeArguments() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/explicitTypeArguments.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("genericExtensionFunction.kt")
++                public void testGenericExtensionFunction() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/genericExtensionFunction.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("genericFunctionsWithNullableTypes.kt")
++                public void testGenericFunctionsWithNullableTypes() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/genericFunctionsWithNullableTypes.kt");
++                    doTest(fileName);
++                }
++
+                 @TestMetadata("kt10968.kt")
+                 public void testKt10968() throws Exception {
+                     String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/kt10968.kt");
+@@ -2225,6 +2273,36 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                     String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/kt12286.kt");
+                     doTest(fileName);
+                 }
++
++                @TestMetadata("kt7470.kt")
++                public void testKt7470() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/kt7470.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("nestedCallWithOverload.kt")
++                public void testNestedCallWithOverload() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/nestedCallWithOverload.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("resolutionGenericCallableWithNullableTypes.kt")
++                public void testResolutionGenericCallableWithNullableTypes() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/resolutionGenericCallableWithNullableTypes.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("resolutionWithGenericCallable.kt")
++                public void testResolutionWithGenericCallable() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/resolutionWithGenericCallable.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("specialCalls.kt")
++                public void testSpecialCalls() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/specialCalls.kt");
++                    doTest(fileName);
++                }
+             }
+ 
+             @TestMetadata("compiler/testData/diagnostics/tests/callableReference/property")
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+index 327182960d9..ab09a310f85 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+@@ -1768,12 +1768,36 @@ public class BlackBoxCodegenTestGenerated extends AbstractBlackBoxCodegenTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("genericCallableReferenceArguments.kt")
++            public void testGenericCallableReferenceArguments() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericCallableReferenceArguments.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("genericCallableReferencesWithNullableTypes.kt")
++            public void testGenericCallableReferencesWithNullableTypes() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericCallableReferencesWithNullableTypes.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("genericCallableReferencesWithOverload.kt")
++            public void testGenericCallableReferencesWithOverload() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericCallableReferencesWithOverload.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("genericMember.kt")
+             public void testGenericMember() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericMember.kt");
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("genericWithDependentType.kt")
++            public void testGenericWithDependentType() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericWithDependentType.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("getArityViaFunctionImpl.kt")
+             public void testGetArityViaFunctionImpl() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/getArityViaFunctionImpl.kt");
+@@ -1858,6 +1882,12 @@ public class BlackBoxCodegenTestGenerated extends AbstractBlackBoxCodegenTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("specialCalls.kt")
++            public void testSpecialCalls() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/specialCalls.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("topLevelFromClass.kt")
+             public void testTopLevelFromClass() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/topLevelFromClass.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeCodegenTestGenerated.java
+index dcea0a3a246..820e5f664c3 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeCodegenTestGenerated.java
+@@ -1768,12 +1768,36 @@ public class LightAnalysisModeCodegenTestGenerated extends AbstractLightAnalysis
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("genericCallableReferenceArguments.kt")
++            public void testGenericCallableReferenceArguments() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericCallableReferenceArguments.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("genericCallableReferencesWithNullableTypes.kt")
++            public void testGenericCallableReferencesWithNullableTypes() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericCallableReferencesWithNullableTypes.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("genericCallableReferencesWithOverload.kt")
++            public void testGenericCallableReferencesWithOverload() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericCallableReferencesWithOverload.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("genericMember.kt")
+             public void testGenericMember() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericMember.kt");
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("genericWithDependentType.kt")
++            public void testGenericWithDependentType() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericWithDependentType.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("getArityViaFunctionImpl.kt")
+             public void testGetArityViaFunctionImpl() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/getArityViaFunctionImpl.kt");
+@@ -1858,6 +1882,12 @@ public class LightAnalysisModeCodegenTestGenerated extends AbstractLightAnalysis
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("specialCalls.kt")
++            public void testSpecialCalls() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/specialCalls.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("topLevelFromClass.kt")
+             public void testTopLevelFromClass() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/topLevelFromClass.kt");
+diff --git a/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java b/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
+index e2e2143c22c..37314141e1e 100644
+--- a/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
++++ b/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
+@@ -2159,12 +2159,54 @@ public class JsCodegenBoxTestGenerated extends AbstractJsCodegenBoxTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("genericCallableReferenceArguments.kt")
++            public void testGenericCallableReferenceArguments() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericCallableReferenceArguments.kt");
++                try {
++                    doTest(fileName);
++                }
++                catch (Throwable ignore) {
++                    return;
++                }
++                throw new AssertionError("Looks like this test can be unmuted. Remove IGNORE_BACKEND directive for that.");
++            }
++
++            @TestMetadata("genericCallableReferencesWithNullableTypes.kt")
++            public void testGenericCallableReferencesWithNullableTypes() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericCallableReferencesWithNullableTypes.kt");
++                try {
++                    doTest(fileName);
++                }
++                catch (Throwable ignore) {
++                    return;
++                }
++                throw new AssertionError("Looks like this test can be unmuted. Remove IGNORE_BACKEND directive for that.");
++            }
++
++            @TestMetadata("genericCallableReferencesWithOverload.kt")
++            public void testGenericCallableReferencesWithOverload() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericCallableReferencesWithOverload.kt");
++                try {
++                    doTest(fileName);
++                }
++                catch (Throwable ignore) {
++                    return;
++                }
++                throw new AssertionError("Looks like this test can be unmuted. Remove IGNORE_BACKEND directive for that.");
++            }
++
+             @TestMetadata("genericMember.kt")
+             public void testGenericMember() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericMember.kt");
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("genericWithDependentType.kt")
++            public void testGenericWithDependentType() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/genericWithDependentType.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("getArityViaFunctionImpl.kt")
+             public void testGetArityViaFunctionImpl() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/getArityViaFunctionImpl.kt");
+@@ -2273,6 +2315,12 @@ public class JsCodegenBoxTestGenerated extends AbstractJsCodegenBoxTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("specialCalls.kt")
++            public void testSpecialCalls() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/specialCalls.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("topLevelFromClass.kt")
+             public void testTopLevelFromClass() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/function/topLevelFromClass.kt");

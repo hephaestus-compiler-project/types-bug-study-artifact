@@ -1,0 +1,309 @@
+diff --git a/src/main/org/codehaus/groovy/ast/GenericsType.java b/src/main/org/codehaus/groovy/ast/GenericsType.java
+index 5c5ff60c37..80d57a18c1 100644
+--- a/src/main/org/codehaus/groovy/ast/GenericsType.java
++++ b/src/main/org/codehaus/groovy/ast/GenericsType.java
+@@ -290,7 +290,7 @@ public class GenericsType extends ASTNode {
+                             // class node are not parameterized. This means that we must create a
+                             // new class node with the parameterized types that the current class node
+                             // has defined.
+-                            ClassNode node = GenericsUtils.parameterizeInterfaceGenerics(classNode, anInterface);
++                            ClassNode node = GenericsUtils.parameterizeType(classNode, anInterface);
+                             return compareGenericsWithBound(node, bound);
+                         }
+                     }
+diff --git a/src/main/org/codehaus/groovy/ast/tools/GenericsUtils.java b/src/main/org/codehaus/groovy/ast/tools/GenericsUtils.java
+index 91a1129653..873798104d 100644
+--- a/src/main/org/codehaus/groovy/ast/tools/GenericsUtils.java
++++ b/src/main/org/codehaus/groovy/ast/tools/GenericsUtils.java
+@@ -138,33 +138,52 @@ public class GenericsUtils {
+      * or {@link org.codehaus.groovy.ast.ClassNode#getAllInterfaces()} are returned with generic type
+      * arguments. This method allows returning a parameterized interface given the parameterized class
+      * node which implements this interface.
+-     * @param classNode the class node where generics types are parameterized
+-     * @param anInterface the interface we want to parameterize generics types
++     * @param hint the class node where generics types are parameterized
++     * @param target the interface we want to parameterize generics types
+      * @return a parameterized interface class node
++     * @deprecated Use #parameterizeType instead
+      */
+-    public static ClassNode parameterizeInterfaceGenerics(final ClassNode classNode, final ClassNode anInterface) {
++    public static ClassNode parameterizeInterfaceGenerics(final ClassNode hint, final ClassNode target) {
++        return parameterizeType(hint, target);
++    }
++
++    /**
++     * Interface class nodes retrieved from {@link org.codehaus.groovy.ast.ClassNode#getInterfaces()}
++     * or {@link org.codehaus.groovy.ast.ClassNode#getAllInterfaces()} are returned with generic type
++     * arguments. This method allows returning a parameterized interface given the parameterized class
++     * node which implements this interface.
++     * @param hint the class node where generics types are parameterized
++     * @param target the interface we want to parameterize generics types
++     * @return a parameterized interface class node
++     */
++    public static ClassNode parameterizeType(final ClassNode hint, final ClassNode target) {
+         ClassNode interfaceFromClassNode = null;
+-        ClassNode[] interfaces = classNode.getInterfaces();
+-        for (ClassNode node : interfaces) {
+-            if (node.equals(anInterface)) {
+-                interfaceFromClassNode = node;
+-                break;
+-            } else if (node.implementsInterface(anInterface)) {
+-                // ex: classNode = LinkedList<A> , node=List<E> , anInterface = Iterable<T>
+-                return parameterizeInterfaceGenerics(parameterizeInterfaceGenerics(classNode, node), anInterface);
++        if (hint.equals(target)) interfaceFromClassNode = hint;
++        if (interfaceFromClassNode==null) {
++            ClassNode[] interfaces = hint.getInterfaces();
++            for (ClassNode node : interfaces) {
++                if (node.equals(target)) {
++                    interfaceFromClassNode = node;
++                    break;
++                } else if (node.implementsInterface(target)) {
++                    // ex: classNode = LinkedList<A> , node=List<E> , anInterface = Iterable<T>
++                    return parameterizeType(parameterizeType(hint, node), target);
++                }
+             }
+         }
+-        if (interfaceFromClassNode==null && classNode.getUnresolvedSuperClass()!=null) {
+-            return parameterizeInterfaceGenerics(classNode.getUnresolvedSuperClass(), anInterface);
++        if (interfaceFromClassNode==null && hint.getUnresolvedSuperClass()!=null) {
++            return parameterizeType(hint.getUnresolvedSuperClass(), target);
+         }
+         if (interfaceFromClassNode==null) {
+-            return anInterface;
++
++//            return target;
++            interfaceFromClassNode = hint;
+         }
+         Map<String,GenericsType> parameters = new HashMap<String, GenericsType>();
+-        extractPlaceholders(classNode, parameters);
+-        ClassNode node = interfaceFromClassNode.getPlainNodeReference();
++        extractPlaceholders(hint, parameters);
++        ClassNode node = target.getPlainNodeReference();
+         GenericsType[] interfaceGTs = interfaceFromClassNode.getGenericsTypes();
+-        if (interfaceGTs==null) return anInterface;
++        if (interfaceGTs==null) return target;
+         GenericsType[] types = new GenericsType[interfaceGTs.length];
+         for (int i = 0; i < interfaceGTs.length; i++) {
+             GenericsType interfaceGT = interfaceGTs[i];
+diff --git a/src/main/org/codehaus/groovy/ast/tools/WideningCategories.java b/src/main/org/codehaus/groovy/ast/tools/WideningCategories.java
+index a16cecab1e..d3b1800d8b 100644
+--- a/src/main/org/codehaus/groovy/ast/tools/WideningCategories.java
++++ b/src/main/org/codehaus/groovy/ast/tools/WideningCategories.java
+@@ -261,7 +261,7 @@ public class WideningCategories {
+         if (type.isInterface()) {
+             for (ClassNode interfaceNode : source.getAllInterfaces()) {
+                 if (interfaceNode.equals(type)) {
+-                    ClassNode parameterizedInterface = GenericsUtils.parameterizeInterfaceGenerics(source, interfaceNode);
++                    ClassNode parameterizedInterface = GenericsUtils.parameterizeType(source, interfaceNode);
+                     return parameterizedInterface;
+                 }
+             }
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index bd03150bff..c962e8e8b0 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -1279,4 +1279,16 @@ public abstract class StaticTypeCheckingSupport {
+         }
+         return node.getSuperClass() != null && isParameterizedWithString(node.getUnresolvedSuperClass());
+     }
++
++    public static boolean missesGenericsTypes(ClassNode cn) {
++        if (cn.isArray()) return missesGenericsTypes(cn.getComponentType());
++        if (cn.redirect().isUsingGenerics() && !cn.isUsingGenerics()) return true;
++        if (cn.isUsingGenerics()) {
++            if (cn.getGenericsTypes()==null) return true;
++            for (GenericsType genericsType : cn.getGenericsTypes()) {
++                if (genericsType.isPlaceholder()) return true;
++            }
++        }
++        return false;
++    }
+ }
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 8de05be349..2e1d01e0d7 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -402,6 +402,22 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+             if (resultType == null) {
+                 resultType = lType;
+             }
++
++            if (lType.isUsingGenerics() && missesGenericsTypes(resultType) && isAssignment(op)) {
++                // unchecked assignment
++                // examples:
++                // List<A> list = new LinkedList()
++                // List<A> list = []
++                // Iterable<A> list = new LinkedList()
++
++                // in that case, the inferred type of the binary expression is the type of the RHS
++                // "completed" with generics type information available in the LHS
++                ClassNode completedType = GenericsUtils.parameterizeType(lType, resultType.getPlainNodeReference());
++
++//                addStaticTypeError("Unchecked assignment: " + WideningCategories.lowestUpperBound(lType, resultType).toString(false), expression);
++                resultType = completedType;
++
++            }
+             if (isArrayOp(op) &&
+                     oldBinaryExpression != null
+                     && oldBinaryExpression.getLeftExpression() == expression
+@@ -824,7 +840,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                 if (testClass.isInterface()) {
+                     Set<ClassNode> allInterfaces = testClass.getAllInterfaces();
+                     for (ClassNode intf : allInterfaces) {
+-                        queue.add(GenericsUtils.parameterizeInterfaceGenerics(testClass, intf));
++                        queue.add(GenericsUtils.parameterizeType(testClass, intf));
+                     }
+                 }
+                 while (!queue.isEmpty()) {
+@@ -866,7 +882,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                     queue.add(testClass);
+                     Set<ClassNode> allInterfaces = testClass.getAllInterfaces();
+                     for (ClassNode intf : allInterfaces) {
+-                        queue.add(GenericsUtils.parameterizeInterfaceGenerics(testClass, intf));
++                        queue.add(GenericsUtils.parameterizeType(testClass, intf));
+                     }
+                     while (!queue.isEmpty()) {
+                         ClassNode current = queue.removeFirst();
+@@ -1042,7 +1058,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         ClassNode componentType = collectionType.getComponentType();
+         if (componentType == null) {
+             if (collectionType.implementsInterface(ITERABLE_TYPE)) {
+-                ClassNode intf = GenericsUtils.parameterizeInterfaceGenerics(collectionType, ITERABLE_TYPE);
++                ClassNode intf = GenericsUtils.parameterizeType(collectionType, ITERABLE_TYPE);
+                 GenericsType[] genericsTypes = intf.getGenericsTypes();
+                 componentType = genericsTypes[0].getType();
+             } else if (collectionType == ClassHelper.STRING_TYPE) {
+@@ -1207,9 +1223,21 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                 ClassNode previousType = (ClassNode) methodNode.getNodeMetaData(StaticTypesMarker.INFERRED_RETURN_TYPE);
+                 ClassNode inferred = previousType == null ? type : lowestUpperBound(type, previousType);
+                 if (implementsInterfaceOrIsSubclassOf(inferred, methodNode.getReturnType())) {
++                    if (missesGenericsTypes(inferred)) {
++                        DeclarationExpression virtualDecl = new DeclarationExpression(
++                                new VariableExpression("{target}", methodNode.getReturnType()),
++                                Token.newSymbol(EQUAL, -1, -1),
++                                new VariableExpression("{source}", inferred)
++                        );
++                        virtualDecl.setSourcePosition(statement);
++                        virtualDecl.visit(this);
++                        inferred = (ClassNode) virtualDecl.getNodeMetaData(StaticTypesMarker.INFERRED_TYPE);
++                    }
+                     methodNode.putNodeMetaData(StaticTypesMarker.INFERRED_RETURN_TYPE, inferred);
++                    return inferred;
+                 } else {
+                     methodNode.putNodeMetaData(StaticTypesMarker.INFERRED_RETURN_TYPE, methodNode.getReturnType());
++                    return methodNode.getReturnType();
+                 }
+             }
+         }
+@@ -2641,7 +2669,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                             for (ClassNode anInterface : interfaces) {
+                                 if (anInterface.equals(type)) {
+                                     intf = true;
+-                                    actualType = GenericsUtils.parameterizeInterfaceGenerics(actualType, anInterface);
++                                    actualType = GenericsUtils.parameterizeType(actualType, anInterface);
+                                 }
+                             }
+                             if (!intf) actualType = actualType.getUnresolvedSuperClass();
+@@ -2822,7 +2850,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+ 
+             // todo: what if it's not an interface?
+             if (dgmMethodFirstArgType.isUsingGenerics() && dgmMethodFirstArgType.isInterface()) {
+-                ClassNode firstArgType = GenericsUtils.parameterizeInterfaceGenerics(receiver, dgmMethodFirstArgType);
++                ClassNode firstArgType = GenericsUtils.parameterizeType(receiver, dgmMethodFirstArgType);
+ 
+ 
+                 Map<String, GenericsType> placeholders = new HashMap<String, GenericsType>();
+diff --git a/src/test/groovy/transform/stc/GenericsSTCTest.groovy b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+index eb58ac6d37..a0d1632b9f 100644
+--- a/src/test/groovy/transform/stc/GenericsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+@@ -821,6 +821,38 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
++    // In Groovy, we do not throw warnings (in general) and in that situation, not for unchecked
++    // assignments like in Java
++    // In the following test, the LHS of the assignment uses generics, while the RHS does not.
++    // As we have the concept of flow typing too, we are facing a problem: what inferred type is the RHS?
++    void testUncheckedAssignment() {
++        assertScript '''
++            @ASTTest(phase=INSTRUCTION_SELECTION, value={
++                def ift = node.getNodeMetaData(INFERRED_TYPE)
++                assert ift == make(List)
++                assert ift.isUsingGenerics()
++                def gts = ift.genericsTypes
++                assert gts.length==1
++                assert gts[0].type == STRING_TYPE
++            })
++            List<String> list = (List) null
++        '''
++    }
++
++    void testUncheckedAssignmentWithSuperInterface() {
++        assertScript '''
++            @ASTTest(phase=INSTRUCTION_SELECTION, value={
++                def ift = node.getNodeMetaData(INFERRED_TYPE)
++                assert ift == make(List)
++                assert ift.isUsingGenerics()
++                def gts = ift.genericsTypes
++                assert gts.length==1
++                assert gts[0].type == STRING_TYPE
++            })
++            Iterable<String> list = (List) null
++        '''
++    }
++
+     static class MyList extends LinkedList<String> {}
+ 
+     public static class ClassA<T> {
+diff --git a/src/test/groovy/transform/stc/LoopsSTCTest.groovy b/src/test/groovy/transform/stc/LoopsSTCTest.groovy
+index eebcaeb313..d0dc656052 100644
+--- a/src/test/groovy/transform/stc/LoopsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/LoopsSTCTest.groovy
+@@ -160,5 +160,46 @@ class LoopsSTCTest extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
++    // GROOVY-5640
++    void testShouldInferComponentTypeAsIterableOfNodes() {
++        assertScript '''import org.codehaus.groovy.ast.stmt.ForStatement
++        class Node {}
++
++        interface Traverser {
++            Iterable<Node> nodes()
++        }
++
++        class MyTraverser implements Traverser {
++
++            @ASTTest(phase=INSTRUCTION_SELECTION, value={
++                def irt = node.getNodeMetaData(INFERRED_RETURN_TYPE)
++                assert irt == make(List)
++                assert irt.isUsingGenerics()
++                assert irt.genericsTypes.length == 1
++                assert irt.genericsTypes[0].type.name == 'Node'
++            })
++            Iterable<Node> nodes() {
++                []
++            }
++        }
++
++        @ASTTest(phase=INSTRUCTION_SELECTION, value= {
++            def forStmt = lookup('loop')[0]
++            assert forStmt instanceof ForStatement
++            def collectionType = forStmt.collectionExpression.getNodeMetaData(INFERRED_TYPE)
++            assert collectionType == make(List)
++            assert collectionType.isUsingGenerics()
++            assert collectionType.genericsTypes.length == 1
++            assert collectionType.genericsTypes[0].type.name == 'Node'
++        })
++        void test() {
++            loop:
++            for (def node : new MyTraverser().nodes()) {
++                println node.class.name
++            }
++        }
++
++        '''
++    }
+ }
+ 

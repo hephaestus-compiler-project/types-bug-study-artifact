@@ -1,0 +1,181 @@
+diff --git a/compiler/backend/src/org/jetbrains/kotlin/codegen/state/JetTypeMapper.java b/compiler/backend/src/org/jetbrains/kotlin/codegen/state/JetTypeMapper.java
+index 9dd934ca9d0..8a88d216b69 100644
+--- a/compiler/backend/src/org/jetbrains/kotlin/codegen/state/JetTypeMapper.java
++++ b/compiler/backend/src/org/jetbrains/kotlin/codegen/state/JetTypeMapper.java
+@@ -404,10 +404,11 @@ public class JetTypeMapper {
+         }
+ 
+         TypeConstructor constructor = jetType.getConstructor();
+-        DeclarationDescriptor descriptor = constructor.getDeclarationDescriptor();
+         if (constructor instanceof IntersectionTypeConstructor) {
+             jetType = CommonSupertypes.commonSupertype(new ArrayList<KotlinType>(constructor.getSupertypes()));
++            constructor = jetType.getConstructor();
+         }
++        DeclarationDescriptor descriptor = constructor.getDeclarationDescriptor();
+ 
+         if (descriptor == null) {
+             throw new UnsupportedOperationException("no descriptor for type constructor of " + jetType);
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+index de9f7fa50d3..e1efe46d047 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+@@ -727,6 +727,7 @@ public interface Errors {
+     DiagnosticFactory2<KtElement, KotlinType, KotlinType> INCOMPATIBLE_TYPES = DiagnosticFactory2.create(ERROR);
+ 
+     DiagnosticFactory0<PsiElement> IMPLICIT_NOTHING_RETURN_TYPE = DiagnosticFactory0.create(ERROR);
++    DiagnosticFactory1<PsiElement, KotlinType> IMPLICIT_INTERSECTION_TYPE = DiagnosticFactory1.create(ERROR);
+ 
+     // Context tracking
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+index f7e9463bf04..dad0aabcc94 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+@@ -527,6 +527,7 @@ public class DefaultErrorMessages {
+         MAP.put(TYPE_MISMATCH_IN_CONDITION, "Condition must be of type kotlin.Boolean, but is of type {0}", RENDER_TYPE);
+         MAP.put(INCOMPATIBLE_TYPES, "Incompatible types: {0} and {1}", RENDER_TYPE, RENDER_TYPE);
+         MAP.put(IMPLICIT_NOTHING_RETURN_TYPE, "''Nothing'' return type needs to be specified explicitly");
++        MAP.put(IMPLICIT_INTERSECTION_TYPE, "Inferred type {0} is an intersection, please specify the required type explicitly", RENDER_TYPE);
+         MAP.put(EXPECTED_CONDITION, "Expected condition of type kotlin.Boolean");
+ 
+         MAP.put(CANNOT_CHECK_FOR_ERASED, "Cannot check for instance of erased type: {0}", RENDER_TYPE);
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/Renderers.kt b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/Renderers.kt
+index f8ab00dc801..87d742a808c 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/Renderers.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/Renderers.kt
+@@ -95,6 +95,7 @@ public object Renderers {
+ 
+     public val RENDER_CLASS_OR_OBJECT_NAME: Renderer<ClassDescriptor> = Renderer { it.renderKindWithName() }
+ 
++    @JvmField
+     public val RENDER_TYPE: Renderer<KotlinType> = Renderer { DescriptorRenderer.FQ_NAMES_IN_TYPES.renderType(it) }
+ 
+     public val RENDER_POSITION_VARIANCE: Renderer<Variance> = Renderer {
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/DeclarationsChecker.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/DeclarationsChecker.kt
+index 8809ba86df3..afefe3d8d70 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/DeclarationsChecker.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/DeclarationsChecker.kt
+@@ -30,6 +30,7 @@ import org.jetbrains.kotlin.resolve.BindingContext.TYPE
+ import org.jetbrains.kotlin.resolve.BindingContext.TYPE_PARAMETER
+ import org.jetbrains.kotlin.resolve.DescriptorUtils.classCanHaveAbstractMembers
+ import org.jetbrains.kotlin.resolve.DescriptorUtils.classCanHaveOpenMembers
++import org.jetbrains.kotlin.types.IntersectionTypeConstructor
+ import org.jetbrains.kotlin.types.KotlinType
+ import org.jetbrains.kotlin.types.SubstitutionUtils
+ import org.jetbrains.kotlin.types.TypeUtils
+@@ -434,6 +435,13 @@ class DeclarationsChecker(
+         checkTypeParameterConstraints(property)
+         checkPropertyExposedType(property, propertyDescriptor)
+         checkPropertyTypeParametersAreUsedInReceiverType(propertyDescriptor)
++        propertyDescriptor.returnType?.let {
++            if (property.typeReference == null) {
++                if (it.constructor is IntersectionTypeConstructor) {
++                    trace.report(IMPLICIT_INTERSECTION_TYPE.on(property.nameIdentifier ?: property, it))
++                }
++            }
++        }
+     }
+ 
+     private fun checkPropertyTypeParametersAreUsedInReceiverType(descriptor: PropertyDescriptor) {
+@@ -649,8 +657,13 @@ class DeclarationsChecker(
+             trace.report(NON_MEMBER_FUNCTION_NO_BODY.on(function, functionDescriptor))
+         }
+         functionDescriptor.returnType?.let {
+-            if (it.isNothing() && !function.hasDeclaredReturnType()) {
+-                trace.report(IMPLICIT_NOTHING_RETURN_TYPE.on(nameIdentifier ?: function))
++            if (!function.hasDeclaredReturnType()) {
++                if (it.isNothing()) {
++                    trace.report(IMPLICIT_NOTHING_RETURN_TYPE.on(nameIdentifier ?: function))
++                }
++                if (it.constructor is IntersectionTypeConstructor) {
++                    trace.report(IMPLICIT_INTERSECTION_TYPE.on(nameIdentifier ?: function, it))
++                }
+             }
+         }
+ 
+diff --git a/compiler/testData/diagnostics/tests/implicitIntersection.kt b/compiler/testData/diagnostics/tests/implicitIntersection.kt
+new file mode 100644
+index 00000000000..e636b3f199b
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/implicitIntersection.kt
+@@ -0,0 +1,23 @@
++// See KT-10244: no intersection types in signatures
++open class B
++interface A
++interface C
++
++// Error!
++fun <!IMPLICIT_INTERSECTION_TYPE!>foo<!>(b: B) = if (b is A && b is C) b else null
++
++// Ok: given explicitly
++fun gav(b: B): A? = if (b is A && b is C) <!DEBUG_INFO_SMARTCAST!>b<!> else null
++
++class My(b: B) {
++    // Error!
++    val <!IMPLICIT_INTERSECTION_TYPE!>x<!> = if (b is A && b is C) b else null
++    // Ok: given explicitly
++    val y: C? = if (b is A && b is C) <!DEBUG_INFO_SMARTCAST!>b<!> else null
++}
++
++fun bar(b: B): String {
++    // Ok: local variable
++    val tmp = if (b is A && b is C) b else null
++    return tmp.toString()
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/implicitIntersection.txt b/compiler/testData/diagnostics/tests/implicitIntersection.txt
+new file mode 100644
+index 00000000000..7589f7213f4
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/implicitIntersection.txt
+@@ -0,0 +1,33 @@
++package
++
++public fun bar(/*0*/ b: B): kotlin.String
++public fun foo(/*0*/ b: B): {C & A & B}?
++public fun gav(/*0*/ b: B): A?
++
++public interface A {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public open class B {
++    public constructor B()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface C {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class My {
++    public constructor My(/*0*/ b: B)
++    public final val x: {C & A & B}?
++    public final val y: C?
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index c04cf4841ae..42b6e9fac9f 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -289,6 +289,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("implicitIntersection.kt")
++        public void testImplicitIntersection() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/implicitIntersection.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("implicitNothing.kt")
+         public void testImplicitNothing() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/implicitNothing.kt");

@@ -1,0 +1,284 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallCompleter.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallCompleter.kt
+index 602612bdf0c..81a8df2d29e 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallCompleter.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallCompleter.kt
+@@ -19,10 +19,8 @@ package org.jetbrains.kotlin.resolve.calls
+ import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+ import org.jetbrains.kotlin.descriptors.CallableDescriptor
+ import org.jetbrains.kotlin.psi.*
++import org.jetbrains.kotlin.resolve.*
+ import org.jetbrains.kotlin.resolve.BindingContext.CONSTRAINT_SYSTEM_COMPLETER
+-import org.jetbrains.kotlin.resolve.BindingContextUtils
+-import org.jetbrains.kotlin.resolve.BindingTrace
+-import org.jetbrains.kotlin.resolve.TemporaryBindingTrace
+ import org.jetbrains.kotlin.resolve.calls.callResolverUtil.ResolveArgumentsMode.RESOLVE_FUNCTION_ARGUMENTS
+ import org.jetbrains.kotlin.resolve.calls.callResolverUtil.getEffectiveExpectedType
+ import org.jetbrains.kotlin.resolve.calls.callResolverUtil.isInvokeCallOnVariable
+@@ -285,7 +283,7 @@ class CallCompleter(
+             updatedType = argumentTypeResolver.updateResultArgumentTypeIfNotDenotable(context, expression) ?: updatedType
+         }
+ 
+-        updatedType = updateRecordedTypeForArgument(updatedType, recordedType, expression, context.trace)
++        updatedType = updateRecordedTypeForArgument(updatedType, recordedType, expression, context.statementFilter, context.trace)
+ 
+         // While the expected type is not known, the function literal arguments are not analyzed (to analyze function literal bodies once),
+         // but they should be analyzed when the expected type is known (during the call completion).
+@@ -320,6 +318,7 @@ class CallCompleter(
+             updatedType: KotlinType?,
+             recordedType: KotlinType?,
+             argumentExpression: KtExpression,
++            statementFilter: StatementFilter,
+             trace: BindingTrace
+     ): KotlinType? {
+         //workaround for KT-8218
+@@ -329,6 +328,11 @@ class CallCompleter(
+             val deparenthesized = KtPsiUtil.deparenthesizeOnce(expression)
+             if (deparenthesized != expression) return deparenthesized
+ 
++            // see KtPsiUtil.getLastElementDeparenthesized
++            if (expression is KtBlockExpression) {
++                return statementFilter.getLastStatementInABlock(expression)
++            }
++
+             return (expression as? KtQualifiedExpression)?.selectorExpression
+         }
+ 
+diff --git a/compiler/testData/codegen/box/regressions/kt10934.kt b/compiler/testData/codegen/box/regressions/kt10934.kt
+new file mode 100644
+index 00000000000..bbc549b99c4
+--- /dev/null
++++ b/compiler/testData/codegen/box/regressions/kt10934.kt
+@@ -0,0 +1,38 @@
++//KT-10934 compiler throws UninferredParameterTypeConstructor in when block that covers all types
++
++class Parser<TInput, TValue>(val f: (TInput) -> Result<TInput, TValue>) {
++
++    operator fun invoke(input: TInput): Result<TInput, TValue> = f(input)
++
++    fun <TIntermediate, TValue2> mapJoin(
++            selector: (TValue) -> Parser<TInput, TIntermediate>,
++            projector: (TValue, TIntermediate) -> TValue2
++    ): Parser<TInput, TValue2> {
++        return Parser({ input ->
++                          val res = this(input)
++                          when (res) {
++                              is Result.ParseError -> Result.ParseError(res.productionLabel, res.child, res.rest)
++                              is Result.Value -> {
++                                  val v = res.value
++                                  val res2 = selector(v)(res.rest)
++                                  when (res2) {
++                                      is Result.ParseError -> Result.ParseError(res2.productionLabel, res2.child, res2.rest)
++                                      is Result.Value -> Result.Value(projector(v, res2.value), res2.rest)
++                                  }
++                              }
++                          }
++                      })
++    }
++}
++
++/** A parser can return one of two Results */
++sealed class Result<TInput, TValue> {
++
++    class Value<TInput, TValue>(val value: TValue, val rest: TInput) : Result<TInput, TValue>() {}
++
++    class ParseError<TInput, TValue>(val productionLabel: String,
++                                     val child: ParseError<TInput, *>?,
++                                     val rest: TInput) : Result<TInput, TValue>() {}
++}
++
++fun box() = "OK"
+\ No newline at end of file
+diff --git a/compiler/testData/codegen/box/typeInfo/ifOrWhenSpecialCall.kt b/compiler/testData/codegen/box/typeInfo/ifOrWhenSpecialCall.kt
+new file mode 100644
+index 00000000000..54ec5152a12
+--- /dev/null
++++ b/compiler/testData/codegen/box/typeInfo/ifOrWhenSpecialCall.kt
+@@ -0,0 +1,26 @@
++interface Option<out T> {
++    val s: String
++}
++class Some<T>(override val s: String) : Option<T>
++class None(override val s: String = "None") : Option<Int>
++
++fun whenTest(a: Int): Option<Any> = when (a) {
++    239 ->  {
++        if (a == 239) Some("239") else None()
++    }
++    else -> if (a != 239) Some("$a") else None()
++}
++
++fun ifTest(a: Int): Option<Any> = if (a == 239) {
++    if (a == 239) Some("239") else None()
++} else if (a != 239) Some("$a") else None()
++
++fun box(): String {
++    if (whenTest(2).s != "2") return "Fail 1"
++    if (whenTest(239).s != "239") return "Fail 2"
++
++    if (ifTest(2).s != "2") return "Fail 3"
++    if (ifTest(239).s != "239") return "Fail 4"
++
++    return "OK"
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/controlStructures/ifElseIntersection.kt b/compiler/testData/diagnostics/tests/controlStructures/ifElseIntersection.kt
+new file mode 100644
+index 00000000000..9dc0dc6b94f
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/controlStructures/ifElseIntersection.kt
+@@ -0,0 +1,54 @@
++// !CHECK_TYPE
++// See also KT-10896: Wrong inference of if / else result type
++
++interface Option<T>
++class Some<T> : Option<T>
++class None<T> : Option<T>
++
++fun <T> bind(r: Option<T>): Option<T> {
++    return if (r is Some) {
++        // Ideally we should infer Option<T> here (see KT-10896)
++        (<!TYPE_INFERENCE_FAILED_ON_SPECIAL_CONSTRUCT!>if<!> (true) <!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>None()<!> else <!DEBUG_INFO_SMARTCAST!>r<!>) checkType { <!TYPE_MISMATCH!>_<!><Option<T>>() }
++        // Works correctly
++        if (true) None() else r
++    }
++    else r
++}
++
++fun <T> bind2(r: Option<T>): Option<T> {
++    return if (r is Some) {
++        // Works correctly
++        if (true) None<T>() else r
++    }
++    else r
++}
++
++fun <T, R> bind3(r: Option<T>): Option<T> {
++    return if (r is Some) {
++        // Diagnoses an error correctly
++        if (true) <!TYPE_MISMATCH!>None<R>()<!> else r
++    }
++    else r
++}
++
++fun <T> bindWhen(r: Option<T>): Option<T> {
++    return when (r) {
++        is Some -> {
++            // Works correctly
++            if (true) None() else r
++        }
++        else -> r
++    }
++}
++
++interface SimpleOption
++class SimpleSome : SimpleOption
++class SimpleNone : SimpleOption
++
++fun bindNoGeneric(r: SimpleOption): SimpleOption {
++    return if (r is SimpleSome) {
++        (if (true) SimpleNone() else r) checkType { _<SimpleOption>() }
++        if (true) SimpleNone() else r
++    }
++    else r
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/controlStructures/ifElseIntersection.txt b/compiler/testData/diagnostics/tests/controlStructures/ifElseIntersection.txt
+new file mode 100644
+index 00000000000..cda0f566141
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/controlStructures/ifElseIntersection.txt
+@@ -0,0 +1,47 @@
++package
++
++public fun </*0*/ T> bind(/*0*/ r: Option<T>): Option<T>
++public fun </*0*/ T> bind2(/*0*/ r: Option<T>): Option<T>
++public fun </*0*/ T, /*1*/ R> bind3(/*0*/ r: Option<T>): Option<T>
++public fun bindNoGeneric(/*0*/ r: SimpleOption): SimpleOption
++public fun </*0*/ T> bindWhen(/*0*/ r: Option<T>): Option<T>
++
++public final class None</*0*/ T> : Option<T> {
++    public constructor None</*0*/ T>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface Option</*0*/ T> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class SimpleNone : SimpleOption {
++    public constructor SimpleNone()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface SimpleOption {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class SimpleSome : SimpleOption {
++    public constructor SimpleSome()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Some</*0*/ T> : Option<T> {
++    public constructor Some</*0*/ T>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 707bd58c06d..04cee18c03b 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -3384,6 +3384,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("ifElseIntersection.kt")
++            public void testIfElseIntersection() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/controlStructures/ifElseIntersection.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("ifInResultOfLambda.kt")
+             public void testIfInResultOfLambda() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/controlStructures/ifInResultOfLambda.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/generated/BlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/generated/BlackBoxCodegenTestGenerated.java
+index 51df8e3387c..af52675072b 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/generated/BlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/generated/BlackBoxCodegenTestGenerated.java
+@@ -6976,6 +6976,12 @@ public class BlackBoxCodegenTestGenerated extends AbstractBlackBoxCodegenTest {
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("kt10934.kt")
++        public void testKt10934() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/regressions/kt10934.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("kt3107.kt")
+         public void testKt3107() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/regressions/kt3107.kt");
+@@ -8062,6 +8068,12 @@ public class BlackBoxCodegenTestGenerated extends AbstractBlackBoxCodegenTest {
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("ifOrWhenSpecialCall.kt")
++        public void testIfOrWhenSpecialCall() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/typeInfo/ifOrWhenSpecialCall.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("implicitSmartCastThis.kt")
+         public void testImplicitSmartCastThis() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/typeInfo/implicitSmartCastThis.kt");

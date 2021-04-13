@@ -1,0 +1,139 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt
+index f4c56cfffcb..1836f0017ce 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt
+@@ -527,8 +527,7 @@ class DoubleColonExpressionResolver(
+                 is PropertyDescriptor -> {
+                     val mutable = descriptor.isVar && run {
+                         val setter = descriptor.setter
+-                        // TODO: support private-to-this
+-                        setter == null || Visibilities.isVisible(null, setter, scopeOwnerDescriptor)
++                        setter == null || Visibilities.isVisible(receiverType?.let(::TransientReceiver), setter, scopeOwnerDescriptor)
+                     }
+                     reflectionTypes.getKPropertyType(Annotations.EMPTY, receiverType, descriptor.type, mutable)
+                 }
+diff --git a/compiler/testData/codegen/box/callableReference/property/kt12982_protectedPropertyReference.kt b/compiler/testData/codegen/box/callableReference/property/kt12982_protectedPropertyReference.kt
+new file mode 100644
+index 00000000000..7cabd9c6d65
+--- /dev/null
++++ b/compiler/testData/codegen/box/callableReference/property/kt12982_protectedPropertyReference.kt
+@@ -0,0 +1,12 @@
++class Foo {
++    protected var x = 0
++
++    fun getX() = Foo::x
++}
++
++fun box(): String {
++    val x = Foo().getX()
++    val foo = Foo()
++    x.set(foo, 42)
++    return if (x.get(foo) == 42) "OK" else "Fail"
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/property/protectedVarFromClass.kt b/compiler/testData/diagnostics/tests/callableReference/property/protectedVarFromClass.kt
+new file mode 100644
+index 00000000000..b63c2baea8f
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/property/protectedVarFromClass.kt
+@@ -0,0 +1,22 @@
++// KT-12982 Incorrect type inference when accessing mutable protected property via reflection
++
++import kotlin.reflect.KMutableProperty1
++
++class Foo {
++    protected var x = 0
++
++    fun baz(p: KMutableProperty1<Foo, Int>) = p
++    fun print() = baz(Foo::x)
++}
++
++
++open class A {
++    protected fun a() {}
++}
++
++open class B : A() {
++    val x = C::a
++    val y = C()::a
++}
++
++class C : B()
+diff --git a/compiler/testData/diagnostics/tests/callableReference/property/protectedVarFromClass.txt b/compiler/testData/diagnostics/tests/callableReference/property/protectedVarFromClass.txt
+new file mode 100644
+index 00000000000..750156e12c8
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/property/protectedVarFromClass.txt
+@@ -0,0 +1,39 @@
++package
++
++public open class A {
++    public constructor A()
++    protected final fun a(): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public open class B : A {
++    public constructor B()
++    public final val x: kotlin.reflect.KFunction1<C, kotlin.Unit>
++    public final val y: kotlin.reflect.KFunction0<kotlin.Unit>
++    protected final override /*1*/ /*fake_override*/ fun a(): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class C : B {
++    public constructor C()
++    public final override /*1*/ /*fake_override*/ val x: kotlin.reflect.KFunction1<C, kotlin.Unit>
++    public final override /*1*/ /*fake_override*/ val y: kotlin.reflect.KFunction0<kotlin.Unit>
++    protected final override /*1*/ /*fake_override*/ fun a(): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Foo {
++    public constructor Foo()
++    protected final var x: kotlin.Int
++    public final fun baz(/*0*/ p: kotlin.reflect.KMutableProperty1<Foo, kotlin.Int>): kotlin.reflect.KMutableProperty1<Foo, kotlin.Int>
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun print(): kotlin.reflect.KMutableProperty1<Foo, kotlin.Int>
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index c9655d22ebc..44930ab48fb 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -2204,6 +2204,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                     doTest(fileName);
+                 }
+ 
++                @TestMetadata("protectedVarFromClass.kt")
++                public void testProtectedVarFromClass() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/property/protectedVarFromClass.kt");
++                    doTest(fileName);
++                }
++
+                 @TestMetadata("returnTypeDependentOnGenericProperty.kt")
+                 public void testReturnTypeDependentOnGenericProperty() throws Exception {
+                     String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/property/returnTypeDependentOnGenericProperty.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+index b272fd5442d..1d85c0856b6 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+@@ -1950,6 +1950,12 @@ public class BlackBoxCodegenTestGenerated extends AbstractBlackBoxCodegenTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("kt12982_protectedPropertyReference.kt")
++            public void testKt12982_protectedPropertyReference() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/property/kt12982_protectedPropertyReference.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("kt6870_privatePropertyReference.kt")
+             public void testKt6870_privatePropertyReference() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/property/kt6870_privatePropertyReference.kt");

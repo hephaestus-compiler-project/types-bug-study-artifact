@@ -1,0 +1,160 @@
+changeset:   2813:2d2baba27992
+user:        jlahoda
+date:        Mon Feb 02 18:52:16 2015 +0530
+summary:     8069265: ClassCastException when compiled with JDK 9b08+, JDK8 compiles OK.
+
+diff -r a7d2c38930ee -r 2d2baba27992 src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java	Fri Jan 30 14:59:47 2015 -0800
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java	Mon Feb 02 18:52:16 2015 +0530
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2003, 2014, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2003, 2015, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -1931,6 +1931,11 @@
+      * Return the (most specific) base type of t that starts with the
+      * given symbol.  If none exists, return null.
+      *
++     * Caveat Emptor: Since javac represents the class of all arrays with a singleton
++     * symbol Symtab.arrayClass, which by being a singleton cannot hold any discriminant,
++     * this method could yield surprising answers when invoked on arrays. For example when
++     * invoked with t being byte [] and sym being t.sym itself, asSuper would answer null.
++     *
+      * @param t a type
+      * @param sym a symbol
+      */
+diff -r a7d2c38930ee -r 2d2baba27992 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/TransTypes.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/TransTypes.java	Fri Jan 30 14:59:47 2015 -0800
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/TransTypes.java	Mon Feb 02 18:52:16 2015 +0530
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 1999, 2014, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 1999, 2015, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -720,7 +720,7 @@
+ 
+     public void visitParens(JCParens tree) {
+         tree.expr = translate(tree.expr, pt);
+-        tree.type = erasure(tree.type);
++        tree.type = erasure(tree.expr.type);
+         result = tree;
+     }
+ 
+@@ -755,7 +755,7 @@
+         tree.clazz = translate(tree.clazz, null);
+         Type originalTarget = tree.type;
+         tree.type = erasure(tree.type);
+-        JCExpression newExpression = translate(tree.expr, erasure(tree.expr.type));
++        JCExpression newExpression = translate(tree.expr, tree.type);
+         if (newExpression != tree.expr) {
+             JCTypeCast typeCast = newExpression.hasTag(Tag.TYPECAST)
+                 ? (JCTypeCast) newExpression
+diff -r a7d2c38930ee -r 2d2baba27992 src/jdk.compiler/share/classes/com/sun/tools/javac/jvm/Gen.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/jvm/Gen.java	Fri Jan 30 14:59:47 2015 -0800
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/jvm/Gen.java	Mon Feb 02 18:52:16 2015 +0530
+@@ -2145,7 +2145,8 @@
+         // For basic types, the coerce(...) in genExpr(...) will do
+         // the conversion.
+         if (!tree.clazz.type.isPrimitive() &&
+-            types.asSuper(tree.expr.type, tree.clazz.type.tsym) == null) {
++           !types.isSameType(tree.expr.type, tree.clazz.type) &&
++           types.asSuper(tree.expr.type, tree.clazz.type.tsym) == null) {
+             code.emitop2(checkcast, makeRef(tree.pos(), tree.clazz.type));
+         }
+     }
+diff -r a7d2c38930ee -r 2d2baba27992 test/tools/javac/CheckNoClassCastException.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/CheckNoClassCastException.java	Mon Feb 02 18:52:16 2015 +0530
+@@ -0,0 +1,69 @@
++/*
++ * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8069265
++ * @summary ClassCastException when compiled with JDK 9b08+, JDK8 compiles OK.
++ * @run main CheckNoClassCastException
++ */
++import java.util.*;
++
++public class CheckNoClassCastException {
++    static String result = "";
++    public static void main(String[] args) {
++        ListFail.main(null);
++        MapFail.main(null);
++        if (!result.equals("ListFailDoneMapFailDone"))
++            throw new AssertionError("Incorrect result");
++    }
++}
++
++class ListFail {
++    static interface Foo {
++    }
++
++    public static void main(String[] args) {
++        List<Date> list = new ArrayList<>();
++        list.add(new Date());
++
++        List<Foo> cList = (List<Foo>) (List<?>) list;
++        Date date = (Date) cList.get(0);
++        CheckNoClassCastException.result += "ListFailDone";
++    }
++}
++
++
++class MapFail {
++    static interface Foo {
++    }
++
++    public static void main(String[] args) {
++        Map<String,Date> aMap = new HashMap<>();
++        aMap.put("test",new Date());
++
++        Map<String,Foo> m = (Map<String,Foo>) (Map<?,?>) aMap;
++        Date q = (Date) m.get("test");
++        CheckNoClassCastException.result += "MapFailDone";
++    }
++}
+diff -r a7d2c38930ee -r 2d2baba27992 test/tools/javac/T7053059/DoubleCastTest.java
+--- a/test/tools/javac/T7053059/DoubleCastTest.java	Fri Jan 30 14:59:47 2015 -0800
++++ b/test/tools/javac/T7053059/DoubleCastTest.java	Mon Feb 02 18:52:16 2015 +0530
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2014, 2015, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -47,6 +47,7 @@
+             m1((byte[])m());
+             m1((byte[])os[0]);
+             m1((byte[])this.x);
++            m1((byte[])((byte []) (o = null)));
+         }
+     }
+ 
+

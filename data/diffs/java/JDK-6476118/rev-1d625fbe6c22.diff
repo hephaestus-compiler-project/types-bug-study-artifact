@@ -1,0 +1,288 @@
+changeset:   779:1d625fbe6c22
+user:        mcimadamore
+date:        Thu Dec 09 15:50:34 2010 +0000
+summary:     6476118: compiler bug causes runtime ClassCastException for generics overloading
+
+diff -r 5ef88773462b -r 1d625fbe6c22 src/share/classes/com/sun/tools/javac/code/Scope.java
+--- a/src/share/classes/com/sun/tools/javac/code/Scope.java	Thu Dec 09 15:50:10 2010 +0000
++++ b/src/share/classes/com/sun/tools/javac/code/Scope.java	Thu Dec 09 15:50:34 2010 +0000
+@@ -495,6 +495,11 @@
+             return shadowed;
+         }
+ 
++        public Entry next(Filter<Symbol> sf) {
++            if (shadowed.sym == null || sf.accepts(shadowed.sym)) return shadowed;
++            else return shadowed.next(sf);
++        }
++
+         public Scope getOrigin() {
+             // The origin is only recorded for import scopes.  For all
+             // other scope entries, the "enclosing" type is available
+diff -r 5ef88773462b -r 1d625fbe6c22 src/share/classes/com/sun/tools/javac/code/Symbol.java
+--- a/src/share/classes/com/sun/tools/javac/code/Symbol.java	Thu Dec 09 15:50:10 2010 +0000
++++ b/src/share/classes/com/sun/tools/javac/code/Symbol.java	Thu Dec 09 15:50:34 2010 +0000
+@@ -1103,18 +1103,24 @@
+                  impl == null && is.nonEmpty();
+                  is = is.tail) {
+                 TypeSymbol i = is.head.tsym;
+-                for (Scope.Entry e = i.members().lookup(name);
+-                     impl == null && e.scope != null;
+-                     e = e.next()) {
+-                    if (this.overrides(e.sym, (TypeSymbol)owner, types, true) &&
+-                        // FIXME: I suspect the following requires a
+-                        // subst() for a parametric return type.
+-                        types.isSameType(type.getReturnType(),
+-                                         types.memberType(owner.type, e.sym).getReturnType())) {
+-                        impl = e.sym;
+-                    }
+-                    if (impl == null)
+-                        impl = implemented(i, types);
++                impl = implementedIn(i, types);
++                if (impl == null)
++                    impl = implemented(i, types);
++            }
++            return impl;
++        }
++
++        public Symbol implementedIn(TypeSymbol c, Types types) {
++            Symbol impl = null;
++            for (Scope.Entry e = c.members().lookup(name);
++                 impl == null && e.scope != null;
++                 e = e.next()) {
++                if (this.overrides(e.sym, (TypeSymbol)owner, types, true) &&
++                    // FIXME: I suspect the following requires a
++                    // subst() for a parametric return type.
++                    types.isSameType(type.getReturnType(),
++                                     types.memberType(owner.type, e.sym).getReturnType())) {
++                    impl = e.sym;
+                 }
+             }
+             return impl;
+diff -r 5ef88773462b -r 1d625fbe6c22 src/share/classes/com/sun/tools/javac/code/Types.java
+--- a/src/share/classes/com/sun/tools/javac/code/Types.java	Thu Dec 09 15:50:10 2010 +0000
++++ b/src/share/classes/com/sun/tools/javac/code/Types.java	Thu Dec 09 15:50:34 2010 +0000
+@@ -2026,7 +2026,7 @@
+                 TypeSymbol c = t.tsym;
+                 for (Scope.Entry e = c.members().lookup(ms.name, implFilter);
+                      e.scope != null;
+-                     e = e.next()) {
++                     e = e.next(implFilter)) {
+                     if (e.sym != null &&
+                              e.sym.overrides(ms, origin, types, checkResult))
+                         return (MethodSymbol)e.sym;
+diff -r 5ef88773462b -r 1d625fbe6c22 src/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Dec 09 15:50:10 2010 +0000
++++ b/src/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Dec 09 15:50:34 2010 +0000
+@@ -676,6 +676,7 @@
+ 
+             // If we override any other methods, check that we do so properly.
+             // JLS ???
++            chk.checkClashes(tree.pos(), env.enclClass.type, m);
+             chk.checkOverride(tree, m);
+ 
+             // Create a new environment with local scope
+diff -r 5ef88773462b -r 1d625fbe6c22 src/share/classes/com/sun/tools/javac/comp/Check.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Check.java	Thu Dec 09 15:50:10 2010 +0000
++++ b/src/share/classes/com/sun/tools/javac/comp/Check.java	Thu Dec 09 15:50:34 2010 +0000
+@@ -1668,12 +1668,6 @@
+                     checkOverride(tree, m, (MethodSymbol)e.sym, origin);
+                 }
+             }
+-            else if (!checkNameClash(origin, e.sym, m)) {
+-                log.error(tree,
+-                            "name.clash.same.erasure.no.override",
+-                            m, m.location(),
+-                            e.sym, e.sym.location());
+-            }
+             e = e.next();
+         }
+     }
+@@ -2022,6 +2016,60 @@
+         }
+     }
+ 
++    /** Check that all non-override equivalent methods accessible from 'site'
++     *  are mutually compatible (JLS 8.4.8/9.4.1).
++     *
++     *  @param pos  Position to be used for error reporting.
++     *  @param site The class whose methods are checked.
++     *  @param sym  The method symbol to be checked.
++     */
++    void checkClashes(DiagnosticPosition pos, Type site, Symbol sym) {
++        List<Type> supertypes = types.closure(site);
++        for (List<Type> l = supertypes; l.nonEmpty(); l = l.tail) {
++            for (List<Type> m = supertypes; m.nonEmpty(); m = m.tail) {
++                checkClashes(pos, l.head, m.head, site, sym);
++            }
++        }
++    }
++
++    /** Reports an error whenever 'sym' seen as a member of type 't1' clashes with
++     *  some unrelated method defined in 't2'.
++     */
++    private void checkClashes(DiagnosticPosition pos, Type t1, Type t2, Type site, Symbol s1) {
++        ClashFilter cf = new ClashFilter(site);
++        s1 = ((MethodSymbol)s1).implementedIn(t1.tsym, types);
++        if (s1 == null) return;
++        Type st1 = types.memberType(site, s1);
++        for (Scope.Entry e2 = t2.tsym.members().lookup(s1.name, cf); e2.scope != null; e2 = e2.next(cf)) {
++            Symbol s2 = e2.sym;
++            if (s1 == s2) continue;
++            Type st2 = types.memberType(site, s2);
++            if (!types.overrideEquivalent(st1, st2) &&
++                    !checkNameClash((ClassSymbol)site.tsym, s1, s2)) {
++                log.error(pos,
++                        "name.clash.same.erasure.no.override",
++                        s1, s1.location(),
++                        s2, s2.location());
++            }
++        }
++    }
++    //where
++    private class ClashFilter implements Filter<Symbol> {
++
++        Type site;
++
++        ClashFilter(Type site) {
++            this.site = site;
++        }
++
++        public boolean accepts(Symbol s) {
++            return s.kind == MTH &&
++                    (s.flags() & SYNTHETIC) == 0 &&
++                    s.isInheritedIn(site.tsym, types) &&
++                    !s.isConstructor();
++        }
++    }
++
+     /** Report a conflict between a user symbol and a synthetic symbol.
+      */
+     private void syntheticError(DiagnosticPosition pos, Symbol sym) {
+diff -r 5ef88773462b -r 1d625fbe6c22 test/tools/javac/generics/6476118/T6476118a.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/6476118/T6476118a.java	Thu Dec 09 15:50:34 2010 +0000
+@@ -0,0 +1,16 @@
++/**
++ * @test  /nodynamiccopyright/
++ * @bug 6476118
++ * @summary compiler bug causes runtime ClassCastException for generics overloading
++ * @compile/fail/ref=T6476118a.out -XDrawDiagnostics T6476118a.java
++ */
++
++class T6476118a {
++    static class A {
++        public int compareTo(Object o) { return 0; }
++    }
++
++    static class B extends A implements Comparable<B>{
++        public int compareTo(B b){ return 0; }
++    }
++}
+diff -r 5ef88773462b -r 1d625fbe6c22 test/tools/javac/generics/6476118/T6476118a.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/6476118/T6476118a.out	Thu Dec 09 15:50:34 2010 +0000
+@@ -0,0 +1,2 @@
++T6476118a.java:14:20: compiler.err.name.clash.same.erasure.no.override: compareTo(T), java.lang.Comparable, compareTo(java.lang.Object), T6476118a.A
++1 error
+diff -r 5ef88773462b -r 1d625fbe6c22 test/tools/javac/generics/6476118/T6476118b.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/6476118/T6476118b.java	Thu Dec 09 15:50:34 2010 +0000
+@@ -0,0 +1,14 @@
++/**
++ * @test  /nodynamiccopyright/
++ * @bug 6476118 6533652
++ * @summary compiler bug causes runtime ClassCastException for generics overloading
++ * @compile/fail/ref=T6476118b.out -XDrawDiagnostics T6476118b.java
++ */
++
++class T6476118b {
++    public final int compareTo(Object o) { return 0; }
++
++    static class B extends T6476118b implements Comparable<B> {
++        public int compareTo(B b){ return 0; }
++    }
++}
+diff -r 5ef88773462b -r 1d625fbe6c22 test/tools/javac/generics/6476118/T6476118b.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/6476118/T6476118b.out	Thu Dec 09 15:50:34 2010 +0000
+@@ -0,0 +1,2 @@
++T6476118b.java:12:20: compiler.err.name.clash.same.erasure.no.override: compareTo(T), java.lang.Comparable, compareTo(java.lang.Object), T6476118b
++1 error
+diff -r 5ef88773462b -r 1d625fbe6c22 test/tools/javac/generics/6476118/T6476118c.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/6476118/T6476118c.java	Thu Dec 09 15:50:34 2010 +0000
+@@ -0,0 +1,23 @@
++/**
++ * @test  /nodynamiccopyright/
++ * @bug 6476118
++ * @summary compiler bug causes runtime ClassCastException for generics overloading
++ * @compile/fail/ref=T6476118c.out -XDrawDiagnostics T6476118c.java
++ */
++
++class T6476118b {
++    static class A<T> {
++        public void foo(T t) { }
++    }
++
++    static class B<T extends Number> extends A<T> {
++        public void foo(T t) { }
++    }
++
++    static class C extends B<Integer> {
++        public void foo(Object o) { }
++        public void foo(Number o) { }
++    }
++
++    static class D extends C {} //check that no spurious diags generated here!
++}
+diff -r 5ef88773462b -r 1d625fbe6c22 test/tools/javac/generics/6476118/T6476118c.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/6476118/T6476118c.out	Thu Dec 09 15:50:34 2010 +0000
+@@ -0,0 +1,3 @@
++T6476118c.java:18:21: compiler.err.name.clash.same.erasure.no.override: foo(java.lang.Object), T6476118b.C, foo(T), T6476118b.A
++T6476118c.java:19:21: compiler.err.name.clash.same.erasure.no.override: foo(java.lang.Number), T6476118b.C, foo(T), T6476118b.B
++2 errors
+diff -r 5ef88773462b -r 1d625fbe6c22 test/tools/javac/generics/6476118/T6476118d.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/6476118/T6476118d.java	Thu Dec 09 15:50:34 2010 +0000
+@@ -0,0 +1,39 @@
++/*
++ * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 6476118
++ * @summary compiler bug causes runtime ClassCastException for generics overloading
++ * @compile T6476118d.java
++ */
++
++class T6476118d {
++    int m = 3;
++
++    interface m { }
++
++    int m () {
++        return m;
++    }
++}
+

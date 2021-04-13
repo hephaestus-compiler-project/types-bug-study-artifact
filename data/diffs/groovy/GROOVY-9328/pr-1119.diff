@@ -1,0 +1,139 @@
+diff --git a/src/main/java/org/codehaus/groovy/transform/sc/StaticCompilationVisitor.java b/src/main/java/org/codehaus/groovy/transform/sc/StaticCompilationVisitor.java
+index a331a58700b..99b72c1e517 100644
+--- a/src/main/java/org/codehaus/groovy/transform/sc/StaticCompilationVisitor.java
++++ b/src/main/java/org/codehaus/groovy/transform/sc/StaticCompilationVisitor.java
+@@ -56,7 +56,6 @@
+ import org.codehaus.groovy.classgen.asm.WriterControllerFactory;
+ import org.codehaus.groovy.classgen.asm.sc.StaticCompilationMopWriter;
+ import org.codehaus.groovy.classgen.asm.sc.StaticTypesTypeChooser;
+-import org.codehaus.groovy.control.CompilationFailedException;
+ import org.codehaus.groovy.control.CompilationUnit;
+ import org.codehaus.groovy.control.SourceUnit;
+ import org.codehaus.groovy.transform.stc.StaticTypeCheckingSupport;
+@@ -154,16 +153,20 @@ private void addPrivateFieldAndMethodAccessors(final ClassNode node) {
+     }
+ 
+     private void addDynamicOuterClassAccessorsCallback(final ClassNode outer) {
+-        if (outer != null && !isStaticallyCompiled(outer) && outer.getNodeMetaData(DYNAMIC_OUTER_NODE_CALLBACK) == null) {
+-            outer.putNodeMetaData(DYNAMIC_OUTER_NODE_CALLBACK, new CompilationUnit.PrimaryClassNodeOperation() {
+-                @Override
+-                public void call(SourceUnit source, GeneratorContext context, ClassNode classNode) throws CompilationFailedException {
+-                    if (classNode == outer) {
+-                        addPrivateBridgeMethods(classNode);
+-                        addPrivateFieldsAccessors(classNode);
++        if (outer != null) {
++            if (!isStaticallyCompiled(outer) && outer.getNodeMetaData(DYNAMIC_OUTER_NODE_CALLBACK) == null) {
++                outer.putNodeMetaData(DYNAMIC_OUTER_NODE_CALLBACK, new CompilationUnit.PrimaryClassNodeOperation() {
++                    @Override
++                    public void call(final SourceUnit source, final GeneratorContext context, final ClassNode classNode) {
++                        if (classNode == outer) {
++                            addPrivateBridgeMethods(classNode);
++                            addPrivateFieldsAccessors(classNode);
++                        }
+                     }
+-                }
+-            });
++                });
++            }
++            // GROOVY-9328: apply to outer classes
++            addDynamicOuterClassAccessorsCallback(outer.getOuterClass());
+         }
+     }
+ 
+@@ -187,7 +190,10 @@ public void visitClass(final ClassNode node) {
+         }
+         super.visitClass(node);
+         addPrivateFieldAndMethodAccessors(node);
+-        if (isStaticallyCompiled(node)) addDynamicOuterClassAccessorsCallback(node.getOuterClass());
++        if (isStaticallyCompiled(node)) {
++            ClassNode outerClass = node.getOuterClass();
++            addDynamicOuterClassAccessorsCallback(outerClass);
++        }
+ 
+         classNode = previousClassNode;
+     }
+@@ -226,7 +232,10 @@ public void visitMethod(final MethodNode node) {
+         }
+         super.visitMethod(node);
+         checkForConstructorWithCSButClassWithout(node);
+-        if (isStaticallyCompiled(node)) addDynamicOuterClassAccessorsCallback(node.getDeclaringClass());
++        if (isStaticallyCompiled(node)) {
++            ClassNode declaringClass = node.getDeclaringClass();
++            addDynamicOuterClassAccessorsCallback(declaringClass);
++        }
+     }
+ 
+     /**
+diff --git a/src/test/org/codehaus/groovy/classgen/asm/sc/MixedModeStaticCompilationTest.groovy b/src/test/org/codehaus/groovy/classgen/asm/sc/MixedModeStaticCompilationTest.groovy
+index 395e682ba47..ebd2b637ec5 100644
+--- a/src/test/org/codehaus/groovy/classgen/asm/sc/MixedModeStaticCompilationTest.groovy
++++ b/src/test/org/codehaus/groovy/classgen/asm/sc/MixedModeStaticCompilationTest.groovy
+@@ -21,14 +21,11 @@ package org.codehaus.groovy.classgen.asm.sc
+ import groovy.transform.stc.StaticTypeCheckingTestCase
+ import org.codehaus.groovy.control.customizers.ASTTransformationCustomizer
+ 
+-class MixedModeStaticCompilationTest extends StaticTypeCheckingTestCase implements StaticCompilationTestSupport {
++final class MixedModeStaticCompilationTest extends StaticTypeCheckingTestCase implements StaticCompilationTestSupport {
++
+     @Override
+     protected void setUp() {
+         super.setUp()
+-        removeCustomizer()
+-    }
+-
+-    private void removeCustomizer() {
+         def customizers = config.compilationCustomizers
+         customizers.removeAll { it instanceof ASTTransformationCustomizer }
+     }
+@@ -352,6 +349,21 @@ class MixedModeStaticCompilationTest extends StaticTypeCheckingTestCase implemen
+             }
+             assert new Test().strInSCInner() == 'hi'
+         '''
++
++        // GROOVY-9328
++        assertScript '''
++            class Test {
++                private String str() { 'hi' }
++
++                class Inner {
++                    @groovy.transform.CompileStatic
++                    String outerStr() { str() }
++                }
++
++                String strInSCInner() { new Inner().outerStr() }
++            }
++            assert new Test().strInSCInner() == 'hi'
++        '''
+     }
+ 
+     void testSCAICCanAccessPrivateFieldsOfNonSCOuterClass() {
+@@ -377,9 +389,26 @@ class MixedModeStaticCompilationTest extends StaticTypeCheckingTestCase implemen
+ 
+                 @groovy.transform.CompileStatic
+                 String strInSCAIC() {
+-                    new Object() {
+-                        String outerStr() { str() }
+-                    }.outerStr()
++                    def callable = new java.util.concurrent.Callable<String>() {
++                        @Override String call() { str() }
++                    }
++                    callable.call()
++                }
++            }
++            assert new Test().strInSCAIC() == 'hi'
++        '''
++
++        // GROOVY-9328
++        assertScript '''
++            class Test {
++                private String str() { 'hi' }
++
++                def strInSCAIC() {
++                    def callable = new java.util.concurrent.Callable<String>() {
++                        @groovy.transform.CompileStatic
++                        @Override String call() { str() }
++                    }
++                    callable.call()
+                 }
+             }
+             assert new Test().strInSCAIC() == 'hi'

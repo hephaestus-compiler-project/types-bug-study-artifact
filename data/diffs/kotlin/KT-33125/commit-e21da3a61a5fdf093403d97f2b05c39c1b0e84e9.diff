@@ -1,0 +1,228 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java
+index 5c811498c48..42b2eedad22 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java
+@@ -797,7 +797,7 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
+                     context.trace.record(BindingContext.VARIABLE_REASSIGNMENT, expression);
+                     KtExpression stubExpression = ExpressionTypingUtils.createFakeExpressionOfType(
+                             baseExpression.getProject(), context.trace, "e", type);
+-                    checkLValue(context.trace, context, baseExpression, stubExpression, expression);
++                    checkLValue(context.trace, context, baseExpression, stubExpression, expression, false);
+                 }
+                 // x++ type is x type, but ++x type is x.inc() type
+                 DataFlowValue receiverValue = components.dataFlowValueFactory.createDataFlowValue(
+@@ -930,7 +930,8 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
+             @NotNull ExpressionTypingContext context,
+             @NotNull KtExpression expressionWithParenthesis,
+             @Nullable KtExpression rightHandSide,
+-            @NotNull KtOperationExpression operationExpression
++            @NotNull KtOperationExpression operationExpression,
++            boolean arraySetMethodAlreadyResolved
+     ) {
+         KtExpression expression = KtPsiUtil.deparenthesize(expressionWithParenthesis);
+         if (expression instanceof KtArrayAccessExpression) {
+@@ -938,14 +939,24 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
+             KtExpression arrayExpression = arrayAccessExpression.getArrayExpression();
+             if (arrayExpression == null || rightHandSide == null) return false;
+ 
+-            TemporaryBindingTrace ignoreReportsTrace = TemporaryBindingTrace.create(trace, "Trace for checking set function");
+-            ExpressionTypingContext findSetterContext = context.replaceBindingTrace(ignoreReportsTrace);
+-            KotlinTypeInfo info = resolveArrayAccessSetMethod(arrayAccessExpression, rightHandSide, findSetterContext, ignoreReportsTrace);
++            BindingTrace traceWithIndexedLValue;
++            boolean methodSetIsResolved;
++            if (!arraySetMethodAlreadyResolved) {
++                TemporaryBindingTrace ignoreReportsTrace = TemporaryBindingTrace.create(trace, "Trace for checking set function");
++                ExpressionTypingContext findSetterContext = context.replaceBindingTrace(ignoreReportsTrace);
++                KotlinTypeInfo info = resolveArrayAccessSetMethod(arrayAccessExpression, rightHandSide, findSetterContext, ignoreReportsTrace);
++
++                traceWithIndexedLValue = ignoreReportsTrace;
++                methodSetIsResolved = info.getType() != null;
++            } else {
++                traceWithIndexedLValue = trace;
++                methodSetIsResolved = true;
++            }
+ 
+             IElementType operationType = operationExpression.getOperationReference().getReferencedNameElementType();
+             if (KtTokens.AUGMENTED_ASSIGNMENTS.contains(operationType)
+                     || operationType == KtTokens.PLUSPLUS || operationType == KtTokens.MINUSMINUS) {
+-                ResolvedCall<?> resolvedCall = ignoreReportsTrace.get(INDEXED_LVALUE_SET, expression);
++                ResolvedCall<?> resolvedCall = traceWithIndexedLValue.get(INDEXED_LVALUE_SET, expression);
+                 if (resolvedCall != null && trace.wantsDiagnostics()) {
+                     // Call must be validated with the actual, not temporary trace in order to report operator diagnostic
+                     // Only unary assignment expressions (++, --) and +=/... must be checked, normal assignments have the proper trace
+@@ -957,7 +968,7 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
+                 }
+             }
+ 
+-            return info.getType() != null;
++            return methodSetIsResolved;
+         }
+ 
+         VariableDescriptor variable = BindingContextUtils.extractVariableDescriptorFromReference(trace.getBindingContext(), expression);
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingVisitorForStatements.java b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingVisitorForStatements.java
+index bcd7f89c85e..76f4cce3d03 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingVisitorForStatements.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingVisitorForStatements.java
+@@ -233,7 +233,7 @@ public class ExpressionTypingVisitorForStatements extends ExpressionTypingVisito
+         TemporaryTraceAndCache temporaryForBinaryOperation = TemporaryTraceAndCache.create(
+                 context, "trace to check binary operation like '+' for", expression);
+         TemporaryBindingTrace ignoreReportsTrace = TemporaryBindingTrace.create(context.trace, "Trace for checking assignability");
+-        boolean lhsAssignable = basic.checkLValue(ignoreReportsTrace, context, left, right, expression);
++        boolean lhsAssignable = basic.checkLValue(ignoreReportsTrace, context, left, right, expression, false);
+         if (assignmentOperationType == null || lhsAssignable) {
+             // Check for '+'
+             Name counterpartName = OperatorConventions.BINARY_OPERATION_NAMES.get(OperatorConventions.ASSIGNMENT_OPERATION_COUNTERPARTS.get(operationType));
+@@ -291,7 +291,7 @@ public class ExpressionTypingVisitorForStatements extends ExpressionTypingVisito
+ 
+             components.dataFlowAnalyzer.checkType(binaryOperationType, expression, context.replaceExpectedType(expectedType)
+                     .replaceDataFlowInfo(rightInfo.getDataFlowInfo()).replaceCallPosition(new CallPosition.PropertyAssignment(left)));
+-            basic.checkLValue(context.trace, context, leftOperand, right, expression);
++            basic.checkLValue(context.trace, context, leftOperand, right, expression, false);
+         }
+         temporary.commit();
+         return rightInfo.replaceType(checkAssignmentType(type, expression, contextWithExpectedType));
+@@ -337,7 +337,7 @@ public class ExpressionTypingVisitorForStatements extends ExpressionTypingVisito
+             KtArrayAccessExpression arrayAccessExpression = (KtArrayAccessExpression) left;
+             if (right == null) return TypeInfoFactoryKt.noTypeInfo(context);
+             KotlinTypeInfo typeInfo = basic.resolveArrayAccessSetMethod(arrayAccessExpression, right, context, context.trace);
+-            basic.checkLValue(context.trace, context, arrayAccessExpression, right, expression);
++            basic.checkLValue(context.trace, context, arrayAccessExpression, right, expression, true);
+             return typeInfo.replaceType(checkAssignmentType(typeInfo.getType(), expression, contextWithExpectedType));
+         }
+         KotlinTypeInfo leftInfo = ExpressionTypingUtils.getTypeInfoOrNullType(left, context, facade);
+@@ -362,7 +362,7 @@ public class ExpressionTypingVisitorForStatements extends ExpressionTypingVisito
+             resultInfo = leftInfo;
+         }
+         if (expectedType != null && leftOperand != null) { //if expectedType == null, some other error has been generated
+-            basic.checkLValue(context.trace, context, leftOperand, right, expression);
++            basic.checkLValue(context.trace, context, leftOperand, right, expression, false);
+         }
+         return resultInfo.replaceType(components.dataFlowAnalyzer.checkStatementType(expression, contextWithExpectedType));
+     }
+diff --git a/compiler/testData/codegen/box/coroutines/builderInferenceAndGenericArrayAcessCall.kt b/compiler/testData/codegen/box/coroutines/builderInferenceAndGenericArrayAcessCall.kt
+new file mode 100644
+index 00000000000..6f5d3a63011
+--- /dev/null
++++ b/compiler/testData/codegen/box/coroutines/builderInferenceAndGenericArrayAcessCall.kt
+@@ -0,0 +1,40 @@
++// WITH_RUNTIME
++// IGNORE_BACKEND: JS_IR
++
++import kotlin.experimental.ExperimentalTypeInference
++
++interface Foo<T>
++
++class FooImpl<T> : Foo<T>
++
++@UseExperimental(ExperimentalTypeInference::class)
++fun <T> myflow(@BuilderInference block: Foo<T>.() -> Unit): Foo<T> {
++    val impl = FooImpl<T>()
++    impl.block()
++    return impl
++}
++
++
++class MapWithPlusOperator<K, V>(val m: MutableMap<K, V>)
++
++operator fun <K, V> MapWithPlusOperator<in K, in V>.plus(pair: Pair<K, V>): MapWithPlusOperator<K, V> {
++    m[pair.first] = pair.second
++    return this as MapWithPlusOperator<K, V>
++}
++
++var publicOk = "noOk"
++
++fun test(map: MutableMap<Int, Any>): Foo<Any> {
++    var other: MapWithPlusOperator<Int, Any> = MapWithPlusOperator(mutableMapOf())
++    return myflow {
++        publicOk = "OK"
++        map += 1 to "s"
++        other += 1 to ("s" as Any)
++        map[0] = Any()
++    }
++}
++
++fun box(): String {
++    test(mutableMapOf(1 to ""))
++    return publicOk
++}
+\ No newline at end of file
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+index 6bc20a9bf0c..2206737c928 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+@@ -5759,6 +5759,11 @@ public class BlackBoxCodegenTestGenerated extends AbstractBlackBoxCodegenTest {
+             runTestWithPackageReplacement("compiler/testData/codegen/box/coroutines/beginWithException.kt", "kotlin.coroutines");
+         }
+ 
++        @TestMetadata("builderInferenceAndGenericArrayAcessCall.kt")
++        public void testBuilderInferenceAndGenericArrayAcessCall() throws Exception {
++            runTest("compiler/testData/codegen/box/coroutines/builderInferenceAndGenericArrayAcessCall.kt");
++        }
++
+         @TestMetadata("capturedVarInSuspendLambda.kt")
+         public void testCapturedVarInSuspendLambda_1_2() throws Exception {
+             runTestWithPackageReplacement("compiler/testData/codegen/box/coroutines/capturedVarInSuspendLambda.kt", "kotlin.coroutines.experimental");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
+index 5715a27c645..0ac872311ca 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
+@@ -5759,6 +5759,11 @@ public class LightAnalysisModeTestGenerated extends AbstractLightAnalysisModeTes
+             runTestWithPackageReplacement("compiler/testData/codegen/box/coroutines/beginWithException.kt", "kotlin.coroutines");
+         }
+ 
++        @TestMetadata("builderInferenceAndGenericArrayAcessCall.kt")
++        public void testBuilderInferenceAndGenericArrayAcessCall() throws Exception {
++            runTest("compiler/testData/codegen/box/coroutines/builderInferenceAndGenericArrayAcessCall.kt");
++        }
++
+         @TestMetadata("capturedVarInSuspendLambda.kt")
+         public void testCapturedVarInSuspendLambda_1_2() throws Exception {
+             runTestWithPackageReplacement("compiler/testData/codegen/box/coroutines/capturedVarInSuspendLambda.kt", "kotlin.coroutines.experimental");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
+index ff806bacdc1..a651dfc0c03 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
+@@ -5694,6 +5694,11 @@ public class IrBlackBoxCodegenTestGenerated extends AbstractIrBlackBoxCodegenTes
+             runTestWithPackageReplacement("compiler/testData/codegen/box/coroutines/beginWithException.kt", "kotlin.coroutines");
+         }
+ 
++        @TestMetadata("builderInferenceAndGenericArrayAcessCall.kt")
++        public void testBuilderInferenceAndGenericArrayAcessCall() throws Exception {
++            runTest("compiler/testData/codegen/box/coroutines/builderInferenceAndGenericArrayAcessCall.kt");
++        }
++
+         @TestMetadata("capturedVarInSuspendLambda.kt")
+         public void testCapturedVarInSuspendLambda_1_3() throws Exception {
+             runTestWithPackageReplacement("compiler/testData/codegen/box/coroutines/capturedVarInSuspendLambda.kt", "kotlin.coroutines");
+diff --git a/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java b/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java
+index 17f39a81d06..a136bde78b1 100644
+--- a/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java
++++ b/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java
+@@ -4799,6 +4799,11 @@ public class IrJsCodegenBoxTestGenerated extends AbstractIrJsCodegenBoxTest {
+             runTestWithPackageReplacement("compiler/testData/codegen/box/coroutines/beginWithException.kt", "kotlin.coroutines");
+         }
+ 
++        @TestMetadata("builderInferenceAndGenericArrayAcessCall.kt")
++        public void testBuilderInferenceAndGenericArrayAcessCall() throws Exception {
++            runTest("compiler/testData/codegen/box/coroutines/builderInferenceAndGenericArrayAcessCall.kt");
++        }
++
+         @TestMetadata("capturedVarInSuspendLambda.kt")
+         public void testCapturedVarInSuspendLambda_1_3() throws Exception {
+             runTestWithPackageReplacement("compiler/testData/codegen/box/coroutines/capturedVarInSuspendLambda.kt", "kotlin.coroutines");
+diff --git a/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java b/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
+index ccae3d7a27f..53952e77007 100644
+--- a/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
++++ b/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
+@@ -4849,6 +4849,11 @@ public class JsCodegenBoxTestGenerated extends AbstractJsCodegenBoxTest {
+             runTestWithPackageReplacement("compiler/testData/codegen/box/coroutines/beginWithException.kt", "kotlin.coroutines");
+         }
+ 
++        @TestMetadata("builderInferenceAndGenericArrayAcessCall.kt")
++        public void testBuilderInferenceAndGenericArrayAcessCall() throws Exception {
++            runTest("compiler/testData/codegen/box/coroutines/builderInferenceAndGenericArrayAcessCall.kt");
++        }
++
+         @TestMetadata("capturedVarInSuspendLambda.kt")
+         public void testCapturedVarInSuspendLambda_1_2() throws Exception {
+             runTestWithPackageReplacement("compiler/testData/codegen/box/coroutines/capturedVarInSuspendLambda.kt", "kotlin.coroutines.experimental");

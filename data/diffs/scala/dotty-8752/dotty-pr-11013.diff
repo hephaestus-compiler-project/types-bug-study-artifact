@@ -1,0 +1,43 @@
+diff --git a/compiler/src/dotty/tools/dotc/reporting/messages.scala b/compiler/src/dotty/tools/dotc/reporting/messages.scala
+index 2c3689749334..2431fc969675 100644
+--- a/compiler/src/dotty/tools/dotc/reporting/messages.scala
++++ b/compiler/src/dotty/tools/dotc/reporting/messages.scala
+@@ -1386,7 +1386,11 @@ import transform.SymUtils._
+ 
+   class TypeDoesNotTakeParameters(tpe: Type, params: List[Trees.Tree[Trees.Untyped]])(using Context)
+     extends TypeMsg(TypeDoesNotTakeParametersID) {
+-    def msg = em"$tpe does not take type parameters"
++    private def fboundsAddendum =
++      if tpe.typeSymbol.isAllOf(Provisional | TypeParam) then
++        "\n(Note that F-bounds of type parameters may not be type lambdas)"
++      else ""
++    def msg = em"$tpe does not take type parameters$fboundsAddendum"
+     def explain =
+       val ps =
+         if (params.size == 1) s"a type parameter ${params.head}"
+diff --git a/tests/neg/i8752.check b/tests/neg/i8752.check
+new file mode 100644
+index 000000000000..6d1cf47aa2fd
+--- /dev/null
++++ b/tests/neg/i8752.check
+@@ -0,0 +1,11 @@
++-- [E053] Type Error: tests/neg/i8752.scala:3:41 -----------------------------------------------------------------------
++3 |trait Arround1[C <:[X]=>>IterableOps[X,C,C[X]] ] // error // error
++  |                                         ^^^^
++  |                                         C does not take type parameters
++  |                                         (Note that F-bounds of type parameters may not be type lambdas)
++
++longer explanation available when compiling with `-explain`
++-- Error: tests/neg/i8752.scala:3:39 -----------------------------------------------------------------------------------
++3 |trait Arround1[C <:[X]=>>IterableOps[X,C,C[X]] ] // error // error
++  |                                       ^
++  |                                       Type argument C does not have the same kind as its bound [_]
+diff --git a/tests/neg/i8752.scala b/tests/neg/i8752.scala
+new file mode 100644
+index 000000000000..e28f3f069675
+--- /dev/null
++++ b/tests/neg/i8752.scala
+@@ -0,0 +1,3 @@
++import scala.collection.IterableOps
++
++trait Arround1[C <:[X]=>>IterableOps[X,C,C[X]] ] // error // error

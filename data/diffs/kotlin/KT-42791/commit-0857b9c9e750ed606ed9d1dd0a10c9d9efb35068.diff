@@ -1,0 +1,740 @@
+diff --git a/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java b/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
+index e2694f20f07..d1f3e3f6c53 100644
+--- a/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
++++ b/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
+@@ -12234,6 +12234,11 @@ public class FirOldFrontendDiagnosticsTestGenerated extends AbstractFirOldFronte
+                 runTest("compiler/testData/diagnostics/tests/inference/upperBounds/flexibilityInCommonSuperTypeCalculation.ni.kt");
+             }
+ 
++            @TestMetadata("inferringVariableByMaterializeAndUpperBound.kt")
++            public void testInferringVariableByMaterializeAndUpperBound() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/inference/upperBounds/inferringVariableByMaterializeAndUpperBound.kt");
++            }
++
+             @TestMetadata("intersectUpperBounds.kt")
+             public void testIntersectUpperBounds() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/inference/upperBounds/intersectUpperBounds.kt");
+diff --git a/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestWithStdlibGenerated.java b/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestWithStdlibGenerated.java
+index 4fa7f64cada..f9b31e8be6c 100644
+--- a/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestWithStdlibGenerated.java
++++ b/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestWithStdlibGenerated.java
+@@ -3038,29 +3038,6 @@ public class FirOldFrontendDiagnosticsTestWithStdlibGenerated extends AbstractFi
+             runTest("compiler/testData/diagnostics/testsWithStdLib/inference/recursiveFlexibleAssertions.kt");
+         }
+ 
+-        @TestMetadata("compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping")
+-        @TestDataPath("$PROJECT_ROOT")
+-        @RunWith(JUnit3RunnerWithInners.class)
+-        public static class AddEqualityConstraintsWithoutSubtyping extends AbstractFirOldFrontendDiagnosticsTestWithStdlib {
+-            private void runTest(String testDataFilePath) throws Exception {
+-                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
+-            }
+-
+-            public void testAllFilesPresentInAddEqualityConstraintsWithoutSubtyping() throws Exception {
+-                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping"), Pattern.compile("^(.+)\\.kt$"), Pattern.compile("^(.+)\\.fir\\.kts?$"), true);
+-            }
+-
+-            @TestMetadata("kt41741.kt")
+-            public void testKt41741() throws Exception {
+-                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping/kt41741.kt");
+-            }
+-
+-            @TestMetadata("kt42195.kt")
+-            public void testKt42195() throws Exception {
+-                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping/kt42195.kt");
+-            }
+-        }
+-
+         @TestMetadata("compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve")
+         @TestDataPath("$PROJECT_ROOT")
+         @RunWith(JUnit3RunnerWithInners.class)
+@@ -3373,6 +3350,34 @@ public class FirOldFrontendDiagnosticsTestWithStdlibGenerated extends AbstractFi
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/inference/nothingType/dontSpreadWarningToNotReturningNothingSubResolvedAtoms.kt");
+             }
+         }
++
++        @TestMetadata("compiler/testData/diagnostics/testsWithStdLib/inference/performance")
++        @TestDataPath("$PROJECT_ROOT")
++        @RunWith(JUnit3RunnerWithInners.class)
++        public static class Performance extends AbstractFirOldFrontendDiagnosticsTestWithStdlib {
++            private void runTest(String testDataFilePath) throws Exception {
++                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
++            }
++
++            public void testAllFilesPresentInPerformance() throws Exception {
++                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/diagnostics/testsWithStdLib/inference/performance"), Pattern.compile("^(.+)\\.kt$"), Pattern.compile("^(.+)\\.fir\\.kts?$"), true);
++            }
++
++            @TestMetadata("kt41644.kt")
++            public void testKt41644() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41644.kt");
++            }
++
++            @TestMetadata("kt41741.kt")
++            public void testKt41741() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41741.kt");
++            }
++
++            @TestMetadata("kt42195.kt")
++            public void testKt42195() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt42195.kt");
++            }
++        }
+     }
+ 
+     @TestMetadata("compiler/testData/diagnostics/testsWithStdLib/inline")
+diff --git a/compiler/resolution.common/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt b/compiler/resolution.common/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt
+index d326bc8e34c..06045c7b653 100644
+--- a/compiler/resolution.common/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt
++++ b/compiler/resolution.common/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt
+@@ -40,24 +40,12 @@ class ConstraintIncorporator(
+         fun addNewIncorporatedConstraint(typeVariable: TypeVariableMarker, type: KotlinTypeMarker, constraintContext: ConstraintContext)
+     }
+ 
+-    fun incorporateEqualityConstraint(c: Context, typeVariable: TypeVariableMarker, constraint: Constraint) = with(c) {
+-        // we shouldn't incorporate recursive constraint -- It is too dangerous
+-        if (c.areThereRecursiveConstraints(typeVariable, constraint)) return
+-
+-        c.directWithVariable(typeVariable, constraint)
+-        if (constraint.type.contains { it is TypeVariableTypeConstructorMarker }) {
+-            c.otherInsideMyConstraint(typeVariable, constraint)
+-        }
+-        c.insideOtherConstraint(typeVariable, constraint)
+-    }
+-
+     // \alpha is typeVariable, \beta -- other type variable registered in ConstraintStorage
+-    fun incorporateSubtypeConstraint(c: Context, typeVariable: TypeVariableMarker, constraint: Constraint) {
++    fun incorporate(c: Context, typeVariable: TypeVariableMarker, constraint: Constraint) {
+         // we shouldn't incorporate recursive constraint -- It is too dangerous
+         if (c.areThereRecursiveConstraints(typeVariable, constraint)) return
+ 
+         c.directWithVariable(typeVariable, constraint)
+-        c.otherInsideMyConstraint(typeVariable, constraint)
+         c.insideOtherConstraint(typeVariable, constraint)
+     }
+ 
+@@ -98,26 +86,6 @@ class ConstraintIncorporator(
+         }
+     }
+ 
+-    // \alpha <: Inv<\beta>, \beta <: Number => \alpha <: Inv<out Number>
+-    private fun Context.otherInsideMyConstraint(
+-        typeVariable: TypeVariableMarker,
+-        constraint: Constraint
+-    ) {
+-        val otherInMyConstraint = SmartSet.create<TypeVariableMarker>()
+-        constraint.type.contains {
+-            otherInMyConstraint.addIfNotNull(this.getTypeVariable(it.typeConstructor()))
+-            false
+-        }
+-
+-        for (otherTypeVariable in otherInMyConstraint) {
+-            // to avoid ConcurrentModificationException
+-            val otherConstraints = SmartList(this.getConstraintsForVariable(otherTypeVariable))
+-            for (otherConstraint in otherConstraints) {
+-                generateNewConstraint(typeVariable, constraint, otherTypeVariable, otherConstraint)
+-            }
+-        }
+-    }
+-
+     // \alpha <: Number, \beta <: Inv<\alpha> => \beta <: Inv<out Number>
+     private fun Context.insideOtherConstraint(
+         typeVariable: TypeVariableMarker,
+diff --git a/compiler/resolution.common/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintInjector.kt b/compiler/resolution.common/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintInjector.kt
+index 2ce05be83a5..3905e1461de 100644
+--- a/compiler/resolution.common/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintInjector.kt
++++ b/compiler/resolution.common/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintInjector.kt
+@@ -85,7 +85,7 @@ class ConstraintInjector(
+         typeCheckerContext.setConstrainingTypesToPrintDebugInfo(lowerType, upperType)
+         typeCheckerContext.runIsSubtypeOf(lowerType, upperType)
+ 
+-        processConstraints(c, typeCheckerContext, constraintIncorporator::incorporateSubtypeConstraint)
++        processConstraints(c, typeCheckerContext)
+     }
+ 
+     private fun addEqualityConstraintAndIncorporateIt(
+@@ -97,14 +97,10 @@ class ConstraintInjector(
+         typeCheckerContext.setConstrainingTypesToPrintDebugInfo(typeVariable, equalType)
+         typeCheckerContext.addEqualityConstraint(typeVariable.typeConstructor(c), equalType)
+ 
+-        processConstraints(c, typeCheckerContext, constraintIncorporator::incorporateEqualityConstraint)
++        processConstraints(c, typeCheckerContext)
+     }
+ 
+-    private fun processConstraints(
+-        c: Context,
+-        typeCheckerContext: TypeCheckerContext,
+-        incorporate: (c: TypeCheckerContext, typeVariable: TypeVariableMarker, constraint: Constraint) -> Unit
+-    ) {
++    private fun processConstraints(c: Context, typeCheckerContext: TypeCheckerContext) {
+         while (typeCheckerContext.hasConstraintsToProcess()) {
+             for ((typeVariable, constraint) in typeCheckerContext.extractAllConstraints()!!) {
+                 if (c.shouldWeSkipConstraint(typeVariable, constraint)) continue
+@@ -113,10 +109,17 @@ class ConstraintInjector(
+                     c.notFixedTypeVariables[typeVariable.freshTypeConstructor(c)] ?: typeCheckerContext.fixedTypeVariable(typeVariable)
+ 
+                 // it is important, that we add constraint here(not inside TypeCheckerContext), because inside incorporation we read constraints
+-                constraints.addConstraint(constraint)?.let {
+-                    if (!constraint.isNullabilityConstraint) {
+-                        incorporate(typeCheckerContext, typeVariable, it)
+-                    }
++                val (addedOrNonRedundantExistedConstraint, wasAdded) = constraints.addConstraint(constraint)
++                val positionFrom = constraint.position.from
++                val constraintToIncorporate = when {
++                    wasAdded && !constraint.isNullabilityConstraint -> addedOrNonRedundantExistedConstraint
++                    positionFrom is FixVariableConstraintPosition<*> && positionFrom.variable == typeVariable && constraint.kind == EQUALITY ->
++                        addedOrNonRedundantExistedConstraint
++                    else -> null
++                }
++
++                if (constraintToIncorporate != null) {
++                    constraintIncorporator.incorporate(typeCheckerContext, typeVariable, constraintToIncorporate)
+                 }
+             }
+ 
+@@ -255,9 +258,8 @@ class ConstraintInjector(
+             isFromNullabilityConstraint: Boolean
+         ) = addConstraint(typeVariable, subType, LOWER, isFromNullabilityConstraint)
+ 
+-        override fun addEqualityConstraint(typeVariable: TypeConstructorMarker, type: KotlinTypeMarker) {
++        override fun addEqualityConstraint(typeVariable: TypeConstructorMarker, type: KotlinTypeMarker) =
+             addConstraint(typeVariable, type, EQUALITY, false)
+-        }
+ 
+         private fun isCapturedTypeFromSubtyping(type: KotlinTypeMarker) =
+             when ((type as? CapturedTypeMarker)?.captureStatus()) {
+diff --git a/compiler/resolution.common/src/org/jetbrains/kotlin/resolve/calls/inference/model/MutableConstraintStorage.kt b/compiler/resolution.common/src/org/jetbrains/kotlin/resolve/calls/inference/model/MutableConstraintStorage.kt
+index 8dd11dc1382..f235223fc93 100644
+--- a/compiler/resolution.common/src/org/jetbrains/kotlin/resolve/calls/inference/model/MutableConstraintStorage.kt
++++ b/compiler/resolution.common/src/org/jetbrains/kotlin/resolve/calls/inference/model/MutableConstraintStorage.kt
+@@ -47,8 +47,9 @@ class MutableVariableWithConstraints private constructor(
+ 
+     private var simplifiedConstraints: SmartList<Constraint>? = mutableConstraints
+ 
+-    // return new actual constraint, if this constraint is new
+-    fun addConstraint(constraint: Constraint): Constraint? {
++    // return new actual constraint, if this constraint is new, otherwise return already existed not redundant constraint
++    // the second element of pair is a flag whether a constraint was added in fact
++    fun addConstraint(constraint: Constraint): Pair<Constraint, Boolean> {
+         val isLowerAndFlexibleTypeWithDefNotNullLowerBound = constraint.isLowerAndFlexibleTypeWithDefNotNullLowerBound()
+ 
+         for (previousConstraint in constraints) {
+@@ -56,7 +57,10 @@ class MutableVariableWithConstraints private constructor(
+                 && previousConstraint.type == constraint.type
+                 && previousConstraint.isNullabilityConstraint == constraint.isNullabilityConstraint
+             ) {
+-                if (newConstraintIsUseless(previousConstraint, constraint)) return null
++                if (newConstraintIsUseless(previousConstraint, constraint)) {
++                    return previousConstraint to false
++                }
++
+                 val isMatchingForSimplification = when (previousConstraint.kind) {
+                     ConstraintKind.LOWER -> constraint.kind.isUpper()
+                     ConstraintKind.UPPER -> constraint.kind.isLower()
+@@ -75,14 +79,14 @@ class MutableVariableWithConstraints private constructor(
+                     } else constraint
+                     mutableConstraints.add(actualConstraint)
+                     simplifiedConstraints = null
+-                    return actualConstraint
++                    return actualConstraint to true
+                 }
+             }
+ 
+             if (isLowerAndFlexibleTypeWithDefNotNullLowerBound &&
+                 previousConstraint.isStrongerThanLowerAndFlexibleTypeWithDefNotNullLowerBound(constraint)
+             ) {
+-                return null
++                return previousConstraint to false
+             }
+         }
+ 
+@@ -95,7 +99,7 @@ class MutableVariableWithConstraints private constructor(
+             simplifiedConstraints = null
+         }
+ 
+-        return constraint
++        return constraint to true
+     }
+ 
+     // This method should be used only for transaction in constraint system
+diff --git a/compiler/testData/diagnostics/tests/inference/commonSystem/cstWithTypeContainingNonFixedVariable.kt b/compiler/testData/diagnostics/tests/inference/commonSystem/cstWithTypeContainingNonFixedVariable.kt
+index ece139a8b99..41441411794 100644
+--- a/compiler/testData/diagnostics/tests/inference/commonSystem/cstWithTypeContainingNonFixedVariable.kt
++++ b/compiler/testData/diagnostics/tests/inference/commonSystem/cstWithTypeContainingNonFixedVariable.kt
+@@ -59,11 +59,11 @@ fun testVariableWithBound() {
+ 
+     <!DEBUG_INFO_EXPRESSION_TYPE("Inv<kotlin.Int>")!>c1<!>
+ 
+-    val c2 = <!TYPE_MISMATCH!>select<!>(SubInv<String>(), createWithNumberBound())
++    val c2 = <!TYPE_MISMATCH!>select<!>(SubInv<String>(), <!TYPE_MISMATCH!>createWithNumberBound<!>())
+ 
+     <!DEBUG_INFO_EXPRESSION_TYPE("Inv<kotlin.String>")!>c2<!>
+ 
+-    val c3 = <!TYPE_MISMATCH!>select<!>(SubInv<Double>(), createWithIntBound())
++    val c3 = <!TYPE_MISMATCH!>select<!>(SubInv<Double>(), <!TYPE_MISMATCH!>createWithIntBound<!>())
+ 
+     <!DEBUG_INFO_EXPRESSION_TYPE("Inv<kotlin.Double>")!>c3<!>
+ }
+diff --git a/compiler/testData/diagnostics/tests/inference/completion/postponedArgumentsAnalysis/basic.kt b/compiler/testData/diagnostics/tests/inference/completion/postponedArgumentsAnalysis/basic.kt
+index 07c7cc5a200..2c102c68e2f 100644
+--- a/compiler/testData/diagnostics/tests/inference/completion/postponedArgumentsAnalysis/basic.kt
++++ b/compiler/testData/diagnostics/tests/inference/completion/postponedArgumentsAnalysis/basic.kt
+@@ -119,8 +119,8 @@ fun main() {
+      * K <: (A) -> Unit -> TypeVariable(_RP1) >: A
+      * K >: (C) -> TypeVariable(_R) -> TypeVariable(_RP1) <: C
+      */
+-    val x12 = selectC(id <!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ <!DEBUG_INFO_EXPRESSION_TYPE("C")!>it<!> }<!>, id <!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ x: B -> }<!><!NO_VALUE_FOR_PARAMETER!>)<!>
+-    val x13 = selectA(id <!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ <!DEBUG_INFO_EXPRESSION_TYPE("A")!>it<!> }<!>, id <!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ x: C -> }<!><!NO_VALUE_FOR_PARAMETER!>)<!>
++    val x12 = selectC(id <!TYPE_MISMATCH!>{ <!DEBUG_INFO_EXPRESSION_TYPE("C")!>it<!> }<!>, id <!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ x: B -> }<!><!NO_VALUE_FOR_PARAMETER!>)<!>
++    val x13 = selectA(id <!TYPE_MISMATCH!>{ <!DEBUG_INFO_EXPRESSION_TYPE("A")!>it<!> }<!>, id <!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ x: C -> }<!><!NO_VALUE_FOR_PARAMETER!>)<!>
+     val x14 = selectC(id { <!DEBUG_INFO_EXPRESSION_TYPE("C")!>it<!> }, id { x: A -> }, { x -> x })
+     val x15 = selectC(id { <!DEBUG_INFO_EXPRESSION_TYPE("C")!>it<!> }, { x: A -> }, id { x -> x })
+     /*
+@@ -138,8 +138,8 @@ fun main() {
+      * K <: (C) -> Unit -> TypeVariable(_RP1) >: C
+      * K == (B) -> Unit -> TypeVariable(_RP1) == B
+      */
+-    val x17: (C) -> Unit = <!TYPE_MISMATCH, TYPE_MISMATCH!>selectB(id <!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ <!DEBUG_INFO_EXPRESSION_TYPE("B")!>it<!> }<!>, id <!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ it }<!>, id<(B) -> Unit> { x -> x })<!>
+-    val x18: (C) -> Unit = <!TYPE_MISMATCH!>select(id <!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ <!DEBUG_INFO_EXPRESSION_TYPE("C")!>it<!> }<!>, <!TYPE_MISMATCH, TYPE_MISMATCH!>{ <!DEBUG_INFO_EXPRESSION_TYPE("C")!>it<!> }<!>, id<(B) -> Unit> { x -> x })<!>
++    val x17: (C) -> Unit = <!TYPE_MISMATCH, TYPE_MISMATCH!>selectB(id <!TYPE_MISMATCH, TYPE_MISMATCH!>{ <!DEBUG_INFO_EXPRESSION_TYPE("B")!>it<!> }<!>, id <!TYPE_MISMATCH, TYPE_MISMATCH!>{ it }<!>, id<(B) -> Unit> { x -> x })<!>
++    val x18: (C) -> Unit = <!TYPE_MISMATCH!>select(id <!TYPE_MISMATCH, TYPE_MISMATCH!>{ <!DEBUG_INFO_EXPRESSION_TYPE("C")!>it<!> }<!>, <!TYPE_MISMATCH!>{ <!DEBUG_INFO_EXPRESSION_TYPE("C")!>it<!> }<!>, id<(B) -> Unit> { x -> x })<!>
+ 
+     // Resolution of extension/non-extension functions combination
+     val x19: String.() -> Unit = select(<!DEBUG_INFO_EXPRESSION_TYPE("kotlin.String.() -> kotlin.Unit")!>id { <!DEBUG_INFO_EXPRESSION_TYPE("kotlin.String"), DEBUG_INFO_EXPRESSION_TYPE("kotlin.String")!>this<!> }<!>, <!DEBUG_INFO_EXPRESSION_TYPE("(kotlin.String) -> kotlin.Unit")!>id(fun(x: String) {})<!>)
+diff --git a/compiler/testData/diagnostics/tests/inference/upperBounds/flexibilityInCommonSuperTypeCalculation.ni.kt b/compiler/testData/diagnostics/tests/inference/upperBounds/flexibilityInCommonSuperTypeCalculation.ni.kt
+index f1978bf64d9..21aa9aeabef 100644
+--- a/compiler/testData/diagnostics/tests/inference/upperBounds/flexibilityInCommonSuperTypeCalculation.ni.kt
++++ b/compiler/testData/diagnostics/tests/inference/upperBounds/flexibilityInCommonSuperTypeCalculation.ni.kt
+@@ -240,11 +240,11 @@ fun case_13() {
+     <!DEBUG_INFO_EXPRESSION_TYPE("dynamic")!>result_4<!>
+     <!DEBUG_INFO_EXPRESSION_TYPE("dynamic")!>result_5<!>
+     <!DEBUG_INFO_EXPRESSION_TYPE("dynamic")!>result_6<!>
+-    <!DEBUG_INFO_EXPRESSION_TYPE("A<dynamic>")!>result_7<!>
+-    <!DEBUG_INFO_EXPRESSION_TYPE("A<dynamic>")!>result_8<!>
+-    <!DEBUG_INFO_EXPRESSION_TYPE("A<dynamic>")!>result_9<!>
+-    <!DEBUG_INFO_EXPRESSION_TYPE("A<dynamic>")!>result_10<!>
+-    <!DEBUG_INFO_EXPRESSION_TYPE("A<dynamic>")!>result_11<!>
++    <!DEBUG_INFO_EXPRESSION_TYPE("A<(kotlin.collections.MutableList<(kotlin.Int..kotlin.Int?)>..kotlin.collections.List<(kotlin.Int..kotlin.Int?)>?)>")!>result_7<!>
++    <!DEBUG_INFO_EXPRESSION_TYPE("A<(kotlin.collections.MutableList<(kotlin.Int..kotlin.Int?)>..kotlin.collections.List<(kotlin.Int..kotlin.Int?)>?)>")!>result_8<!>
++    <!DEBUG_INFO_EXPRESSION_TYPE("A<(kotlin.collections.MutableList<(kotlin.Int..kotlin.Int?)>..kotlin.collections.List<(kotlin.Int..kotlin.Int?)>?)>")!>result_9<!>
++    <!DEBUG_INFO_EXPRESSION_TYPE("A<kotlin.collections.MutableList<kotlin.Int>>")!>result_10<!>
++    <!DEBUG_INFO_EXPRESSION_TYPE("A<kotlin.collections.List<kotlin.Int>?>")!>result_11<!>
+     <!DEBUG_INFO_EXPRESSION_TYPE("A<dynamic>")!>result_12<!>
+ }
+ 
+diff --git a/compiler/testData/diagnostics/tests/inference/upperBounds/inferringVariableByMaterializeAndUpperBound.fir.kt b/compiler/testData/diagnostics/tests/inference/upperBounds/inferringVariableByMaterializeAndUpperBound.fir.kt
+new file mode 100644
+index 00000000000..252b7fedfcb
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/upperBounds/inferringVariableByMaterializeAndUpperBound.fir.kt
+@@ -0,0 +1,14 @@
++// !DIAGNOSTICS: -CAST_NEVER_SUCCEEDS
++
++interface I
++
++interface Inv<P>
++interface Out<out T>
++
++class Bar<U : I>(val x: Inv<Out<U>>)
++
++fun <T> materializeFoo(): Inv<T> = null as Inv<T>
++
++fun main() {
++    Bar(materializeFoo())
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/upperBounds/inferringVariableByMaterializeAndUpperBound.kt b/compiler/testData/diagnostics/tests/inference/upperBounds/inferringVariableByMaterializeAndUpperBound.kt
+new file mode 100644
+index 00000000000..7bbe9a58142
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/upperBounds/inferringVariableByMaterializeAndUpperBound.kt
+@@ -0,0 +1,14 @@
++// !DIAGNOSTICS: -CAST_NEVER_SUCCEEDS
++
++interface I
++
++interface Inv<P>
++interface Out<out T>
++
++class Bar<U : I>(val x: Inv<Out<U>>)
++
++fun <T> materializeFoo(): Inv<T> = null as Inv<T>
++
++fun main() {
++    <!NEW_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>Bar<!>(<!NEW_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>materializeFoo<!>())
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/upperBounds/inferringVariableByMaterializeAndUpperBound.txt b/compiler/testData/diagnostics/tests/inference/upperBounds/inferringVariableByMaterializeAndUpperBound.txt
+new file mode 100644
+index 00000000000..27fac7e5e53
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/upperBounds/inferringVariableByMaterializeAndUpperBound.txt
+@@ -0,0 +1,30 @@
++package
++
++public fun main(): kotlin.Unit
++public fun </*0*/ T> materializeFoo(): Inv<T>
++
++public final class Bar</*0*/ U : I> {
++    public constructor Bar</*0*/ U : I>(/*0*/ x: Inv<Out<U>>)
++    public final val x: Inv<Out<U>>
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface I {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface Inv</*0*/ P> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface Out</*0*/ out T> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/inference/completion/postponedArgumentsAnalysis/suspendFunctions.kt b/compiler/testData/diagnostics/testsWithStdLib/inference/completion/postponedArgumentsAnalysis/suspendFunctions.kt
+index 770c150974a..be8a30e59c5 100644
+--- a/compiler/testData/diagnostics/testsWithStdLib/inference/completion/postponedArgumentsAnalysis/suspendFunctions.kt
++++ b/compiler/testData/diagnostics/testsWithStdLib/inference/completion/postponedArgumentsAnalysis/suspendFunctions.kt
+@@ -19,7 +19,7 @@ fun main() {
+     val x1: suspend (Int) -> Unit = takeSuspend(<!DEBUG_INFO_EXPRESSION_TYPE("suspend (kotlin.Int) -> kotlin.Unit")!>id { it }<!>, <!DEBUG_INFO_EXPRESSION_TYPE("suspend (kotlin.Int) -> kotlin.Unit")!>{ x -> x }<!>)
+ 
+     // Here, the error should be
+-    val x2: (Int) -> Unit = <!TYPE_MISMATCH!>takeSuspend(<!DEBUG_INFO_EXPRESSION_TYPE("suspend (kotlin.Int) -> kotlin.Unit")!>id <!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ it }<!><!>, <!DEBUG_INFO_EXPRESSION_TYPE("suspend (kotlin.Int) -> kotlin.Unit"), TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ x -> x }<!>)<!>
+-    val x3: suspend (Int) -> Unit = takeSimpleFunction(<!DEBUG_INFO_EXPRESSION_TYPE("suspend (kotlin.Int) -> kotlin.Unit")!>id <!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ it }<!><!>, <!DEBUG_INFO_EXPRESSION_TYPE("suspend (kotlin.Int) -> kotlin.Unit"), TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ x -> x }<!>)
+-    val x4: (Int) -> Unit = <!TYPE_MISMATCH, TYPE_MISMATCH!>takeSimpleFunction(<!TYPE_MISMATCH!>id<suspend (Int) -> Unit> {}<!>, <!DEBUG_INFO_EXPRESSION_TYPE("suspend (kotlin.Int) -> kotlin.Unit"), TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{}<!>)<!>
++    val x2: (Int) -> Unit = <!TYPE_MISMATCH!>takeSuspend(<!DEBUG_INFO_EXPRESSION_TYPE("suspend (kotlin.Int) -> kotlin.Unit")!>id <!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ it }<!><!>, <!DEBUG_INFO_EXPRESSION_TYPE("suspend (kotlin.Int) -> kotlin.Unit"), TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ x -> x }<!>)<!>
++    val x3: suspend (Int) -> Unit = takeSimpleFunction(<!DEBUG_INFO_EXPRESSION_TYPE("suspend (kotlin.Int) -> kotlin.Unit")!>id <!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ it }<!><!>, <!DEBUG_INFO_EXPRESSION_TYPE("suspend (kotlin.Int) -> kotlin.Unit"), TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{ x -> x }<!>)
++    val x4: (Int) -> Unit = <!TYPE_MISMATCH, TYPE_MISMATCH!>takeSimpleFunction(<!TYPE_MISMATCH!>id<suspend (Int) -> Unit> {}<!>, <!DEBUG_INFO_EXPRESSION_TYPE("suspend (kotlin.Int) -> kotlin.Unit"), TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>{}<!>)<!>
+ }
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41644.kt b/compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41644.kt
+new file mode 100644
+index 00000000000..bf660e84702
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41644.kt
+@@ -0,0 +1,44 @@
++// FIR_IDENTICAL
++//!DIAGNOSTICS: -UNUSED_PARAMETER -CAST_NEVER_SUCCEEDS
++
++sealed class DataType<T> {
++    sealed class NotNull<T> : DataType<T>() {
++        abstract class Partial<T> : NotNull<T>()
++    }
++}
++
++class Tuple8<A, DA : DataType<A>, B, DB : DataType<B>, C, DC : DataType<C>, D, DD : DataType<D>, E, DE : DataType<E>, F, DF : DataType<F>, G, DG : DataType<G>, H, DH : DataType<H>>(
++    firstName: String, firstType: DA,
++    secondName: String, secondType: DB,
++    thirdName: String, thirdType: DC,
++    fourthName: String, fourthType: DD,
++    fifthName: String, fifthType: DE,
++    sixthName: String, sixthType: DF,
++    seventhName: String, seventhType: DG,
++    eighthName: String, eighthType: DH
++) : Schema<Tuple8<A, DA, B, DB, C, DC, D, DD, E, DE, F, DF, G, DG, H, DH>>()
++
++class EitherType<SCH : Schema<SCH>>(
++    schema: SCH
++)
++
++open class Schema<T>
++
++fun <A, DA : DataType<A>, B, DB : DataType<B>, C, DC : DataType<C>, D, DD : DataType<D>, E, DE : DataType<E>, F, DF : DataType<F>, G, DG : DataType<G>, H, DH : DataType<H>> either8(
++    firstName: String, firstType: DA,
++    secondName: String, secondType: DB,
++    thirdName: String, thirdType: DC,
++    fourthName: String, fourthType: DD,
++    fifthName: String, fifthType: DE,
++    sixthName: String, sixthType: DF,
++    seventhName: String, seventhType: DG,
++    eighthName: String, eighthType: DH
++): DataType.NotNull.Partial<Either8<A, B, C, D, E, F, G, H>> =
++    EitherType(
++        Tuple8(
++            firstName, firstType, secondName, secondType, thirdName, thirdType, fourthName, fourthType,
++            fifthName, fifthType, sixthName, sixthType, seventhName, seventhType, eighthName, eighthType
++        )
++    ) as DataType.NotNull.Partial<Either8<A, B, C, D, E, F, G, H>>
++
++class Either8<T, U, V, W, X, Y, Z, T1>
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41644.txt b/compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41644.txt
+new file mode 100644
+index 00000000000..8fc7f0bc599
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41644.txt
+@@ -0,0 +1,52 @@
++package
++
++public fun </*0*/ A, /*1*/ DA : DataType<A>, /*2*/ B, /*3*/ DB : DataType<B>, /*4*/ C, /*5*/ DC : DataType<C>, /*6*/ D, /*7*/ DD : DataType<D>, /*8*/ E, /*9*/ DE : DataType<E>, /*10*/ F, /*11*/ DF : DataType<F>, /*12*/ G, /*13*/ DG : DataType<G>, /*14*/ H, /*15*/ DH : DataType<H>> either8(/*0*/ firstName: kotlin.String, /*1*/ firstType: DA, /*2*/ secondName: kotlin.String, /*3*/ secondType: DB, /*4*/ thirdName: kotlin.String, /*5*/ thirdType: DC, /*6*/ fourthName: kotlin.String, /*7*/ fourthType: DD, /*8*/ fifthName: kotlin.String, /*9*/ fifthType: DE, /*10*/ sixthName: kotlin.String, /*11*/ sixthType: DF, /*12*/ seventhName: kotlin.String, /*13*/ seventhType: DG, /*14*/ eighthName: kotlin.String, /*15*/ eighthType: DH): DataType.NotNull.Partial<Either8<A, B, C, D, E, F, G, H>>
++
++public sealed class DataType</*0*/ T> {
++    private constructor DataType</*0*/ T>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public sealed class NotNull</*0*/ T> : DataType<T> {
++        private constructor NotNull</*0*/ T>()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++        public abstract class Partial</*0*/ T> : DataType.NotNull<T> {
++            public constructor Partial</*0*/ T>()
++            public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++            public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++            public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++        }
++    }
++}
++
++public final class Either8</*0*/ T, /*1*/ U, /*2*/ V, /*3*/ W, /*4*/ X, /*5*/ Y, /*6*/ Z, /*7*/ T1> {
++    public constructor Either8</*0*/ T, /*1*/ U, /*2*/ V, /*3*/ W, /*4*/ X, /*5*/ Y, /*6*/ Z, /*7*/ T1>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class EitherType</*0*/ SCH : Schema<SCH>> {
++    public constructor EitherType</*0*/ SCH : Schema<SCH>>(/*0*/ schema: SCH)
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public open class Schema</*0*/ T> {
++    public constructor Schema</*0*/ T>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Tuple8</*0*/ A, /*1*/ DA : DataType<A>, /*2*/ B, /*3*/ DB : DataType<B>, /*4*/ C, /*5*/ DC : DataType<C>, /*6*/ D, /*7*/ DD : DataType<D>, /*8*/ E, /*9*/ DE : DataType<E>, /*10*/ F, /*11*/ DF : DataType<F>, /*12*/ G, /*13*/ DG : DataType<G>, /*14*/ H, /*15*/ DH : DataType<H>> : Schema<Tuple8<A, DA, B, DB, C, DC, D, DD, E, DE, F, DF, G, DG, H, DH>> {
++    public constructor Tuple8</*0*/ A, /*1*/ DA : DataType<A>, /*2*/ B, /*3*/ DB : DataType<B>, /*4*/ C, /*5*/ DC : DataType<C>, /*6*/ D, /*7*/ DD : DataType<D>, /*8*/ E, /*9*/ DE : DataType<E>, /*10*/ F, /*11*/ DF : DataType<F>, /*12*/ G, /*13*/ DG : DataType<G>, /*14*/ H, /*15*/ DH : DataType<H>>(/*0*/ firstName: kotlin.String, /*1*/ firstType: DA, /*2*/ secondName: kotlin.String, /*3*/ secondType: DB, /*4*/ thirdName: kotlin.String, /*5*/ thirdType: DC, /*6*/ fourthName: kotlin.String, /*7*/ fourthType: DD, /*8*/ fifthName: kotlin.String, /*9*/ fifthType: DE, /*10*/ sixthName: kotlin.String, /*11*/ sixthType: DF, /*12*/ seventhName: kotlin.String, /*13*/ seventhType: DG, /*14*/ eighthName: kotlin.String, /*15*/ eighthType: DH)
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping/kt41741.kt b/compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41741.kt
+similarity index 100%
+rename from compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping/kt41741.kt
+rename to compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41741.kt
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping/kt41741.txt b/compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41741.txt
+similarity index 100%
+rename from compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping/kt41741.txt
+rename to compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41741.txt
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping/kt42195.kt b/compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt42195.kt
+similarity index 100%
+rename from compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping/kt42195.kt
+rename to compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt42195.kt
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping/kt42195.txt b/compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt42195.txt
+similarity index 100%
+rename from compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping/kt42195.txt
+rename to compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt42195.txt
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/tryCatch/tryExpression.kt b/compiler/testData/diagnostics/testsWithStdLib/tryCatch/tryExpression.kt
+index 7bca0381a93..a1202adfcb2 100644
+--- a/compiler/testData/diagnostics/testsWithStdLib/tryCatch/tryExpression.kt
++++ b/compiler/testData/diagnostics/testsWithStdLib/tryCatch/tryExpression.kt
+@@ -27,7 +27,7 @@ fun test1(): Map<Int, Int> = run {
+ }
+ 
+ fun test2(): Map<Int, Int> = run {
+-    <!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!>try {
++    <!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!>try {
+         emptyMap()
+     } catch (e: ExcA) {
+         <!NI;TYPE_MISMATCH, OI;TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>mapOf(<!NI;TYPE_MISMATCH!>"" to ""<!>)<!>
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index bf42951674e..1da5d58a8a7 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -12241,6 +12241,11 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTestWithFirVali
+                     runTest("compiler/testData/diagnostics/tests/inference/upperBounds/flexibilityInCommonSuperTypeCalculation.ni.kt");
+                 }
+ 
++                @TestMetadata("inferringVariableByMaterializeAndUpperBound.kt")
++                public void testInferringVariableByMaterializeAndUpperBound() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/upperBounds/inferringVariableByMaterializeAndUpperBound.kt");
++                }
++
+                 @TestMetadata("intersectUpperBounds.kt")
+                 public void testIntersectUpperBounds() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/upperBounds/intersectUpperBounds.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
+index 3a3b01d4bd6..102b487a90c 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
+@@ -3188,29 +3188,6 @@ public class DiagnosticsTestWithStdLibGenerated extends AbstractDiagnosticsTestW
+             runTest("compiler/testData/diagnostics/testsWithStdLib/inference/recursiveFlexibleAssertions.kt");
+         }
+ 
+-        @TestMetadata("compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping")
+-        @TestDataPath("$PROJECT_ROOT")
+-        @RunWith(JUnit3RunnerWithInners.class)
+-        public static class AddEqualityConstraintsWithoutSubtyping extends AbstractDiagnosticsTestWithStdLib {
+-            private void runTest(String testDataFilePath) throws Exception {
+-                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
+-            }
+-
+-            public void testAllFilesPresentInAddEqualityConstraintsWithoutSubtyping() throws Exception {
+-                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping"), Pattern.compile("^(.+)\\.kt$"), Pattern.compile("^(.+)\\.fir\\.kts?$"), true);
+-            }
+-
+-            @TestMetadata("kt41741.kt")
+-            public void testKt41741() throws Exception {
+-                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping/kt41741.kt");
+-            }
+-
+-            @TestMetadata("kt42195.kt")
+-            public void testKt42195() throws Exception {
+-                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping/kt42195.kt");
+-            }
+-        }
+-
+         @TestMetadata("compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve")
+         @TestDataPath("$PROJECT_ROOT")
+         @RunWith(JUnit3RunnerWithInners.class)
+@@ -3523,6 +3500,34 @@ public class DiagnosticsTestWithStdLibGenerated extends AbstractDiagnosticsTestW
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/inference/nothingType/dontSpreadWarningToNotReturningNothingSubResolvedAtoms.kt");
+             }
+         }
++
++        @TestMetadata("compiler/testData/diagnostics/testsWithStdLib/inference/performance")
++        @TestDataPath("$PROJECT_ROOT")
++        @RunWith(JUnit3RunnerWithInners.class)
++        public static class Performance extends AbstractDiagnosticsTestWithStdLib {
++            private void runTest(String testDataFilePath) throws Exception {
++                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
++            }
++
++            public void testAllFilesPresentInPerformance() throws Exception {
++                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/diagnostics/testsWithStdLib/inference/performance"), Pattern.compile("^(.+)\\.kt$"), Pattern.compile("^(.+)\\.fir\\.kts?$"), true);
++            }
++
++            @TestMetadata("kt41644.kt")
++            public void testKt41644() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41644.kt");
++            }
++
++            @TestMetadata("kt41741.kt")
++            public void testKt41741() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41741.kt");
++            }
++
++            @TestMetadata("kt42195.kt")
++            public void testKt42195() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt42195.kt");
++            }
++        }
+     }
+ 
+     @TestMetadata("compiler/testData/diagnostics/testsWithStdLib/inline")
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
+index da03bc7b198..25a24d11639 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
+@@ -3188,29 +3188,6 @@ public class DiagnosticsTestWithStdLibUsingJavacGenerated extends AbstractDiagno
+             runTest("compiler/testData/diagnostics/testsWithStdLib/inference/recursiveFlexibleAssertions.kt");
+         }
+ 
+-        @TestMetadata("compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping")
+-        @TestDataPath("$PROJECT_ROOT")
+-        @RunWith(JUnit3RunnerWithInners.class)
+-        public static class AddEqualityConstraintsWithoutSubtyping extends AbstractDiagnosticsTestWithStdLibUsingJavac {
+-            private void runTest(String testDataFilePath) throws Exception {
+-                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
+-            }
+-
+-            public void testAllFilesPresentInAddEqualityConstraintsWithoutSubtyping() throws Exception {
+-                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping"), Pattern.compile("^(.+)\\.kt$"), Pattern.compile("^(.+)\\.fir\\.kts?$"), true);
+-            }
+-
+-            @TestMetadata("kt41741.kt")
+-            public void testKt41741() throws Exception {
+-                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping/kt41741.kt");
+-            }
+-
+-            @TestMetadata("kt42195.kt")
+-            public void testKt42195() throws Exception {
+-                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/addEqualityConstraintsWithoutSubtyping/kt42195.kt");
+-            }
+-        }
+-
+         @TestMetadata("compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve")
+         @TestDataPath("$PROJECT_ROOT")
+         @RunWith(JUnit3RunnerWithInners.class)
+@@ -3523,6 +3500,34 @@ public class DiagnosticsTestWithStdLibUsingJavacGenerated extends AbstractDiagno
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/inference/nothingType/dontSpreadWarningToNotReturningNothingSubResolvedAtoms.kt");
+             }
+         }
++
++        @TestMetadata("compiler/testData/diagnostics/testsWithStdLib/inference/performance")
++        @TestDataPath("$PROJECT_ROOT")
++        @RunWith(JUnit3RunnerWithInners.class)
++        public static class Performance extends AbstractDiagnosticsTestWithStdLibUsingJavac {
++            private void runTest(String testDataFilePath) throws Exception {
++                KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
++            }
++
++            public void testAllFilesPresentInPerformance() throws Exception {
++                KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/diagnostics/testsWithStdLib/inference/performance"), Pattern.compile("^(.+)\\.kt$"), Pattern.compile("^(.+)\\.fir\\.kts?$"), true);
++            }
++
++            @TestMetadata("kt41644.kt")
++            public void testKt41644() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41644.kt");
++            }
++
++            @TestMetadata("kt41741.kt")
++            public void testKt41741() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt41741.kt");
++            }
++
++            @TestMetadata("kt42195.kt")
++            public void testKt42195() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/performance/kt42195.kt");
++            }
++        }
+     }
+ 
+     @TestMetadata("compiler/testData/diagnostics/testsWithStdLib/inline")
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index 2c8875e5bf0..2268109725c 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -12236,6 +12236,11 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                     runTest("compiler/testData/diagnostics/tests/inference/upperBounds/flexibilityInCommonSuperTypeCalculation.ni.kt");
+                 }
+ 
++                @TestMetadata("inferringVariableByMaterializeAndUpperBound.kt")
++                public void testInferringVariableByMaterializeAndUpperBound() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/upperBounds/inferringVariableByMaterializeAndUpperBound.kt");
++                }
++
+                 @TestMetadata("intersectUpperBounds.kt")
+                 public void testIntersectUpperBounds() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/upperBounds/intersectUpperBounds.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
+index 1b2791231c1..430a827ede8 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
+@@ -271,6 +271,11 @@ public class LightAnalysisModeTestGenerated extends AbstractLightAnalysisModeTes
+                 KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/codegen/box/annotations/typeAnnotations"), Pattern.compile("^(.+)\\.kt$"), null, TargetBackend.JVM, true);
+             }
+ 
++            @TestMetadata("checkingNotincorporatedInputTypes.kt")
++            public void testCheckingNotincorporatedInputTypes() throws Exception {
++                runTest("compiler/testData/codegen/box/annotations/typeAnnotations/checkingNotincorporatedInputTypes.kt");
++            }
++
+             @TestMetadata("implicitReturn.kt")
+             public void testImplicitReturn() throws Exception {
+                 runTest("compiler/testData/codegen/box/annotations/typeAnnotations/implicitReturn.kt");

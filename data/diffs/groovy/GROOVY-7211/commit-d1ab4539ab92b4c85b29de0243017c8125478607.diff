@@ -1,0 +1,61 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 02d883a3f6..9f0cfaf484 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -4130,8 +4130,8 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         }
+         if (!isUsingGenericsOrIsArrayUsingGenerics(returnType)) return returnType;
+         if (getGenericsWithoutArray(returnType)==null) return returnType;
+-
+         Map<String, GenericsType> resolvedPlaceholders = resolvePlaceHoldersFromDeclaration(receiver, getDeclaringClass(method, arguments), method, method.isStatic());
++        GenericsUtils.extractPlaceholders(receiver, resolvedPlaceholders);
+         if (resolvedPlaceholders.isEmpty()) return returnType;
+         Map<String, GenericsType> placeholdersFromContext = extractGenericsParameterMapOfThis(typeCheckingContext.getEnclosingMethod());
+         applyGenericsConnections(placeholdersFromContext,resolvedPlaceholders);
+diff --git a/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy7211Bug.groovy b/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy7211Bug.groovy
+new file mode 100644
+index 0000000000..61bff40672
+--- /dev/null
++++ b/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy7211Bug.groovy
+@@ -0,0 +1,41 @@
++/*
++ * Copyright 2003-2015 the original author or authors.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package org.codehaus.groovy.classgen.asm.sc.bugs
++
++import groovy.transform.stc.StaticTypeCheckingTestCase
++import org.codehaus.groovy.classgen.asm.sc.StaticCompilationTestSupport
++
++class Groovy7211Bug extends StaticTypeCheckingTestCase implements StaticCompilationTestSupport {
++    void testIncorrectGenericTypeError() {
++        assertScript '''
++class Bug1Base<T> {
++    T t
++
++    T get(a, b=0) {
++        return t
++    }
++}
++
++Bug1Base<Integer> bug = new Bug1Base<Integer>(t:1)
++@ASTTest(phase=INSTRUCTION_SELECTION,value={
++    assert node.rightExpression.getNodeMetaData(INFERRED_TYPE) == Integer_TYPE
++})
++Integer t = bug.get(1)
++println t
++'''
++    }
++}

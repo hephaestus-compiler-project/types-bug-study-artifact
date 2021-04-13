@@ -1,0 +1,116 @@
+diff --git a/src/reflect/scala/reflect/internal/Kinds.scala b/src/reflect/scala/reflect/internal/Kinds.scala
+index 1463c8ef763..ff40f563ace 100644
+--- a/src/reflect/scala/reflect/internal/Kinds.scala
++++ b/src/reflect/scala/reflect/internal/Kinds.scala
+@@ -219,14 +219,15 @@ trait Kinds {
+       // Prevent WildcardType from causing kind errors, as typevars may be higher-order
+       if (targ == WildcardType) Nil else {
+         // NOTE: *not* targ.typeSymbol, which normalizes
+-        val targSym = targ.typeSymbolDirect
+-        // force symbol load for #4205
+-        targSym.info
++        // force initialize symbol for scala/bug#4205
++        val targSym = targ.typeSymbolDirect.initialize
++        // NOTE: *not* targ.prefix, which normalizes
++        val targPre = targ.prefixDirect
+         // @M must use the typeParams of the *type* targ, not of the *symbol* of targ!!
+         val tparamsHO = targ.typeParams
+         if (targ.isHigherKinded || tparam.typeParams.nonEmpty) {
+           val kindErrors = checkKindBoundsHK(
+-            tparamsHO, targSym, targ.prefix, targSym.owner,
++            tparamsHO, targSym, targPre, targSym.owner,
+             tparam, tparam.owner, tparam.typeParams, tparamsHO
+           )
+           if (kindErrors.isEmpty) Nil else {
+diff --git a/src/reflect/scala/reflect/internal/Types.scala b/src/reflect/scala/reflect/internal/Types.scala
+index b3a92e70c92..16d26dbaa33 100644
+--- a/src/reflect/scala/reflect/internal/Types.scala
++++ b/src/reflect/scala/reflect/internal/Types.scala
+@@ -163,6 +163,7 @@ trait Types
+     override def upperBound = underlying.upperBound
+     override def parents = underlying.parents
+     override def prefix = underlying.prefix
++    override def prefixDirect = underlying.prefixDirect
+     override def decls = underlying.decls
+     override def baseType(clazz: Symbol) = underlying.baseType(clazz)
+     override def baseTypeSeq = underlying.baseTypeSeq
+@@ -425,6 +426,12 @@ trait Types
+      *  NoType for all other types. */
+     def prefix: Type = NoType
+ 
++    /** The prefix ''directly'' associated with the type.
++     *  In other words, no normalization is performed: if this is an alias type,
++     *  the prefix returned is that of the alias, not the underlying type.
++     */
++    def prefixDirect: Type = prefix
++
+     /** A chain of all typeref or singletype prefixes of this type, longest first.
+      *  (Only used from safeToString.)
+      */
+@@ -2580,6 +2587,7 @@ trait Types
+ 
+     override def baseTypeSeqDepth = baseTypeSeq.maxDepth
+     override def prefix           = pre
++    override def prefixDirect     = pre
+     override def termSymbol       = super.termSymbol
+     override def termSymbolDirect = super.termSymbol
+     override def typeArgs         = args
+diff --git a/test/files/pos/t12142.scala b/test/files/pos/hk-paths.scala
+similarity index 70%
+rename from test/files/pos/t12142.scala
+rename to test/files/pos/hk-paths.scala
+index a8316c464df..f3402bdc686 100644
+--- a/test/files/pos/t12142.scala
++++ b/test/files/pos/hk-paths.scala
+@@ -1,4 +1,5 @@
+ object Test {
++  // scala/bug#12142
+   trait Bounds {
+     type Upper <: Bounds
+   }
+@@ -35,4 +36,26 @@ object Test {
+     x.expr.applyTo[({ type E[B >: A <: U] = fun.Super[B] })#E]
+     x.expr.applyTo[fun.Super]
+   }
++
++  // scala/bug#10186
++  trait Foo {
++    type A
++    type F[_ <: A]
++  }
++
++  def noop[A, F[_ <: A]]: Unit = ()
++  def f(foo: Foo): Unit = noop[foo.A, foo.F]
++
++  // scala/bug#9625
++  trait `* -> *`[F[_]]
++
++  trait Bar {
++    type Qux[A]
++    implicit val `* -> *`: `* -> *`[Qux]
++  }
++
++  def foo(bar: Bar): `* -> *`[bar.Qux] = {
++    import bar._
++    implicitly[`* -> *`[bar.Qux]]
++  }
+ }
+diff --git a/test/files/pos/t9337.scala b/test/files/pos/t9337.scala
+new file mode 100644
+index 00000000000..2ae661c4747
+--- /dev/null
++++ b/test/files/pos/t9337.scala
+@@ -0,0 +1,13 @@
++object Test {
++  trait TypePreservingFn[T[X <: T[X]]]
++  trait Validator[T, This <: Validator[T,This]]
++
++  trait Foo[T] {
++    type V[This <: Validator[T, This]] = Validator[T, This]
++    val f: TypePreservingFn[V] = ???
++  }
++
++  class Bar[T] extends Foo[T] {
++    val g: TypePreservingFn[V] = ???
++  }
++}

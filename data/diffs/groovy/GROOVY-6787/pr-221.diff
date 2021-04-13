@@ -1,0 +1,209 @@
+diff --git a/src/main/org/codehaus/groovy/ast/GenericsType.java b/src/main/org/codehaus/groovy/ast/GenericsType.java
+index 053c7c5d7c8..51e10c5d35e 100644
+--- a/src/main/org/codehaus/groovy/ast/GenericsType.java
++++ b/src/main/org/codehaus/groovy/ast/GenericsType.java
+@@ -281,6 +281,8 @@ public boolean matches(ClassNode classNode) {
+                     // but with reversed arguments
+                     return implementsInterfaceOrIsSubclassOf(lowerBound, classNode) && checkGenerics(classNode);
+                 }
++                // If there are no bounds, the generic type is basically Object, and everything is compatible.
++                return true;
+             }
+             // if this is not a generics placeholder, first compare that types represent the same type
+             if ((type!=null && !type.equals(classNode))) {
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index e560490ef2c..d28d5fd3a32 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -1396,7 +1396,7 @@ private static boolean isOuterClassOf(ClassNode receiver, ClassNode type) {
+         Set<String> result = new HashSet<String>();
+         for (Map.Entry<String, GenericsType> entry : resolvedMethodGenerics.entrySet()) {
+             GenericsType value = entry.getValue();
+-            if (value.isPlaceholder() || value.isPlaceholder()) continue;
++            if (value.isPlaceholder()) continue;
+             result.add(entry.getKey());
+         }
+         return result;
+@@ -1418,7 +1418,7 @@ private static boolean inferenceCheck(Set<String> fixedGenericsPlaceHolders, Map
+         // since it is possible that the callsite uses some generics as well, 
+         // we may have to add additional elements here
+         addMissingEntries(connections, resolvedMethodGenerics);
+-        // to finally see if the parameter and the argument fit togehter,
++        // to finally see if the parameter and the argument fit together,
+         // we use the provided information to transform the parameter
+         // into something that can exist in the callsite context
+         type = applyGenericsContext(resolvedMethodGenerics, type);
+@@ -1535,20 +1535,46 @@ static void applyGenericsConnections(
+                 GenericsType original = entry.getValue(); 
+                 if (!original.isWildcard() && !original.isPlaceholder()) {
+                     continue;
+-                } else if (!replacement.isPlaceholder()) {
++                }
++                boolean placeholderReplacement = replacement.isPlaceholder();
++                if (placeholderReplacement) {
++                    GenericsType connectedType = resolvedPlaceholders.get(replacement.getName());
++                    if (replacement==connectedType) continue;
++                }
++                // GROOVY-6787: Don't override the original if the replacement placeholder doesn't respect the bounds,
++                // otherwise the original bounds are lost which can result in accepting an incompatible type as an
++                // argument, for example.
++                ClassNode replacementType = extractType(replacement);
++                if (original.isCompatibleWith(replacementType)) {
+                     entry.setValue(replacement);
+-                    continue;
++                    if (placeholderReplacement) {
++                        checkForMorePlaceHolders = checkForMorePlaceHolders || !equalIncludingGenerics(original,replacement);
++                    }
+                 }
+-                GenericsType connectedType = resolvedPlaceholders.get(replacement.getName());
+-                if (replacement==connectedType) continue;
+-                entry.setValue(replacement);
+-                checkForMorePlaceHolders = checkForMorePlaceHolders || !equalIncludingGenerics(original,replacement);
+             }
+             if (!checkForMorePlaceHolders) break;
+         }
+         if  (count>=10000) throw new GroovyBugError("unable to handle generics in "+resolvedPlaceholders+" with connections "+connections);
+     }
+ 
++    private static ClassNode extractType(GenericsType gt) {
++        if (!gt.isPlaceholder()) {
++            return gt.getType();
++        }
++        // For a placeholder, a type based on the generics type is used for the compatibility check, to match on
++        // the actual bounds and not the name of the placeholder.
++        ClassNode replacementType = OBJECT_TYPE;
++        if (gt.getType().getGenericsTypes() != null) {
++            GenericsType realGt = gt.getType().getGenericsTypes()[0];
++            if (realGt.getLowerBound() != null) {
++                replacementType = realGt.getLowerBound();
++            } else if (realGt.getUpperBounds() != null && realGt.getUpperBounds().length > 0) {
++                replacementType = realGt.getUpperBounds()[0];
++            }
++        }
++        return replacementType;
++    }
++
+     private static boolean equalIncludingGenerics(GenericsType orig, GenericsType copy) {
+         if (orig==copy) return true;
+         if (orig.isPlaceholder()!=copy.isPlaceholder()) return false;
+diff --git a/src/test/groovy/transform/stc/GenericsSTCTest.groovy b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+index 6b3ab57076e..8b0f90155e6 100644
+--- a/src/test/groovy/transform/stc/GenericsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+@@ -989,6 +989,116 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
++    void testCorrectlyBoundedByWildcardGenericParameterType() {
++        assertScript '''
++            class Foo {
++                static <T extends List<?>> void bar(T a) {}
++            }
++            Foo.bar(['abc'])
++        '''
++    }
++
++    void testCorrectlyBoundedByExtendsGenericParameterType() {
++        assertScript '''
++            class Foo {
++                static <T extends List<? extends CharSequence>> void bar(T a) {}
++            }
++            Foo.bar(['abc'])
++        '''
++    }
++
++    void testCorrectlyBoundedBySuperGenericParameterType() {
++        assertScript '''
++            class Foo {
++                static <T extends List<? super CharSequence>> void bar(T a) {}
++            }
++            Foo.bar([new Object()])
++        '''
++    }
++
++    void testCorrectlyBoundedByExtendsPlaceholderParameterType() {
++        assertScript '''
++            class Foo {
++                static <T extends List<? extends CharSequence>> void bar(T a) {}
++            }
++            class Baz {
++                static <T extends List<? extends String>> void qux(T a) {
++                    Foo.bar(a)
++                }
++            }
++            Baz.qux(['abc'])
++        '''
++    }
++
++    void testCorrectlyBoundedBySuperPlaceholderParameterType() {
++        assertScript '''
++            class Foo {
++                static <T extends List<? super CharSequence>> void bar(T a) {}
++            }
++            class Baz {
++                static <T extends List<? super Object>> void qux(T a) {
++                    Foo.bar(a)
++                }
++            }
++            Baz.qux([new Object()])
++        '''
++    }
++
++    void testCorrectlyBoundedSubtypeGenericParameterType() {
++        assertScript '''
++            class Foo {
++                static <T extends Collection<? extends CharSequence>> void bar(T a) {}
++            }
++            Foo.bar(['abc'])
++        '''
++    }
++
++    void testOutOfBoundsByExtendsGenericParameterType() {
++        shouldFailWithMessages '''
++            class Foo {
++                static <T extends List<? extends CharSequence>> void bar(T a) {}
++            }
++            Foo.bar([new Object()])
++        ''', 'Cannot call <T extends java.util.List<? extends java.lang.CharSequence>> Foo#bar(T) with arguments [java.util.List <java.lang.Object>]'
++    }
++
++    void testOutOfBoundsBySuperGenericParameterType() {
++        shouldFailWithMessages '''
++            class Foo {
++                static <T extends List<? super CharSequence>> void bar(T a) {}
++            }
++            Foo.bar(['abc'])
++        ''', 'Cannot call <T extends java.util.List<? super java.lang.CharSequence>> Foo#bar(T) with arguments [java.util.List <java.lang.String>]'
++    }
++
++    void testOutOfBoundsByExtendsPlaceholderParameterType() {
++        shouldFailWithMessages '''
++            class Foo {
++                static <T extends List<? extends CharSequence>> void bar(T a) {}
++            }
++            class Baz {
++                static <T extends List<Object>> void qux(T a) {
++                    Foo.bar(a)
++                }
++            }
++            Baz.qux([new Object()])
++        ''', 'Cannot call <T extends java.util.List<? extends java.lang.CharSequence>> Foo#bar(T) with arguments [T]'
++    }
++
++    void testOutOfBoundsBySuperPlaceholderParameterType() {
++        shouldFailWithMessages '''
++            class Foo {
++                static <T extends List<? super CharSequence>> void bar(T a) {}
++            }
++            class Baz {
++                static <T extends List<String>> void qux(T a) {
++                    Foo.bar(a)
++                }
++            }
++            Baz.qux(['abc'])
++        ''', 'Cannot call <T extends java.util.List<? super java.lang.CharSequence>> Foo#bar(T) with arguments [T]'
++    }
++
+     // GROOVY-5721
+     void testExtractComponentTypeFromSubclass() {
+         assertScript '''

@@ -1,0 +1,66 @@
+diff --git a/compiler/src/dotty/tools/dotc/typer/Typer.scala b/compiler/src/dotty/tools/dotc/typer/Typer.scala
+index 03d33f330927..4fbeb406351d 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Typer.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Typer.scala
+@@ -1593,7 +1593,11 @@ class Typer extends Namer
+     val seenParents = mutable.Set[Symbol]()
+ 
+     def typedParent(tree: untpd.Tree): Tree = {
+-      var result = if (tree.isType) typedType(tree)(superCtx) else typedExpr(tree)(superCtx)
++      def isTreeType(t: untpd.Tree): Boolean = t match {
++        case _: untpd.Apply => false
++        case _ => true
++      }
++      var result = if (isTreeType(tree)) typedType(tree)(superCtx) else typedExpr(tree)(superCtx)
+       val psym = result.tpe.dealias.typeSymbol
+       if (seenParents.contains(psym) && !cls.isRefinementClass) {
+         if (!ctx.isAfterTyper) ctx.error(i"$psym is extended twice", tree.sourcePos)
+diff --git a/tests/neg/parser-stability-25.scala b/tests/neg/parser-stability-25.scala
+new file mode 100644
+index 000000000000..23db4498af0e
+--- /dev/null
++++ b/tests/neg/parser-stability-25.scala
+@@ -0,0 +1,15 @@
++class A extends (Int => i1) // error
++class B extends (Int => this) // error
++trait C {
++  val bar: Int => this // error
++}
++
++// Test that function types ending in SIP-23 singleton types are understood correctly.
++
++class D extends (Int => 1) {
++  def apply(x: Int) = 2 // error
++}
++
++class Wrap(x: Int)
++class E extends (Wrap)( // error
++// error
+\ No newline at end of file
+diff --git a/tests/neg/parser-stability-26.scala b/tests/neg/parser-stability-26.scala
+new file mode 100644
+index 000000000000..dd2c00d5c5b9
+--- /dev/null
++++ b/tests/neg/parser-stability-26.scala
+@@ -0,0 +1,2 @@
++// Test that function types ending in SIP-23 singleton types are understood correctly.
++class E extends (Int => 1) // error
+diff --git a/tests/neg/parser-stability-27.scala b/tests/neg/parser-stability-27.scala
+new file mode 100644
+index 000000000000..ed841d95c08b
+--- /dev/null
++++ b/tests/neg/parser-stability-27.scala
+@@ -0,0 +1,2 @@
++class F extends (Int => 1)( // error
++// error
+\ No newline at end of file
+diff --git a/tests/pos/singleton-fun-types.scala b/tests/pos/singleton-fun-types.scala
+new file mode 100644
+index 000000000000..dd2f8525c9c4
+--- /dev/null
++++ b/tests/pos/singleton-fun-types.scala
+@@ -0,0 +1,4 @@
++trait C extends (Int => 1)
++class D extends (Int => 1) {
++  def apply(x: Int) = 1
++}

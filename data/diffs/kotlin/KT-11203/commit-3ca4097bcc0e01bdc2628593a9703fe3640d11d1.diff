@@ -1,0 +1,232 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java
+index 59752209134..e39a377d7b7 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java
+@@ -16,6 +16,7 @@
+ 
+ package org.jetbrains.kotlin.types.expressions;
+ 
++import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.Lists;
+ import com.intellij.psi.PsiElement;
+ import com.intellij.psi.tree.IElementType;
+@@ -860,7 +861,7 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
+             TemporaryBindingTrace temporaryBindingTrace = TemporaryBindingTrace.create(
+                     context.trace, "trace to resolve array access set method for unary expression", expression);
+             ExpressionTypingContext newContext = context.replaceBindingTrace(temporaryBindingTrace);
+-            resolveArrayAccessSetMethod((KtArrayAccessExpression) baseExpression, stubExpression, newContext, context.trace);
++            resolveImplicitArrayAccessSetMethod((KtArrayAccessExpression) baseExpression, stubExpression, newContext, context.trace);
+         }
+ 
+         // Resolve the operation reference
+@@ -1633,7 +1634,17 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
+             @NotNull ExpressionTypingContext context,
+             @NotNull BindingTrace traceForResolveResult
+     ) {
+-        return resolveArrayAccessSpecialMethod(arrayAccessExpression, rightHandSide, context, traceForResolveResult, false);
++        return resolveArrayAccessSpecialMethod(arrayAccessExpression, rightHandSide, context, traceForResolveResult, false, false);
++    }
++
++    @NotNull
++    /*package*/ KotlinTypeInfo resolveImplicitArrayAccessSetMethod(
++            @NotNull KtArrayAccessExpression arrayAccessExpression,
++            @NotNull KtExpression rightHandSide,
++            @NotNull ExpressionTypingContext context,
++            @NotNull BindingTrace traceForResolveResult
++    ) {
++        return resolveArrayAccessSpecialMethod(arrayAccessExpression, rightHandSide, context, traceForResolveResult, false, true);
+     }
+ 
+     @NotNull
+@@ -1641,7 +1652,7 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
+             @NotNull KtArrayAccessExpression arrayAccessExpression,
+             @NotNull ExpressionTypingContext context
+     ) {
+-        return resolveArrayAccessSpecialMethod(arrayAccessExpression, null, context, context.trace, true);
++        return resolveArrayAccessSpecialMethod(arrayAccessExpression, null, context, context.trace, true, false);
+     }
+ 
+     @NotNull
+@@ -1650,7 +1661,8 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
+             @Nullable KtExpression rightHandSide, //only for 'set' method
+             @NotNull ExpressionTypingContext oldContext,
+             @NotNull BindingTrace traceForResolveResult,
+-            boolean isGet
++            boolean isGet,
++            boolean isImplicit
+     ) {
+         KtExpression arrayExpression = arrayAccessExpression.getArrayExpression();
+         if (arrayExpression == null) return TypeInfoFactoryKt.noTypeInfo(oldContext);
+@@ -1681,7 +1693,7 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
+             resultTypeInfo = facade.getTypeInfo(rightHandSide, context);
+         }
+ 
+-        if (!functionResults.isSingleResult()) {
++        if ((isImplicit && !functionResults.isSuccess()) || !functionResults.isSingleResult()) {
+             traceForResolveResult.report(isGet ? NO_GET_METHOD.on(arrayAccessExpression) : NO_SET_METHOD.on(arrayAccessExpression));
+             return resultTypeInfo.clearType();
+         }
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingVisitorForStatements.java b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingVisitorForStatements.java
+index 6a33c7b8c97..e53ebf21ec5 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingVisitorForStatements.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingVisitorForStatements.java
+@@ -261,7 +261,7 @@ public class ExpressionTypingVisitorForStatements extends ExpressionTypingVisito
+             if (left instanceof KtArrayAccessExpression) {
+                 ExpressionTypingContext contextForResolve = context.replaceScope(scope).replaceBindingTrace(TemporaryBindingTrace.create(
+                         context.trace, "trace to resolve array set method for assignment", expression));
+-                basic.resolveArrayAccessSetMethod((KtArrayAccessExpression) left, right, contextForResolve, context.trace);
++                basic.resolveImplicitArrayAccessSetMethod((KtArrayAccessExpression) left, right, contextForResolve, context.trace);
+             }
+             rightInfo = facade.getTypeInfo(right, context.replaceDataFlowInfo(leftInfo.getDataFlowInfo()));
+ 
+diff --git a/compiler/testData/codegen/box/operatorConventions/overloadedSet.kt b/compiler/testData/codegen/box/operatorConventions/overloadedSet.kt
+new file mode 100644
+index 00000000000..839722da16a
+--- /dev/null
++++ b/compiler/testData/codegen/box/operatorConventions/overloadedSet.kt
+@@ -0,0 +1,11 @@
++object A {
++    operator fun get(i: Int) = 1
++    operator fun set(i: Int, j: Int) {}
++    operator fun set(i: Int, x: Any) { throw Exception() }
++}
++
++fun box(): String {
++    A[0]++
++    A[0] += 1
++    return "OK"
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/operatorsOverloading/InconsistentGetSet.kt b/compiler/testData/diagnostics/tests/operatorsOverloading/InconsistentGetSet.kt
+new file mode 100644
+index 00000000000..44187eecd64
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/operatorsOverloading/InconsistentGetSet.kt
+@@ -0,0 +1,45 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++
++object Legal {
++    operator fun get(i: Int) = 0
++    operator fun set(i: Int, newValue: Int) {}
++    operator fun set(i: Int, newValue: String) {}
++}
++
++fun testLegal() {
++    ++Legal[0]
++    Legal[0]++
++    Legal[0] += 1
++}
++
++object MismatchingTypes {
++    operator fun get(i: Int) = 0
++    operator fun set(i: Int, newValue: String) {}
++}
++
++fun testMismatchingTypes() {
++    ++MismatchingTypes<!NO_SET_METHOD!>[0]<!>
++    MismatchingTypes<!NO_SET_METHOD!>[0]<!>++
++    MismatchingTypes<!NO_SET_METHOD!>[0]<!> += 1
++}
++
++object MismatchingArities1 {
++    operator fun get(i: Int) = 0
++    operator fun set(i: Int, j: Int, newValue: Int) {}
++}
++
++object MismatchingArities2 {
++    operator fun get(i: Int, j: Int) = 0
++    operator fun set(i: Int, newValue: Int) {}
++}
++
++fun testMismatchingArities() {
++    ++MismatchingArities1<!NO_SET_METHOD!>[0]<!>
++    MismatchingArities1<!NO_SET_METHOD!>[0]<!>++
++    MismatchingArities1<!NO_SET_METHOD!>[0]<!> += 1
++
++    ++<!NO_VALUE_FOR_PARAMETER!>MismatchingArities2[0]<!>
++    <!NO_VALUE_FOR_PARAMETER!>MismatchingArities2[0]<!>++
++    <!NO_VALUE_FOR_PARAMETER!>MismatchingArities2[0]<!> += 1
++}
++
+diff --git a/compiler/testData/diagnostics/tests/operatorsOverloading/InconsistentGetSet.txt b/compiler/testData/diagnostics/tests/operatorsOverloading/InconsistentGetSet.txt
+new file mode 100644
+index 00000000000..4b0abe31869
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/operatorsOverloading/InconsistentGetSet.txt
+@@ -0,0 +1,42 @@
++package
++
++public fun testLegal(): kotlin.Unit
++public fun testMismatchingArities(): kotlin.Unit
++public fun testMismatchingTypes(): kotlin.Unit
++
++public object Legal {
++    private constructor Legal()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final operator fun get(/*0*/ i: kotlin.Int): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final operator fun set(/*0*/ i: kotlin.Int, /*1*/ newValue: kotlin.Int): kotlin.Unit
++    public final operator fun set(/*0*/ i: kotlin.Int, /*1*/ newValue: kotlin.String): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public object MismatchingArities1 {
++    private constructor MismatchingArities1()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final operator fun get(/*0*/ i: kotlin.Int): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final operator fun set(/*0*/ i: kotlin.Int, /*1*/ j: kotlin.Int, /*2*/ newValue: kotlin.Int): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public object MismatchingArities2 {
++    private constructor MismatchingArities2()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final operator fun get(/*0*/ i: kotlin.Int, /*1*/ j: kotlin.Int): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final operator fun set(/*0*/ i: kotlin.Int, /*1*/ newValue: kotlin.Int): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public object MismatchingTypes {
++    private constructor MismatchingTypes()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final operator fun get(/*0*/ i: kotlin.Int): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final operator fun set(/*0*/ i: kotlin.Int, /*1*/ newValue: kotlin.String): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 84912ad796d..435c50ee971 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -11646,6 +11646,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("InconsistentGetSet.kt")
++            public void testInconsistentGetSet() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/operatorsOverloading/InconsistentGetSet.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("IteratorAmbiguity.kt")
+             public void testIteratorAmbiguity() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/operatorsOverloading/IteratorAmbiguity.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+index c964a886a6e..59c18f6dd72 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+@@ -5944,6 +5944,12 @@ public class BlackBoxCodegenTestGenerated extends AbstractBlackBoxCodegenTest {
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("overloadedSet.kt")
++        public void testOverloadedSet() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/operatorConventions/overloadedSet.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("compiler/testData/codegen/box/operatorConventions/compareTo")
+         @TestDataPath("$PROJECT_ROOT")
+         @RunWith(JUnit3RunnerWithInners.class)

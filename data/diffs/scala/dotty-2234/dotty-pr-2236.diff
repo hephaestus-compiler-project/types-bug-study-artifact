@@ -1,0 +1,41 @@
+diff --git a/compiler/src/dotty/tools/dotc/core/TypeErasure.scala b/compiler/src/dotty/tools/dotc/core/TypeErasure.scala
+index f35752644e22..1eb90b8ebe48 100644
+--- a/compiler/src/dotty/tools/dotc/core/TypeErasure.scala
++++ b/compiler/src/dotty/tools/dotc/core/TypeErasure.scala
+@@ -377,6 +377,8 @@ class TypeErasure(isJava: Boolean, semiEraseVCs: Boolean, isConstructor: Boolean
+       defn.FunctionType(0)
+     case AndType(tp1, tp2) =>
+       erasedGlb(this(tp1), this(tp2), isJava)
++    case tp: HKApply =>
++      apply(tp.superType)
+     case OrType(tp1, tp2) =>
+       ctx.typeComparer.orType(this(tp1), this(tp2), erased = true)
+     case tp: MethodType =>
+@@ -508,6 +510,8 @@ class TypeErasure(isJava: Boolean, semiEraseVCs: Boolean, isConstructor: Boolean
+           normalizeClass(sym.asClass).fullName.asTypeName
+       case defn.ArrayOf(elem) =>
+         sigName(this(tp))
++      case tp: HKApply =>
++        sigName(tp.superType)
+       case JavaArrayType(elem) =>
+         sigName(elem) ++ "[]"
+       case tp: TermRef =>
+diff --git a/tests/pos/i2234.scala b/tests/pos/i2234.scala
+new file mode 100644
+index 000000000000..8173c2091aad
+--- /dev/null
++++ b/tests/pos/i2234.scala
+@@ -0,0 +1,13 @@
++object Test {
++  type Dummy[A] = A
++
++  def a(d: Dummy[String]) = ()
++  def a(d: Dummy[Int]) = ()
++
++  implicit def dummy[A]: Dummy[A] = null.asInstanceOf[A]
++  def m(x: List[String])(implicit d: Dummy[String]) = "string"
++  def m(x: List[Int])(implicit d: Dummy[Int]) = "int"
++
++  m(List(1, 2, 3))
++  m(List("a"))
++}

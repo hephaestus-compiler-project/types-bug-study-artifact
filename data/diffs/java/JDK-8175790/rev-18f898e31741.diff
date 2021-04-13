@@ -1,0 +1,66 @@
+changeset:   4014:18f898e31741
+user:        vromero
+date:        Fri Mar 03 09:58:11 2017 -0800
+summary:     8175790: field JCVariableDecl.vartype can't be null after post attribution analysis
+
+diff -r 6ba2130e87bd -r 18f898e31741 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Mar 02 21:16:18 2017 +0000
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Fri Mar 03 09:58:11 2017 -0800
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 1999, 2016, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 1999, 2017, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -4965,6 +4965,9 @@
+                 that.sym = new VarSymbol(0, that.name, that.type, syms.noSymbol);
+                 that.sym.adr = 0;
+             }
++            if (that.vartype == null) {
++                that.vartype = make.Erroneous();
++            }
+             super.visitVarDef(that);
+         }
+ 
+diff -r 6ba2130e87bd -r 18f898e31741 test/tools/javac/T8175790/NPEDueToErroneousLambdaTest.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/T8175790/NPEDueToErroneousLambdaTest.java	Fri Mar 03 09:58:11 2017 -0800
+@@ -0,0 +1,29 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8175790
++ * @summary field JCVariableDecl.vartype can't be null after post attribution analysis
++ * @compile/fail/ref=NPEDueToErroneousLambdaTest.out -XDrawDiagnostics NPEDueToErroneousLambdaTest.java
++ */
++
++import java.util.List;
++import java.util.function.Function;
++
++public abstract class NPEDueToErroneousLambdaTest {
++
++    interface R {}
++    interface A {}
++    interface S {}
++
++    abstract <I, O> Function<I, O> p(final Function<I, O> function);
++    abstract <I, O> List<O> t(Function<? super I, ? extends O> function);
++
++    public void f() {
++        t(p(new Function<A, Object>() {
++            public List<Object> apply(A a) throws Exception {
++                return t((Function<R, S>)input -> {
++                        return t(p((Function<Boolean, S>) i -> null), null);
++                });
++            }
++        }));
++    }
++}
+diff -r 6ba2130e87bd -r 18f898e31741 test/tools/javac/T8175790/NPEDueToErroneousLambdaTest.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/T8175790/NPEDueToErroneousLambdaTest.out	Fri Mar 03 09:58:11 2017 -0800
+@@ -0,0 +1,3 @@
++NPEDueToErroneousLambdaTest.java:22:33: compiler.err.override.meth.doesnt.throw: (compiler.misc.cant.implement: apply(NPEDueToErroneousLambdaTest.A), compiler.misc.anonymous.class: NPEDueToErroneousLambdaTest$1, apply(T), java.util.function.Function), java.lang.Exception
++NPEDueToErroneousLambdaTest.java:24:32: compiler.err.cant.apply.symbol: kindname.method, t, java.util.function.Function<? super I,? extends O>, java.util.function.Function<java.lang.Boolean,NPEDueToErroneousLambdaTest.S>,compiler.misc.type.null, kindname.class, NPEDueToErroneousLambdaTest, (compiler.misc.infer.arg.length.mismatch: I,O)
++2 errors
+

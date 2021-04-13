@@ -1,0 +1,138 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index 588647666a..1b4ec4ef82 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -51,6 +51,12 @@ abstract class StaticTypeCheckingSupport {
+                 put(ClassHelper.Double_TYPE, 5);
+             }});
+ 
++    /**
++     * This is for internal use only. When an argument method is null, we cannot determine its type, so
++     * we use this one as a wildcard.
++     */
++    final static ClassNode UNKNOWN_PARAMETER_TYPE = ClassHelper.make("<unknown parameter type>");
++    
+     /**
+      * This comparator is used when we return the list of methods from DGM which name correspond to a given
+      * name. As we also lookup for DGM methods of superclasses or interfaces, it may be possible to find
+@@ -246,6 +252,7 @@ abstract class StaticTypeCheckingSupport {
+      * @return
+      */
+     static boolean isAssignableTo(ClassNode type, ClassNode toBeAssignedTo) {
++        if (UNKNOWN_PARAMETER_TYPE==type) return true;
+         if (toBeAssignedTo.redirect() == STRING_TYPE && type.redirect() == GSTRING_TYPE) {
+             return true;
+         }
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index c691373c3e..a2c67eff05 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -738,7 +738,11 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         ClassNode[] ret = new ClassNode[arglist.size()];
+         int i = 0;
+         for (Expression exp : arglist) {
+-            ret[i] = getType(exp);
++            if (exp instanceof ConstantExpression && ((ConstantExpression)exp).getValue()==null) {
++                ret[i] = UNKNOWN_PARAMETER_TYPE;
++            } else {
++                ret[i] = getType(exp);
++            }
+             i++;
+         }
+         return ret;
+@@ -1074,6 +1078,8 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                 // ex : (Character) 'c'
+             } else if (isNumberCategory(getWrapper(targetType)) && isNumberCategory(getWrapper(expressionType))) {
+                 // ex: short s = (short) 0
++            } else if (sourceIsNull && !isPrimitiveType(targetType)) {
++                // ex: (Date)null
+             } else if (!isAssignableTo(expressionType, targetType)) {
+                 addStaticTypeError("Inconvertible types: cannot cast "+expressionType.getName()+" to "+targetType.getName(), expression);
+             }
+diff --git a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+index 120feb1510..676db6af24 100644
+--- a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+@@ -203,6 +203,82 @@ class MethodCallsSTCTest extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
++    // GROOVY-5175
++    void testCallMethodAcceptingArrayWithNull() {
++        assertClass '''
++            class Foo {
++                def say() {
++                    methodWithArrayParam(null) // STC Error
++                }
++                def methodWithArrayParam(String[] s) {
++
++                }
++            }
++        '''
++    }
++
++    // GROOVY-5175
++    void testCallMethodWithNull() {
++        assertClass '''
++            class Foo {
++                def say() {
++                    methodWithArrayParam(null)
++                }
++                def methodWithArrayParam(Date date) {
++
++                }
++            }
++        '''
++    }
++
++    // GROOVY-5175
++    void testCallMethodWithNullAndAnotherParameter() {
++        assertClass '''
++            class Foo {
++                def say() {
++                    methodWithArrayParam(null, new Date())
++                }
++                def methodWithArrayParam(Date date1, Date date2) {
++
++                }
++            }
++        '''
++    }
++
++    // GROOVY-5175
++    void testAmbiguousCallMethodWithNullAndAnotherParameter() {
++        shouldFailWithMessages '''
++            class Foo {
++                def say() {
++                    methodWithArrayParam(null, new Date())
++                }
++                def methodWithArrayParam(Date date1, Date date2) {
++
++                }
++                def methodWithArrayParam(String o, Date date2) {
++
++                }
++            }
++        ''', 'Reference to method is ambiguous'
++    }
++
++    // GROOVY-5175
++    void testDisambiguateCallMethodWithNullAndAnotherParameter() {
++        assertClass '''
++            class Foo {
++                def say() {
++                    methodWithArrayParam((Date)null, new Date())
++                }
++                def methodWithArrayParam(Date date1, Date date2) {
++
++                }
++                def methodWithArrayParam(String o, Date date2) {
++
++                }
++            }
++        '''
++    }
++
+     static class MyMethodCallTestClass {
+ 
+         static int mul(int... args) { args.toList().inject(1) { x,y -> x*y } }

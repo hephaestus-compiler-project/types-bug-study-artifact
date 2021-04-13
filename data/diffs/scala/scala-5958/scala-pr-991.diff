@@ -1,0 +1,35 @@
+diff --git a/src/reflect/scala/reflect/internal/TreeGen.scala b/src/reflect/scala/reflect/internal/TreeGen.scala
+index c3a6fce16489..285700f9ff9a 100644
+--- a/src/reflect/scala/reflect/internal/TreeGen.scala
++++ b/src/reflect/scala/reflect/internal/TreeGen.scala
+@@ -143,6 +143,8 @@ abstract class TreeGen extends makro.TreeBuilder {
+ 
+   /** Computes stable type for a tree if possible */
+   def stableTypeFor(tree: Tree): Option[Type] = tree match {
++    case This(_) if tree.symbol != null && !tree.symbol.isError =>
++      Some(ThisType(tree.symbol))
+     case Ident(_) if tree.symbol.isStable =>
+       Some(singleType(tree.symbol.owner.thisType, tree.symbol))
+     case Select(qual, _) if ((tree.symbol ne null) && (qual.tpe ne null)) && // turned assert into guard for #4064
+diff --git a/test/files/pos/t5958.scala b/test/files/pos/t5958.scala
+new file mode 100644
+index 000000000000..3b910f3633f4
+--- /dev/null
++++ b/test/files/pos/t5958.scala
+@@ -0,0 +1,15 @@
++class Test {
++  def newComponent(u: Universe): u.Component = ???
++
++  class Universe { self =>
++    class Component
++
++    newComponent(this): this.Component // error, but should be fine since this is a stable reference
++    newComponent(self): self.Component // error, but should be fine since this is a stable reference
++    newComponent(self): this.Component // error, but should be fine since this is a stable reference
++    newComponent(this): self.Component // error, but should be fine since this is a stable reference
++
++    val u = this
++    newComponent(u): u.Component // ok
++  }
++}
+\ No newline at end of file

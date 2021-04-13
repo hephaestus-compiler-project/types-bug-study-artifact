@@ -1,0 +1,193 @@
+changeset:   1676:94a202228ec2
+user:        mcimadamore
+date:        Mon Apr 08 15:57:10 2013 +0100
+summary:     8009131: Overload: javac should discard methods that lead to errors in lambdas with implicit parameter types
+
+diff -r e9d986381414 -r 94a202228ec2 src/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Attr.java	Mon Apr 08 15:53:08 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/Attr.java	Mon Apr 08 15:57:10 2013 +0100
+@@ -2340,11 +2340,34 @@
+                 new ResultInfo(VAL, lambdaType.getReturnType(), funcContext);
+             localEnv.info.returnResult = bodyResultInfo;
+ 
+-            if (that.getBodyKind() == JCLambda.BodyKind.EXPRESSION) {
+-                attribTree(that.getBody(), localEnv, bodyResultInfo);
+-            } else {
+-                JCBlock body = (JCBlock)that.body;
+-                attribStats(body.stats, localEnv);
++            Log.DeferredDiagnosticHandler lambdaDeferredHandler = new Log.DeferredDiagnosticHandler(log);
++            try {
++                if (that.getBodyKind() == JCLambda.BodyKind.EXPRESSION) {
++                    attribTree(that.getBody(), localEnv, bodyResultInfo);
++                } else {
++                    JCBlock body = (JCBlock)that.body;
++                    attribStats(body.stats, localEnv);
++                }
++
++                if (resultInfo.checkContext.deferredAttrContext().mode == AttrMode.SPECULATIVE) {
++                    //check for errors in lambda body
++                    for (JCDiagnostic deferredDiag : lambdaDeferredHandler.getDiagnostics()) {
++                        if (deferredDiag.getKind() == JCDiagnostic.Kind.ERROR) {
++                            resultInfo.checkContext
++                                    .report(that, diags.fragment("bad.arg.types.in.lambda", TreeInfo.types(that.params)));
++                            //we mark the lambda as erroneous - this is crucial in the recovery step
++                            //as parameter-dependent type error won't be reported in that stage,
++                            //meaning that a lambda will be deemed erroeneous only if there is
++                            //a target-independent error (which will cause method diagnostic
++                            //to be skipped).
++                            result = that.type = types.createErrorType(target);
++                            return;
++                        }
++                    }
++                }
++            } finally {
++                lambdaDeferredHandler.reportDeferredDiagnostics();
++                log.popDiagnosticHandler(lambdaDeferredHandler);
+             }
+ 
+             result = check(that, target, VAL, resultInfo);
+diff -r e9d986381414 -r 94a202228ec2 src/share/classes/com/sun/tools/javac/resources/compiler.properties
+--- a/src/share/classes/com/sun/tools/javac/resources/compiler.properties	Mon Apr 08 15:53:08 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/resources/compiler.properties	Mon Apr 08 15:57:10 2013 +0100
+@@ -731,6 +731,11 @@
+ compiler.misc.incompatible.arg.types.in.mref=\
+     incompatible parameter types in method reference
+ 
++# 0: list of type
++compiler.misc.bad.arg.types.in.lambda=\
++    cannot type-check lambda expression with inferred parameter types\n\
++    inferred types: {0}
++
+ compiler.err.new.not.allowed.in.annotation=\
+     ''new'' not allowed in an annotation
+ 
+diff -r e9d986381414 -r 94a202228ec2 test/tools/javac/diags/examples/BadArgTypesInLambda.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/diags/examples/BadArgTypesInLambda.java	Mon Apr 08 15:57:10 2013 +0100
+@@ -0,0 +1,38 @@
++/*
++ * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++// key: compiler.err.cant.apply.symbol
++// key: compiler.misc.no.conforming.assignment.exists
++// key: compiler.misc.bad.arg.types.in.lambda
++
++class BadArgTypesInLambda {
++    interface SAM {
++        void m(Integer i);
++    }
++
++    void g(SAM s) { }
++
++    void test() {
++        g(x->{ String s = x; });
++    }
++}
+diff -r e9d986381414 -r 94a202228ec2 test/tools/javac/lambda/BadRecovery.out
+--- a/test/tools/javac/lambda/BadRecovery.out	Mon Apr 08 15:53:08 2013 +0100
++++ b/test/tools/javac/lambda/BadRecovery.out	Mon Apr 08 15:57:10 2013 +0100
+@@ -1,3 +1,2 @@
+-BadRecovery.java:17:9: compiler.err.cant.apply.symbol: kindname.method, m, BadRecovery.SAM1, @369, kindname.class, BadRecovery, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.incompatible.arg.types.in.lambda))
+ BadRecovery.java:17:77: compiler.err.cant.resolve.location: kindname.variable, f, , , (compiler.misc.location: kindname.class, BadRecovery, null)
+-2 errors
++1 error
+diff -r e9d986381414 -r 94a202228ec2 test/tools/javac/lambda/TargetType01.java
+--- a/test/tools/javac/lambda/TargetType01.java	Mon Apr 08 15:53:08 2013 +0100
++++ b/test/tools/javac/lambda/TargetType01.java	Mon Apr 08 15:57:10 2013 +0100
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2011, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2011, 2013, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -23,11 +23,10 @@
+ 
+ /*
+  * @test
+- * @bug 8003280
++ * @bug 8003280 8009131
+  * @summary Add lambda tests
+  *  check nested case of overload resolution and lambda parameter inference
+- * @author  Maurizio Cimadamore
+- * @compile/fail/ref=TargetType01.out -XDrawDiagnostics TargetType01.java
++ * @compile TargetType01.java
+  */
+ 
+ class TargetType01 {
+diff -r e9d986381414 -r 94a202228ec2 test/tools/javac/lambda/TargetType01.out
+--- a/test/tools/javac/lambda/TargetType01.out	Mon Apr 08 15:53:08 2013 +0100
++++ /dev/null	Thu Jan 01 00:00:00 1970 +0000
+@@ -1,3 +0,0 @@
+-TargetType01.java:46:9: compiler.err.ref.ambiguous: M, kindname.method, M(TargetType01.F_I_I), TargetType01, kindname.method, M(TargetType01.F_S_S), TargetType01
+-TargetType01.java:46:26: compiler.err.ref.ambiguous: M, kindname.method, M(TargetType01.F_I_I), TargetType01, kindname.method, M(TargetType01.F_S_S), TargetType01
+-2 errors
+diff -r e9d986381414 -r 94a202228ec2 test/tools/javac/lambda/TargetType43.out
+--- a/test/tools/javac/lambda/TargetType43.out	Mon Apr 08 15:53:08 2013 +0100
++++ b/test/tools/javac/lambda/TargetType43.out	Mon Apr 08 15:57:10 2013 +0100
+@@ -1,5 +1,4 @@
+ TargetType43.java:13:20: compiler.err.prob.found.req: (compiler.misc.not.a.functional.intf: java.lang.Object)
+ TargetType43.java:13:30: compiler.err.cant.resolve.location: kindname.class, NonExistentClass, , , (compiler.misc.location: kindname.class, TargetType43, null)
+-TargetType43.java:14:9: compiler.err.cant.apply.symbol: kindname.method, m, java.lang.Object, @359, kindname.class, TargetType43, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.not.a.functional.intf: java.lang.Object))
+ TargetType43.java:14:21: compiler.err.cant.resolve.location: kindname.class, NonExistentClass, , , (compiler.misc.location: kindname.class, TargetType43, null)
+-4 errors
++3 errors
+diff -r e9d986381414 -r 94a202228ec2 test/tools/javac/lambda/TargetType66.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/TargetType66.java	Mon Apr 08 15:57:10 2013 +0100
+@@ -0,0 +1,26 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8009131
++ * @summary Overload: javac should discard methods that lead to errors in lambdas with implicit parameter types
++ * @compile/fail/ref=TargetType66.out -XDrawDiagnostics TargetType66.java
++ */
++class TargetType66 {
++    interface SAM1 {
++        void m(String s);
++    }
++
++    interface SAM2 {
++        void m(Integer s);
++    }
++
++    void g(SAM1 s1) { }
++    void g(SAM2 s2) { }
++
++    void test() {
++        g(x->{ String s = x; }); //g(SAM1)
++        g(x->{ Integer i = x; }); //g(SAM2)
++        g(x->{ Object o = x; }); //ambiguous
++        g(x->{ Character c = x; }); //error: inapplicable methods
++        g(x->{ Character c = ""; }); //error: incompatible types
++    }
++}
+diff -r e9d986381414 -r 94a202228ec2 test/tools/javac/lambda/TargetType66.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/TargetType66.out	Mon Apr 08 15:57:10 2013 +0100
+@@ -0,0 +1,4 @@
++TargetType66.java:22:9: compiler.err.ref.ambiguous: g, kindname.method, g(TargetType66.SAM1), TargetType66, kindname.method, g(TargetType66.SAM2), TargetType66
++TargetType66.java:23:9: compiler.err.cant.apply.symbols: kindname.method, g, @578,{(compiler.misc.inapplicable.method: kindname.method, TargetType66, g(TargetType66.SAM1), (compiler.misc.no.conforming.assignment.exists: (compiler.misc.bad.arg.types.in.lambda: java.lang.String))),(compiler.misc.inapplicable.method: kindname.method, TargetType66, g(TargetType66.SAM2), (compiler.misc.no.conforming.assignment.exists: (compiler.misc.bad.arg.types.in.lambda: java.lang.Integer)))}
++TargetType66.java:24:30: compiler.err.prob.found.req: (compiler.misc.inconvertible.types: java.lang.String, java.lang.Character)
++3 errors
+

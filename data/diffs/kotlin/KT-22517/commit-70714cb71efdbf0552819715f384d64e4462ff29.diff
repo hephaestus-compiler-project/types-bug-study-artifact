@@ -1,0 +1,402 @@
+diff --git a/compiler/backend/src/org/jetbrains/kotlin/codegen/ieee754.kt b/compiler/backend/src/org/jetbrains/kotlin/codegen/ieee754.kt
+index cdd1b9f8165..b93421af520 100644
+--- a/compiler/backend/src/org/jetbrains/kotlin/codegen/ieee754.kt
++++ b/compiler/backend/src/org/jetbrains/kotlin/codegen/ieee754.kt
+@@ -64,7 +64,7 @@ fun legacyCalcTypeForIeee754ArithmeticIfNeeded(
+     }
+ 
+     // NB. Using DataFlowValueFactoryImpl is a hack, but it is ok for 'legacy'
+-    val dataFlow = DataFlowValueFactoryImpl().createDataFlowValue(
++    val dataFlow = DataFlowValueFactoryImpl(languageVersionSettings).createDataFlowValue(
+         expression,
+         ktType,
+         bindingContext,
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+index 48a7a5c3a56..62ea7c7bc11 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+@@ -903,6 +903,7 @@ public interface Errors {
+     DiagnosticFactory2<KtExpression, KotlinType, KotlinType> IMPLICIT_CAST_TO_ANY = DiagnosticFactory2.create(WARNING);
+ 
+     DiagnosticFactory3<KtExpression, KotlinType, String, String> SMARTCAST_IMPOSSIBLE = DiagnosticFactory3.create(ERROR);
++    DiagnosticFactory3<KtExpression, KotlinType, String, String> DEPRECATED_SMARTCAST = DiagnosticFactory3.create(WARNING);
+     DiagnosticFactory0<KtExpression> ALWAYS_NULL = DiagnosticFactory0.create(WARNING);
+ 
+     DiagnosticFactory0<KtNullableType> USELESS_NULLABLE_CHECK = DiagnosticFactory0.create(WARNING, NULLABLE_TYPE);
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+index 066b0105f7e..580f8ba8580 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+@@ -622,6 +622,8 @@ public class DefaultErrorMessages {
+         }, DECLARATION_NAME);
+         MAP.put(SMARTCAST_IMPOSSIBLE,
+                 "Smart cast to ''{0}'' is impossible, because ''{1}'' is a {2}", RENDER_TYPE, STRING, STRING);
++        MAP.put(DEPRECATED_SMARTCAST,
++                "Smart cast to ''{0}'' is deprecated, because ''{1}'' is a {2}", RENDER_TYPE, STRING, STRING);
+         MAP.put(ALWAYS_NULL, "The result of the expression is always null");
+ 
+         MAP.put(MISSING_CONSTRUCTOR_KEYWORD, "Use 'constructor' keyword after modifiers of primary constructor");
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValue.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValue.kt
+index 1d5a2713d8b..74aa99fe02c 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValue.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValue.kt
+@@ -43,6 +43,8 @@ class DataFlowValue(
+         STABLE_VALUE("stable val"),
+         // Block, or if / else, or when
+         STABLE_COMPLEX_EXPRESSION("complex expression", ""),
++        // Should be unstable, but can be used as stable with deprecation warning
++        LEGACY_STABLE_LOCAL_DELEGATED_PROPERTY("local delegated property"),
+         // Member value with open / custom getter
+         // Smart casts are not safe
+         PROPERTY_WITH_GETTER("custom getter", "property that has open or custom getter"),
+@@ -69,7 +71,10 @@ class DataFlowValue(
+      * Stable means here we do not expect some sudden change of their values,
+      * like accessing mutable properties in another thread, so smart casts can be used safely.
+      */
+-    val isStable = (kind == Kind.STABLE_VALUE || kind == Kind.STABLE_VARIABLE || kind == Kind.STABLE_COMPLEX_EXPRESSION)
++    val isStable = kind == Kind.STABLE_VALUE ||
++            kind == Kind.STABLE_VARIABLE ||
++            kind == Kind.STABLE_COMPLEX_EXPRESSION ||
++            kind == Kind.LEGACY_STABLE_LOCAL_DELEGATED_PROPERTY
+ 
+     val canBeBound get() = identifierInfo.canBeBound
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValueFactoryImpl.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValueFactoryImpl.kt
+index d011ed66c0d..9f28b30a9f7 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValueFactoryImpl.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValueFactoryImpl.kt
+@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.resolve.calls.smartcasts
+ 
+ import org.jetbrains.kotlin.KtNodeTypes
+ import org.jetbrains.kotlin.builtins.KotlinBuiltIns
++import org.jetbrains.kotlin.config.LanguageVersionSettings
+ import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
+ import org.jetbrains.kotlin.descriptors.ModuleDescriptor
+ import org.jetbrains.kotlin.descriptors.VariableDescriptor
+@@ -24,8 +25,8 @@ import org.jetbrains.kotlin.types.expressions.ExpressionTypingUtils
+ import org.jetbrains.kotlin.types.isError
+ 
+ class DataFlowValueFactoryImpl
+-@Deprecated("Please, avoid to use that implementation explicitly. If you need DataFlowValueFactory, use injection") constructor() :
+-    DataFlowValueFactory {
++@Deprecated("Please, avoid to use that implementation explicitly. If you need DataFlowValueFactory, use injection")
++constructor(private val languageVersionSettings: LanguageVersionSettings) : DataFlowValueFactory {
+ 
+     // Receivers
+     override fun createDataFlowValue(
+@@ -61,7 +62,7 @@ class DataFlowValueFactoryImpl
+     ): DataFlowValue {
+         val identifierInfo = IdentifierInfo.Variable(
+             variableDescriptor,
+-            variableDescriptor.variableKind(usageContainingModule, bindingContext, property),
++            variableDescriptor.variableKind(usageContainingModule, bindingContext, property, languageVersionSettings),
+             bindingContext[BindingContext.BOUND_INITIALIZER_VALUE, variableDescriptor]
+         )
+         return DataFlowValue(identifierInfo, variableDescriptor.type)
+@@ -102,7 +103,7 @@ class DataFlowValueFactoryImpl
+                 DataFlowValue(IdentifierInfo.Expression(expression, stableComplex = true), type)
+ 
+             else -> {
+-                val result = getIdForStableIdentifier(expression, bindingContext, containingDeclarationOrModule)
++                val result = getIdForStableIdentifier(expression, bindingContext, containingDeclarationOrModule, languageVersionSettings)
+                 DataFlowValue(if (result === IdentifierInfo.NO) IdentifierInfo.Expression(expression) else result, type)
+             }
+         }
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValueKindUtils.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValueKindUtils.kt
+index 484ea9341f3..e55a6d3adab 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValueKindUtils.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValueKindUtils.kt
+@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.resolve.calls.smartcasts
+ 
+ import org.jetbrains.kotlin.cfg.ControlFlowInformationProvider
+ import org.jetbrains.kotlin.config.LanguageFeature
++import org.jetbrains.kotlin.config.LanguageVersionSettings
+ import org.jetbrains.kotlin.descriptors.*
+ import org.jetbrains.kotlin.descriptors.impl.LocalVariableDescriptor
+ import org.jetbrains.kotlin.descriptors.impl.SyntheticFieldDescriptor
+@@ -33,11 +34,22 @@ internal fun PropertyDescriptor.propertyKind(usageModule: ModuleDescriptor?): Da
+ internal fun VariableDescriptor.variableKind(
+     usageModule: ModuleDescriptor?,
+     bindingContext: BindingContext,
+-    accessElement: KtElement
++    accessElement: KtElement,
++    languageVersionSettings: LanguageVersionSettings
+ ): DataFlowValue.Kind {
+     if (this is PropertyDescriptor) {
+         return propertyKind(usageModule)
+     }
++
++    if (this is LocalVariableDescriptor && this.isDelegated) {
++        // Local delegated property: normally unstable, but can be treated as stable in legacy mode
++        return if (languageVersionSettings.supportsFeature(LanguageFeature.ProhibitSmartcastsOnLocalDelegatedProperty))
++            DataFlowValue.Kind.PROPERTY_WITH_GETTER
++        else
++            DataFlowValue.Kind.LEGACY_STABLE_LOCAL_DELEGATED_PROPERTY
++
++    }
++
+     if (this !is LocalVariableDescriptor && this !is ParameterDescriptor) return DataFlowValue.Kind.OTHER
+     if (!isVar) return DataFlowValue.Kind.STABLE_VALUE
+     if (this is SyntheticFieldDescriptor) return DataFlowValue.Kind.MUTABLE_PROPERTY
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/IdentifierInfo.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/IdentifierInfo.kt
+index 83808ab5692..b39e2873b6c 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/IdentifierInfo.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/IdentifierInfo.kt
+@@ -16,6 +16,7 @@
+ 
+ package org.jetbrains.kotlin.resolve.calls.smartcasts
+ 
++import org.jetbrains.kotlin.config.LanguageVersionSettings
+ import org.jetbrains.kotlin.descriptors.*
+ import org.jetbrains.kotlin.lexer.KtToken
+ import org.jetbrains.kotlin.lexer.KtTokens
+@@ -124,20 +125,21 @@ interface IdentifierInfo {
+ internal fun getIdForStableIdentifier(
+     expression: KtExpression?,
+     bindingContext: BindingContext,
+-    containingDeclarationOrModule: DeclarationDescriptor
++    containingDeclarationOrModule: DeclarationDescriptor,
++    languageVersionSettings: LanguageVersionSettings
+ ): IdentifierInfo {
+     if (expression != null) {
+         val deparenthesized = KtPsiUtil.deparenthesize(expression)
+         if (expression !== deparenthesized) {
+-            return getIdForStableIdentifier(deparenthesized, bindingContext, containingDeclarationOrModule)
++            return getIdForStableIdentifier(deparenthesized, bindingContext, containingDeclarationOrModule, languageVersionSettings)
+         }
+     }
+     return when (expression) {
+         is KtQualifiedExpression -> {
+             val receiverExpression = expression.receiverExpression
+             val selectorExpression = expression.selectorExpression
+-            val receiverInfo = getIdForStableIdentifier(receiverExpression, bindingContext, containingDeclarationOrModule)
+-            val selectorInfo = getIdForStableIdentifier(selectorExpression, bindingContext, containingDeclarationOrModule)
++            val receiverInfo = getIdForStableIdentifier(receiverExpression, bindingContext, containingDeclarationOrModule, languageVersionSettings)
++            val selectorInfo = getIdForStableIdentifier(selectorExpression, bindingContext, containingDeclarationOrModule, languageVersionSettings)
+ 
+             qualified(
+                 receiverInfo, bindingContext.getType(receiverExpression),
+@@ -153,7 +155,7 @@ internal fun getIdForStableIdentifier(
+                 IdentifierInfo.NO
+             } else {
+                 IdentifierInfo.SafeCast(
+-                    getIdForStableIdentifier(subjectExpression, bindingContext, containingDeclarationOrModule),
++                    getIdForStableIdentifier(subjectExpression, bindingContext, containingDeclarationOrModule, languageVersionSettings),
+                     bindingContext.getType(subjectExpression),
+                     bindingContext[BindingContext.TYPE, targetTypeReference]
+                 )
+@@ -161,7 +163,7 @@ internal fun getIdForStableIdentifier(
+         }
+ 
+         is KtSimpleNameExpression ->
+-            getIdForSimpleNameExpression(expression, bindingContext, containingDeclarationOrModule)
++            getIdForSimpleNameExpression(expression, bindingContext, containingDeclarationOrModule, languageVersionSettings)
+ 
+         is KtThisExpression -> {
+             val declarationDescriptor = bindingContext.get(BindingContext.REFERENCE_TARGET, expression.instanceReference)
+@@ -171,7 +173,15 @@ internal fun getIdForStableIdentifier(
+         is KtPostfixExpression -> {
+             val operationType = expression.operationReference.getReferencedNameElementType()
+             if (operationType === KtTokens.PLUSPLUS || operationType === KtTokens.MINUSMINUS)
+-                postfix(getIdForStableIdentifier(expression.baseExpression, bindingContext, containingDeclarationOrModule), operationType)
++                postfix(
++                    getIdForStableIdentifier(
++                        expression.baseExpression,
++                        bindingContext,
++                        containingDeclarationOrModule,
++                        languageVersionSettings
++                    ),
++                    operationType
++                )
+             else
+                 IdentifierInfo.NO
+         }
+@@ -183,7 +193,8 @@ internal fun getIdForStableIdentifier(
+ private fun getIdForSimpleNameExpression(
+     simpleNameExpression: KtSimpleNameExpression,
+     bindingContext: BindingContext,
+-    containingDeclarationOrModule: DeclarationDescriptor
++    containingDeclarationOrModule: DeclarationDescriptor,
++    languageVersionSettings: LanguageVersionSettings
+ ): IdentifierInfo {
+     val declarationDescriptor = bindingContext.get(BindingContext.REFERENCE_TARGET, simpleNameExpression)
+     return when (declarationDescriptor) {
+@@ -197,7 +208,7 @@ private fun getIdForSimpleNameExpression(
+             val usageModuleDescriptor = DescriptorUtils.getContainingModuleOrNull(containingDeclarationOrModule)
+             val selectorInfo = IdentifierInfo.Variable(
+                 declarationDescriptor,
+-                declarationDescriptor.variableKind(usageModuleDescriptor, bindingContext, simpleNameExpression),
++                declarationDescriptor.variableKind(usageModuleDescriptor, bindingContext, simpleNameExpression, languageVersionSettings),
+                 bindingContext[BindingContext.BOUND_INITIALIZER_VALUE, declarationDescriptor]
+             )
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/SmartCastManager.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/SmartCastManager.kt
+index 226efdab34e..aa3a155b2ae 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/SmartCastManager.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/SmartCastManager.kt
+@@ -19,6 +19,7 @@ package org.jetbrains.kotlin.resolve.calls.smartcasts
+ import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+ import org.jetbrains.kotlin.config.LanguageVersionSettings
+ import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
++import org.jetbrains.kotlin.diagnostics.Errors
+ import org.jetbrains.kotlin.diagnostics.Errors.SMARTCAST_IMPOSSIBLE
+ import org.jetbrains.kotlin.psi.Call
+ import org.jetbrains.kotlin.psi.KtExpression
+@@ -133,6 +134,10 @@ class SmartCastManager {
+         ) {
+             if (KotlinBuiltIns.isNullableNothing(type)) return
+             if (dataFlowValue.isStable) {
++                if (dataFlowValue.kind == DataFlowValue.Kind.LEGACY_STABLE_LOCAL_DELEGATED_PROPERTY) {
++                    trace.report(Errors.DEPRECATED_SMARTCAST.on(expression, type, expression.text, dataFlowValue.kind.description))
++                }
++
+                 val oldSmartCasts = trace[SMARTCAST, expression]
+                 val newSmartCast = SingleSmartCast(call, type)
+                 if (oldSmartCasts != null) {
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyAfter.kt b/compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyAfter.kt
+new file mode 100644
+index 00000000000..c6f33e34985
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyAfter.kt
+@@ -0,0 +1,15 @@
++// !LANGUAGE: +ProhibitSmartcastsOnLocalDelegatedProperty
++
++class AlternatingDelegate {
++    var counter: Int = 0
++    operator fun getValue(thisRef: Any?, property: <!UNRESOLVED_REFERENCE!>KProperty<!><*>): Any? =
++    if (counter++ % 2 == 0) 42 else ""
++}
++
++fun failsWithClassCastException() {
++    val sometimesNotInt: Any? by AlternatingDelegate()
++
++    if (sometimesNotInt is Int) {
++        <!SMARTCAST_IMPOSSIBLE!>sometimesNotInt<!>.inc()
++    }
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyAfter.txt b/compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyAfter.txt
+new file mode 100644
+index 00000000000..b6761c37614
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyAfter.txt
+@@ -0,0 +1,12 @@
++package
++
++public fun failsWithClassCastException(): kotlin.Unit
++
++public final class AlternatingDelegate {
++    public constructor AlternatingDelegate()
++    public final var counter: kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final operator fun getValue(/*0*/ thisRef: kotlin.Any?, /*1*/ property: [ERROR : KProperty<*>]<out [ERROR : *]>): kotlin.Any?
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyBefore.kt b/compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyBefore.kt
+new file mode 100644
+index 00000000000..1eddc3a2138
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyBefore.kt
+@@ -0,0 +1,15 @@
++// !LANGUAGE: -ProhibitSmartcastsOnLocalDelegatedProperty
++
++class AlternatingDelegate {
++    var counter: Int = 0
++    operator fun getValue(thisRef: Any?, property: <!UNRESOLVED_REFERENCE!>KProperty<!><*>): Any? =
++        if (counter++ % 2 == 0) 42 else ""
++}
++
++fun failsWithClassCastException() {
++    val sometimesNotInt: Any? by AlternatingDelegate()
++
++    if (sometimesNotInt is Int) {
++        <!DEPRECATED_SMARTCAST, DEBUG_INFO_SMARTCAST!>sometimesNotInt<!>.inc()
++    }
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyBefore.txt b/compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyBefore.txt
+new file mode 100644
+index 00000000000..b6761c37614
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyBefore.txt
+@@ -0,0 +1,12 @@
++package
++
++public fun failsWithClassCastException(): kotlin.Unit
++
++public final class AlternatingDelegate {
++    public constructor AlternatingDelegate()
++    public final var counter: kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final operator fun getValue(/*0*/ thisRef: kotlin.Any?, /*1*/ property: [ERROR : KProperty<*>]<out [ERROR : *]>): kotlin.Any?
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 077a534ab71..cee7409614c 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -18893,6 +18893,16 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 runTest("compiler/testData/diagnostics/tests/smartCasts/localClassChanges.kt");
+             }
+ 
++            @TestMetadata("localDelegatedPropertyAfter.kt")
++            public void testLocalDelegatedPropertyAfter() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyAfter.kt");
++            }
++
++            @TestMetadata("localDelegatedPropertyBefore.kt")
++            public void testLocalDelegatedPropertyBefore() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyBefore.kt");
++            }
++
+             @TestMetadata("localFunBetween.kt")
+             public void testLocalFunBetween() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/smartCasts/localFunBetween.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index 9d16a6e5124..6720fd1f329 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -18893,6 +18893,16 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                 runTest("compiler/testData/diagnostics/tests/smartCasts/localClassChanges.kt");
+             }
+ 
++            @TestMetadata("localDelegatedPropertyAfter.kt")
++            public void testLocalDelegatedPropertyAfter() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyAfter.kt");
++            }
++
++            @TestMetadata("localDelegatedPropertyBefore.kt")
++            public void testLocalDelegatedPropertyBefore() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/smartCasts/localDelegatedPropertyBefore.kt");
++            }
++
+             @TestMetadata("localFunBetween.kt")
+             public void testLocalFunBetween() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/smartCasts/localFunBetween.kt");
+diff --git a/compiler/util/src/org/jetbrains/kotlin/config/LanguageVersionSettings.kt b/compiler/util/src/org/jetbrains/kotlin/config/LanguageVersionSettings.kt
+index 74d15b50473..74a3bd20352 100644
+--- a/compiler/util/src/org/jetbrains/kotlin/config/LanguageVersionSettings.kt
++++ b/compiler/util/src/org/jetbrains/kotlin/config/LanguageVersionSettings.kt
+@@ -76,6 +76,7 @@ enum class LanguageFeature(
+     VariableDeclarationInWhenSubject(KOTLIN_1_3),
+     AllowContractsForCustomFunctions(KOTLIN_1_3, kind = UNSTABLE_FEATURE),
+     ProhibitLocalAnnotations(KOTLIN_1_3, kind = BUG_FIX),
++    ProhibitSmartcastsOnLocalDelegatedProperty(KOTLIN_1_3, kind = BUG_FIX),
+ 
+     StrictJavaNullabilityAssertions(sinceVersion = null, defaultState = State.DISABLED),
+     ProperIeee754Comparisons(sinceVersion = null, defaultState = State.DISABLED),
+diff --git a/js/js.translator/src/org/jetbrains/kotlin/js/translate/expression/WhenTranslator.kt b/js/js.translator/src/org/jetbrains/kotlin/js/translate/expression/WhenTranslator.kt
+index 6e193e12348..b969b76438f 100644
+--- a/js/js.translator/src/org/jetbrains/kotlin/js/translate/expression/WhenTranslator.kt
++++ b/js/js.translator/src/org/jetbrains/kotlin/js/translate/expression/WhenTranslator.kt
+@@ -53,7 +53,7 @@ private constructor(private val whenExpression: KtWhenExpression, context: Trans
+     private val type: KotlinType?
+     private val uniqueConstants = mutableSetOf<Any>()
+     private val uniqueEnumNames = mutableSetOf<String>()
+-    private val dataFlowValueFactory: DataFlowValueFactory = DataFlowValueFactoryImpl()
++    private val dataFlowValueFactory: DataFlowValueFactory = DataFlowValueFactoryImpl(context.languageVersionSettings)
+ 
+     private val isExhaustive: Boolean
+         get() {

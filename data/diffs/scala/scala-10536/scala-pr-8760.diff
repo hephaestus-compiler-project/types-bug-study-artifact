@@ -1,0 +1,75 @@
+diff --git a/src/compiler/scala/tools/nsc/transform/TypeAdaptingTransformer.scala b/src/compiler/scala/tools/nsc/transform/TypeAdaptingTransformer.scala
+index 04bb4c0ca083..5c01cf60172c 100644
+--- a/src/compiler/scala/tools/nsc/transform/TypeAdaptingTransformer.scala
++++ b/src/compiler/scala/tools/nsc/transform/TypeAdaptingTransformer.scala
+@@ -88,17 +88,17 @@ trait TypeAdaptingTransformer { self: TreeDSL =>
+           if (treeInfo isExprSafeToInline side) value
+           else BLOCK(side, value)
+         val tree1 = pt match {
+-          case ErasedValueType(clazz, BoxedUnitTpe) =>
+-            cast(preservingSideEffects(tree, REF(BoxedUnit_UNIT)), pt)
+-          case ErasedValueType(clazz, underlying) => cast(unboxValueClass(tree, clazz, underlying), pt)
++          case ErasedValueType(clazz, BoxedUnitTpe) => cast(preservingSideEffects(tree, REF(BoxedUnit_UNIT)), pt)
++          case ErasedValueType(clazz, underlying)   => cast(unboxValueClass(tree, clazz, underlying), pt)
+           case _ =>
+             pt.typeSymbol match {
+               case UnitClass  =>
+                 preservingSideEffects(tree, UNIT)
+-              case x          =>
+-                assert(x != ArrayClass, "array")
+-                // don't `setType pt` the Apply tree, as the Apply's fun won't be typechecked if the Apply tree already has a type
+-                Apply(currentRun.runDefinitions.unboxMethod(pt.typeSymbol), tree)
++              case ArrayClass => assert(pt.typeSymbol != ArrayClass, "array") ; tree
++              case _          =>
++                val unboxer = currentRun.runDefinitions.unboxMethod(pt.typeSymbol)
++                if (settings.developer) assert(boxedClass(pt.typeSymbol).tpe <:< tree.tpe, s"${tree.tpe} is not a boxed ${pt}")
++                Apply(unboxer, tree)  // don't `setType pt` the Apply tree, as the Apply's fun won't be typechecked if the Apply tree already has a type
+             }
+         }
+         typedPos(tree.pos)(tree1)
+diff --git a/src/compiler/scala/tools/nsc/typechecker/SyntheticMethods.scala b/src/compiler/scala/tools/nsc/typechecker/SyntheticMethods.scala
+index 000f6f1ea142..b034d4efe8b1 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/SyntheticMethods.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/SyntheticMethods.scala
+@@ -195,7 +195,7 @@ trait SyntheticMethods extends ast.TreeDSL {
+             if (isPrimitiveValueType(resultType))
+               prims += fn(thisAcc, op, otherAcc)
+             else
+-              refs  += fn(thisAcc, op, otherAcc)   //gen.mkCast(otherAcc, AnyTpe)
++              refs  += fn(thisAcc, op, gen.mkCast(otherAcc, AnyTpe))
+           }
+         }
+         prims.prependToList(refs.toList)      // (prims ++ refs).toList
+diff --git a/test/files/pos/t10536.scala b/test/files/pos/t10536.scala
+new file mode 100644
+index 000000000000..4e87a5bf8440
+--- /dev/null
++++ b/test/files/pos/t10536.scala
+@@ -0,0 +1,9 @@
++trait A
++
++trait B[C <: B[C]] {
++  def ==(o: C)(implicit a: A): Boolean = ???
++}
++
++trait D[C <: B[C]]
++
++case class E[C <: B[C]](c: C) extends D[C]
+diff --git a/test/files/run/t10539.scala b/test/files/run/t10539.scala
+new file mode 100644
+index 000000000000..00a0abe6b5ca
+--- /dev/null
++++ b/test/files/run/t10539.scala
+@@ -0,0 +1,12 @@
++// scalac: -Xdev
++//
++class A {
++  def ==(a: A) = "LOL"
++}
++case class B(a: A)
++
++object Test extends App {
++  B(new A) == B(new A)
++}
++
++// was: java.lang.ClassCastException: class java.lang.String cannot be cast to class java.lang.Boolean

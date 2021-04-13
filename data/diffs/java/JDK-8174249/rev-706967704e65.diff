@@ -1,0 +1,176 @@
+changeset:   3965:706967704e65
+user:        mcimadamore
+date:        Thu Feb 09 15:19:05 2017 +0000
+summary:     8174249: Regression in generic method unchecked calls
+
+diff -r 7729c633b9f1 -r 706967704e65 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Wed Feb 08 19:42:24 2017 -0800
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Feb 09 15:19:05 2017 +0000
+@@ -3994,10 +3994,16 @@
+                         rs.methodArguments(argtypes.map(checkDeferredMap)),
+                         kindName(sym.location()),
+                         sym.location());
+-               owntype = new MethodType(owntype.getParameterTypes(),
+-                       types.erasure(owntype.getReturnType()),
+-                       types.erasure(owntype.getThrownTypes()),
+-                       syms.methodClass);
++                if (resultInfo.pt != Infer.anyPoly ||
++                        !owntype.hasTag(METHOD) ||
++                        !owntype.isPartial()) {
++                    //if this is not a partially inferred method type, erase return type. Otherwise,
++                    //erasure is carried out in PartiallyInferredMethodType.check().
++                    owntype = new MethodType(owntype.getParameterTypes(),
++                            types.erasure(owntype.getReturnType()),
++                            types.erasure(owntype.getThrownTypes()),
++                            syms.methodClass);
++                }
+             }
+ 
+             PolyKind pkind = (sym.type.hasTag(FORALL) &&
+diff -r 7729c633b9f1 -r 706967704e65 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Infer.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Infer.java	Wed Feb 08 19:42:24 2017 -0800
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Infer.java	Thu Feb 09 15:19:05 2017 +0000
+@@ -319,7 +319,8 @@
+                  *  need to use it several times: with several targets.
+                  */
+                 saved_undet = inferenceContext.save();
+-                if (allowGraphInference && !warn.hasNonSilentLint(Lint.LintCategory.UNCHECKED)) {
++                boolean unchecked = warn.hasNonSilentLint(Lint.LintCategory.UNCHECKED);
++                if (allowGraphInference && !unchecked) {
+                     boolean shouldPropagate = shouldPropagate(getReturnType(), resultInfo, inferenceContext);
+ 
+                     InferenceContext minContext = shouldPropagate ?
+@@ -338,7 +339,10 @@
+                     }
+                 }
+                 inferenceContext.solve(noWarnings);
+-                return inferenceContext.asInstType(this).getReturnType();
++                Type ret = inferenceContext.asInstType(this).getReturnType();
++                //inline logic from Attr.checkMethod - if unchecked conversion was required, erase
++                //return type _after_ resolution
++                return unchecked ? types.erasure(ret) : ret;
+             } catch (InferenceException ex) {
+                 resultInfo.checkContext.report(null, ex.getDiagnostic());
+                 Assert.error(); //cannot get here (the above should throw)
+diff -r 7729c633b9f1 -r 706967704e65 test/tools/javac/generics/inference/8174249/T8174249a.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/8174249/T8174249a.java	Thu Feb 09 15:19:05 2017 +0000
+@@ -0,0 +1,54 @@
++/*
++ * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8174249
++ * @summary Regression in generic method unchecked calls
++ * @compile T8174249a.java
++ */
++
++import java.util.ArrayList;
++import java.util.Collection;
++
++class T8174249a {
++    static <T> T foo(Class<T> c, Collection<? super T> baz) {
++return null;
++    }
++
++    static void bar(String c) { }
++
++    void test() {
++        // this works
++        bar(foo(String.class, new ArrayList<String>()));
++
++        // this works with a warning
++        String s = foo(String.class, new ArrayList());
++        bar(s);
++
++        // this causes an error on JDK9 but should work
++        bar(foo(String.class, new ArrayList()));
++    }
++}
+diff -r 7729c633b9f1 -r 706967704e65 test/tools/javac/generics/inference/8174249/T8174249b.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/8174249/T8174249b.java	Thu Feb 09 15:19:05 2017 +0000
+@@ -0,0 +1,59 @@
++/*
++ * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8174249
++ * @summary Regression in generic method unchecked calls
++ * @compile T8174249b.java
++ */
++
++import java.util.*;
++
++class T8174249b {
++
++    static void cs(Collection<String> cs) {}
++
++    void test1(Collection c) {
++        cs(rawCollection((Class)null));
++        Collection<String> cs1 = rawCollection((Class)null);
++    }
++
++    void test2(Collection c) {
++        cs(rawCollection2((Class)null));
++        Collection<String> cs2 = rawCollection2((Class)null);
++    }
++
++    void test3(Collection c) {
++        cs(rawCollection3((Class)null));
++        Collection<String> cs3 = rawCollection2((Class)null);
++    }
++
++    Collection<Integer> rawCollection(Class<String> cs) { return null; }
++
++    <Z> Collection<Integer> rawCollection2(Class<Z> cs) { return null; }
++
++    <Z> Collection<Z> rawCollection3(Class<Z> cs) { return null; }
++}
+

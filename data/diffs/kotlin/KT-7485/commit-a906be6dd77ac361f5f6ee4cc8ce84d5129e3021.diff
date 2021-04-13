@@ -1,0 +1,140 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/constants/CompileTimeConstantChecker.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/constants/CompileTimeConstantChecker.java
+index 5699547eae1..5779e7303f8 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/constants/CompileTimeConstantChecker.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/constants/CompileTimeConstantChecker.java
+@@ -143,7 +143,7 @@ public class CompileTimeConstantChecker {
+     }
+ 
+     private boolean checkNullValue(@NotNull JetType expectedType, @NotNull JetConstantExpression expression) {
+-        if (!noExpectedTypeOrError(expectedType) && !TypeUtils.isNullableType(expectedType)) {
++        if (!noExpectedTypeOrError(expectedType) && !TypeUtils.acceptsNullable(expectedType)) {
+             return reportError(NULL_FOR_NONNULL_TYPE.on(expression, expectedType));
+         }
+         return false;
+diff --git a/compiler/testData/diagnostics/tests/generics/nullability/nullToGeneric.kt b/compiler/testData/diagnostics/tests/generics/nullability/nullToGeneric.kt
+new file mode 100644
+index 00000000000..5db508c62d6
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/nullability/nullToGeneric.kt
+@@ -0,0 +1,35 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER,-UNUSED_VARIABLE,-BASE_WITH_NULLABLE_UPPER_BOUND
++
++fun <E> bar(x: E) {}
++
++fun <T> foo(): T {
++    val x1: T = <!NULL_FOR_NONNULL_TYPE!>null<!>
++    val x2: T? = null
++
++    bar<T>(<!NULL_FOR_NONNULL_TYPE!>null<!>)
++    bar<T?>(null)
++
++    return <!NULL_FOR_NONNULL_TYPE!>null<!>
++}
++
++fun <T> baz(): T? = null
++
++fun <T> foobar(): T = <!NULL_FOR_NONNULL_TYPE!>null<!>
++
++class A<F> {
++    fun xyz(x: F) {}
++
++    fun foo(): F {
++        val x1: F = <!NULL_FOR_NONNULL_TYPE!>null<!>
++        val x2: F? = null
++
++        xyz(<!NULL_FOR_NONNULL_TYPE!>null<!>)
++        bar<F?>(null)
++
++        return <!NULL_FOR_NONNULL_TYPE!>null<!>
++    }
++
++    fun baz(): F? = null
++
++    fun foobar(): F = <!NULL_FOR_NONNULL_TYPE!>null<!>
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/nullability/nullToGeneric.txt b/compiler/testData/diagnostics/tests/generics/nullability/nullToGeneric.txt
+new file mode 100644
+index 00000000000..5fe89ab2f2e
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/nullability/nullToGeneric.txt
+@@ -0,0 +1,17 @@
++package
++
++internal fun </*0*/ E> bar(/*0*/ x: E): kotlin.Unit
++internal fun </*0*/ T> baz(): T?
++internal fun </*0*/ T> foo(): T
++internal fun </*0*/ T> foobar(): T
++
++internal final class A</*0*/ F> {
++    public constructor A</*0*/ F>()
++    internal final fun baz(): F?
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    internal final fun foo(): F
++    internal final fun foobar(): F
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    internal final fun xyz(/*0*/ x: F): kotlin.Unit
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
+index c15e9925f1f..8803ebf001c 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
+@@ -6129,6 +6129,21 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("compiler/testData/diagnostics/tests/generics/nullability")
++            @TestDataPath("$PROJECT_ROOT")
++            @RunWith(JUnit3RunnerWithInners.class)
++            public static class Nullability extends AbstractJetDiagnosticsTest {
++                public void testAllFilesPresentInNullability() throws Exception {
++                    JetTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/diagnostics/tests/generics/nullability"), Pattern.compile("^(.+)\\.kt$"), true);
++                }
++
++                @TestMetadata("nullToGeneric.kt")
++                public void testNullToGeneric() throws Exception {
++                    String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/nullability/nullToGeneric.kt");
++                    doTest(fileName);
++                }
++            }
++
+             @TestMetadata("compiler/testData/diagnostics/tests/generics/starProjections")
+             @TestDataPath("$PROJECT_ROOT")
+             @RunWith(JUnit3RunnerWithInners.class)
+diff --git a/core/descriptors/src/org/jetbrains/kotlin/types/TypeUtils.java b/core/descriptors/src/org/jetbrains/kotlin/types/TypeUtils.java
+index 2b521ba265b..ef292d5c1b0 100644
+--- a/core/descriptors/src/org/jetbrains/kotlin/types/TypeUtils.java
++++ b/core/descriptors/src/org/jetbrains/kotlin/types/TypeUtils.java
+@@ -303,6 +303,7 @@ public class TypeUtils {
+ 
+     /**
+      * A work-around of the generic nullability problem in the type checker
++     * Semantics should be the same as `!isSubtype(T, Any)`
+      * @return true if a value of this type can be null
+      */
+     public static boolean isNullableType(@NotNull JetType type) {
+@@ -318,6 +319,24 @@ public class TypeUtils {
+         return false;
+     }
+ 
++    /**
++     * Differs from `isNullableType` only by treating type parameters: acceptsNullable(T) <=> T has nullable lower bound
++     * Semantics should be the same as `isSubtype(Nothing?, T)`
++     * @return true if `null` can be assigned to storage of this type
++     */
++    public static boolean acceptsNullable(@NotNull JetType type) {
++        if (type.isMarkedNullable()) {
++            return true;
++        }
++        if (TypesPackage.isFlexible(type) && acceptsNullable(TypesPackage.flexibility(type).getUpperBound())) {
++            return true;
++        }
++        if (isTypeParameter(type)) {
++            return hasNullableLowerBound((TypeParameterDescriptor) type.getConstructor().getDeclarationDescriptor());
++        }
++        return false;
++    }
++
+     public static boolean hasNullableSuperType(@NotNull JetType type) {
+         if (type.getConstructor().getDeclarationDescriptor() instanceof ClassDescriptor) {
+             // A class/trait cannot have a nullable supertype

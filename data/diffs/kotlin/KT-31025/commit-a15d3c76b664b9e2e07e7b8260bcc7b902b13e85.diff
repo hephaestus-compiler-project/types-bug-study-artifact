@@ -1,0 +1,237 @@
+diff --git a/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java b/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
+index aaa3895409c..8f8ebd99252 100644
+--- a/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
++++ b/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
+@@ -13904,6 +13904,11 @@ public class FirOldFrontendDiagnosticsTestGenerated extends AbstractFirOldFronte
+                 runTest("compiler/testData/diagnostics/tests/j+k/sam/recursiveSamsAndInvoke.kt");
+             }
+ 
++            @TestMetadata("referenceToSamFunctionAgainstExpectedType.kt")
++            public void testReferenceToSamFunctionAgainstExpectedType() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/j+k/sam/referenceToSamFunctionAgainstExpectedType.kt");
++            }
++
+             @TestMetadata("samOnTypeParameter.kt")
+             public void testSamOnTypeParameter() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/j+k/sam/samOnTypeParameter.kt");
+diff --git a/compiler/frontend.java/src/org/jetbrains/kotlin/synthetic/SamAdapterFunctionsScope.kt b/compiler/frontend.java/src/org/jetbrains/kotlin/synthetic/SamAdapterFunctionsScope.kt
+index 53b8489c90d..dea3e03870f 100644
+--- a/compiler/frontend.java/src/org/jetbrains/kotlin/synthetic/SamAdapterFunctionsScope.kt
++++ b/compiler/frontend.java/src/org/jetbrains/kotlin/synthetic/SamAdapterFunctionsScope.kt
+@@ -23,6 +23,7 @@ import org.jetbrains.kotlin.descriptors.impl.SimpleFunctionDescriptorImpl
+ import org.jetbrains.kotlin.descriptors.impl.TypeAliasConstructorDescriptor
+ import org.jetbrains.kotlin.descriptors.impl.TypeAliasConstructorDescriptorImpl
+ import org.jetbrains.kotlin.descriptors.synthetic.FunctionInterfaceAdapterExtensionFunctionDescriptor
++import org.jetbrains.kotlin.incremental.KotlinLookupLocation
+ import org.jetbrains.kotlin.incremental.components.LookupLocation
+ import org.jetbrains.kotlin.incremental.components.LookupTracker
+ import org.jetbrains.kotlin.incremental.record
+@@ -33,6 +34,7 @@ import org.jetbrains.kotlin.load.java.lazy.descriptors.LazyJavaClassDescriptor
+ import org.jetbrains.kotlin.load.java.sam.JavaSingleAbstractMethodUtils
+ import org.jetbrains.kotlin.load.java.sam.SamAdapterDescriptor
+ import org.jetbrains.kotlin.name.Name
++import org.jetbrains.kotlin.resolve.calls.callUtil.isCallableReference
+ import org.jetbrains.kotlin.resolve.calls.components.isVararg
+ import org.jetbrains.kotlin.resolve.calls.inference.wrapWithCapturingSubstitution
+ import org.jetbrains.kotlin.resolve.deprecation.DeprecationResolver
+@@ -108,7 +110,7 @@ class SamAdapterFunctionsScope(
+         for (type in receiverTypes) {
+             for (function in type.memberScope.getContributedFunctions(name, location)) {
+                 if (samViaSyntheticScopeDisabled && !function.hasNothingTypeInParameters) {
+-                    if (!function.shouldGenerateCandidateForVarargAfterSamAndHasVararg) continue
++                    if (!function.shouldGenerateCandidateForVarargAfterSamAndHasVararg && !location.isCallableReference()) continue
+                 }
+ 
+                 val extension = extensionForFunction(function.original)?.substituteForReceiverType(type)
+@@ -128,6 +130,12 @@ class SamAdapterFunctionsScope(
+         }
+     }
+ 
++    // TODO: replace this logic with a proper conversion in SamTypeConversions
++    private fun LookupLocation.isCallableReference(): Boolean {
++        if (this !is KotlinLookupLocation) return false
++        return element.isCallableReference()
++    }
++
+     private fun recordSamLookupsForParameters(function: FunctionDescriptor, location: LookupLocation) {
+         for (valueParameter in function.valueParameters) {
+             recordSamLookupsToClassifier(valueParameter.type.constructor.declarationDescriptor ?: continue, location)
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tower/PSICallResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tower/PSICallResolver.kt
+index 5cf1bd3ea81..f74694cb6fd 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tower/PSICallResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tower/PSICallResolver.kt
+@@ -384,14 +384,15 @@ class PSICallResolver(
+ 
+ 
+     private inner class ASTScopeTower(
+-        val context: BasicCallResolutionContext
++        val context: BasicCallResolutionContext,
++        ktExpression: KtExpression? = null
+     ) : ImplicitScopeTower {
+         // todo may be for invoke for case variable + invoke we should create separate dynamicScope(by newCall for invoke)
+         override val dynamicScope: MemberScope =
+             dynamicCallableDescriptors.createDynamicDescriptorScope(context.call, context.scope.ownerDescriptor)
+ 
+         // same for location
+-        override val location: LookupLocation = context.call.createLookupLocation()
++        override val location: LookupLocation = ktExpression?.createLookupLocation() ?: context.call.createLookupLocation()
+ 
+         override val syntheticScopes: SyntheticScopes get() = this@PSICallResolver.syntheticScopes
+         override val isDebuggerContext: Boolean get() = context.isDebuggerContext
+@@ -815,7 +816,7 @@ class PSICallResolver(
+         }
+ 
+         return CallableReferenceKotlinCallArgumentImpl(
+-            ASTScopeTower(context), valueArgument, startDataFlowInfo, newDataFlowInfo,
++            ASTScopeTower(context, ktExpression.callableReference), valueArgument, startDataFlowInfo, newDataFlowInfo,
+             ktExpression, argumentName, lhsNewResult, name
+         )
+     }
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/util/callUtil.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/util/callUtil.kt
+index 9e7dd1161fa..9c7e9190e8c 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/util/callUtil.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/util/callUtil.kt
+@@ -270,10 +270,12 @@ fun Call.isSafeCall(): Boolean {
+ 
+ fun Call.isCallableReference(): Boolean {
+     val callElement = callElement
+-    return callElement is KtNameReferenceExpression &&
+-            (callElement.parent as? KtCallableReferenceExpression)?.callableReference == callElement
++    return callElement.isCallableReference()
+ }
+ 
++fun KtElement.isCallableReference(): Boolean =
++    this is KtNameReferenceExpression && (parent as? KtCallableReferenceExpression)?.callableReference == this
++
+ fun Call.createLookupLocation(): KotlinLookupLocation {
+     val calleeExpression = calleeExpression
+     val element =
+@@ -282,6 +284,9 @@ fun Call.createLookupLocation(): KotlinLookupLocation {
+     return KotlinLookupLocation(element)
+ }
+ 
++fun KtExpression.createLookupLocation(): KotlinLookupLocation? =
++    if (!isFakeElement) KotlinLookupLocation(this) else null
++
+ fun ResolvedCall<*>.getFirstArgumentExpression(): KtExpression? =
+     valueArgumentsByIndex?.run { get(0).arguments[0].getArgumentExpression() }
+ 
+diff --git a/compiler/testData/diagnostics/tests/j+k/sam/referenceToSamFunctionAgainstExpectedType.fir.kt b/compiler/testData/diagnostics/tests/j+k/sam/referenceToSamFunctionAgainstExpectedType.fir.kt
+new file mode 100644
+index 00000000000..c3363f2f69f
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/j+k/sam/referenceToSamFunctionAgainstExpectedType.fir.kt
+@@ -0,0 +1,24 @@
++// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER
++
++// FILE: JSam.java
++
++public interface JSam<T, R> {
++    R apply(T t);
++}
++
++// FILE: Inv.java
++
++public class Inv<T> {
++    public final <R> Inv<R> map(JSam<? super T, ? extends R> mapper) {
++        return null;
++    }
++}
++
++// FILE: test.kt
++
++fun test(inv: Inv<String>) {
++    val m: ((String) -> String) -> Inv<String> = inv::map
++    <!INAPPLICABLE_CANDIDATE!>take<!>(inv::map)
++}
++
++fun take(f: ((String) -> String) -> Inv<String>) {}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/j+k/sam/referenceToSamFunctionAgainstExpectedType.kt b/compiler/testData/diagnostics/tests/j+k/sam/referenceToSamFunctionAgainstExpectedType.kt
+new file mode 100644
+index 00000000000..3b93f3042c6
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/j+k/sam/referenceToSamFunctionAgainstExpectedType.kt
+@@ -0,0 +1,24 @@
++// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER
++
++// FILE: JSam.java
++
++public interface JSam<T, R> {
++    R apply(T t);
++}
++
++// FILE: Inv.java
++
++public class Inv<T> {
++    public final <R> Inv<R> map(JSam<? super T, ? extends R> mapper) {
++        return null;
++    }
++}
++
++// FILE: test.kt
++
++fun test(inv: Inv<String>) {
++    val m: ((String) -> String) -> Inv<String> = inv::map
++    take(inv::map)
++}
++
++fun take(f: ((String) -> String) -> Inv<String>) {}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/j+k/sam/referenceToSamFunctionAgainstExpectedType.txt b/compiler/testData/diagnostics/tests/j+k/sam/referenceToSamFunctionAgainstExpectedType.txt
+new file mode 100644
+index 00000000000..ee299f0e608
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/j+k/sam/referenceToSamFunctionAgainstExpectedType.txt
+@@ -0,0 +1,19 @@
++package
++
++public fun take(/*0*/ f: ((kotlin.String) -> kotlin.String) -> Inv<kotlin.String>): kotlin.Unit
++public fun test(/*0*/ inv: Inv<kotlin.String>): kotlin.Unit
++
++public open class Inv</*0*/ T : kotlin.Any!> {
++    public constructor Inv</*0*/ T : kotlin.Any!>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun </*0*/ R : kotlin.Any!> map(/*0*/ mapper: JSam<in T!, out R!>!): Inv<R!>!
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface JSam</*0*/ T : kotlin.Any!, /*1*/ R : kotlin.Any!> {
++    public abstract fun apply(/*0*/ t: T!): R!
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index d9314b1d77c..c4dc540662d 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -13911,6 +13911,11 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTestWithFirVali
+                     runTest("compiler/testData/diagnostics/tests/j+k/sam/recursiveSamsAndInvoke.kt");
+                 }
+ 
++                @TestMetadata("referenceToSamFunctionAgainstExpectedType.kt")
++                public void testReferenceToSamFunctionAgainstExpectedType() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/j+k/sam/referenceToSamFunctionAgainstExpectedType.kt");
++                }
++
+                 @TestMetadata("samOnTypeParameter.kt")
+                 public void testSamOnTypeParameter() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/j+k/sam/samOnTypeParameter.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index 2f49bfb4cbe..6929ea7c3b8 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -13906,6 +13906,11 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                     runTest("compiler/testData/diagnostics/tests/j+k/sam/recursiveSamsAndInvoke.kt");
+                 }
+ 
++                @TestMetadata("referenceToSamFunctionAgainstExpectedType.kt")
++                public void testReferenceToSamFunctionAgainstExpectedType() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/j+k/sam/referenceToSamFunctionAgainstExpectedType.kt");
++                }
++
+                 @TestMetadata("samOnTypeParameter.kt")
+                 public void testSamOnTypeParameter() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/j+k/sam/samOnTypeParameter.kt");

@@ -1,0 +1,122 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index c25b02e751..6e31b09456 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -254,7 +254,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                 for (int i = 0; i < genericsTypes.length; i++) {
+                     GenericsType genericsType = genericsTypes[i];
+                     copy[i] = new GenericsType(
+-                            genericsType.getType(),
++                            wrapTypeIfNecessary(genericsType.getType()),
+                             genericsType.getUpperBounds(),
+                             genericsType.getLowerBound()
+                     );
+@@ -268,7 +268,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                     for (int i = 0; i < genericsTypes.length; i++) {
+                         GenericsType genericsType = genericsTypes[i];
+                         copy[i] = new GenericsType(
+-                                genericsType.getType(),
++                                wrapTypeIfNecessary(genericsType.getType()),
+                                 genericsType.getUpperBounds(),
+                                 genericsType.getLowerBound()
+                         );
+@@ -838,7 +838,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                 // the inferred type here should be a list of what the subcall returns
+                 ClassNode subcallReturnType = getType(subcall);
+                 ClassNode listNode = new ClassNode(List.class);
+-                listNode.setGenericsTypes(new GenericsType[]{new GenericsType(subcallReturnType)});
++                listNode.setGenericsTypes(new GenericsType[]{new GenericsType(wrapTypeIfNecessary(subcallReturnType))});
+                 storeType(call, listNode);
+                 return;
+             }
+@@ -1469,6 +1469,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         if (exp instanceof ClosureExpression) {
+             ClassNode irt = (ClassNode) exp.getNodeMetaData(StaticTypesMarker.INFERRED_RETURN_TYPE);
+             if (irt!=null) {
++                irt = wrapTypeIfNecessary(irt);
+                 ClassNode result = CLOSURE_TYPE.getPlainNodeReference();
+                 result.setGenericsTypes(new GenericsType[]{new GenericsType(irt)});
+                 return result;
+@@ -1496,7 +1497,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+             }
+             ClassNode superType = getWrapper(lowestUpperBound(nodes)); // to be used in generics, type must be boxed
+             ClassNode inferred = listType.getPlainNodeReference();
+-            inferred.setGenericsTypes(new GenericsType[]{new GenericsType(superType)});
++            inferred.setGenericsTypes(new GenericsType[]{new GenericsType(wrapTypeIfNecessary(superType))});
+             return inferred;
+         }
+         return listType;
+@@ -1520,7 +1521,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+             ClassNode valueType = getWrapper(lowestUpperBound(valueTypes));  // to be used in generics, type must be boxed
+             if (!OBJECT_TYPE.equals(keyType) || !OBJECT_TYPE.equals(valueType)) {
+                 ClassNode inferred = mapType.getPlainNodeReference();
+-                inferred.setGenericsTypes(new GenericsType[]{new GenericsType(keyType), new GenericsType(valueType)});
++                inferred.setGenericsTypes(new GenericsType[]{new GenericsType(wrapTypeIfNecessary(keyType)), new GenericsType(wrapTypeIfNecessary(valueType))});
+                 return inferred;
+             }
+         }
+@@ -1565,10 +1566,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                 if (isVargs && lastArg && actualType.isArray()) {
+                     actualType=actualType.getComponentType();
+                 }
+-                if (isPrimitiveType(actualType)) {
+-                    // as we are in generics, we must wrap it
+-                    actualType = ClassHelper.getWrapper(actualType);
+-                }
++                actualType = wrapTypeIfNecessary(actualType);
+                 Map<String, GenericsType> typePlaceholders = GenericsUtils.extractPlaceholders(type.isArray()?type.getComponentType():type);
+                 if (OBJECT_TYPE.equals(type)) {
+                     // special case for handing Object<E> -> Object
+@@ -1732,6 +1730,18 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+ 		}
+ 	}
+ 
++    /**
++     * Returns a wrapped type if, and only if, the provided class node is a primitive type.
++     * This method differs from {@link ClassHelper#getWrapper(org.codehaus.groovy.ast.ClassNode)} as it will
++     * return the same instance if the provided type is not a generic type.
++     * @param type
++     * @return
++     */
++    private static ClassNode wrapTypeIfNecessary(ClassNode type) {
++        if (isPrimitiveType(type)) return getWrapper(type);
++        return type;
++    }
++
+ 	/**
+      * A visitor used as a callback to {@link StaticTypeCheckingVisitor#existsProperty(org.codehaus.groovy.ast.expr.PropertyExpression, boolean, org.codehaus.groovy.ast.ClassCodeVisitorSupport)}
+      * which will return set the type of the found property in the provided reference.
+diff --git a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+index 284e1930fa..120feb1510 100644
+--- a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+@@ -190,6 +190,19 @@ class MethodCallsSTCTest extends StaticTypeCheckingTestCase {
+         ''', 'Cannot call groovy.transform.stc.MethodCallsSTCTest$MyMethodCallTestClass2#identity([Ljava.lang.Integer;) with arguments [[Ljava.lang.String;]'
+     }
+ 
++    void testMethodCallFromSuperOwner() {
++        assertScript '''
++            class Child extends groovy.transform.stc.MethodCallsSTCTest.GroovyPage {
++                void foo() {
++                    createTagBody(1) { ->
++                        printHtmlPart(2)
++                    }
++                }
++            }
++            new Child()
++        '''
++    }
++
+     static class MyMethodCallTestClass {
+ 
+         static int mul(int... args) { args.toList().inject(1) { x,y -> x*y } }
+@@ -208,4 +221,9 @@ class MethodCallsSTCTest extends StaticTypeCheckingTestCase {
+     }
+ 
+     static class MyMethodCallTestClass3 extends MyMethodCallTestClass2<String> {}
++
++    static class GroovyPage {
++        public final void printHtmlPart(final int partNumber) {}
++        public final void createTagBody(int bodyClosureIndex, Closure<?> bodyClosure) {}
++    }
+ }

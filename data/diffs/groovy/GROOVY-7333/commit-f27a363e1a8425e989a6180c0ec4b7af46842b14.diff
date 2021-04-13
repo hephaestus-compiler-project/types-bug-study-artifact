@@ -1,0 +1,137 @@
+diff --git a/src/main/groovy/util/FileTreeBuilder.groovy b/src/main/groovy/util/FileTreeBuilder.groovy
+index 9778234379..7f4cb1aae4 100644
+--- a/src/main/groovy/util/FileTreeBuilder.groovy
++++ b/src/main/groovy/util/FileTreeBuilder.groovy
+@@ -16,6 +16,8 @@
+ 
+ package groovy.util
+ 
++import groovy.transform.CompileStatic
++
+ /**
+  * A builder dedicated at generating a file directory structure from a
+  * specification. For example, imagine that you want to create the following tree:
+@@ -63,8 +65,10 @@ package groovy.util
+  *        }
+  *     }
+  * </code></pre>
+-
++ *
++ * @since 2.4.2
+  */
++@CompileStatic
+ class FileTreeBuilder {
+ 
+     File baseDir
+@@ -113,7 +117,7 @@ class FileTreeBuilder {
+      */
+     File file(String name, @DelegatesTo(value = File, strategy = Closure.DELEGATE_FIRST) Closure spec) {
+         def file = new File(baseDir, name)
+-        def clone = spec.clone()
++        def clone = (Closure) spec.clone()
+         clone.delegate = file
+         clone.resolveStrategy = Closure.DELEGATE_FIRST
+         clone(file)
+@@ -152,7 +156,7 @@ class FileTreeBuilder {
+     }
+ 
+     File call(@DelegatesTo(value = FileTreeBuilder, strategy = Closure.DELEGATE_FIRST) Closure spec) {
+-        def clone = spec.clone()
++        def clone = (Closure) spec.clone()
+         clone.delegate = this
+         clone.resolveStrategy = Closure.DELEGATE_FIRST
+         clone.call()
+@@ -161,16 +165,17 @@ class FileTreeBuilder {
+ 
+ 
+     def methodMissing(String name, args) {
+-        if (args.length == 1) {
+-            def arg = args[0]
++        if (args instanceof Object[] && ((Object[]) args).length == 1) {
++            def arg = ((Object[]) args)[0]
+             if (arg instanceof Closure) {
+                 dir(name, arg)
+             } else if (arg instanceof CharSequence) {
+                 file(name, arg.toString())
+-            } else if (arg instanceof byte[] || arg instanceof File) {
++            } else if (arg instanceof byte[]) {
++                file(name, arg)
++            } else if (arg instanceof File) {
+                 file(name, arg)
+             }
+         }
+-
+     }
+ }
+\ No newline at end of file
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 6b48604f63..5d7cd377cf 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -1898,7 +1898,21 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                         ArrayList<ClassNode> arr = new ArrayList<ClassNode>(classNodes.size() + 1);
+                         arr.add(ret[i]);
+                         arr.addAll(classNodes);
+-                        ret[i] = new UnionTypeClassNode(arr.toArray(new ClassNode[arr.size()]));
++                        // GROOVY-7333: filter out Object
++                        Iterator<ClassNode> iterator = arr.iterator();
++                        while (iterator.hasNext()) {
++                            ClassNode next = iterator.next();
++                            if (ClassHelper.OBJECT_TYPE.equals(next)) {
++                                iterator.remove();
++                            }
++                        }
++                        if (arr.isEmpty()) {
++                            ret[i] = ClassHelper.OBJECT_TYPE.getPlainNodeReference();
++                        } else if (arr.size()==1) {
++                            ret[i] = arr.get(0);
++                        } else {
++                            ret[i] = new UnionTypeClassNode(arr.toArray(new ClassNode[arr.size()]));
++                        }
+                     }
+                 }
+             }
+diff --git a/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy7333Bug.groovy b/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy7333Bug.groovy
+new file mode 100644
+index 0000000000..dfcbdc12bf
+--- /dev/null
++++ b/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy7333Bug.groovy
+@@ -0,0 +1,38 @@
++/*
++ * Copyright 2003-2015 the original author or authors.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++
++
++
++
++package org.codehaus.groovy.classgen.asm.sc.bugs
++
++import groovy.transform.stc.StaticTypeCheckingTestCase
++import org.codehaus.groovy.classgen.asm.sc.StaticCompilationTestSupport
++
++class Groovy7333Bug extends StaticTypeCheckingTestCase implements StaticCompilationTestSupport {
++    void testIncorrectInstanceOfInference() {
++        assertScript '''
++            int len(byte[] arr) { arr.length }
++            def foo(arg) {
++               if (arg instanceof byte[]) {
++                  len(arg)
++               }
++            }
++            assert foo(new byte[3]) == 3
++        '''
++    }
++}

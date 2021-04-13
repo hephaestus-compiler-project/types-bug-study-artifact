@@ -1,0 +1,184 @@
+diff --git a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
+index 114ba25642f..4a00ec72b01 100644
+--- a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
++++ b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
+@@ -10434,6 +10434,11 @@ public class FirDiagnosticsSmokeTestGenerated extends AbstractFirDiagnosticsSmok
+                 runTest("compiler/testData/diagnostics/tests/inference/constraints/recursiveJavaTypeWithStarProjection.kt");
+             }
+ 
++            @TestMetadata("remainConstraintContainingTypeWithoutProjection.kt")
++            public void testRemainConstraintContainingTypeWithoutProjection() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/inference/constraints/remainConstraintContainingTypeWithoutProjection.kt");
++            }
++
+             @TestMetadata("returnLambdaFromLambda.kt")
+             public void testReturnLambdaFromLambda() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/inference/constraints/returnLambdaFromLambda.kt");
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt
+index 09a04d2a59c..19134a565d2 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt
+@@ -157,7 +157,6 @@ class ConstraintIncorporator(
+         isSubtype: Boolean
+     ) {
+         if (targetVariable in getNestedTypeVariables(newConstraint)) return
+-        if (!containsConstrainingTypeWithoutProjection(newConstraint, otherConstraint)) return
+         if (trivialConstraintTypeInferenceOracle.isGeneratedConstraintTrivial(
+                 baseConstraint, otherConstraint, newConstraint, isSubtype
+             )
+@@ -173,15 +172,6 @@ class ConstraintIncorporator(
+         addNewIncorporatedConstraint(targetVariable, newConstraint, ConstraintContext(kind, derivedFrom))
+     }
+ 
+-    fun Context.containsConstrainingTypeWithoutProjection(
+-        newConstraint: KotlinTypeMarker,
+-        otherConstraint: Constraint
+-    ): Boolean {
+-        return getNestedArguments(newConstraint).any {
+-            it.getType().typeConstructor() == otherConstraint.type.typeConstructor() && it.getVariance() == TypeVariance.INV
+-        }
+-    }
+-
+     fun Context.getNestedTypeVariables(type: KotlinTypeMarker): List<TypeVariableMarker> =
+         getNestedArguments(type).mapNotNull { getTypeVariable(it.getType().typeConstructor()) }
+ 
+diff --git a/compiler/testData/diagnostics/tests/inference/commonSystem/postponedCompletionWithExactAnnotation_ni.kt b/compiler/testData/diagnostics/tests/inference/commonSystem/postponedCompletionWithExactAnnotation_ni.kt
+index 2c3d7222ac0..4f68473d864 100644
+--- a/compiler/testData/diagnostics/tests/inference/commonSystem/postponedCompletionWithExactAnnotation_ni.kt
++++ b/compiler/testData/diagnostics/tests/inference/commonSystem/postponedCompletionWithExactAnnotation_ni.kt
+@@ -1,5 +1,5 @@
+ // !LANGUAGE: +NewInference
+-// !DIAGNOSTICS: -UNUSED_PARAMETER
++// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE -UNCHECKED_CAST
+ 
+ interface ISample
+ 
+@@ -9,15 +9,16 @@ fun <K> elvisSimple(x: K?, y: K): K = y
+ fun <K> elvisExact(x: K?, y: K): @kotlin.internal.Exact K = y
+ 
+ fun <T : Number> materialize(): T? = null
++fun <T> Any?.materialize(): T = null as T
+ 
+ fun test(nullableSample: ISample, any: Any) {
+-    <!DEBUG_INFO_EXPRESSION_TYPE("ISample")!><!TYPE_MISMATCH!>elvisSimple<!>(
++    <!DEBUG_INFO_EXPRESSION_TYPE("ISample?")!>elvisSimple(
+         nullableSample,
+         <!DEBUG_INFO_EXPRESSION_TYPE("{ISample & Number}?")!>materialize()<!>
+     )<!>
+ 
+     elvisSimple(
+-        <!DEBUG_INFO_EXPRESSION_TYPE("ISample")!><!TYPE_MISMATCH!>elvisSimple<!>(nullableSample, materialize())<!>,
++        <!DEBUG_INFO_EXPRESSION_TYPE("ISample?")!>elvisSimple(nullableSample, materialize())<!>,
+         any
+     )
+ 
+@@ -25,4 +26,14 @@ fun test(nullableSample: ISample, any: Any) {
+         <!DEBUG_INFO_EXPRESSION_TYPE("kotlin.Any?")!>elvisExact(nullableSample, materialize())<!>,
+         any
+     )
++
++    val a: String? = null
++
++    val x1: String? = run {
++        a ?: <!DEBUG_INFO_EXPRESSION_TYPE("kotlin.String?")!>a?.materialize()<!>
++    }
++
++    val x2 = run {
++        a ?: <!DEBUG_INFO_EXPRESSION_TYPE("kotlin.String?")!>a?.materialize()<!>
++    }
+ }
+diff --git a/compiler/testData/diagnostics/tests/inference/commonSystem/postponedCompletionWithExactAnnotation_ni.txt b/compiler/testData/diagnostics/tests/inference/commonSystem/postponedCompletionWithExactAnnotation_ni.txt
+index 84135a36988..8198e4ac6b2 100644
+--- a/compiler/testData/diagnostics/tests/inference/commonSystem/postponedCompletionWithExactAnnotation_ni.txt
++++ b/compiler/testData/diagnostics/tests/inference/commonSystem/postponedCompletionWithExactAnnotation_ni.txt
+@@ -4,6 +4,7 @@ package
+ public fun </*0*/ K> elvisSimple(/*0*/ x: K?, /*1*/ y: K): K
+ public fun </*0*/ T : kotlin.Number> materialize(): T?
+ public fun test(/*0*/ nullableSample: ISample, /*1*/ any: kotlin.Any): kotlin.Unit
++public fun </*0*/ T> kotlin.Any?.materialize(): T
+ 
+ public interface ISample {
+     public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
+diff --git a/compiler/testData/diagnostics/tests/inference/constraints/errorUpperBoundConstraint.kt b/compiler/testData/diagnostics/tests/inference/constraints/errorUpperBoundConstraint.kt
+index 187422bdd1c..26de6fec138 100644
+--- a/compiler/testData/diagnostics/tests/inference/constraints/errorUpperBoundConstraint.kt
++++ b/compiler/testData/diagnostics/tests/inference/constraints/errorUpperBoundConstraint.kt
+@@ -20,7 +20,7 @@ public class Foo {
+ // FILE: test.kt
+ 
+ fun test(e: <!UNRESOLVED_REFERENCE!>ErrorType<!>) {
+-    Foo.<!NEW_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>foo<!> {
++    Foo.foo {
+         Sam.Result.create(<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>e<!>)
+     }
+ }
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/constraints/remainConstraintContainingTypeWithoutProjection.kt b/compiler/testData/diagnostics/tests/inference/constraints/remainConstraintContainingTypeWithoutProjection.kt
+new file mode 100644
+index 00000000000..c3add8bad9e
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/constraints/remainConstraintContainingTypeWithoutProjection.kt
+@@ -0,0 +1,30 @@
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -UNUSED_PARAMETER -CAST_NEVER_SUCCEEDS
++// SKIP_TXT
++
++// FILE: Test.java
++import java.util.Collection;
++
++public class Test {
++    static <T> Inv<Collection<? extends T>> bar() {
++        return null;
++    }
++}
++
++// FILE: main.kt
++class Inv<E>
++
++fun <R> foo(x: R, y: Inv<R>) {}
++
++fun main() {
++    val values: List<Int> = null as List<Int>
++    /*
++     * Before the fix, there was type mismatch during checking `Test.bar()` to pass to `foo`:
++     *      Required: Inv<List<Int>>
++     *      Found: Inv<(MutableCollection<out Int!>..Collection<Int!>?)>
++     * Constraint `(MutableCollection<out T!>..Collection<T!>?)` from 'Found' (for TypeVariable(R)) has been removed
++     * during fixation TypeVariable(T) due to the constraint for R contained TypeVariable(T).
++     * The problem was that TypeVariable(T) wan't substituted due to `containsConstrainingTypeWithoutProjection` optimization.
++     */
++    foo(values, Test.bar())
++}
+\ No newline at end of file
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 0b0ccd56f03..2091357c9b6 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -10441,6 +10441,11 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                     runTest("compiler/testData/diagnostics/tests/inference/constraints/recursiveJavaTypeWithStarProjection.kt");
+                 }
+ 
++                @TestMetadata("remainConstraintContainingTypeWithoutProjection.kt")
++                public void testRemainConstraintContainingTypeWithoutProjection() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/constraints/remainConstraintContainingTypeWithoutProjection.kt");
++                }
++
+                 @TestMetadata("returnLambdaFromLambda.kt")
+                 public void testReturnLambdaFromLambda() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/constraints/returnLambdaFromLambda.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index 77ebe60bf73..435510097fb 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -10436,6 +10436,11 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                     runTest("compiler/testData/diagnostics/tests/inference/constraints/recursiveJavaTypeWithStarProjection.kt");
+                 }
+ 
++                @TestMetadata("remainConstraintContainingTypeWithoutProjection.kt")
++                public void testRemainConstraintContainingTypeWithoutProjection() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/constraints/remainConstraintContainingTypeWithoutProjection.kt");
++                }
++
+                 @TestMetadata("returnLambdaFromLambda.kt")
+                 public void testReturnLambdaFromLambda() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/constraints/returnLambdaFromLambda.kt");

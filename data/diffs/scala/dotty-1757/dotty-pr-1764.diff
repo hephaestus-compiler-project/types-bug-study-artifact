@@ -1,0 +1,155 @@
+diff --git a/compiler/src/dotty/tools/dotc/core/Types.scala b/compiler/src/dotty/tools/dotc/core/Types.scala
+index 89bc21929699..7e6620f8eec4 100644
+--- a/compiler/src/dotty/tools/dotc/core/Types.scala
++++ b/compiler/src/dotty/tools/dotc/core/Types.scala
+@@ -2862,14 +2862,14 @@ object Types {
+    *
+    *  @param  origin        The parameter that's tracked by the type variable.
+    *  @param  creatorState  The typer state in which the variable was created.
+-   *  @param  owningTree    The function part of the TypeApply tree tree that introduces
+-   *                        the type variable.
++   *  @param  bindingTree   The TypeTree which introduces the type variable, or EmptyTree
++   *                        if the type variable does not correspond to a source term.
+    *  @paran  owner         The current owner if the context where the variable was created.
+    *
+    *  `owningTree` and `owner` are used to determine whether a type-variable can be instantiated
+    *  at some given point. See `Inferencing#interpolateUndetVars`.
+    */
+-  final class TypeVar(val origin: PolyParam, creatorState: TyperState, val owningTree: untpd.Tree, val owner: Symbol) extends CachedProxyType with ValueType {
++  final class TypeVar(val origin: PolyParam, creatorState: TyperState, val bindingTree: untpd.Tree, val owner: Symbol) extends CachedProxyType with ValueType {
+ 
+     /** The permanent instance type of the variable, or NoType is none is given yet */
+     private[core] var inst: Type = NoType
+diff --git a/compiler/src/dotty/tools/dotc/typer/Applications.scala b/compiler/src/dotty/tools/dotc/typer/Applications.scala
+index 6c398cd729c3..11121e1f33d6 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Applications.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Applications.scala
+@@ -250,8 +250,37 @@ trait Applications extends Compatibility { self: Typer with Dynamic =>
+ 
+     /** Splice new method reference into existing application */
+     def spliceMeth(meth: Tree, app: Tree): Tree = app match {
+-      case Apply(fn, args) => Apply(spliceMeth(meth, fn), args)
+-      case TypeApply(fn, targs) => TypeApply(spliceMeth(meth, fn), targs)
++      case Apply(fn, args) =>
++        spliceMeth(meth, fn).appliedToArgs(args)
++      case TypeApply(fn, targs) =>
++        // Note: It is important that the type arguments `targs` are passed in new trees
++        // instead of being spliced in literally. Otherwise, a type argument to a default
++        // method could be constructed as the definition site of the type variable for
++        // that default constructor. This would interpolate type variables too early,
++        // causing lots of tests (among them tasty_unpickleScala2) to fail.
++        //
++        // The test case is in i1757.scala. Here we have a variable `s` and a method `cpy`
++        // defined like this:
++        //
++        //      var s
++        //      def cpy[X](b: List[Int] = b): B[X] = new B[X](b)
++        //
++        // The call `s.cpy()` then gets expanded to
++        //
++        //      { val $1$: B[Int] = this.s
++        //        $1$.cpy[X']($1$.cpy$default$1[X']
++        //      }
++        //
++        // A type variable gets interpolated if it does not appear in the type
++        // of the current tree and the current tree contains the variable's "definition".
++        // Previously, the polymorphic function tree to which the variable was first added
++        // was taken as the variable's definition. But that fails here because that
++        // tree was `s.cpy` but got transformed into `$1$.cpy`. We now take the type argument
++        // [X'] of the variable as its definition tree, which is more robust. But then
++        // it's crucial that the type tree is not copied directly as argument to
++        // `cpy$default$1`. If it was, the variable `X'` would already be interpolated
++        // when typing the default argument, which is too early.
++        spliceMeth(meth, fn).appliedToTypes(targs.tpes)
+       case _ => meth
+     }
+ 
+@@ -333,7 +362,7 @@ trait Applications extends Compatibility { self: Typer with Dynamic =>
+             val getter = findDefaultGetter(n + numArgs(normalizedFun))
+             if (getter.isEmpty) missingArg(n)
+             else {
+-              addTyped(treeToArg(spliceMeth(getter withPos appPos, normalizedFun)), formal)
++              addTyped(treeToArg(spliceMeth(getter withPos normalizedFun.pos, normalizedFun)), formal)
+               matchArgs(args1, formals1, n + 1)
+             }
+           }
+diff --git a/compiler/src/dotty/tools/dotc/typer/Inferencing.scala b/compiler/src/dotty/tools/dotc/typer/Inferencing.scala
+index aede4974a2a1..1cb86dd72c68 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Inferencing.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Inferencing.scala
+@@ -216,10 +216,10 @@ object Inferencing {
+   def interpolateUndetVars(tree: Tree, ownedBy: Symbol)(implicit ctx: Context): Unit = {
+     val constraint = ctx.typerState.constraint
+     val qualifies = (tvar: TypeVar) =>
+-      (tree contains tvar.owningTree) || ownedBy.exists && tvar.owner == ownedBy
++      (tree contains tvar.bindingTree) || ownedBy.exists && tvar.owner == ownedBy
+     def interpolate() = Stats.track("interpolateUndetVars") {
+       val tp = tree.tpe.widen
+-      constr.println(s"interpolate undet vars in ${tp.show}, pos = ${tree.pos}, mode = ${ctx.mode}, undets = ${constraint.uninstVars map (tvar => s"${tvar.show}@${tvar.owningTree.pos}")}")
++      constr.println(s"interpolate undet vars in ${tp.show}, pos = ${tree.pos}, mode = ${ctx.mode}, undets = ${constraint.uninstVars map (tvar => s"${tvar.show}@${tvar.bindingTree.pos}")}")
+       constr.println(s"qualifying undet vars: ${constraint.uninstVars filter qualifies map (tvar => s"$tvar / ${tvar.show}")}, constraint: ${constraint.show}")
+ 
+       val vs = variances(tp, qualifies)
+diff --git a/compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala b/compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
+index 9a20a452ef6a..ed6b95c3bd8a 100644
+--- a/compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
++++ b/compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
+@@ -353,20 +353,23 @@ object ProtoTypes {
+    *  Also, if `owningTree` is non-empty, add a type variable for each parameter.
+    *  @return  The added polytype, and the list of created type variables.
+    */
+-  def constrained(pt: PolyType, owningTree: untpd.Tree)(implicit ctx: Context): (PolyType, List[TypeVar]) = {
++  def constrained(pt: PolyType, owningTree: untpd.Tree)(implicit ctx: Context): (PolyType, List[TypeTree]) = {
+     val state = ctx.typerState
+     assert(!(ctx.typerState.isCommittable && owningTree.isEmpty),
+       s"inconsistent: no typevars were added to committable constraint ${state.constraint}")
+ 
+-    def newTypeVars(pt: PolyType): List[TypeVar] =
++    def newTypeVars(pt: PolyType): List[TypeTree] =
+       for (n <- (0 until pt.paramNames.length).toList)
+-      yield new TypeVar(PolyParam(pt, n), state, owningTree, ctx.owner)
++      yield {
++        val tt = new TypeTree().withPos(owningTree.pos)
++        tt.withType(new TypeVar(PolyParam(pt, n), state, tt, ctx.owner))
++      }
+ 
+     val added =
+       if (state.constraint contains pt) pt.newLikeThis(pt.paramNames, pt.paramBounds, pt.resultType)
+       else pt
+     val tvars = if (owningTree.isEmpty) Nil else newTypeVars(added)
+-    ctx.typeComparer.addToConstraint(added, tvars)
++    ctx.typeComparer.addToConstraint(added, tvars.tpes.asInstanceOf[List[TypeVar]])
+     (added, tvars)
+   }
+ 
+diff --git a/compiler/src/dotty/tools/dotc/typer/Typer.scala b/compiler/src/dotty/tools/dotc/typer/Typer.scala
+index 4ec1c460f8b0..f3417ceac0c2 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Typer.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Typer.scala
+@@ -1962,12 +1962,12 @@ class Typer extends Namer with TypeAssigner with Applications with Implicits wit
+           if (pt.isInstanceOf[PolyProto]) tree
+           else {
+             var typeArgs = tree match {
+-              case Select(qual, nme.CONSTRUCTOR) => qual.tpe.widenDealias.argTypesLo
++              case Select(qual, nme.CONSTRUCTOR) => qual.tpe.widenDealias.argTypesLo.map(TypeTree)
+               case _ => Nil
+             }
+             if (typeArgs.isEmpty) typeArgs = constrained(poly, tree)._2
+             convertNewGenericArray(
+-              adaptInterpolated(tree.appliedToTypes(typeArgs), pt, original))
++              adaptInterpolated(tree.appliedToTypeTrees(typeArgs), pt, original))
+           }
+         case wtp =>
+           pt match {
+diff --git a/tests/pos/i1757.scala b/tests/pos/i1757.scala
+new file mode 100644
+index 000000000000..515b4e9bb32b
+--- /dev/null
++++ b/tests/pos/i1757.scala
+@@ -0,0 +1,6 @@
++case class B[T](b: List[Int]) {
++  var s: B[Int] = ???
++  def cpy[X](b: List[Int] = b): B[X] = new B[X](b)
++  s.cpy()
++  s.copy()
++}

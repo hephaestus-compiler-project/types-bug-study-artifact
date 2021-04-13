@@ -1,0 +1,39 @@
+diff --git a/src/reflect/scala/reflect/internal/Types.scala b/src/reflect/scala/reflect/internal/Types.scala
+index 204a2e7088c2..59d1e1314238 100644
+--- a/src/reflect/scala/reflect/internal/Types.scala
++++ b/src/reflect/scala/reflect/internal/Types.scala
+@@ -3385,7 +3385,11 @@ trait Types
+   /** Rebind symbol `sym` to an overriding member in type `pre`. */
+   private def rebind(pre: Type, sym: Symbol): Symbol = {
+     if (!sym.isOverridableMember || sym.owner == pre.typeSymbol) sym
+-    else pre.nonPrivateMember(sym.name).suchThat(sym => sym.isType || (sym.isStable && !sym.hasVolatileType)) orElse sym
++    else pre.nonPrivateMember(sym.name).suchThat(sym =>
++      // SI-7928 `isModuleNotMethod` is here to avoid crashing with overloaded module accessor and module symbols
++      //         after refchecks eliminates a ModuleDef that implements and interface.
++      sym.isType || (!sym.isModuleNotMethod && sym.isStable && !sym.hasVolatileType)
++    ) orElse sym
+   }
+ 
+   /** Convert a `super` prefix to a this-type if `sym` is abstract or final. */
+diff --git a/test/files/pos/t7928.scala b/test/files/pos/t7928.scala
+new file mode 100644
+index 000000000000..d9e29935b311
+--- /dev/null
++++ b/test/files/pos/t7928.scala
+@@ -0,0 +1,16 @@
++trait OuterTrait {
++  trait InnerTrait {
++    type Element
++    type Collection <: Iterable[Inner.Element]
++  }
++
++  val Inner: InnerTrait
++
++}
++
++object OuterObject extends OuterTrait {
++  object Inner extends InnerTrait {
++    type Element = String
++    override type Collection = Seq[Inner.Element]
++  }
++}

@@ -1,0 +1,177 @@
+diff --git a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
+index 6a622076440..3faeec79c8f 100644
+--- a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
++++ b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
+@@ -7777,6 +7777,11 @@ public class FirDiagnosticsSmokeTestGenerated extends AbstractFirDiagnosticsSmok
+             runTest("compiler/testData/diagnostics/tests/functionLiterals/functionLIteralInBlockInIf.kt");
+         }
+ 
++        @TestMetadata("functionLiteralAsArgumentForFunction.kt")
++        public void testFunctionLiteralAsArgumentForFunction() throws Exception {
++            runTest("compiler/testData/diagnostics/tests/functionLiterals/functionLiteralAsArgumentForFunction.kt");
++        }
++
+         @TestMetadata("functionLiteralInIf.kt")
+         public void testFunctionLiteralInIf() throws Exception {
+             runTest("compiler/testData/diagnostics/tests/functionLiterals/functionLiteralInIf.kt");
+@@ -12448,11 +12453,6 @@ public class FirDiagnosticsSmokeTestGenerated extends AbstractFirDiagnosticsSmok
+                 KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/diagnostics/tests/j+k/sam"), Pattern.compile("^(.+)\\.kt$"), TargetBackend.ANY, true);
+             }
+ 
+-            @TestMetadata("contravariantSamConvertedFunctionFromAnotherModule.kt")
+-            public void testContravariantSamConvertedFunctionFromAnotherModule() throws Exception {
+-                runTest("compiler/testData/diagnostics/tests/j+k/sam/contravariantSamConvertedFunctionFromAnotherModule.kt");
+-            }
+-
+             @TestMetadata("enhancedSamConstructor.kt")
+             public void testEnhancedSamConstructor() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/j+k/sam/enhancedSamConstructor.kt");
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tower/ResolvedAtomCompleter.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tower/ResolvedAtomCompleter.kt
+index 59a7748e9a9..f544704a5e6 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tower/ResolvedAtomCompleter.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tower/ResolvedAtomCompleter.kt
+@@ -129,7 +129,7 @@ class ResolvedAtomCompleter(
+             val substitutedTypes = returnTypes.filterNotNull()
+             // we have some unsubstituted types
+             if (substitutedTypes.isEmpty()) return false
+-            val commonReturnType = CommonSupertypes.commonSupertype(returnTypes)
++            val commonReturnType = CommonSupertypes.commonSupertype(substitutedTypes)
+             return commonReturnType.isUnit()
+         }
+ 
+diff --git a/compiler/testData/diagnostics/tests/functionLiterals/functionLiteralAsArgumentForFunction.kt b/compiler/testData/diagnostics/tests/functionLiterals/functionLiteralAsArgumentForFunction.kt
+new file mode 100644
+index 00000000000..f9c35bd04d1
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/functionLiterals/functionLiteralAsArgumentForFunction.kt
+@@ -0,0 +1,25 @@
++class Log
++
++data class CalculatedVariable(
++    val idString: String,
++    val presentableName: String,
++    val units: String,
++    val function: (Log) -> ((TimeIndex) -> Any?)?,
++    val converter: (Any) -> Double
++) {
++    constructor(idString: String, presentableName: String, units: String, function: (Log) -> ((TimeIndex) -> Double?)?)
++            : this(idString, presentableName, units, function, { it as Double })
++}
++
++object CalculatedVariables {
++    val x = CalculatedVariable(
++        "A",
++        "B",
++        "C",
++        fun(<!UNUSED_ANONYMOUS_PARAMETER!>log<!>: Log): ((TimeIndex) -> Double?)? {
++            return { 0.0 }
++        }
++    )
++}
++
++class TimeIndex
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/functionLiterals/functionLiteralAsArgumentForFunction.txt b/compiler/testData/diagnostics/tests/functionLiterals/functionLiteralAsArgumentForFunction.txt
+new file mode 100644
+index 00000000000..c845830d415
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/functionLiterals/functionLiteralAsArgumentForFunction.txt
+@@ -0,0 +1,42 @@
++package
++
++public final data class CalculatedVariable {
++    public constructor CalculatedVariable(/*0*/ idString: kotlin.String, /*1*/ presentableName: kotlin.String, /*2*/ units: kotlin.String, /*3*/ function: (Log) -> ((TimeIndex) -> kotlin.Any?)?, /*4*/ converter: (kotlin.Any) -> kotlin.Double)
++    public constructor CalculatedVariable(/*0*/ idString: kotlin.String, /*1*/ presentableName: kotlin.String, /*2*/ units: kotlin.String, /*3*/ function: (Log) -> ((TimeIndex) -> kotlin.Double?)?)
++    public final val converter: (kotlin.Any) -> kotlin.Double
++    public final val function: (Log) -> ((TimeIndex) -> kotlin.Any?)?
++    public final val idString: kotlin.String
++    public final val presentableName: kotlin.String
++    public final val units: kotlin.String
++    public final operator /*synthesized*/ fun component1(): kotlin.String
++    public final operator /*synthesized*/ fun component2(): kotlin.String
++    public final operator /*synthesized*/ fun component3(): kotlin.String
++    public final operator /*synthesized*/ fun component4(): (Log) -> ((TimeIndex) -> kotlin.Any?)?
++    public final operator /*synthesized*/ fun component5(): (kotlin.Any) -> kotlin.Double
++    public final /*synthesized*/ fun copy(/*0*/ idString: kotlin.String = ..., /*1*/ presentableName: kotlin.String = ..., /*2*/ units: kotlin.String = ..., /*3*/ function: (Log) -> ((TimeIndex) -> kotlin.Any?)? = ..., /*4*/ converter: (kotlin.Any) -> kotlin.Double = ...): CalculatedVariable
++    public open override /*1*/ /*synthesized*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*synthesized*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*synthesized*/ fun toString(): kotlin.String
++}
++
++public object CalculatedVariables {
++    private constructor CalculatedVariables()
++    public final val x: CalculatedVariable
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Log {
++    public constructor Log()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class TimeIndex {
++    public constructor TimeIndex()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index f5414773990..8c69459b93c 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -7784,6 +7784,11 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 runTest("compiler/testData/diagnostics/tests/functionLiterals/functionLIteralInBlockInIf.kt");
+             }
+ 
++            @TestMetadata("functionLiteralAsArgumentForFunction.kt")
++            public void testFunctionLiteralAsArgumentForFunction() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/functionLiterals/functionLiteralAsArgumentForFunction.kt");
++            }
++
+             @TestMetadata("functionLiteralInIf.kt")
+             public void testFunctionLiteralInIf() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/functionLiterals/functionLiteralInIf.kt");
+@@ -12455,11 +12460,6 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                     KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/diagnostics/tests/j+k/sam"), Pattern.compile("^(.*)\\.kts?$"), TargetBackend.ANY, true);
+                 }
+ 
+-                @TestMetadata("contravariantSamConvertedFunctionFromAnotherModule.kt")
+-                public void testContravariantSamConvertedFunctionFromAnotherModule() throws Exception {
+-                    runTest("compiler/testData/diagnostics/tests/j+k/sam/contravariantSamConvertedFunctionFromAnotherModule.kt");
+-                }
+-
+                 @TestMetadata("enhancedSamConstructor.kt")
+                 public void testEnhancedSamConstructor() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/j+k/sam/enhancedSamConstructor.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index a291c144a0c..5bd7765022f 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -7779,6 +7779,11 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                 runTest("compiler/testData/diagnostics/tests/functionLiterals/functionLIteralInBlockInIf.kt");
+             }
+ 
++            @TestMetadata("functionLiteralAsArgumentForFunction.kt")
++            public void testFunctionLiteralAsArgumentForFunction() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/functionLiterals/functionLiteralAsArgumentForFunction.kt");
++            }
++
+             @TestMetadata("functionLiteralInIf.kt")
+             public void testFunctionLiteralInIf() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/functionLiterals/functionLiteralInIf.kt");
+@@ -12450,11 +12455,6 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                     KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/diagnostics/tests/j+k/sam"), Pattern.compile("^(.+)\\.kt$"), TargetBackend.ANY, true);
+                 }
+ 
+-                @TestMetadata("contravariantSamConvertedFunctionFromAnotherModule.kt")
+-                public void testContravariantSamConvertedFunctionFromAnotherModule() throws Exception {
+-                    runTest("compiler/testData/diagnostics/tests/j+k/sam/contravariantSamConvertedFunctionFromAnotherModule.kt");
+-                }
+-
+                 @TestMetadata("enhancedSamConstructor.kt")
+                 public void testEnhancedSamConstructor() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/j+k/sam/enhancedSamConstructor.kt");

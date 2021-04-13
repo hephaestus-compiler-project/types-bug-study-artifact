@@ -1,0 +1,177 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index 05929d589a..b1b076c237 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -1417,7 +1417,27 @@ public abstract class StaticTypeCheckingSupport {
+         for (int i = 0; i < copy.length; i++) {
+             GenericsType returnTypeGeneric = returnTypeGenerics[i];
+             if (returnTypeGeneric.isPlaceholder() || returnTypeGeneric.isWildcard()) {
+-                GenericsType resolved = resolvedPlaceholders.get(returnTypeGeneric.getName());
++                String name = returnTypeGeneric.getName();
++                /*if (returnTypeGeneric.isWildcard()) {
++                    ClassNode lowerBound = returnTypeGeneric.getLowerBound();
++                    if (lowerBound !=null && lowerBound.isGenericsPlaceHolder()) {
++                        name = lowerBound.getUnresolvedName();
++                    } else {
++                        ClassNode[] upperBounds = returnTypeGeneric.getUpperBounds();
++                        if (upperBounds!=null) {
++                            for (ClassNode upperBound : upperBounds) {
++                                if (upperBound.isGenericsPlaceHolder()) {
++                                    name = upperBound.getUnresolvedName();
++                                    break; // todo: what if more than one match?
++                                }
++                            }
++                        }
++                    }
++                }*/
++                GenericsType resolved = resolvedPlaceholders.get(name);
++                /*if (resolved == null && placeholdersFromContext!=null) {
++                    resolved = placeholdersFromContext.get(name);
++                }*/
+                 if (resolved == null) resolved = returnTypeGeneric;
+                 copy[i] = fullyResolve(resolved, resolvedPlaceholders);
+             } else {
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index f09c5dc787..4ad5a61544 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -3691,9 +3691,28 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                                 String key = typeEntry.getKey();
+                                 GenericsType value = typeEntry.getValue();
+                                 GenericsType alias = typePlaceholders.get(key);
+-                                if (alias != null && alias.isPlaceholder()) {
+-                                    if (!resolvedPlaceholders.containsKey(alias.getName()) || resolvedPlaceholders.get(alias.getName()).isPlaceholder()) {
+-                                        resolvedPlaceholders.put(alias.getName(), value);
++                                if (alias != null) {
++                                    if (alias.isPlaceholder()) {
++                                        if (!resolvedPlaceholders.containsKey(alias.getName()) || resolvedPlaceholders.get(alias.getName()).isPlaceholder()) {
++                                            resolvedPlaceholders.put(alias.getName(), value);
++                                        }
++                                    } else if (alias.isWildcard()) {
++                                        ClassNode[] upperBounds = alias.getUpperBounds();
++                                        if (upperBounds!=null) {
++                                            for (ClassNode upperBound : upperBounds) {
++                                                if (upperBound.isGenericsPlaceHolder()) {
++                                                    resolvedPlaceholders.put(upperBound.getUnresolvedName(), value);
++                                                }
++                                            }
++                                        }
++                                        ClassNode lowerBound = alias.getLowerBound();
++                                        if (lowerBound!=null && lowerBound.isGenericsPlaceHolder()) {
++                                            String placeholderName = lowerBound.getUnresolvedName();
++                                            GenericsType genericsType = resolvedPlaceholders.get(placeholderName);
++                                            if (genericsType!=null) {
++                                                resolvedPlaceholders.put(key, genericsType);
++                                            }
++                                        }
+                                     }
+                                 }
+                             }
+diff --git a/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy6671Bug.groovy b/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy6671Bug.groovy
+new file mode 100644
+index 0000000000..47f520ee7c
+--- /dev/null
++++ b/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy6671Bug.groovy
+@@ -0,0 +1,102 @@
++/*
++ * Copyright 2003-2014 the original author or authors.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package org.codehaus.groovy.classgen.asm.sc.bugs
++
++import groovy.transform.NotYetImplemented
++import groovy.transform.stc.StaticTypeCheckingTestCase
++import org.codehaus.groovy.classgen.asm.sc.StaticCompilationTestSupport
++
++class Groovy6671Bug extends StaticTypeCheckingTestCase implements StaticCompilationTestSupport {
++    void testGenericsInference() {
++        assertScript '''
++interface Converter<F, T> {
++    T convert(F from)
++}
++
++class Holder<V> {
++    V thing
++
++    Holder(V thing) {
++        this.thing = thing
++    }
++
++    def <R> Holder<R> convert(Converter<? super V, ? extends R> func1) {
++        new Holder(func1.convert(thing))
++    }
++}
++
++@ASTTest(phase=INSTRUCTION_SELECTION,value={
++    def data = node.getNodeMetaData(INFERRED_TYPE)
++    assert data.genericsTypes[0].type == Integer_TYPE
++})
++def h1 = new Holder<Integer>(2).convert {
++    it
++}
++
++@ASTTest(phase=INSTRUCTION_SELECTION,value={
++    def holderType = node.getNodeMetaData(INFERRED_TYPE)
++    def closureReturnType = node.rightExpression.arguments[0].getNodeMetaData(INFERRED_RETURN_TYPE)
++    assert closureReturnType == float_TYPE
++    assert holderType.genericsTypes[0].type == Float_TYPE
++})
++def h2 = h1.convert {
++    it.floatValue() // fails, doesn't know 'it' is an Integer
++}
++
++'''
++    }
++
++    @NotYetImplemented
++    void testGenericsInferenceWithPlaceholderNameClash() {
++        assertScript '''
++interface Converter<F, T> {
++    T convert(F from)
++}
++
++class Holder<T> {
++    T thing
++
++    Holder(T thing) {
++        this.thing = thing
++    }
++
++    def <R> Holder<R> convert(Converter<? super T, ? extends R> func1) {
++        new Holder(func1.convert(thing))
++    }
++}
++
++@ASTTest(phase=INSTRUCTION_SELECTION,value={
++    def data = node.getNodeMetaData(INFERRED_TYPE)
++    assert data.genericsTypes[0].type == Integer_TYPE
++})
++def h1 = new Holder<Integer>(2).convert {
++    it
++}
++
++@ASTTest(phase=INSTRUCTION_SELECTION,value={
++    def holderType = node.getNodeMetaData(INFERRED_TYPE)
++    def closureReturnType = node.rightExpression.arguments[0].getNodeMetaData(INFERRED_RETURN_TYPE)
++    assert closureReturnType == float_TYPE
++    assert holderType.genericsTypes[0].type == Float_TYPE
++})
++def h2 = h1.convert {
++    it.floatValue() // fails, doesn't know 'it' is an Integer
++}
++
++'''
++    }
++}

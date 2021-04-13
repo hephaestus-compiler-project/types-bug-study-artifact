@@ -1,0 +1,230 @@
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/kt29307.kt b/compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/kt29307.kt
+index ca1ccacbc4c..76e65fabb92 100644
+--- a/compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/kt29307.kt
++++ b/compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/kt29307.kt
+@@ -15,11 +15,11 @@ fun test_2(map: Map<A, String>) {
+ }
+ 
+ fun test_3(m: Map<*, String>) {
+-    val x = <!NI;TYPE_INFERENCE_ONLY_INPUT_TYPES!>m[42]<!> // should be ok
++    val x = m[42] // should be ok
+ }
+ 
+ fun test_4(m: Map<out Number, String>) {
+-    val x = m.<!NI;TYPE_INFERENCE_ONLY_INPUT_TYPES!>get<!>(42) // should be ok
++    val x = m.get(42) // should be ok
+ }
+ 
+ fun test_5(map: Map<B, Int>, a: A) {
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/onlyInputTypesAndTopLevelCapturedTypes.kt b/compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/onlyInputTypesAndTopLevelCapturedTypes.kt
+new file mode 100644
+index 00000000000..98934d4800e
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/onlyInputTypesAndTopLevelCapturedTypes.kt
+@@ -0,0 +1,73 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
++// !WITH_NEW_INFERENCE
++
++class Inv<T>
++
++@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
++fun <@kotlin.internal.OnlyInputTypes K> Inv<out K>.onlyOut(e: K) {}
++
++@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
++fun <@kotlin.internal.OnlyInputTypes K : Number> Inv<out K>.onlyOutUB(e: K) {}
++
++@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
++fun <@kotlin.internal.OnlyInputTypes K> Inv<in K>.onlyIn(e: K) {}
++
++fun test(
++    invStar: Inv<*>,
++    invOut: Inv<out Number>,
++    invIn: Inv<in Number>
++) {
++    invStar.onlyOut("str")
++    invOut.onlyOut(42)
++    invOut.onlyOut(1L)
++
++    invOut.<!NI;TYPE_INFERENCE_ONLY_INPUT_TYPES, OI;TYPE_INFERENCE_CONFLICTING_SUBSTITUTIONS!>onlyOutUB<!>(<!NI;TYPE_MISMATCH!>"str"<!>)
++    invStar.<!NI;DEBUG_INFO_UNRESOLVED_WITH_TARGET, NI;UNRESOLVED_REFERENCE_WRONG_RECEIVER, OI;TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>onlyOutUB<!>(0)
++    invOut.onlyOutUB(42)
++    invOut.onlyOutUB(1L)
++
++    invIn.<!OI;TYPE_INFERENCE_CONFLICTING_SUBSTITUTIONS!>onlyIn<!>(<!NI;TYPE_MISMATCH!>"str"<!>)
++    invIn.onlyIn(42)
++    invIn.onlyIn(1L)
++}
++
++// From KT-32157
++fun test2(value: Any?) {
++    val result = (value as? Map<*, *>)?.get("result")
++}
++
++// From KT-32116
++fun test3(h: HashMap<*, *>) {
++    val a = h["str"]
++    val b = h[1]
++    val c = h["other"] as? Double
++}
++
++// From KT-32218
++fun test4() {
++    val map: Map<out Any, Any> = mapOf(
++        true to true,
++        1L to 1L
++    )
++    val test = map[1L]
++}
++
++// From KT-32235
++
++class A<T> {
++    val children = mutableListOf<B<T>>()
++}
++
++class B<T>
++
++class Test5 {
++    var a: A<*>? = null
++    var b: B<*>? = null
++        set(value) {
++            if (value != null) {
++                val a = a
++                require(a != null && <!DEBUG_INFO_SMARTCAST!>value<!> in <!OI;DEBUG_INFO_SMARTCAST!>a<!>.children)
++            }
++            field = value
++        }
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/onlyInputTypesAndTopLevelCapturedTypes.txt b/compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/onlyInputTypesAndTopLevelCapturedTypes.txt
+new file mode 100644
+index 00000000000..3f810c211a9
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/onlyInputTypesAndTopLevelCapturedTypes.txt
+@@ -0,0 +1,40 @@
++package
++
++public fun test(/*0*/ invStar: Inv<*>, /*1*/ invOut: Inv<out kotlin.Number>, /*2*/ invIn: Inv<in kotlin.Number>): kotlin.Unit
++public fun test2(/*0*/ value: kotlin.Any?): kotlin.Unit
++public fun test3(/*0*/ h: kotlin.collections.HashMap<*, *> /* = java.util.HashMap<*, *> */): kotlin.Unit
++public fun test4(): kotlin.Unit
++@kotlin.Suppress(names = {"INVISIBLE_MEMBER", "INVISIBLE_REFERENCE"}) public fun </*0*/ @kotlin.internal.OnlyInputTypes K> Inv<in K>.onlyIn(/*0*/ e: K): kotlin.Unit
++@kotlin.Suppress(names = {"INVISIBLE_MEMBER", "INVISIBLE_REFERENCE"}) public fun </*0*/ @kotlin.internal.OnlyInputTypes K> Inv<out K>.onlyOut(/*0*/ e: K): kotlin.Unit
++@kotlin.Suppress(names = {"INVISIBLE_MEMBER", "INVISIBLE_REFERENCE"}) public fun </*0*/ @kotlin.internal.OnlyInputTypes K : kotlin.Number> Inv<out K>.onlyOutUB(/*0*/ e: K): kotlin.Unit
++
++public final class A</*0*/ T> {
++    public constructor A</*0*/ T>()
++    public final val children: kotlin.collections.MutableList<B<T>>
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class B</*0*/ T> {
++    public constructor B</*0*/ T>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Inv</*0*/ T> {
++    public constructor Inv</*0*/ T>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Test5 {
++    public constructor Test5()
++    public final var a: A<*>?
++    public final var b: B<*>?
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
+index ffe093c7e95..8cf58532542 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
+@@ -2798,6 +2798,11 @@ public class DiagnosticsTestWithStdLibGenerated extends AbstractDiagnosticsTestW
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/onlyInputTypesAndLowPriority.kt");
+             }
+ 
++            @TestMetadata("onlyInputTypesAndTopLevelCapturedTypes.kt")
++            public void testOnlyInputTypesAndTopLevelCapturedTypes() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/onlyInputTypesAndTopLevelCapturedTypes.kt");
++            }
++
+             @TestMetadata("onlyInputTypesAnnotationWithPlatformTypes.kt")
+             public void testOnlyInputTypesAnnotationWithPlatformTypes() throws Exception {
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/onlyInputTypesAnnotationWithPlatformTypes.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
+index 9e3a972cd7c..fd30f2d8039 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
+@@ -2798,6 +2798,11 @@ public class DiagnosticsTestWithStdLibUsingJavacGenerated extends AbstractDiagno
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/onlyInputTypesAndLowPriority.kt");
+             }
+ 
++            @TestMetadata("onlyInputTypesAndTopLevelCapturedTypes.kt")
++            public void testOnlyInputTypesAndTopLevelCapturedTypes() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/onlyInputTypesAndTopLevelCapturedTypes.kt");
++            }
++
+             @TestMetadata("onlyInputTypesAnnotationWithPlatformTypes.kt")
+             public void testOnlyInputTypesAnnotationWithPlatformTypes() throws Exception {
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/inference/annotationsForResolve/onlyInputTypesAnnotationWithPlatformTypes.kt");
+diff --git a/core/descriptors/src/org/jetbrains/kotlin/types/TypeUtils.kt b/core/descriptors/src/org/jetbrains/kotlin/types/TypeUtils.kt
+index 3178c316b0b..f58ed7f0e2e 100644
+--- a/core/descriptors/src/org/jetbrains/kotlin/types/TypeUtils.kt
++++ b/core/descriptors/src/org/jetbrains/kotlin/types/TypeUtils.kt
+@@ -24,10 +24,7 @@ import org.jetbrains.kotlin.resolve.DescriptorUtils
+ import org.jetbrains.kotlin.resolve.calls.inference.isCaptured
+ import org.jetbrains.kotlin.resolve.descriptorUtil.builtIns
+ import org.jetbrains.kotlin.types.*
+-import org.jetbrains.kotlin.types.checker.KotlinTypeChecker
+-import org.jetbrains.kotlin.types.checker.NewCapturedType
+-import org.jetbrains.kotlin.types.checker.NewCapturedTypeConstructor
+-import org.jetbrains.kotlin.types.checker.NewTypeVariableConstructor
++import org.jetbrains.kotlin.types.checker.*
+ import org.jetbrains.kotlin.utils.addToStdlib.safeAs
+ import java.util.*
+ 
+@@ -260,10 +257,17 @@ fun KotlinType.unCapture(): KotlinType = unwrap().unCapture()
+ fun UnwrappedType.unCapture(): UnwrappedType = when (this) {
+     is AbbreviatedType -> unCapture()
+     is SimpleType -> unCapture()
+-    is FlexibleType -> FlexibleTypeImpl(lowerBound.unCapture(), upperBound.unCapture())
++    is FlexibleType ->
++        FlexibleTypeImpl(
++            lowerBound.unCapture() as? SimpleType ?: lowerBound,
++            upperBound.unCapture() as? SimpleType ?: upperBound
++        )
+ }
+ 
+-fun SimpleType.unCapture(): SimpleType {
++fun SimpleType.unCapture(): UnwrappedType {
++    if (this is NewCapturedType)
++        return unCaptureTopLevelType()
++
+     val newArguments = arguments.map { projection ->
+         projection.type.constructor.safeAs<NewCapturedTypeConstructor>()?.let {
+             it.projection
+@@ -274,5 +278,14 @@ fun SimpleType.unCapture(): SimpleType {
+ 
+ fun AbbreviatedType.unCapture(): SimpleType {
+     val newType = expandedType.unCapture()
+-    return AbbreviatedType(newType, abbreviation)
+-}
+\ No newline at end of file
++    return AbbreviatedType(newType as? SimpleType ?: expandedType, abbreviation)
++}
++
++private fun NewCapturedType.unCaptureTopLevelType(): UnwrappedType {
++    if (lowerType != null) return lowerType
++
++    val supertypes = constructor.supertypes
++    if (supertypes.isNotEmpty()) return intersectTypes(supertypes)
++
++    return constructor.projection.type.unwrap()
++}

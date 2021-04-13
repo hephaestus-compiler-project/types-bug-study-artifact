@@ -1,0 +1,96 @@
+changeset:   2218:5bf0af735c61
+user:        vromero
+date:        Mon Dec 09 19:29:33 2013 +0000
+summary:     8029569: internal javac cast exception when resolving varargs ambiguity
+
+diff -r 2d0a0ae7fa9c -r 5bf0af735c61 src/share/classes/com/sun/tools/javac/comp/Resolve.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Resolve.java	Fri Dec 06 09:07:47 2013 -0800
++++ b/src/share/classes/com/sun/tools/javac/comp/Resolve.java	Mon Dec 09 19:29:33 2013 +0000
+@@ -1503,7 +1503,7 @@
+             return ambiguityError(m1, m2);
+         case AMBIGUOUS:
+             //check if m1 is more specific than all ambiguous methods in m2
+-            AmbiguityError e = (AmbiguityError)m2;
++            AmbiguityError e = (AmbiguityError)m2.baseSymbol();
+             for (Symbol s : e.ambiguousSyms) {
+                 if (mostSpecific(argtypes, m1, s, env, site, allowBoxing, useVarargs) != m1) {
+                     return e.addAmbiguousSymbol(m1);
+@@ -3055,7 +3055,7 @@
+         final Symbol lookup(Env<AttrContext> env, MethodResolutionPhase phase) {
+             Symbol sym = doLookup(env, phase);
+             if (sym.kind == AMBIGUOUS) {
+-                AmbiguityError a_err = (AmbiguityError)sym;
++                AmbiguityError a_err = (AmbiguityError)sym.baseSymbol();
+                 sym = a_err.mergeAbstracts(site);
+             }
+             return sym;
+@@ -3125,7 +3125,7 @@
+ 
+         Symbol access(Env<AttrContext> env, DiagnosticPosition pos, Symbol location, Symbol sym) {
+             if (sym.kind == AMBIGUOUS) {
+-                AmbiguityError a_err = (AmbiguityError)sym;
++                AmbiguityError a_err = (AmbiguityError)sym.baseSymbol();
+                 sym = a_err.mergeAbstracts(site);
+             }
+             //skip error reporting
+@@ -3992,7 +3992,7 @@
+ 
+         private List<Symbol> flatten(Symbol sym) {
+             if (sym.kind == AMBIGUOUS) {
+-                return ((AmbiguityError)sym).ambiguousSyms;
++                return ((AmbiguityError)sym.baseSymbol()).ambiguousSyms;
+             } else {
+                 return List.of(sym);
+             }
+diff -r 2d0a0ae7fa9c -r 5bf0af735c61 test/tools/javac/T8029569/VarargsAmbiguityCrashTest.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/T8029569/VarargsAmbiguityCrashTest.java	Mon Dec 09 19:29:33 2013 +0000
+@@ -0,0 +1,41 @@
++/*
++ * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8029569
++ * @summary internal javac cast exception when resolving varargs ambiguity
++ * @compile/fail/ref=VarargsAmbiguityCrashTest.out -XDrawDiagnostics VarargsAmbiguityCrashTest.java
++ */
++
++public class VarargsAmbiguityCrashTest {
++    void m1() {
++        m2(null, new Exception());
++    }
++
++    void m2(Long l) {}
++
++    void m2(Exception... exception) {}
++
++    void m2(Long l, Exception... exception) {}
++}
+diff -r 2d0a0ae7fa9c -r 5bf0af735c61 test/tools/javac/T8029569/VarargsAmbiguityCrashTest.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/T8029569/VarargsAmbiguityCrashTest.out	Mon Dec 09 19:29:33 2013 +0000
+@@ -0,0 +1,2 @@
++VarargsAmbiguityCrashTest.java:33:9: compiler.err.ref.ambiguous: m2, kindname.method, m2(java.lang.Exception...), VarargsAmbiguityCrashTest, kindname.method, m2(java.lang.Long,java.lang.Exception...), VarargsAmbiguityCrashTest
++1 error
+

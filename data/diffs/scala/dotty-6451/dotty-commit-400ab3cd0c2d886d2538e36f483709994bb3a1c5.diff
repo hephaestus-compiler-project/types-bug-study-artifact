@@ -1,0 +1,30 @@
+diff --git a/compiler/src/dotty/tools/dotc/core/Types.scala b/compiler/src/dotty/tools/dotc/core/Types.scala
+index 49908bacdc..fbd74fa94f 100644
+--- a/compiler/src/dotty/tools/dotc/core/Types.scala
++++ b/compiler/src/dotty/tools/dotc/core/Types.scala
+@@ -3556,6 +3556,8 @@ object Types {
+             else lo.applyIfParameterized(args)
+           case _ => NoType
+         }
++      case tycon: AppliedType =>
++        tycon.lowerBound.applyIfParameterized(args)
+       case _ =>
+         NoType
+     }
+diff --git a/tests/pos/i6451.scala b/tests/pos/i6451.scala
+new file mode 100644
+index 0000000000..4ab1cc9320
+--- /dev/null
++++ b/tests/pos/i6451.scala
+@@ -0,0 +1,10 @@
++object Test {
++
++  type YZ = [Y[_]] => [Z[_]] => [T] => Y[Z[T]]
++
++  val r1: List[List[Int]] = ???
++  def r2(): List[List[Int]] = ???
++
++  val l1: YZ[List][List][Int] = r1
++  val l2: YZ[List][List][Int] = r2()
++}
+\ No newline at end of file

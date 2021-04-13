@@ -1,0 +1,237 @@
+changeset:   854:afe226180744
+user:        mcimadamore
+date:        Thu Feb 03 09:38:19 2011 +0000
+summary:     7014715: javac returns different error code for certain failure(s)
+
+diff -r 03cf47d4de15 -r afe226180744 src/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Feb 03 09:37:28 2011 +0000
++++ b/src/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Feb 03 09:38:19 2011 +0000
+@@ -2374,7 +2374,6 @@
+                                  int pkind) {
+             DiagnosticPosition pos = tree.pos();
+             Name name = tree.name;
+-
+             switch (site.tag) {
+             case PACKAGE:
+                 return rs.access(
+@@ -3186,7 +3185,7 @@
+                 if (sym == null ||
+                     sym.kind != VAR ||
+                     ((VarSymbol) sym).getConstValue() == null)
+-                    log.error(l.head.pos(), "icls.cant.have.static.decl", sym.location());
++                    log.error(l.head.pos(), "icls.cant.have.static.decl", c);
+             }
+         }
+ 
+diff -r 03cf47d4de15 -r afe226180744 src/share/classes/com/sun/tools/javac/comp/Resolve.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Resolve.java	Thu Feb 03 09:37:28 2011 +0000
++++ b/src/share/classes/com/sun/tools/javac/comp/Resolve.java	Thu Feb 03 09:38:19 2011 +0000
+@@ -1952,6 +1952,9 @@
+                         key, name, first, second);
+             }
+             boolean hasLocation = false;
++            if (location == null) {
++                location = site.tsym;
++            }
+             if (!location.name.isEmpty()) {
+                 if (location.kind == PCK && !site.tsym.exists()) {
+                     return diags.create(dkind, log.currentSource(), pos,
+@@ -1969,7 +1972,7 @@
+                 return diags.create(dkind, log.currentSource(), pos,
+                         errKey, kindname, idname, //symbol kindname, name
+                         typeargtypes, argtypes, //type parameters and arguments (if any)
+-                        getLocationDiag(location)); //location kindname, type
++                        getLocationDiag(location, site)); //location kindname, type
+             }
+             else {
+                 return diags.create(dkind, log.currentSource(), pos,
+@@ -1990,15 +1993,18 @@
+             }
+             return key + suffix;
+         }
+-        private JCDiagnostic getLocationDiag(Symbol location) {
+-            boolean isVar = location.kind == VAR;
+-            String key = isVar ?
+-                "location.1" :
+-                "location";
+-            return diags.fragment(key,
++        private JCDiagnostic getLocationDiag(Symbol location, Type site) {
++            if (location.kind == VAR) {
++                return diags.fragment("location.1",
+                     kindName(location),
+                     location,
+-                    isVar ? location.type : null);
++                    location.type);
++            } else {
++                return diags.fragment("location",
++                    typeKindName(site),
++                    site,
++                    null);
++            }
+         }
+     }
+ 
+diff -r 03cf47d4de15 -r afe226180744 test/tools/javac/AnonStaticMember_2.java
+--- a/test/tools/javac/AnonStaticMember_2.java	Thu Feb 03 09:37:28 2011 +0000
++++ b/test/tools/javac/AnonStaticMember_2.java	Thu Feb 03 09:38:19 2011 +0000
+@@ -1,33 +1,10 @@
+ /*
+- * Copyright (c) 1999, Oracle and/or its affiliates. All rights reserved.
+- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+- *
+- * This code is free software; you can redistribute it and/or modify it
+- * under the terms of the GNU General Public License version 2 only, as
+- * published by the Free Software Foundation.
+- *
+- * This code is distributed in the hope that it will be useful, but WITHOUT
+- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+- * version 2 for more details (a copy is included in the LICENSE file that
+- * accompanied this code).
+- *
+- * You should have received a copy of the GNU General Public License version
+- * 2 along with this work; if not, write to the Free Software Foundation,
+- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+- *
+- * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+- * or visit www.oracle.com if you need additional information or have any
+- * questions.
+- */
+-
+-/*
+- * @test
++ * @test  /nodynamiccopyright/
+  * @bug 4279339
+  * @summary Verify that an anonymous class cannot contain a static method.
+  * @author maddox
+  *
+- * @run compile/fail AnonStaticMember_2.java
++ * @run compile/fail/ref=AnonStaticMember_2.out -XDrawDiagnostics AnonStaticMember_2.java
+  */
+ 
+ class AnonStaticMember_2 {
+diff -r 03cf47d4de15 -r afe226180744 test/tools/javac/AnonStaticMember_2.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/AnonStaticMember_2.out	Thu Feb 03 09:38:19 2011 +0000
+@@ -0,0 +1,2 @@
++AnonStaticMember_2.java:12:21: compiler.err.icls.cant.have.static.decl: compiler.misc.anonymous.class: AnonStaticMember_2$1
++1 error
+diff -r 03cf47d4de15 -r afe226180744 test/tools/javac/InterfaceInInner.java
+--- a/test/tools/javac/InterfaceInInner.java	Thu Feb 03 09:37:28 2011 +0000
++++ b/test/tools/javac/InterfaceInInner.java	Thu Feb 03 09:38:19 2011 +0000
+@@ -1,33 +1,10 @@
+ /*
+- * Copyright (c) 1997, Oracle and/or its affiliates. All rights reserved.
+- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+- *
+- * This code is free software; you can redistribute it and/or modify it
+- * under the terms of the GNU General Public License version 2 only, as
+- * published by the Free Software Foundation.
+- *
+- * This code is distributed in the hope that it will be useful, but WITHOUT
+- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+- * version 2 for more details (a copy is included in the LICENSE file that
+- * accompanied this code).
+- *
+- * You should have received a copy of the GNU General Public License version
+- * 2 along with this work; if not, write to the Free Software Foundation,
+- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+- *
+- * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+- * or visit www.oracle.com if you need additional information or have any
+- * questions.
+- */
+-
+-/*
+- * @test
++ * @test  /nodynamiccopyright/
+  * @bug 4063740
+  * @summary Interfaces may only be declared in top level classes.
+  * @author turnidge
+  *
+- * @compile/fail InterfaceInInner.java
++ * @compile/fail/ref=InterfaceInInner.out -XDrawDiagnostics InterfaceInInner.java
+  */
+ class InterfaceInInner {
+     InterfaceInInner() {
+diff -r 03cf47d4de15 -r afe226180744 test/tools/javac/InterfaceInInner.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/InterfaceInInner.out	Thu Feb 03 09:38:19 2011 +0000
+@@ -0,0 +1,2 @@
++InterfaceInInner.java:12:13: compiler.err.intf.not.allowed.here
++1 error
+diff -r 03cf47d4de15 -r afe226180744 test/tools/javac/QualifiedNew.java
+--- a/test/tools/javac/QualifiedNew.java	Thu Feb 03 09:37:28 2011 +0000
++++ b/test/tools/javac/QualifiedNew.java	Thu Feb 03 09:38:19 2011 +0000
+@@ -1,33 +1,10 @@
+ /*
+- * Copyright (c) 2002, Oracle and/or its affiliates. All rights reserved.
+- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+- *
+- * This code is free software; you can redistribute it and/or modify it
+- * under the terms of the GNU General Public License version 2 only, as
+- * published by the Free Software Foundation.
+- *
+- * This code is distributed in the hope that it will be useful, but WITHOUT
+- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+- * version 2 for more details (a copy is included in the LICENSE file that
+- * accompanied this code).
+- *
+- * You should have received a copy of the GNU General Public License version
+- * 2 along with this work; if not, write to the Free Software Foundation,
+- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+- *
+- * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+- * or visit www.oracle.com if you need additional information or have any
+- * questions.
+- */
+-
+-/*
+- * @test
++ * @test  /nodynamiccopyright/
+  * @bug 4406966
+  * @summary null qualifying inner instance creation should be error.
+  * @author gafter
+  *
+- * @compile/fail QualifiedNew.java
++ * @compile/fail/ref=QualifiedNew.out -XDrawDiagnostics QualifiedNew.java
+  */
+ 
+ class QualifiedNew {
+diff -r 03cf47d4de15 -r afe226180744 test/tools/javac/QualifiedNew.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/QualifiedNew.out	Thu Feb 03 09:38:19 2011 +0000
+@@ -0,0 +1,3 @@
++QualifiedNew.java:14:23: compiler.err.type.found.req: compiler.misc.type.null, (compiler.misc.type.req.ref)
++QualifiedNew.java:15:29: compiler.err.cant.resolve.location: kindname.class, Y, , , (compiler.misc.location: kindname.class, QualifiedNew.Y[], null)
++2 errors
+diff -r 03cf47d4de15 -r afe226180744 test/tools/javac/T6247324.out
+--- a/test/tools/javac/T6247324.out	Thu Feb 03 09:37:28 2011 +0000
++++ b/test/tools/javac/T6247324.out	Thu Feb 03 09:38:19 2011 +0000
+@@ -1,2 +1,2 @@
+-T6247324.java:18:6: compiler.err.cant.resolve.location: kindname.class, Seetharam, , , (compiler.misc.location: kindname.class, Pair, null)
++T6247324.java:18:6: compiler.err.cant.resolve.location: kindname.class, Seetharam, , , (compiler.misc.location: kindname.class, Pair<X,Y>, null)
+ 1 error
+diff -r 03cf47d4de15 -r afe226180744 test/tools/javac/generics/diamond/neg/Neg01.out
+--- a/test/tools/javac/generics/diamond/neg/Neg01.out	Thu Feb 03 09:37:28 2011 +0000
++++ b/test/tools/javac/generics/diamond/neg/Neg01.out	Thu Feb 03 09:38:19 2011 +0000
+@@ -17,7 +17,7 @@
+ Neg01.java:29:15: compiler.err.not.within.bounds: ? extends java.lang.String, X
+ Neg01.java:29:39: compiler.err.cant.apply.diamond: (compiler.misc.diamond: Neg01), null
+ Neg01.java:30:24: compiler.err.cant.apply.diamond: (compiler.misc.diamond: Neg01), null
+-Neg01.java:31:9: compiler.err.cant.resolve.location: kindname.class, Foo, , , (compiler.misc.location: kindname.class, Neg01, null)
++Neg01.java:31:9: compiler.err.cant.resolve.location: kindname.class, Foo, , , (compiler.misc.location: kindname.class, Neg01<X>, null)
+ Neg01.java:31:35: compiler.err.cant.apply.diamond: (compiler.misc.diamond: Neg01), null
+ Neg01.java:33:15: compiler.err.not.within.bounds: java.lang.String, X
+ Neg01.java:33:29: compiler.err.cant.apply.diamond: (compiler.misc.diamond: Neg01), null
+diff -r 03cf47d4de15 -r afe226180744 test/tools/javac/generics/inference/6943278/T6943278.out
+--- a/test/tools/javac/generics/inference/6943278/T6943278.out	Thu Feb 03 09:37:28 2011 +0000
++++ b/test/tools/javac/generics/inference/6943278/T6943278.out	Thu Feb 03 09:38:19 2011 +0000
+@@ -1,3 +1,3 @@
+ T6943278.java:7:35: compiler.err.cant.resolve: kindname.class, NonExistentInterface, , 
+-T6943278.java:9:25: compiler.err.cant.resolve.location: kindname.class, NonExistentInterface, , , (compiler.misc.location: kindname.class, T6943278, null)
++T6943278.java:9:25: compiler.err.cant.resolve.location: kindname.class, NonExistentInterface, , , (compiler.misc.location: kindname.class, T6943278<X>, null)
+ 2 errors
+

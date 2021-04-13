@@ -1,0 +1,58 @@
+diff --git a/compiler/src/dotty/tools/dotc/typer/Namer.scala b/compiler/src/dotty/tools/dotc/typer/Namer.scala
+index 02607393580d..41917a3ea82f 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Namer.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Namer.scala
+@@ -888,8 +888,8 @@ class Namer { typer: Typer =>
+       val unsafeInfo = if (isDerived) rhsBodyType else abstracted(rhsBodyType)
+ 
+       def opaqueToBounds(info: Type): Type =
+-        if sym.isOpaqueAlias && tparamSyms.isEmpty && info.typeParams.nonEmpty then
+-          report.error(em"opaque type alias must be fully applied", rhs.srcPos)
++        if sym.isOpaqueAlias && info.typeParams.nonEmpty && info.hkResult.typeParams.nonEmpty then
++          report.error(em"opaque type alias cannot have multiple type parameter lists", rhs.srcPos)
+         sym.opaqueToBounds(info, rhs1, tparamSyms)
+ 
+       if (isDerived) sym.info = unsafeInfo
+diff --git a/docs/docs/reference/other-new-features/opaques-details.md b/docs/docs/reference/other-new-features/opaques-details.md
+index e6021a4a3b9a..ccbbc1770429 100644
+--- a/docs/docs/reference/other-new-features/opaques-details.md
++++ b/docs/docs/reference/other-new-features/opaques-details.md
+@@ -46,6 +46,20 @@ object o {
+ def id(x: o.T): o.T = x
+ ```
+ 
++### Type Parameters of Opaque Types
++
++Opaque type aliases can have a single type parameter list. The following aliases
++are well-formed
++```scala
++opaque type F[T] = (T, T)
++opaque type G = [T] =>> List[T]
++```
++but the following are not:
++```scala
++opaque type BadF[T] = [U] =>> (T, U)
++opaque type BadG = [T] =>> [U] => (T, U)
++```
++
+ ### Translation of Equality
+ 
+ Comparing two values of opaque type with `==` or `!=` normally uses universal equality,
+diff --git a/tests/neg/i9735.scala b/tests/neg/i9735.scala
+new file mode 100644
+index 000000000000..a76aad435a00
+--- /dev/null
++++ b/tests/neg/i9735.scala
+@@ -0,0 +1,12 @@
++trait Two[A, B]
++
++opaque type U[A] = [B] =>> Two[A, B] // error: opaque type alias cannot have multiple type parameter lists // error: cannot instantiate
++opaque type T = [A] =>> [B] =>> String // error: opaque type alias cannot have multiple type parameter lists
++opaque type S = [B] =>> String // ok
++opaque type IArray[+T] = Array[? <: T] // ok
++opaque type S2[B] = String // ok
++
++opaque type BadF[T] = [U] =>> (T, U)    // error
++opaque type BadG = [T] =>> [U] =>> (T, U) // error
++
++

@@ -1,0 +1,75 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 7a23659e8f..424c5e10c0 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -4082,6 +4082,12 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         return resolvedPlaceholders;
+     }
+ 
++    private static boolean isGenericsPlaceHolderOrArrayOf(ClassNode cn) {
++        if (cn.isArray()) return isGenericsPlaceHolderOrArrayOf(cn.getComponentType());
++        return cn.isGenericsPlaceHolder();
++    }
++
++
+     private static Map<String, GenericsType> extractPlaceHolders(MethodNode method, ClassNode receiver, ClassNode declaringClass) {
+         if (declaringClass.equals(OBJECT_TYPE)) {
+             Map<String, GenericsType> resolvedPlaceholders = new HashMap<String, GenericsType>();
+@@ -4095,12 +4101,15 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         }
+         ClassNode current = receiver;
+         while (true) {
++            boolean continueLoop = true;
+             //extract the place holders
+             Map<String, GenericsType> currentPlaceHolders = new HashMap<String, GenericsType>();
+-            GenericsUtils.extractPlaceholders(current, currentPlaceHolders);
+-
+-            if (method!=null && declaringClass.equals(current)) {
+-                addMethodLevelDeclaredGenerics(method, currentPlaceHolders);
++            if (isGenericsPlaceHolderOrArrayOf(declaringClass) || declaringClass.equals(current)) {
++                extractGenericsConnections(currentPlaceHolders, current, declaringClass);
++                if (method!=null) addMethodLevelDeclaredGenerics(method, currentPlaceHolders);
++                continueLoop = false;
++            } else {
++                GenericsUtils.extractPlaceholders(current, currentPlaceHolders);
+             }
+ 
+             if (resolvedPlaceholders!=null) {
+@@ -4117,7 +4126,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+             resolvedPlaceholders = currentPlaceHolders;
+ 
+             // we are done if we are now in the declaring class
+-            if (current.equals(declaringClass)) break;
++            if (!continueLoop) break;
+ 
+             current = getNextSuperClass(current, declaringClass);
+             if (current==null && CLASS_Type.equals(declaringClass)) {
+diff --git a/src/test/groovy/transform/stc/DefaultGroovyMethodsSTCTest.groovy b/src/test/groovy/transform/stc/DefaultGroovyMethodsSTCTest.groovy
+index 28b1c3a0af..fb62587161 100644
+--- a/src/test/groovy/transform/stc/DefaultGroovyMethodsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/DefaultGroovyMethodsSTCTest.groovy
+@@ -103,5 +103,24 @@ class DefaultGroovyMethodsSTCTest extends StaticTypeCheckingTestCase {
+             def x = [a:1, b:3].each { k, v -> "$k$v" }
+         '''
+     }
++
++    // GROOVY-6961
++    void testCollectMany() {
++        assertScript '''
++            class ListCompilerAndReverser {
++                static List<Integer> revlist(List<List<String>> list) {
++                    list.collectMany { strings ->
++                        strings.collect {
++                            it.toInteger()
++                        }
++                    } sort { int it ->
++                        -it
++                    }
++                }
++            }
++
++            assert ListCompilerAndReverser.revlist([["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"]]) == [9, 8, 7, 6, 5, 4, 3, 2, 1]
++        '''
++    }
+ }
+ 

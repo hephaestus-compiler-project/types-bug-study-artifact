@@ -1,0 +1,56 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index 46e571bc8f..ef33820f75 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -312,6 +312,12 @@ public abstract class StaticTypeCheckingSupport {
+         if (type.isArray() && toBeAssignedTo.isArray()) {
+             return isAssignableTo(type.getComponentType(),toBeAssignedTo.getComponentType());
+         }
++        if (type.isDerivedFrom(GSTRING_TYPE) && STRING_TYPE.equals(toBeAssignedTo)) {
++            return true;
++        }
++        if (toBeAssignedTo.isDerivedFrom(GSTRING_TYPE) && STRING_TYPE.equals(type)) {
++            return true;
++        }
+         if (implementsInterfaceOrIsSubclassOf(type, toBeAssignedTo)) {
+             if (OBJECT_TYPE.equals(toBeAssignedTo)) return true;
+             if (toBeAssignedTo.isUsingGenerics()) {
+diff --git a/src/test/groovy/transform/stc/ConstructorsSTCTest.groovy b/src/test/groovy/transform/stc/ConstructorsSTCTest.groovy
+index 87b60f2be1..7198f64cba 100644
+--- a/src/test/groovy/transform/stc/ConstructorsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/ConstructorsSTCTest.groovy
+@@ -211,5 +211,34 @@ class ConstructorsSTCTest extends StaticTypeCheckingTestCase {
+         '''
+ 
+     }
++
++    // GROOVY-5530
++    void testUseGStringInNamedParameter() {
++        assertScript '''class User {
++            String login
++            String username
++            String domain
++            String firstName
++            String lastName
++        }
++
++        class UserBase {
++            List<User> getUsers() {
++                [1, 2, 3].collect { Number num ->
++                     new User(
++                            login:      "login$num",
++                            username:   "username$num",
++                            domain:     "domain$num",
++                            firstName:  "first$num",
++                            lastName:   "last$num"
++                    )
++                }
++            }
++        }
++
++        def users = new UserBase().getUsers()
++        assert users.get(0).login == "login1"
++        '''
++    }
+ }
+ 

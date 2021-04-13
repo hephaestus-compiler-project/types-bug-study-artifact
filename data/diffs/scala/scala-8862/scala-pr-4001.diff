@@ -1,0 +1,399 @@
+diff --git a/src/compiler/scala/tools/nsc/backend/icode/GenICode.scala b/src/compiler/scala/tools/nsc/backend/icode/GenICode.scala
+index d9f56b47faf7..a1cec2ee0b9b 100644
+--- a/src/compiler/scala/tools/nsc/backend/icode/GenICode.scala
++++ b/src/compiler/scala/tools/nsc/backend/icode/GenICode.scala
+@@ -1138,7 +1138,7 @@ abstract class GenICode extends SubComponent {
+       // a package here, check if there's a package object.
+       val sym = (
+         if (!tree.symbol.isPackageClass) tree.symbol
+-        else tree.symbol.info.member(nme.PACKAGE) match {
++        else tree.symbol.info.packageObject match {
+           case NoSymbol => abort("Cannot use package as value: " + tree)
+           case s        =>
+             devWarning(s"Found ${tree.symbol} where a package object is required. Converting to ${s.moduleClass}")
+diff --git a/src/compiler/scala/tools/nsc/backend/jvm/BCodeBodyBuilder.scala b/src/compiler/scala/tools/nsc/backend/jvm/BCodeBodyBuilder.scala
+index daf36ce37494..89d7acaa1144 100644
+--- a/src/compiler/scala/tools/nsc/backend/jvm/BCodeBodyBuilder.scala
++++ b/src/compiler/scala/tools/nsc/backend/jvm/BCodeBodyBuilder.scala
+@@ -915,7 +915,7 @@ abstract class BCodeBodyBuilder extends BCodeSkelBuilder {
+     def genLoadModule(tree: Tree): BType = {
+       val module = (
+         if (!tree.symbol.isPackageClass) tree.symbol
+-        else tree.symbol.info.member(nme.PACKAGE) match {
++        else tree.symbol.info.packageObject match {
+           case NoSymbol => abort(s"SI-5604: Cannot use package as value: $tree")
+           case s        => abort(s"SI-5604: found package class where package object expected: $tree")
+         }
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Contexts.scala b/src/compiler/scala/tools/nsc/typechecker/Contexts.scala
+index a79f162140a7..c86eaffccf01 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Contexts.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Contexts.scala
+@@ -806,10 +806,11 @@ trait Contexts { self: Analyzer =>
+     private def collectImplicitImports(imp: ImportInfo): List[ImplicitInfo] = {
+       val qual = imp.qual
+ 
++      val qualSym = qual.tpe.typeSymbol
+       val pre =
+-        if (qual.tpe.typeSymbol.isPackageClass)
++        if (qualSym.isPackageClass)
+           // SI-6225 important if the imported symbol is inherited by the the package object.
+-          singleType(qual.tpe, qual.tpe member nme.PACKAGE)
++          qualSym.packageObject.typeOfThis
+         else
+           qual.tpe
+       def collect(sels: List[ImportSelector]): List[ImplicitInfo] = sels match {
+@@ -882,7 +883,8 @@ trait Contexts { self: Analyzer =>
+         Some(collectImplicitImports(imports.head))
+       } else if (owner.isPackageClass) {
+         // the corresponding package object may contain implicit members.
+-        Some(collectImplicits(owner.tpe.implicitMembers, owner.tpe))
++        val pre = owner.packageObject.typeOfThis
++        Some(collectImplicits(pre.implicitMembers, pre))
+       } else Some(Nil)
+     }
+ 
+@@ -952,52 +954,11 @@ trait Contexts { self: Analyzer =>
+     private def importedAccessibleSymbol(imp: ImportInfo, name: Name, requireExplicit: Boolean): Symbol =
+       imp.importedSymbol(name, requireExplicit) filter (s => isAccessible(s, imp.qual.tpe, superAccess = false))
+ 
+-    /** Is `sym` defined in package object of package `pkg`?
+-     *  Since sym may be defined in some parent of the package object,
+-     *  we cannot inspect its owner only; we have to go through the
+-     *  info of the package object.  However to avoid cycles we'll check
+-     *  what other ways we can before pushing that way.
++    /** Must `sym` defined in package object of package `pkg`, if
++     *  it selected from a prefix with `pkg` as its type symbol?
+      */
+-    def isInPackageObject(sym: Symbol, pkg: Symbol): Boolean = {
+-      def uninitialized(what: String) = {
+-        log(s"Cannot look for $sym in package object of $pkg; $what is not initialized.")
+-        false
+-      }
+-      def pkgClass = if (pkg.isTerm) pkg.moduleClass else pkg
+-      def matchesInfo = (
+-        // need to be careful here to not get a cyclic reference during bootstrap
+-        if (pkg.isInitialized) {
+-          val module = pkg.info member nme.PACKAGEkw
+-          if (module.isInitialized)
+-            module.info.member(sym.name).alternatives contains sym
+-          else
+-            uninitialized("" + module)
+-        }
+-        else uninitialized("" + pkg)
+-      )
+-      def inPackageObject(sym: Symbol) = (
+-        // To be in the package object, one of these must be true:
+-        //   1) sym.owner is a package object class, and sym.owner.owner is the package class for `pkg`
+-        //   2) sym.owner is inherited by the correct package object class
+-        // We try to establish 1) by inspecting the owners directly, and then we try
+-        // to rule out 2), and only if both those fail do we resort to looking in the info.
+-        !sym.hasPackageFlag && sym.owner.exists && (
+-          if (sym.owner.isPackageObjectClass)
+-            sym.owner.owner == pkgClass
+-          else
+-            !sym.owner.isPackageClass && matchesInfo
+-        )
+-      )
+-
+-      // An overloaded symbol might not have the expected owner!
+-      // The alternatives must be inspected directly.
+-      pkgClass.isPackageClass && (
+-        if (sym.isOverloaded)
+-          sym.alternatives forall (isInPackageObject(_, pkg))
+-        else
+-          inPackageObject(sym)
+-      )
+-    }
++    def isInPackageObject(sym: Symbol, pkg: Symbol): Boolean =
++      pkg.isPackage && sym.owner != pkg
+ 
+     def isNameInScope(name: Name) = lookupSymbol(name, _ => true).isSuccess
+ 
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Implicits.scala b/src/compiler/scala/tools/nsc/typechecker/Implicits.scala
+index b85c8e6d42c6..e2ad578252f7 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Implicits.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Implicits.scala
+@@ -1012,15 +1012,12 @@ trait Implicits {
+               }
+             case None =>
+               if (pre.isStable && !pre.typeSymbol.isExistentiallyBound) {
+-                val companion = companionSymbolOf(sym, context)
+-                companion.moduleClass match {
+-                  case mc: ModuleClassSymbol =>
+-                    val infos =
+-                      for (im <- mc.implicitMembers.toList) yield new ImplicitInfo(im.name, singleType(pre, companion), im)
+-                    if (infos.nonEmpty)
+-                      infoMap += (sym -> infos)
+-                  case _ =>
+-                }
++                val pre1 =
++                  if (sym.isPackageClass) sym.packageObject.typeOfThis
++                  else singleType(pre, companionSymbolOf(sym, context))
++                val infos = pre1.implicitMembers.iterator.map(mem => new ImplicitInfo(mem.name, pre1, mem)).toList
++                if (infos.nonEmpty)
++                  infoMap += (sym -> infos)
+               }
+               val bts = tp.baseTypeSeq
+               var i = 1
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Typers.scala b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+index 422b940cd345..fe6038bc0046 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Typers.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+@@ -538,7 +538,11 @@ trait Typers extends Adaptations with Tags with TypersTracking with PatternTyper
+         }
+         val qual = typedQualifier { atPos(tree.pos.makeTransparent) {
+           tree match {
+-            case Ident(_) => Ident(rootMirror.getPackageObjectWithMember(pre, sym))
++            case Ident(_) =>
++              val packageObject =
++                if (sym.owner.isModuleClass) sym.owner.sourceModule // historical optimization, perhaps no longer needed
++                else pre.typeSymbol.packageObject
++              Ident(packageObject)
+             case Select(qual, _) => Select(qual, nme.PACKAGEkw)
+             case SelectFromTypeTree(qual, _) => Select(qual, nme.PACKAGEkw)
+           }
+diff --git a/src/reflect/scala/reflect/internal/Mirrors.scala b/src/reflect/scala/reflect/internal/Mirrors.scala
+index 4a35e024ded9..2fca99aff93b 100644
+--- a/src/reflect/scala/reflect/internal/Mirrors.scala
++++ b/src/reflect/scala/reflect/internal/Mirrors.scala
+@@ -180,7 +180,7 @@ trait Mirrors extends api.Mirrors {
+ 
+     def getPackageObject(fullname: String): ModuleSymbol = getPackageObject(newTermName(fullname))
+     def getPackageObject(fullname: TermName): ModuleSymbol =
+-      (getPackage(fullname).info member nme.PACKAGE) match {
++      (getPackage(fullname).packageObject) match {
+         case x: ModuleSymbol => x
+         case _               => MissingRequirementError.notFound("package object " + fullname)
+       }
+@@ -191,15 +191,6 @@ trait Mirrors extends api.Mirrors {
+     def getPackageObjectIfDefined(fullname: TermName): Symbol =
+       wrapMissing(getPackageObject(fullname))
+ 
+-    final def getPackageObjectWithMember(pre: Type, sym: Symbol): Symbol = {
+-      // The owner of a symbol which requires package qualification may be the
+-      // package object iself, but it also could be any superclass of the package
+-      // object.  In the latter case, we must go through the qualifier's info
+-      // to obtain the right symbol.
+-      if (sym.owner.isModuleClass) sym.owner.sourceModule // fast path, if the member is owned by a module class, that must be linked to the package object
+-      else pre member nme.PACKAGE                         // otherwise we have to findMember
+-    }
+-
+     override def staticPackage(fullname: String): ModuleSymbol =
+       try ensurePackageSymbol(fullname.toString, getModuleOrClass(newTermNameCached(fullname)), allowModules = false)
+       catch { case mre: MissingRequirementError => throw new ScalaReflectionException(mre.msg) }
+diff --git a/src/reflect/scala/reflect/internal/SymbolTable.scala b/src/reflect/scala/reflect/internal/SymbolTable.scala
+index ed5c68fe82f7..7539b6e0462f 100644
+--- a/src/reflect/scala/reflect/internal/SymbolTable.scala
++++ b/src/reflect/scala/reflect/internal/SymbolTable.scala
+@@ -332,7 +332,7 @@ abstract class SymbolTable extends macros.Universe
+   /** if there's a `package` member object in `pkgClass`, enter its members into it. */
+   def openPackageModule(pkgClass: Symbol) {
+ 
+-    val pkgModule = pkgClass.info.decl(nme.PACKAGEkw)
++    val pkgModule = pkgClass.packageObject
+     def fromSource = pkgModule.rawInfo match {
+       case ltp: SymLoader => ltp.fromSource
+       case _ => false
+diff --git a/src/reflect/scala/reflect/internal/Symbols.scala b/src/reflect/scala/reflect/internal/Symbols.scala
+index 44fce2c9ab2b..e65c55885e41 100644
+--- a/src/reflect/scala/reflect/internal/Symbols.scala
++++ b/src/reflect/scala/reflect/internal/Symbols.scala
+@@ -810,6 +810,12 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
+      */
+     def skipPackageObject: Symbol = this
+ 
++    /** The package object symbol corresponding to this package or package class symbol, or NoSymbol otherwise */
++    def packageObject: Symbol =
++      if (isPackageClass) tpe.packageObject
++      else if (isPackage) moduleClass.packageObject
++      else NoSymbol
++
+     /** If this is a constructor, its owner: otherwise this.
+      */
+     final def skipConstructor: Symbol = if (isConstructor) owner else this
+@@ -3357,13 +3363,9 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
+     def implicitMembers: Scope = {
+       val tp = info
+       if ((implicitMembersCacheKey1 ne tp) || (implicitMembersCacheKey2 ne tp.decls.elems)) {
+-        // Skip a package object class, because the members are also in
+-        // the package and we wish to avoid spurious ambiguities as in pos/t3999.
+-        if (!isPackageObjectClass) {
+-          implicitMembersCacheValue = tp.implicitMembers
+-          implicitMembersCacheKey1 = tp
+-          implicitMembersCacheKey2 = tp.decls.elems
+-        }
++        implicitMembersCacheValue = tp.membersBasedOnFlags(BridgeFlags, IMPLICIT)
++        implicitMembersCacheKey1 = tp
++        implicitMembersCacheKey2 = tp.decls.elems
+       }
+       implicitMembersCacheValue
+     }
+diff --git a/src/reflect/scala/reflect/internal/TreeGen.scala b/src/reflect/scala/reflect/internal/TreeGen.scala
+index 6e8e992d1656..6ddd49045c9a 100644
+--- a/src/reflect/scala/reflect/internal/TreeGen.scala
++++ b/src/reflect/scala/reflect/internal/TreeGen.scala
+@@ -191,8 +191,8 @@ abstract class TreeGen {
+       )
+       val pkgQualifier =
+         if (needsPackageQualifier) {
+-          val packageObject = rootMirror.getPackageObjectWithMember(qual.tpe, sym)
+-          Select(qual, nme.PACKAGE) setSymbol packageObject setType singleType(qual.tpe, packageObject)
++          val packageObject = qualsym.packageObject
++          Select(qual, nme.PACKAGE) setSymbol packageObject setType packageObject.typeOfThis
+         }
+         else qual
+ 
+diff --git a/src/reflect/scala/reflect/internal/Types.scala b/src/reflect/scala/reflect/internal/Types.scala
+index a95f626a0b5e..897b6a7e3ccd 100644
+--- a/src/reflect/scala/reflect/internal/Types.scala
++++ b/src/reflect/scala/reflect/internal/Types.scala
+@@ -589,7 +589,12 @@ trait Types
+     def nonPrivateMembersAdmitting(admit: Long): Scope = membersBasedOnFlags(BridgeAndPrivateFlags & ~admit, 0)
+ 
+     /** A list of all implicit symbols of this type  (defined or inherited) */
+-    def implicitMembers: Scope = membersBasedOnFlags(BridgeFlags, IMPLICIT)
++    def implicitMembers: Scope = {
++      typeSymbolDirect match {
++        case sym: ModuleClassSymbol => sym.implicitMembers
++        case _ => membersBasedOnFlags(BridgeFlags, IMPLICIT)
++      }
++    }
+ 
+     /** A list of all deferred symbols of this type  (defined or inherited) */
+     def deferredMembers: Scope = membersBasedOnFlags(BridgeFlags, DEFERRED)
+@@ -606,6 +611,8 @@ trait Types
+     def nonPrivateMember(name: Name): Symbol =
+       memberBasedOnName(name, BridgeAndPrivateFlags)
+ 
++    def packageObject: Symbol = member(nme.PACKAGE)
++
+     /** The non-private member with given name, admitting members with given flags `admit`.
+      *  "Admitting" refers to the fact that members with a PRIVATE, BRIDGE, or VBRIDGE
+      *  flag are usually excluded from findMember results, but supplying any of those flags
+diff --git a/src/scaladoc/scala/tools/nsc/doc/model/diagram/DiagramDirectiveParser.scala b/src/scaladoc/scala/tools/nsc/doc/model/diagram/DiagramDirectiveParser.scala
+index bcb97639c63a..b300752a348a 100644
+--- a/src/scaladoc/scala/tools/nsc/doc/model/diagram/DiagramDirectiveParser.scala
++++ b/src/scaladoc/scala/tools/nsc/doc/model/diagram/DiagramDirectiveParser.scala
+@@ -177,7 +177,7 @@ trait DiagramDirectiveParser {
+ 
+       def warning(message: String) = {
+         // we need the position from the package object (well, ideally its comment, but yeah ...)
+-        val sym = if (template.sym.hasPackageFlag) template.sym.info.member(global.nme.PACKAGE) else template.sym
++        val sym = if (template.sym.hasPackageFlag) template.sym.packageObject else template.sym
+         assert((sym != global.NoSymbol) || (sym == global.rootMirror.RootPackage))
+         global.reporter.warning(sym.pos, message)
+       }
+diff --git a/test/files/pos/alladin763.scala b/test/files/pos/alladin763.scala
+new file mode 100644
+index 000000000000..29c9b2531877
+--- /dev/null
++++ b/test/files/pos/alladin763.scala
+@@ -0,0 +1,37 @@
++// Test from http://lrytz.github.io/scala-aladdin-bugtracker/displayItem.do%3Fid=763.html
++// and expanded with package object variants
++
++
++trait Foo { type T; def apply() : T }
++object e extends Foo { type T = Int; def apply() = 42 }
++
++package p {
++  trait T[X] { def O : { def apply(): X } }
++  object `package` extends T[Int] {
++    def O: { def apply(): Int } = new { def apply(): Int = 42 }
++  }
++
++  object Test {
++    val x: Int = O()
++  }
++}
++
++object Test {
++
++  val f = new Foo { type T = Int; def apply() = 42 }
++
++  def main(args: Array[String]): Unit = {
++    val g = new Foo { type T = Int; def apply() = 42 }
++
++    (e: Foo)()
++    val ee: Int = e()
++
++    (f: Foo)()
++    val ff: Int = f()
++
++    (g: Foo)()
++    val gg: Int = g()
++
++    val pp: Int = p.O()
++  }
++}
+diff --git a/test/files/pos/t8862a.scala b/test/files/pos/t8862a.scala
+new file mode 100644
+index 000000000000..f9576707ba5f
+--- /dev/null
++++ b/test/files/pos/t8862a.scala
+@@ -0,0 +1,47 @@
++package p {
++
++  abstract class C[A] {
++    def x: A
++    implicit def oops: A = x
++    implicit def oopso: Option[A] = None
++  }
++
++  package q {
++
++    class Oops
++
++    object `package` extends C[Oops] {
++      override def x = new Oops
++    }
++
++    object Blah {
++      oops
++      oopso
++
++      // implicits found in enclosing context
++      implicitly[Oops]
++      implicitly[Option[Oops]]
++    }
++  }
++}
++
++package other {
++
++  object Blah {
++    // implicits found through this import
++    import p.q._
++
++    oops
++    oopso
++
++    implicitly[Oops]
++    implicitly[Option[Oops]]
++  }
++
++
++  object Blee {
++    // implicits found through the companion implicits
++    implicitly[p.q.Oops]
++    implicitly[Option[p.q.Oops]]
++  }
++}
+diff --git a/test/files/pos/t8862b.scala b/test/files/pos/t8862b.scala
+new file mode 100644
+index 000000000000..8be7fb5fab61
+--- /dev/null
++++ b/test/files/pos/t8862b.scala
+@@ -0,0 +1,12 @@
++package p {
++  trait T[X] { def O : { def apply(): X } }
++  object `package` extends T[Int] {
++    def O: { def apply(): Int } = new { def apply(): Int = 42 }
++  }
++
++  object Test {
++    def main(args: Array[String]): Unit = {
++      val x: Int = O()
++    }
++  }
++}

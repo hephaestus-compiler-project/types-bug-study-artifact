@@ -1,0 +1,462 @@
+diff --git a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
+index 0b22a318dbd..d6c53e419c6 100644
+--- a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
++++ b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
+@@ -9728,6 +9728,11 @@ public class FirOldFrontendDiagnosticsTestGenerated extends AbstractFirOldFronte
+             runTest("compiler/testData/diagnostics/tests/inference/completeInferenceIfManyFailed.kt");
+         }
+ 
++        @TestMetadata("completionOfMultipleLambdas.kt")
++        public void testCompletionOfMultipleLambdas() throws Exception {
++            runTest("compiler/testData/diagnostics/tests/inference/completionOfMultipleLambdas.kt");
++        }
++
+         @TestMetadata("conflictingSubstitutions.kt")
+         public void testConflictingSubstitutions() throws Exception {
+             runTest("compiler/testData/diagnostics/tests/inference/conflictingSubstitutions.kt");
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/PostponeArgumentsChecks.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/PostponeArgumentsChecks.kt
+index 98122ad6cdf..6215189f04f 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/PostponeArgumentsChecks.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/PostponeArgumentsChecks.kt
+@@ -57,13 +57,15 @@ private fun preprocessLambdaArgument(
+     csBuilder: ConstraintSystemBuilder,
+     argument: LambdaKotlinCallArgument,
+     expectedType: UnwrappedType?,
+-    forceResolution: Boolean = false
++    forceResolution: Boolean = false,
++    returnTypeVariable: TypeVariableForLambdaReturnType? = null
+ ): ResolvedAtom {
+     if (expectedType != null && !forceResolution && csBuilder.isTypeVariable(expectedType)) {
+         return LambdaWithTypeVariableAsExpectedTypeAtom(argument, expectedType)
+     }
+ 
+-    val resolvedArgument = extractLambdaInfoFromFunctionalType(expectedType, argument) ?: extraLambdaInfo(expectedType, argument, csBuilder)
++    val resolvedArgument = extractLambdaInfoFromFunctionalType(expectedType, argument, returnTypeVariable)
++        ?: extraLambdaInfo(expectedType, argument, csBuilder)
+ 
+     if (expectedType != null) {
+         val lambdaType = createFunctionType(
+@@ -110,7 +112,11 @@ private fun extraLambdaInfo(
+     )
+ }
+ 
+-private fun extractLambdaInfoFromFunctionalType(expectedType: UnwrappedType?, argument: LambdaKotlinCallArgument): ResolvedLambdaAtom? {
++private fun extractLambdaInfoFromFunctionalType(
++    expectedType: UnwrappedType?,
++    argument: LambdaKotlinCallArgument,
++    returnTypeVariable: TypeVariableForLambdaReturnType? = null
++): ResolvedLambdaAtom? {
+     if (expectedType == null || !expectedType.isBuiltinFunctionalType) return null
+     val parameters = extractLambdaParameters(expectedType, argument)
+ 
+@@ -124,7 +130,7 @@ private fun extractLambdaInfoFromFunctionalType(expectedType: UnwrappedType?, ar
+         receiverType,
+         parameters,
+         returnType,
+-        typeVariableForLambdaReturnType = null,
++        typeVariableForLambdaReturnType = returnTypeVariable,
+         expectedType = expectedType
+     )
+ }
+@@ -141,9 +147,20 @@ private fun extractLambdaParameters(expectedType: UnwrappedType, argument: Lambd
+     }
+ }
+ 
+-fun LambdaWithTypeVariableAsExpectedTypeAtom.transformToResolvedLambda(csBuilder: ConstraintSystemBuilder): ResolvedLambdaAtom {
+-    val fixedExpectedType = (csBuilder.buildCurrentSubstitutor() as NewTypeSubstitutor).safeSubstitute(expectedType)
+-    val resolvedLambdaAtom = preprocessLambdaArgument(csBuilder, atom, fixedExpectedType, forceResolution = true) as ResolvedLambdaAtom
++fun LambdaWithTypeVariableAsExpectedTypeAtom.transformToResolvedLambda(
++    csBuilder: ConstraintSystemBuilder,
++    expectedType: UnwrappedType? = null,
++    returnTypeVariable: TypeVariableForLambdaReturnType? = null
++): ResolvedLambdaAtom {
++    val fixedExpectedType = (csBuilder.buildCurrentSubstitutor() as NewTypeSubstitutor)
++        .safeSubstitute(expectedType ?: this.expectedType)
++    val resolvedLambdaAtom = preprocessLambdaArgument(
++        csBuilder,
++        atom,
++        fixedExpectedType,
++        forceResolution = true,
++        returnTypeVariable
++    ) as ResolvedLambdaAtom
+ 
+     setAnalyzed(resolvedLambdaAtom)
+ 
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/KotlinConstraintSystemCompleter.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/KotlinConstraintSystemCompleter.kt
+index 08e66cdf0ec..c0753c48b44 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/KotlinConstraintSystemCompleter.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/KotlinConstraintSystemCompleter.kt
+@@ -5,19 +5,18 @@
+ 
+ package org.jetbrains.kotlin.resolve.calls.inference.components
+ 
++import org.jetbrains.kotlin.builtins.isBuiltinFunctionalType
+ import org.jetbrains.kotlin.resolve.calls.components.KotlinResolutionStatelessCallbacks
+-import org.jetbrains.kotlin.resolve.calls.inference.model.NotEnoughInformationForTypeParameter
+-import org.jetbrains.kotlin.resolve.calls.inference.model.TypeVariableFromCallableDescriptor
+-import org.jetbrains.kotlin.resolve.calls.inference.model.VariableWithConstraints
++import org.jetbrains.kotlin.resolve.calls.components.transformToResolvedLambda
++import org.jetbrains.kotlin.resolve.calls.inference.ConstraintSystemBuilder
++import org.jetbrains.kotlin.resolve.calls.inference.model.*
+ import org.jetbrains.kotlin.resolve.calls.model.*
+-import org.jetbrains.kotlin.types.ErrorUtils
+-import org.jetbrains.kotlin.types.TypeConstructor
+-import org.jetbrains.kotlin.types.UnwrappedType
++import org.jetbrains.kotlin.types.*
+ import org.jetbrains.kotlin.types.model.KotlinTypeMarker
+ import org.jetbrains.kotlin.types.model.TypeConstructorMarker
+ import org.jetbrains.kotlin.types.model.TypeVariableMarker
++import org.jetbrains.kotlin.types.typeUtil.asTypeProjection
+ import org.jetbrains.kotlin.utils.addIfNotNull
+-import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
+ import org.jetbrains.kotlin.utils.addToStdlib.safeAs
+ 
+ class KotlinConstraintSystemCompleter(
+@@ -80,9 +79,11 @@ class KotlinConstraintSystemCompleter(
+                     c, allTypeVariables, postponedKtPrimitives, completionMode, topLevelType
+                 ) ?: break
+ 
+-            if (shouldForceCallableReferenceOrLambdaResolution(completionMode, variableForFixation)) {
+-                if (forcePostponedAtomResolution<PostponedCallableReferenceAtom>(topLevelAtoms, analyze)) continue
+-                if (forcePostponedAtomResolution<LambdaWithTypeVariableAsExpectedTypeAtom>(topLevelAtoms, analyze)) continue
++            if (
++                completionMode == ConstraintSystemCompletionMode.FULL &&
++                resolveLambdaOrCallableReferenceWithTypeVariableAsExpectedType(c, variableForFixation, topLevelAtoms, analyze)
++            ) {
++                continue
+             }
+ 
+             if (variableForFixation.hasProperConstraint || completionMode == ConstraintSystemCompletionMode.FULL) {
+@@ -109,12 +110,60 @@ class KotlinConstraintSystemCompleter(
+         }
+     }
+ 
+-    private fun shouldForceCallableReferenceOrLambdaResolution(
+-        completionMode: ConstraintSystemCompletionMode,
+-        variableForFixation: VariableFixationFinder.VariableForFixation
++    /*
++     * returns true -> analyzed
++     */
++    private fun resolveLambdaOrCallableReferenceWithTypeVariableAsExpectedType(
++        c: Context,
++        variableForFixation: VariableFixationFinder.VariableForFixation,
++        topLevelAtoms: List<ResolvedAtom>,
++        analyze: (PostponedResolvedAtom) -> Unit
+     ): Boolean {
+-        if (completionMode == ConstraintSystemCompletionMode.PARTIAL) return false
+-        return !variableForFixation.hasProperConstraint || variableForFixation.hasOnlyTrivialProperConstraint
++        val variable = variableForFixation.variable as TypeConstructor
++        val postponedArguments = getOrderedNotAnalyzedPostponedArguments(topLevelAtoms)
++        if (
++            !postponedArguments.any { (it as? LambdaWithTypeVariableAsExpectedTypeAtom)?.expectedType?.constructor == variable } &&
++            variableForFixation.hasProperConstraint &&
++            !variableForFixation.hasOnlyTrivialProperConstraint
++        ) return false
++
++        val postponedAtom = postponedArguments.firstOrNull() ?: return false
++        when (postponedAtom) {
++            is PostponedCallableReferenceAtom -> {
++                analyze(postponedAtom)
++            }
++            is LambdaWithTypeVariableAsExpectedTypeAtom -> {
++                var atomToAnalyze = postponedAtom
++                if (postponedAtom.atom.parametersTypes?.all { it != null } != true) {
++                    val functionalType = resultTypeResolver.findResultType(
++                        c,
++                        c.notFixedTypeVariables.getValue(variable),
++                        TypeVariableDirectionCalculator.ResolveDirection.TO_SUPERTYPE
++                    ) as KotlinType
++                    if (functionalType.isBuiltinFunctionalType) {
++                        val csBuilder = c as ConstraintSystemBuilder
++                        val builtIns = (variable as TypeVariableTypeConstructor).builtIns
++                        val returnVariable = TypeVariableForLambdaReturnType(postponedAtom.atom, builtIns, "_R")
++                        csBuilder.registerVariable(returnVariable)
++                        val expectedType = KotlinTypeFactory.simpleType(
++                            functionalType.annotations,
++                            functionalType.constructor,
++                            functionalType.arguments.dropLast(1) + returnVariable.defaultType.asTypeProjection(),
++                            functionalType.isMarkedNullable
++                        )
++                        csBuilder.addSubtypeConstraint(
++                            expectedType,
++                            variable.typeForTypeVariable(),
++                            ArgumentConstraintPosition(postponedAtom.atom)
++                        )
++                        atomToAnalyze = postponedAtom.transformToResolvedLambda(csBuilder, expectedType, returnVariable)
++                    }
++                }
++                analyze(atomToAnalyze)
++            }
++            else -> return false
++        }
++        return true
+     }
+ 
+     // true if we do analyze
+@@ -132,16 +181,6 @@ class KotlinConstraintSystemCompleter(
+         return false
+     }
+ 
+-    // true if we find some callable reference and run resolution for it. Note that such resolution can be unsuccessful
+-    private inline fun <reified T : PostponedResolvedAtom> forcePostponedAtomResolution(
+-        topLevelAtoms: List<ResolvedAtom>,
+-        analyze: (PostponedResolvedAtom) -> Unit
+-    ): Boolean {
+-        val postponedArgument = getOrderedNotAnalyzedPostponedArguments(topLevelAtoms).firstIsInstanceOrNull<T>() ?: return false
+-        analyze(postponedArgument)
+-        return true
+-    }
+-
+     private fun getOrderedNotAnalyzedPostponedArguments(topLevelAtoms: List<ResolvedAtom>): List<PostponedResolvedAtom> {
+         fun ResolvedAtom.process(to: MutableList<PostponedResolvedAtom>) {
+             to.addIfNotNull(this.safeAs<PostponedResolvedAtom>()?.takeUnless { it.analyzed })
+@@ -190,7 +229,7 @@ class KotlinConstraintSystemCompleter(
+         }
+ 
+         assert(result.size == c.notFixedTypeVariables.size) {
+-            val notFoundTypeVariables = c.notFixedTypeVariables.keys.toMutableSet().removeAll(result)
++            val notFoundTypeVariables = c.notFixedTypeVariables.keys.toMutableSet().apply { removeAll(result) }
+             "Not all type variables found: $notFoundTypeVariables"
+         }
+ 
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/TypeVariable.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/TypeVariable.kt
+index 28d97b44cc4..555e1158713 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/TypeVariable.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/TypeVariable.kt
+@@ -55,16 +55,20 @@ sealed class NewTypeVariable(builtIns: KotlinBuiltIns, name: String) : TypeVaria
+ 
+     // member scope is used if we have receiver with type TypeVariable(T)
+     // todo add to member scope methods from supertypes for type variable
+-    val defaultType: SimpleType = KotlinTypeFactory.simpleTypeWithNonTrivialMemberScope(
+-        Annotations.EMPTY, freshTypeConstructor, arguments = emptyList(),
+-        nullable = false, memberScope = builtIns.any.unsubstitutedMemberScope
+-    )
+-
++    val defaultType: SimpleType = freshTypeConstructor.typeForTypeVariable()
+     abstract fun hasOnlyInputTypesAnnotation(): Boolean
+ 
+     override fun toString() = freshTypeConstructor.toString()
+ }
+ 
++fun TypeConstructor.typeForTypeVariable(): SimpleType {
++    require(this is TypeVariableTypeConstructor)
++    return KotlinTypeFactory.simpleTypeWithNonTrivialMemberScope(
++        Annotations.EMPTY, this, arguments = emptyList(),
++        nullable = false, memberScope = builtIns.any.unsubstitutedMemberScope
++    )
++}
++
+ class TypeVariableFromCallableDescriptor(
+     val originalTypeParameter: TypeParameterDescriptor
+ ) : NewTypeVariable(originalTypeParameter.builtIns, originalTypeParameter.name.identifier) {
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/model/ResolutionAtoms.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/model/ResolutionAtoms.kt
+index c737c7ef7a0..0080bd0eab1 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/model/ResolutionAtoms.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/model/ResolutionAtoms.kt
+@@ -14,6 +14,7 @@ import org.jetbrains.kotlin.resolve.calls.inference.components.FreshVariableNewT
+ import org.jetbrains.kotlin.resolve.calls.inference.components.NewTypeSubstitutor
+ import org.jetbrains.kotlin.resolve.calls.inference.model.ConstraintStorage
+ import org.jetbrains.kotlin.resolve.calls.inference.model.NewConstraintError
++import org.jetbrains.kotlin.resolve.calls.inference.model.NewTypeVariable
+ import org.jetbrains.kotlin.resolve.calls.inference.model.TypeVariableForLambdaReturnType
+ import org.jetbrains.kotlin.resolve.calls.tasks.ExplicitReceiverKind
+ import org.jetbrains.kotlin.types.KotlinType
+diff --git a/compiler/testData/diagnostics/tests/controlFlowAnalysis/elvisNotProcessed.kt b/compiler/testData/diagnostics/tests/controlFlowAnalysis/elvisNotProcessed.kt
+index e17ee5b0c38..83a43ec4c73 100644
+--- a/compiler/testData/diagnostics/tests/controlFlowAnalysis/elvisNotProcessed.kt
++++ b/compiler/testData/diagnostics/tests/controlFlowAnalysis/elvisNotProcessed.kt
+@@ -34,6 +34,6 @@ val bbb = null ?: ( l() <!USELESS_ELVIS_RIGHT_IS_NULL!>?: null<!>)
+ val bbbb = ( l() <!USELESS_ELVIS_RIGHT_IS_NULL!>?: null<!>) ?: ( l() <!USELESS_ELVIS_RIGHT_IS_NULL!>?: null<!>)
+ 
+ fun f(x : Long?): Long {
+-    var a = x ?: (<!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, TYPE_MISMATCH!>fun() {}<!> <!USELESS_ELVIS!>?: <!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, TYPE_MISMATCH!>fun() {}<!><!>)
++    var a = x ?: (<!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, TYPE_MISMATCH!>fun() {}<!> <!USELESS_ELVIS!>?: <!NI;TYPE_MISMATCH, TYPE_MISMATCH!>fun() {}<!><!>)
+     return <!OI;DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>a<!>
+ }
+diff --git a/compiler/testData/diagnostics/tests/controlStructures/lambdasInExclExclAndElvis.kt b/compiler/testData/diagnostics/tests/controlStructures/lambdasInExclExclAndElvis.kt
+index cdf3a75a555..595266bd73c 100644
+--- a/compiler/testData/diagnostics/tests/controlStructures/lambdasInExclExclAndElvis.kt
++++ b/compiler/testData/diagnostics/tests/controlStructures/lambdasInExclExclAndElvis.kt
+@@ -8,9 +8,9 @@ fun test() {
+     use({ }<!NOT_NULL_ASSERTION_ON_LAMBDA_EXPRESSION!>!!<!>);
+ 
+     // KT-KT-9070
+-    <!TYPE_MISMATCH!>{ }<!> <!USELESS_ELVIS!>?: 1<!>
++    <!OI;TYPE_MISMATCH!>{ }<!> <!USELESS_ELVIS!>?: 1<!>
+     use({ 2 } <!USELESS_ELVIS!>?: 1<!>);
+ 
+-    1 <!USELESS_ELVIS!>?: <!TYPE_MISMATCH, UNUSED_LAMBDA_EXPRESSION!>{ }<!><!>
++    1 <!USELESS_ELVIS!>?: <!OI;TYPE_MISMATCH, UNUSED_LAMBDA_EXPRESSION!>{ }<!><!>
+     use(1 <!USELESS_ELVIS!>?: { }<!>)
+ }
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/completionOfMultipleLambdas.fir.kt b/compiler/testData/diagnostics/tests/inference/completionOfMultipleLambdas.fir.kt
+new file mode 100644
+index 00000000000..069f1996f2b
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/completionOfMultipleLambdas.fir.kt
+@@ -0,0 +1,32 @@
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE -UNUSED_ANONYMOUS_PARAMETER
++
++fun <K> select(x: K, y: K): K = x
++fun <K> select3(x: K, y: K, z: K): K = x
++
++interface A
++interface B
++
++fun test() {
++    select3(
++        { a: A, b: A -> Unit },
++        { b, a -> Unit },
++        { <!UNRESOLVED_REFERENCE!>it<!>; Unit }
++    )
++}
++
++// ISSUE: KT-27999
++// ISSUE: KT-30244
++fun test_1() {
++    select(
++        { 1 },
++        { "" }
++    )
++}
++
++// ISSUE: KT-31102
++fun bar(): Int = 1
++fun test_2(x: Int) {
++    val f1: () -> Int = select({ bar() }, ::bar) // TYPE_MISMATCH on lambda
++    val f2 = select({ bar() }, ::bar) // Same
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/completionOfMultipleLambdas.kt b/compiler/testData/diagnostics/tests/inference/completionOfMultipleLambdas.kt
+new file mode 100644
+index 00000000000..53cc9fea442
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/completionOfMultipleLambdas.kt
+@@ -0,0 +1,32 @@
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE -UNUSED_ANONYMOUS_PARAMETER
++
++fun <K> select(x: K, y: K): K = x
++fun <K> select3(x: K, y: K, z: K): K = x
++
++interface A
++interface B
++
++fun test() {
++    <!DEBUG_INFO_EXPRESSION_TYPE("(A, A) -> kotlin.Unit")!>select3(
++        { a: A, b: A -> Unit },
++        { b, a -> Unit },
++        <!EXPECTED_PARAMETERS_NUMBER_MISMATCH!>{<!> <!UNRESOLVED_REFERENCE!>it<!>; Unit }
++    )<!>
++}
++
++// ISSUE: KT-27999
++// ISSUE: KT-30244
++fun test_1() {
++    <!DEBUG_INFO_EXPRESSION_TYPE("() -> {Comparable<{Int & String}> & java.io.Serializable}")!>select(
++        { 1 },
++        { "" }
++    )<!>
++}
++
++// ISSUE: KT-31102
++fun bar(): Int = 1
++fun test_2(x: Int) {
++    val f1: () -> Int = select({ bar() }, ::bar) // TYPE_MISMATCH on lambda
++    val f2 = select({ bar() }, ::bar) // Same
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/completionOfMultipleLambdas.txt b/compiler/testData/diagnostics/tests/inference/completionOfMultipleLambdas.txt
+new file mode 100644
+index 00000000000..7a058b5e68f
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/completionOfMultipleLambdas.txt
+@@ -0,0 +1,20 @@
++package
++
++public fun bar(): kotlin.Int
++public fun </*0*/ K> select(/*0*/ x: K, /*1*/ y: K): K
++public fun </*0*/ K> select3(/*0*/ x: K, /*1*/ y: K, /*2*/ z: K): K
++public fun test(): kotlin.Unit
++public fun test_1(): kotlin.Unit
++public fun test_2(/*0*/ x: kotlin.Int): kotlin.Unit
++
++public interface A {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface B {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/nothingType/lambdaNothingAndExpectedType.kt b/compiler/testData/diagnostics/tests/inference/nothingType/lambdaNothingAndExpectedType.kt
+index 34f0d485c25..a119e762694 100644
+--- a/compiler/testData/diagnostics/tests/inference/nothingType/lambdaNothingAndExpectedType.kt
++++ b/compiler/testData/diagnostics/tests/inference/nothingType/lambdaNothingAndExpectedType.kt
+@@ -5,8 +5,8 @@ fun <K> select2(x: K, y: K): K = TODO()
+ fun <K> select3(x: K, y: K, z: K): K = TODO()
+ 
+ fun test2(f: ((String) -> Int)?) {
+-    val a0: ((Int) -> Int)? = select2(<!TYPE_MISMATCH!>{ <!OI;CANNOT_INFER_PARAMETER_TYPE!>it<!> -> <!OI;DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>it<!> }<!>, null)
+-    val b0: ((Nothing) -> Unit)? = select2(<!TYPE_MISMATCH!>{ <!OI;CANNOT_INFER_PARAMETER_TYPE!>it<!> -> <!OI;DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>it<!> }<!>, null)
++    val a0: ((Int) -> Int)? = select2(<!OI;TYPE_MISMATCH!>{ <!OI;CANNOT_INFER_PARAMETER_TYPE!>it<!> -> <!OI;DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>it<!> }<!>, null)
++    val b0: ((Nothing) -> Unit)? = select2(<!OI;TYPE_MISMATCH!>{ <!OI;CANNOT_INFER_PARAMETER_TYPE!>it<!> -> <!NI;UNUSED_EXPRESSION, OI;DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>it<!> }<!>, null)
+ 
+     select3({ it.length }, f, null)
+ }
+diff --git a/compiler/testData/diagnostics/tests/resolve/newLineLambda.kt b/compiler/testData/diagnostics/tests/resolve/newLineLambda.kt
+index d8c1eab4f37..ce7aabeeee6 100644
+--- a/compiler/testData/diagnostics/tests/resolve/newLineLambda.kt
++++ b/compiler/testData/diagnostics/tests/resolve/newLineLambda.kt
+@@ -100,13 +100,13 @@ fun testTwoLambdas() {
+         {}
+         <!MANY_LAMBDA_EXPRESSION_ARGUMENTS, UNEXPECTED_TRAILING_LAMBDA_ON_A_NEW_LINE!>{}<!>
+ 
+-        return <!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!>if (true) {
++        return <!NI;TYPE_MISMATCH!>if (true) {
+             <!OI;TYPE_MISMATCH!>twoLambdaArgs({})
+             {}
+             <!MANY_LAMBDA_EXPRESSION_ARGUMENTS, UNEXPECTED_TRAILING_LAMBDA_ON_A_NEW_LINE!>{}<!><!>
+-        } else <!NI;TYPE_MISMATCH!>{
++        } else {
+             {}
+-        }<!><!>
++        }<!>
+     }
+ }
+ 
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index ae713e90ed8..87be4d0d269 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -9735,6 +9735,11 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 runTest("compiler/testData/diagnostics/tests/inference/completeInferenceIfManyFailed.kt");
+             }
+ 
++            @TestMetadata("completionOfMultipleLambdas.kt")
++            public void testCompletionOfMultipleLambdas() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/inference/completionOfMultipleLambdas.kt");
++            }
++
+             @TestMetadata("conflictingSubstitutions.kt")
+             public void testConflictingSubstitutions() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/inference/conflictingSubstitutions.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index 1d401b64cec..12540571a6e 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -9730,6 +9730,11 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                 runTest("compiler/testData/diagnostics/tests/inference/completeInferenceIfManyFailed.kt");
+             }
+ 
++            @TestMetadata("completionOfMultipleLambdas.kt")
++            public void testCompletionOfMultipleLambdas() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/inference/completionOfMultipleLambdas.kt");
++            }
++
+             @TestMetadata("conflictingSubstitutions.kt")
+             public void testConflictingSubstitutions() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/inference/conflictingSubstitutions.kt");

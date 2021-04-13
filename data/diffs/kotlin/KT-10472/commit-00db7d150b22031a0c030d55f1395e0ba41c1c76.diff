@@ -1,0 +1,120 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/results/OverloadingConflictResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/results/OverloadingConflictResolver.kt
+index 312f8af24f8..70972eb033a 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/results/OverloadingConflictResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/results/OverloadingConflictResolver.kt
+@@ -88,17 +88,9 @@ class OverloadingConflictResolver(private val builtIns: KotlinBuiltIns) {
+             CandidateCallWithArgumentMapping.create(candidateCall) { it.arguments.filter { it.getArgumentExpression() != null } }
+         }
+ 
+-        val (varargCandidates, regularCandidates) = conflictingCandidates.partition { it.resultingDescriptor.hasVarargs }
+-        val mostSpecificRegularCandidates = regularCandidates.selectMostSpecificCallsWithArgumentMapping(discriminateGenericDescriptors)
+-
+-        return when {
+-            mostSpecificRegularCandidates.size > 1 ->
+-                null
+-            mostSpecificRegularCandidates.size == 1 ->
+-                mostSpecificRegularCandidates.single()
+-            else ->
+-                varargCandidates.selectMostSpecificCallsWithArgumentMapping(discriminateGenericDescriptors).singleOrNull()
+-        }
++        val mostSpecificCandidates = conflictingCandidates.selectMostSpecificCallsWithArgumentMapping(discriminateGenericDescriptors)
++
++        return mostSpecificCandidates.singleOrNull()
+     }
+ 
+     private fun <D : CallableDescriptor, K> Collection<CandidateCallWithArgumentMapping<D, K>>.selectMostSpecificCallsWithArgumentMapping(
+@@ -139,7 +131,7 @@ class OverloadingConflictResolver(private val builtIns: KotlinBuiltIns) {
+ 
+     /**
+      * Returns `true` if `d1` is definitely not less specific than `d2`,
+-     * `false` if `d1` is definitely less specific than `d2` or undecided.
++     * `false` otherwise.
+      */
+     private fun <D : CallableDescriptor, K> compareCallsWithArgumentMapping(
+             call1: CandidateCallWithArgumentMapping<D, K>,
+@@ -160,6 +152,11 @@ class OverloadingConflictResolver(private val builtIns: KotlinBuiltIns) {
+             return it
+         }
+ 
++        val hasVarargs1 = call1.resultingDescriptor.hasVarargs
++        val hasVarargs2 = call2.resultingDescriptor.hasVarargs
++        if (hasVarargs1 && !hasVarargs2) return false
++        if (!hasVarargs1 && hasVarargs2) return true
++
+         assert(call1.argumentsCount == call2.argumentsCount) {
+             "$call1 and $call2 have different number of explicit arguments"
+         }
+diff --git a/compiler/testData/diagnostics/tests/resolve/overloadConflicts/kt10472.kt b/compiler/testData/diagnostics/tests/resolve/overloadConflicts/kt10472.kt
+new file mode 100644
+index 00000000000..62c58aaf588
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/resolve/overloadConflicts/kt10472.kt
+@@ -0,0 +1,13 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++
++object Right
++object Wrong
++
++interface A<T>
++interface B<T> : A<T>
++
++fun <T> foo(vararg t: T) = Wrong
++fun <T> foo(t: A<T>) = Wrong
++fun <T> foo(t: B<T>) = Right
++
++fun test(b: B<Int>): Right = foo(b)
+diff --git a/compiler/testData/diagnostics/tests/resolve/overloadConflicts/kt10472.txt b/compiler/testData/diagnostics/tests/resolve/overloadConflicts/kt10472.txt
+new file mode 100644
+index 00000000000..34b5389048f
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/resolve/overloadConflicts/kt10472.txt
+@@ -0,0 +1,32 @@
++package
++
++public fun </*0*/ T> foo(/*0*/ t: A<T>): Wrong
++public fun </*0*/ T> foo(/*0*/ t: B<T>): Right
++public fun </*0*/ T> foo(/*0*/ vararg t: T /*kotlin.Array<out T>*/): Wrong
++public fun test(/*0*/ b: B<kotlin.Int>): Right
++
++public interface A</*0*/ T> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface B</*0*/ T> : A<T> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public object Right {
++    private constructor Right()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public object Wrong {
++    private constructor Wrong()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 3e6e225e8d2..c04cf4841ae 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -13742,6 +13742,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                     doTest(fileName);
+                 }
+ 
++                @TestMetadata("kt10472.kt")
++                public void testKt10472() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/resolve/overloadConflicts/kt10472.kt");
++                    doTest(fileName);
++                }
++
+                 @TestMetadata("numberOfDefaults.kt")
+                 public void testNumberOfDefaults() throws Exception {
+                     String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/resolve/overloadConflicts/numberOfDefaults.kt");

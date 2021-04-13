@@ -1,0 +1,176 @@
+diff --git a/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 3bf4b5068ac..eb8a372836e 100644
+--- a/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -3432,6 +3432,8 @@ public void visitMethodCallExpression(final MethodCallExpression call) {
+                                 returnType = typeCheckingContext.getEnclosingClassNode();
+                             }
+                         }
++                        // GROOVY-8961, GROOVY-9734
++                        resolvePlaceholdersFromImplicitTypeHints(args, argumentList, directMethodCallCandidate);
+                         if (typeCheckMethodsWithGenericsOrFail(chosenReceiver.getType(), args, mn.get(0), call)) {
+                             returnType = adjustWithTraits(directMethodCallCandidate, chosenReceiver.getType(), args, returnType);
+ 
+@@ -5155,6 +5157,53 @@ private static void resolvePlaceholdersFromExplicitTypeHints(final MethodNode me
+         }
+     }
+ 
++    /**
++     * Given method call like "m(Collections.emptyList())", the type of the call
++     * argument is {@code List<T>} without explicit type arguments. Knowning the
++     * method target of "m", {@code T} could be resolved.
++     */
++    private static void resolvePlaceholdersFromImplicitTypeHints(final ClassNode[] actuals, final ArgumentListExpression argumentList, final MethodNode inferredMethod) {
++        for (int i = 0, n = actuals.length; i < n; i += 1) {
++            // check for method call with known target
++            Expression a = argumentList.getExpression(i);
++            if (!(a instanceof MethodCallExpression)) continue;
++            if (((MethodCallExpression) a).isUsingGenerics()) continue;
++            MethodNode aNode = a.getNodeMetaData(DIRECT_METHOD_CALL_TARGET);
++            if (aNode == null || aNode.getGenericsTypes() == null) continue;
++
++            // and unknown generics
++            ClassNode at = actuals[i];
++            if (!GenericsUtils.hasUnresolvedGenerics(at)) continue;
++
++            int np = inferredMethod.getParameters().length;
++            Parameter p = inferredMethod.getParameters()[Math.min(i, np - 1)];
++
++            ClassNode pt = p.getOriginType();
++            if (i >= (np - 1) && pt.isArray() && !at.isArray()) pt = pt.getComponentType();
++
++            // try to resolve placeholder(s) in argument type using parameter type
++
++            Map<GenericsTypeName, GenericsType> linked = new HashMap<>();
++            Map<GenericsTypeName, GenericsType> source = GenericsUtils.extractPlaceholders(at);
++            Map<GenericsTypeName, GenericsType> target = GenericsUtils.extractPlaceholders(pt);
++
++            // connect E:T from source to E:Type from target
++            for (GenericsType placeholder : aNode.getGenericsTypes()) {
++                for (Map.Entry<GenericsTypeName, GenericsType> e : source.entrySet()) {
++                    if (e.getValue() == placeholder) {
++                        Optional.ofNullable(target.get(e.getKey()))
++                            // skip "f(g())" for "f(T<String>)" and "<U extends Number> U g()"
++                            .filter(gt -> isAssignableTo(gt.getType(), placeholder.getType()))
++                            .ifPresent(gt -> linked.put(new GenericsTypeName(placeholder.getName()), gt));
++                        break;
++                    }
++                }
++            }
++
++            actuals[i] = applyGenericsContext(linked, at);
++        }
++    }
++
+     private static void extractGenericsConnectionsForSuperClassAndInterfaces(final Map<GenericsTypeName, GenericsType> resolvedPlaceholders, final Map<GenericsTypeName, GenericsType> connections) {
+         for (GenericsType value : new HashSet<GenericsType>(connections.values())) {
+             if (!value.isPlaceholder() && !value.isWildcard()) {
+diff --git a/src/test/groovy/transform/stc/GenericsSTCTest.groovy b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+index 469bb3cf1c2..03c48b2f2eb 100644
+--- a/src/test/groovy/transform/stc/GenericsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+@@ -194,7 +194,6 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
+-
+     void testLinkedListWithListArgument() {
+         assertScript '''
+             List<String> list = new LinkedList<String>(['1','2','3'])
+@@ -456,7 +455,6 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+     }
+ 
+     void testShouldComplainAboutToInteger() {
+-
+         String code = '''
+             class Test {
+                 static test2() {
+@@ -525,6 +523,70 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+         ''', 'Cannot call <X> groovy.transform.stc.GenericsSTCTest$ClassA <Long>#bar(java.lang.Class <Long>) with arguments [java.lang.Class <? extends java.lang.Object>]'
+     }
+ 
++    // GROOVY-8961
++    void testShouldUseMethodGenericType3() {
++        assertScript '''
++            void setM(List<String> strings) {
++            }
++            void test() {
++              m = Collections.emptyList() // Cannot assign value of type List<T> to variable of List<String>
++            }
++            test()
++        '''
++        assertScript '''
++            void setM(Collection<String> strings) {
++            }
++            void test() {
++              m = Collections.emptyList()
++            }
++            test()
++        '''
++        assertScript '''
++            void setM(Iterable<String> strings) {
++            }
++            void test() {
++              m = Collections.emptyList()
++            }
++            test()
++        '''
++
++        shouldFailWithMessages '''
++            void setM(List<String> strings) {
++            }
++            void test() {
++              m = Collections.<Integer>emptyList()
++            }
++        ''', '[Static type checking] - Cannot assign value of type java.util.List <Integer> to variable of type java.util.List <String>'
++    }
++
++    // GROOVY-9734
++    void testShouldUseMethodGenericType4() {
++        assertScript '''
++            void m(List<String> strings) {
++            }
++            void test() {
++              m(Collections.emptyList()) // Cannot call m(List<String>) with arguments [List<T>]
++            }
++            test()
++        '''
++        assertScript '''
++            void m(Collection<String> strings) {
++            }
++            void test() {
++              m(Collections.emptyList())
++            }
++            test()
++        '''
++        assertScript '''
++            void m(Iterable<String> strings) {
++            }
++            void test() {
++              m(Collections.emptyList())
++            }
++            test()
++        '''
++    }
++
+     // GROOVY-5516
+     void testAddAllWithCollectionShouldBeAllowed() {
+         assertScript '''import org.codehaus.groovy.transform.stc.ExtensionMethodNode
+@@ -1419,7 +1481,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+             def cl = {1}
+             assert foo(cl.class, cl) == cl
+          '''
+-         //GROOVY-5885
++         // GROOVY-5885
+          assertScript '''
+             class Test {
+                 public <X extends Test> X castToMe(Class<X> type, Object o) {
+@@ -1431,7 +1493,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+          '''
+     }
+ 
+-    // Groovy-5839
++    // GROOVY-5839
+     void testMethodShadowGenerics() {
+         shouldFailWithMessages '''
+             public class GoodCodeRed<T> {

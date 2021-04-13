@@ -1,0 +1,185 @@
+changeset:   1898:c60a5099863a
+user:        mcimadamore
+date:        Wed Jul 17 14:13:15 2013 +0100
+summary:     8020147: Spurious errors when compiling nested stuck lambdas
+
+diff -r a204cf7aab7e -r c60a5099863a src/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Attr.java	Wed Jul 17 14:11:41 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/Attr.java	Wed Jul 17 14:13:15 2013 +0100
+@@ -481,31 +481,7 @@
+         static final long serialVersionUID = -6924771130405446405L;
+         private Env<AttrContext> env;
+         private BreakAttr(Env<AttrContext> env) {
+-            this.env = copyEnv(env);
+-        }
+-
+-        private Env<AttrContext> copyEnv(Env<AttrContext> env) {
+-            Env<AttrContext> newEnv =
+-                    env.dup(env.tree, env.info.dup(copyScope(env.info.scope)));
+-            if (newEnv.outer != null) {
+-                newEnv.outer = copyEnv(newEnv.outer);
+-            }
+-            return newEnv;
+-        }
+-
+-        private Scope copyScope(Scope sc) {
+-            Scope newScope = new Scope(sc.owner);
+-            List<Symbol> elemsList = List.nil();
+-            while (sc != null) {
+-                for (Scope.Entry e = sc.elems ; e != null ; e = e.sibling) {
+-                    elemsList = elemsList.prepend(e.sym);
+-                }
+-                sc = sc.next;
+-            }
+-            for (Symbol s : elemsList) {
+-                newScope.enter(s);
+-            }
+-            return newScope;
++            this.env = env;
+         }
+     }
+ 
+@@ -605,7 +581,7 @@
+             tree.accept(this);
+             if (tree == breakTree &&
+                     resultInfo.checkContext.deferredAttrContext().mode == AttrMode.CHECK) {
+-                throw new BreakAttr(env);
++                throw new BreakAttr(copyEnv(env));
+             }
+             return result;
+         } catch (CompletionFailure ex) {
+@@ -617,6 +593,30 @@
+         }
+     }
+ 
++    Env<AttrContext> copyEnv(Env<AttrContext> env) {
++        Env<AttrContext> newEnv =
++                env.dup(env.tree, env.info.dup(copyScope(env.info.scope)));
++        if (newEnv.outer != null) {
++            newEnv.outer = copyEnv(newEnv.outer);
++        }
++        return newEnv;
++    }
++
++    Scope copyScope(Scope sc) {
++        Scope newScope = new Scope(sc.owner);
++        List<Symbol> elemsList = List.nil();
++        while (sc != null) {
++            for (Scope.Entry e = sc.elems ; e != null ; e = e.sibling) {
++                elemsList = elemsList.prepend(e.sym);
++            }
++            sc = sc.next;
++        }
++        for (Symbol s : elemsList) {
++            newScope.enter(s);
++        }
++        return newScope;
++    }
++
+     /** Derived visitor method: attribute an expression tree.
+      */
+     public Type attribExpr(JCTree tree, Env<AttrContext> env, Type pt) {
+@@ -2431,7 +2431,7 @@
+             boolean isSpeculativeRound =
+                     resultInfo.checkContext.deferredAttrContext().mode == DeferredAttr.AttrMode.SPECULATIVE;
+ 
+-            postAttr(that);
++            preFlow(that);
+             flow.analyzeLambda(env, that, make, isSpeculativeRound);
+ 
+             checkLambdaCompatible(that, lambdaType, resultInfo.checkContext, isSpeculativeRound);
+@@ -2453,6 +2453,21 @@
+         }
+     }
+     //where
++        void preFlow(JCLambda tree) {
++            new PostAttrAnalyzer() {
++                @Override
++                public void scan(JCTree tree) {
++                    if (tree == null ||
++                            (tree.type != null &&
++                            tree.type == Type.stuckType)) {
++                        //don't touch stuck expressions!
++                        return;
++                    }
++                    super.scan(tree);
++                }
++            }.scan(tree);
++        }
++
+         Types.MapVisitor<DiagnosticPosition> targetChecker = new Types.MapVisitor<DiagnosticPosition>() {
+ 
+             @Override
+diff -r a204cf7aab7e -r c60a5099863a src/share/classes/com/sun/tools/javac/comp/DeferredAttr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/DeferredAttr.java	Wed Jul 17 14:11:41 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/DeferredAttr.java	Wed Jul 17 14:13:15 2013 +0100
+@@ -127,7 +127,7 @@
+         DeferredType(JCExpression tree, Env<AttrContext> env) {
+             super(null);
+             this.tree = tree;
+-            this.env = env.dup(tree, env.info.dup());
++            this.env = attr.copyEnv(env);
+             this.speculativeCache = new SpeculativeCache();
+         }
+ 
+@@ -263,7 +263,7 @@
+     DeferredTypeCompleter dummyCompleter = new DeferredTypeCompleter() {
+         public Type complete(DeferredType dt, ResultInfo resultInfo, DeferredAttrContext deferredAttrContext) {
+             Assert.check(deferredAttrContext.mode == AttrMode.CHECK);
+-            return dt.tree.type = Type.noType;
++            return dt.tree.type = Type.stuckType;
+         }
+     };
+ 
+diff -r a204cf7aab7e -r c60a5099863a src/share/classes/com/sun/tools/javac/comp/Flow.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Flow.java	Wed Jul 17 14:11:41 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/Flow.java	Wed Jul 17 14:13:15 2013 +0100
+@@ -373,6 +373,15 @@
+         boolean resolveBreaks(JCTree tree, ListBuffer<P> oldPendingExits) {
+             return resolveJump(tree, oldPendingExits, JumpKind.BREAK);
+         }
++
++        @Override
++        public void scan(JCTree tree) {
++            if (tree != null && (
++                    tree.type == null ||
++                    tree.type != Type.stuckType)) {
++                super.scan(tree);
++            }
++        }
+     }
+ 
+     /**
+diff -r a204cf7aab7e -r c60a5099863a test/tools/javac/lambda/8020147/T8020147.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/8020147/T8020147.java	Wed Jul 17 14:13:15 2013 +0100
+@@ -0,0 +1,19 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8020147
++ * @summary Spurious errors when compiling nested stuck lambdas
++ * @compile/fail/ref=T8020147.out -Werror -Xlint:cast -XDrawDiagnostics T8020147.java
++ */
++class T8020147 {
++    interface Function<X, Y> {
++        Y apply(X x);
++    }
++
++    <T> void g(Function<String, T> f) { }
++    <U> String m(U u, Function<U, U> fuu) { return null; }
++
++    void test() {
++        g(x->m("", i->(String)i));
++        g(x->m("", i->(String)x));
++    }
++}
+diff -r a204cf7aab7e -r c60a5099863a test/tools/javac/lambda/8020147/T8020147.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/8020147/T8020147.out	Wed Jul 17 14:13:15 2013 +0100
+@@ -0,0 +1,5 @@
++T8020147.java:16:23: compiler.warn.redundant.cast: java.lang.String
++T8020147.java:17:23: compiler.warn.redundant.cast: java.lang.String
++- compiler.err.warnings.and.werror
++1 error
++2 warnings
+

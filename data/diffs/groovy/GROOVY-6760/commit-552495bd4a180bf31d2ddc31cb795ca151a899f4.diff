@@ -1,0 +1,42 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index 85b335cde9..f9590c7cae 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -1561,6 +1561,8 @@ public abstract class StaticTypeCheckingSupport {
+                         }
+                     }
+                 }
++            } else {
++                extractGenericsConnections(connections, ui.getType(), di.getType());
+             }
+         }
+     }
+diff --git a/src/test/groovy/transform/stc/GenericsSTCTest.groovy b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+index 5bb4edac84..3edeea5b69 100644
+--- a/src/test/groovy/transform/stc/GenericsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+@@ -1378,6 +1378,24 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
++    // GROOVY-6760
++    void testGenericsAtMethodLevelWithGenericsInTypeOfGenericType() {
++        assertScript '''
++            @Grab(group='com.netflix.rxjava', module='rxjava-core', version='0.18.1') 
++            import rx.Observable
++            import java.util.concurrent.Callable
++
++            static <T> Observable<T> observe(Callable<Iterable<T>> callable) {
++                Observable.from(callable.call())
++            }
++            observe({ ["foo"] }) map {
++                it.toUpperCase() // <- compiler doesn't know 'it' is a string
++            } subscribe {
++                assert it == "FOO"
++            }
++        '''
++    }
++
+     // GROOVY-6135
+     void testGenericField() {
+         assertScript '''

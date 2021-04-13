@@ -1,0 +1,48 @@
+diff --git a/src/reflect/scala/reflect/internal/Symbols.scala b/src/reflect/scala/reflect/internal/Symbols.scala
+index 9c706f650e..63f086a68c 100644
+--- a/src/reflect/scala/reflect/internal/Symbols.scala
++++ b/src/reflect/scala/reflect/internal/Symbols.scala
+@@ -1500,7 +1500,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
+      */
+     def cookJavaRawInfo(): Unit = {
+       // only try once...
+-      if (this hasFlag TRIEDCOOKING)
++      if (phase.erasedTypes || (this hasFlag TRIEDCOOKING))
+         return
+ 
+       this setFlag TRIEDCOOKING
+diff --git a/test/files/run/t7482a.check b/test/files/run/t7482a.check
+new file mode 100644
+index 0000000000..b26e685784
+--- /dev/null
++++ b/test/files/run/t7482a.check
+@@ -0,0 +1,14 @@
++Type in expressions to have them evaluated.
++Type :help for more information.
++
++scala> 
++
++scala>   val v: java.util.ArrayList[String] = new java.util.ArrayList[String](5)
++v: java.util.ArrayList[String] = []
++
++scala>   val v: java.util.ArrayList[String] = new java.util.ArrayList[String](5)
++v: java.util.ArrayList[String] = []
++
++scala> 
++
++scala> 
+diff --git a/test/files/run/t7482a.scala b/test/files/run/t7482a.scala
+new file mode 100644
+index 0000000000..d674558b98
+--- /dev/null
++++ b/test/files/run/t7482a.scala
+@@ -0,0 +1,8 @@
++import scala.tools.partest.ReplTest
++
++object Test extends ReplTest {
++  override def code = """
++  val v: java.util.ArrayList[String] = new java.util.ArrayList[String](5)
++  val v: java.util.ArrayList[String] = new java.util.ArrayList[String](5)
++  """
++}
+\ No newline at end of file

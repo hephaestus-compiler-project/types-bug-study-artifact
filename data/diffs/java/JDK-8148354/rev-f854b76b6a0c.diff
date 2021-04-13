@@ -1,0 +1,503 @@
+changeset:   50181:f854b76b6a0c
+user:        vromero
+date:        Fri May 18 09:22:31 2018 -0700
+summary:     8148354: Errors targeting functional interface intersection types
+
+diff -r ffa644980dff -r f854b76b6a0c src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java	Fri May 18 14:51:06 2018 +0200
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java	Fri May 18 09:22:31 2018 -0700
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2003, 2017, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2003, 2018, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -97,7 +97,6 @@
+     JCDiagnostic.Factory diags;
+     List<Warner> warnStack = List.nil();
+     final Name capturedName;
+-    private final FunctionDescriptorLookupError functionDescriptorLookupError;
+ 
+     public final Warner noWarnings;
+ 
+@@ -122,7 +121,6 @@
+         capturedName = names.fromString("<captured wildcard>");
+         messages = JavacMessages.instance(context);
+         diags = JCDiagnostic.Factory.instance(context);
+-        functionDescriptorLookupError = new FunctionDescriptorLookupError();
+         noWarnings = new Warner(null);
+     }
+     // </editor-fold>
+@@ -796,7 +794,7 @@
+         }
+ 
+         FunctionDescriptorLookupError failure(JCDiagnostic diag) {
+-            return functionDescriptorLookupError.setMessage(diag);
++            return new FunctionDescriptorLookupError().setMessage(diag);
+         }
+     }
+ 
+@@ -887,12 +885,12 @@
+      * main purposes: (i) checking well-formedness of a functional interface;
+      * (ii) perform functional interface bridge calculation.
+      */
+-    public ClassSymbol makeFunctionalInterfaceClass(Env<AttrContext> env, Name name, List<Type> targets, long cflags) {
+-        if (targets.isEmpty()) {
++    public ClassSymbol makeFunctionalInterfaceClass(Env<AttrContext> env, Name name, Type target, long cflags) {
++        if (target == null || target == syms.unknownType) {
+             return null;
+         }
+-        Symbol descSym = findDescriptorSymbol(targets.head.tsym);
+-        Type descType = findDescriptorType(targets.head);
++        Symbol descSym = findDescriptorSymbol(target.tsym);
++        Type descType = findDescriptorType(target);
+         ClassSymbol csym = new ClassSymbol(cflags, name, env.enclClass.sym.outermostClass());
+         csym.completer = Completer.NULL_COMPLETER;
+         csym.members_field = WriteableScope.create(csym);
+@@ -900,7 +898,9 @@
+         csym.members_field.enter(instDescSym);
+         Type.ClassType ctype = new Type.ClassType(Type.noType, List.nil(), csym);
+         ctype.supertype_field = syms.objectType;
+-        ctype.interfaces_field = targets;
++        ctype.interfaces_field = target.isIntersection() ?
++                directSupertypes(target) :
++                List.of(target);
+         csym.type = ctype;
+         csym.sourcefile = ((ClassSymbol)csym.owner).sourcefile;
+         return csym;
+diff -r ffa644980dff -r f854b76b6a0c src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Fri May 18 14:51:06 2018 +0200
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Fri May 18 09:22:31 2018 -0700
+@@ -2656,12 +2656,29 @@
+                  * the target will be updated to SAM
+                  */
+                 currentTarget = targetChecker.visit(currentTarget, that);
+-                if (explicitParamTypes != null) {
+-                    currentTarget = infer.instantiateFunctionalInterface(that,
+-                            currentTarget, explicitParamTypes, resultInfo.checkContext);
++                if (!currentTarget.isIntersection()) {
++                    if (explicitParamTypes != null) {
++                        currentTarget = infer.instantiateFunctionalInterface(that,
++                                currentTarget, explicitParamTypes, resultInfo.checkContext);
++                    }
++                    currentTarget = types.removeWildcards(currentTarget);
++                    lambdaType = types.findDescriptorType(currentTarget);
++                } else {
++                    IntersectionClassType ict = (IntersectionClassType)currentTarget;
++                    ListBuffer<Type> components = new ListBuffer<>();
++                    for (Type bound : ict.getExplicitComponents()) {
++                        if (explicitParamTypes != null) {
++                            bound = infer.instantiateFunctionalInterface(that,
++                                    bound, explicitParamTypes, resultInfo.checkContext);
++                        }
++                        bound = types.removeWildcards(bound);
++                        components.add(bound);
++                    }
++                    currentTarget = types.makeIntersectionType(components.toList());
++                    currentTarget.tsym.flags_field |= INTERFACE;
++                    lambdaType = types.findDescriptorType(currentTarget);
+                 }
+-                currentTarget = types.removeWildcards(currentTarget);
+-                lambdaType = types.findDescriptorType(currentTarget);
++
+             } else {
+                 currentTarget = Type.recoveryType;
+                 lambdaType = fallbackDescriptorType(that);
+@@ -2701,27 +2718,11 @@
+             }
+ 
+             public Type visitIntersectionClassType(IntersectionClassType ict, DiagnosticPosition pos) {
+-                Symbol desc = types.findDescriptorSymbol(makeNotionalInterface(ict));
+-                Type target = null;
+-                for (Type bound : ict.getExplicitComponents()) {
+-                    TypeSymbol boundSym = bound.tsym;
+-                    if (bound.tsym == syms.objectType.tsym) {
+-                        continue;
+-                    }
+-                    if (types.isFunctionalInterface(boundSym) &&
+-                            types.findDescriptorSymbol(boundSym) == desc) {
+-                        target = bound;
+-                    } else if (!boundSym.isInterface() || (boundSym.flags() & ANNOTATION) != 0) {
+-                        //bound must be an interface
+-                        reportIntersectionError(pos, "not.an.intf.component", boundSym);
+-                    }
+-                }
+-                return target != null ?
+-                        target :
+-                        ict.getExplicitComponents().head; //error recovery
++                types.findDescriptorSymbol(makeNotionalInterface(ict, pos));
++                return ict;
+             }
+ 
+-            private TypeSymbol makeNotionalInterface(IntersectionClassType ict) {
++            private TypeSymbol makeNotionalInterface(IntersectionClassType ict, DiagnosticPosition pos) {
+                 ListBuffer<Type> targs = new ListBuffer<>();
+                 ListBuffer<Type> supertypes = new ListBuffer<>();
+                 for (Type i : ict.interfaces_field) {
+@@ -2735,11 +2736,6 @@
+                 notionalIntf.tsym.flags_field |= INTERFACE;
+                 return notionalIntf.tsym;
+             }
+-
+-            private void reportIntersectionError(DiagnosticPosition pos, String key, Object... args) {
+-                resultInfo.checkContext.report(pos,
+-                                               diags.fragment(Fragments.BadIntersectionTargetForFunctionalExpr(diags.fragment(key, args))));
+-            }
+         };
+ 
+         private Type fallbackDescriptorType(JCExpression tree) {
+@@ -3283,20 +3279,9 @@
+                     inferenceContext -> setFunctionalInfo(env, fExpr, pt, inferenceContext.asInstType(descriptorType),
+                     inferenceContext.asInstType(primaryTarget), checkContext));
+         } else {
+-            ListBuffer<Type> targets = new ListBuffer<>();
+             if (pt.hasTag(CLASS)) {
+-                if (pt.isCompound()) {
+-                    targets.append(types.removeWildcards(primaryTarget)); //this goes first
+-                    for (Type t : ((IntersectionClassType)pt()).interfaces_field) {
+-                        if (t != primaryTarget) {
+-                            targets.append(types.removeWildcards(t));
+-                        }
+-                    }
+-                } else {
+-                    targets.append(types.removeWildcards(primaryTarget));
+-                }
++                fExpr.target = primaryTarget;
+             }
+-            fExpr.targets = targets.toList();
+             if (checkContext.deferredAttrContext().mode == DeferredAttr.AttrMode.CHECK &&
+                     pt != Type.recoveryType) {
+                 //check that functional interface class is well-formed
+@@ -3306,7 +3291,7 @@
+                      * above.
+                      */
+                     ClassSymbol csym = types.makeFunctionalInterfaceClass(env,
+-                            names.empty, List.of(fExpr.targets.head), ABSTRACT);
++                            names.empty, fExpr.target, ABSTRACT);
+                     if (csym != null) {
+                         chk.checkImplementations(env.tree, csym, csym);
+                         try {
+@@ -3317,7 +3302,7 @@
+                             types.findDescriptorType(csym.type);
+                         } catch (FunctionDescriptorLookupError err) {
+                             resultInfo.checkContext.report(fExpr,
+-                                    diags.fragment(Fragments.NoSuitableFunctionalIntfInst(fExpr.targets.head)));
++                                    diags.fragment(Fragments.NoSuitableFunctionalIntfInst(fExpr.target)));
+                         }
+                     }
+                 } catch (Types.FunctionDescriptorLookupError ex) {
+@@ -5185,8 +5170,8 @@
+         @Override
+         public void visitLambda(JCLambda that) {
+             super.visitLambda(that);
+-            if (that.targets == null) {
+-                that.targets = List.nil();
++            if (that.target == null) {
++                that.target = syms.unknownType;
+             }
+         }
+ 
+@@ -5197,8 +5182,8 @@
+                 that.sym = new MethodSymbol(0, names.empty, dummyMethodType(),
+                         syms.noSymbol);
+             }
+-            if (that.targets == null) {
+-                that.targets = List.nil();
++            if (that.target == null) {
++                that.target = syms.unknownType;
+             }
+         }
+     }
+diff -r ffa644980dff -r f854b76b6a0c src/jdk.compiler/share/classes/com/sun/tools/javac/comp/LambdaToMethod.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/LambdaToMethod.java	Fri May 18 14:51:06 2018 +0200
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/LambdaToMethod.java	Fri May 18 09:22:31 2018 -0700
+@@ -72,6 +72,8 @@
+ import javax.lang.model.element.ElementKind;
+ import javax.lang.model.type.TypeKind;
+ 
++import com.sun.tools.javac.code.Type.IntersectionClassType;
++import com.sun.tools.javac.code.Types.FunctionDescriptorLookupError;
+ import com.sun.tools.javac.main.Option;
+ 
+ /**
+@@ -929,7 +931,7 @@
+                         : expressionNew();
+ 
+                 JCLambda slam = make.Lambda(params.toList(), expr);
+-                slam.targets = tree.targets;
++                slam.target = tree.target;
+                 slam.type = tree.type;
+                 slam.pos = tree.pos;
+                 return slam;
+@@ -1111,7 +1113,7 @@
+             int refKind, Symbol refSym, List<JCExpression> indy_args) {
+         JCFunctionalExpression tree = context.tree;
+         //determine the static bsm args
+-        MethodSymbol samSym = (MethodSymbol) types.findDescriptorSymbol(tree.type.tsym);
++        MethodSymbol samSym = (MethodSymbol) types.findDescriptorSymbol(tree.target.tsym);
+         List<Object> staticArgs = List.of(
+                 typeToMethodType(samSym.type),
+                 new Pool.MethodHandle(refKind, refSym, types),
+@@ -1134,8 +1136,13 @@
+ 
+         if (context.needsAltMetafactory()) {
+             ListBuffer<Object> markers = new ListBuffer<>();
+-            for (Type t : tree.targets.tail) {
+-                if (t.tsym != syms.serializableType.tsym) {
++            List<Type> targets = tree.target.isIntersection() ?
++                    types.directSupertypes(tree.target) :
++                    List.nil();
++            for (Type t : targets) {
++                t = types.erasure(t);
++                if (t.tsym != syms.serializableType.tsym &&
++                    t.tsym != syms.objectType.tsym) {
+                     markers.append(t.tsym);
+                 }
+             }
+@@ -1903,13 +1910,13 @@
+                 this.depth = frameStack.size() - 1;
+                 this.prev = context();
+                 ClassSymbol csym =
+-                        types.makeFunctionalInterfaceClass(attrEnv, names.empty, tree.targets, ABSTRACT | INTERFACE);
++                        types.makeFunctionalInterfaceClass(attrEnv, names.empty, tree.target, ABSTRACT | INTERFACE);
+                 this.bridges = types.functionalInterfaceBridges(csym);
+             }
+ 
+             /** does this functional expression need to be created using alternate metafactory? */
+             boolean needsAltMetafactory() {
+-                return tree.targets.length() > 1 ||
++                return tree.target.isIntersection() ||
+                         isSerializable() ||
+                         bridges.length() > 1;
+             }
+@@ -1919,12 +1926,7 @@
+                 if (forceSerializable) {
+                     return true;
+                 }
+-                for (Type target : tree.targets) {
+-                    if (types.asSuper(target, syms.serializableType.tsym) != null) {
+-                        return true;
+-                    }
+-                }
+-                return false;
++                return types.asSuper(tree.target, syms.serializableType.tsym) != null;
+             }
+ 
+             /**
+@@ -2416,7 +2418,7 @@
+             }
+ 
+             Type bridgedRefSig() {
+-                return types.erasure(types.findDescriptorSymbol(tree.targets.head.tsym).type);
++                return types.erasure(types.findDescriptorSymbol(tree.target.tsym).type);
+             }
+         }
+     }
+diff -r ffa644980dff -r f854b76b6a0c src/jdk.compiler/share/classes/com/sun/tools/javac/comp/TransTypes.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/TransTypes.java	Fri May 18 14:51:06 2018 +0200
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/TransTypes.java	Fri May 18 09:22:31 2018 -0700
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 1999, 2017, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 1999, 2018, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -31,6 +31,8 @@
+ import com.sun.tools.javac.code.Attribute.TypeCompound;
+ import com.sun.tools.javac.code.Source.Feature;
+ import com.sun.tools.javac.code.Symbol.*;
++import com.sun.tools.javac.code.Type.IntersectionClassType;
++import com.sun.tools.javac.code.Types.FunctionDescriptorLookupError;
+ import com.sun.tools.javac.resources.CompilerProperties.Errors;
+ import com.sun.tools.javac.tree.*;
+ import com.sun.tools.javac.tree.JCTree.*;
+@@ -593,7 +595,11 @@
+             currentMethod = null;
+             tree.params = translate(tree.params);
+             tree.body = translate(tree.body, tree.body.type==null? null : erasure(tree.body.type));
+-            tree.type = erasure(tree.type);
++            if (!tree.type.isIntersection()) {
++                tree.type = erasure(tree.type);
++            } else {
++                tree.type = types.erasure(types.findDescriptorSymbol(tree.type.tsym).owner.type);
++            }
+             result = tree;
+         }
+         finally {
+@@ -876,8 +882,11 @@
+         } else {
+             tree.expr = translate(tree.expr, receiverTarget);
+         }
+-
+-        tree.type = erasure(tree.type);
++        if (!tree.type.isIntersection()) {
++            tree.type = erasure(tree.type);
++        } else {
++            tree.type = types.erasure(types.findDescriptorSymbol(tree.type.tsym).owner.type);
++        }
+         if (tree.varargsElement != null)
+             tree.varargsElement = erasure(tree.varargsElement);
+         result = tree;
+diff -r ffa644980dff -r f854b76b6a0c src/jdk.compiler/share/classes/com/sun/tools/javac/tree/JCTree.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/tree/JCTree.java	Fri May 18 14:51:06 2018 +0200
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/tree/JCTree.java	Fri May 18 09:22:31 2018 -0700
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 1999, 2017, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 1999, 2018, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -729,10 +729,10 @@
+         }
+ 
+         /** list of target types inferred for this functional expression. */
+-        public List<Type> targets;
++        public Type target;
+ 
+         public Type getDescriptorType(Types types) {
+-            return targets.nonEmpty() ? types.findDescriptorType(targets.head) : types.createErrorType(null);
++            return target != null ? types.findDescriptorType(target) : types.createErrorType(null);
+         }
+     }
+ 
+diff -r ffa644980dff -r f854b76b6a0c test/langtools/tools/javac/T8148354/IntersectionFunctionalButComponentsNotTest.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/T8148354/IntersectionFunctionalButComponentsNotTest.java	Fri May 18 09:22:31 2018 -0700
+@@ -0,0 +1,49 @@
++/*
++ * Copyright (c) 2018, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * bug 8148354
++ * @summary Errors targeting functional interface intersection types
++ * @compile IntersectionFunctionalButComponentsNotTest.java
++ */
++class IntersectionFunctionalButComponentsNotTest {
++    // nor A or B are functional interfaces but the intersection is
++    <T extends Object & A & B> void consume(T arg) { }
++
++    void foo() {
++        consume(System::gc);
++    }
++
++    interface C {
++        void c();
++    }
++
++    interface A extends C {
++        void a();
++    }
++
++    interface B extends C {
++        default void c() { }
++    }
++}
+diff -r ffa644980dff -r f854b76b6a0c test/langtools/tools/javac/T8148354/IntersectionTypeBugTest.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/T8148354/IntersectionTypeBugTest.java	Fri May 18 09:22:31 2018 -0700
+@@ -0,0 +1,53 @@
++/*
++ * Copyright (c) 2018, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * bug 8148354
++ * @summary Errors targeting functional interface intersection types
++ * @compile IntersectionTypeBugTest.java
++ */
++
++import java.io.Serializable;
++import java.util.function.Consumer;
++
++class IntersectionTypeBugTest {
++    <T extends Object & Serializable & Consumer<String>> void consume(final T cons, final String s) {}
++
++    void process(final String s) {}
++
++    public void foo() {
++        consume(this::process, "Hello World");
++    }
++
++    // another case
++    static class AnotherTest<T> {
++        void foo() {
++            Object r = (Object & Serializable & R<T>) () -> {};
++        }
++
++        interface R<I> {
++            void foo();
++        }
++    }
++}
+diff -r ffa644980dff -r f854b76b6a0c test/langtools/tools/javac/diags/examples.not-yet.txt
+--- a/test/langtools/tools/javac/diags/examples.not-yet.txt	Fri May 18 14:51:06 2018 +0200
++++ b/test/langtools/tools/javac/diags/examples.not-yet.txt	Fri May 18 09:22:31 2018 -0700
+@@ -129,6 +129,8 @@
+ compiler.err.preview.feature.disabled.classfile         # preview feature support: needs compilation against classfile
+ compiler.warn.preview.feature.use.classfile             # preview feature support: needs compilation against classfile
+ compiler.note.preview.plural.additional                 # preview feature support: diag test causes intermittent failures (see JDK-8201498)
++compiler.misc.bad.intersection.target.for.functional.expr  # currently not generated, should be removed?
++compiler.misc.not.an.intf.component
+ 
+ # The following module-related messages will have to stay on the not-yet list for various reasons:
+ compiler.warn.locn.unknown.file.on.module.path                # Never issued ATM (short circuited with an if (false))
+diff -r ffa644980dff -r f854b76b6a0c test/langtools/tools/javac/diags/examples/NotAnInterfaceComponent.java
+--- a/test/langtools/tools/javac/diags/examples/NotAnInterfaceComponent.java	Fri May 18 14:51:06 2018 +0200
++++ b/test/langtools/tools/javac/diags/examples/NotAnInterfaceComponent.java	Fri May 18 09:22:31 2018 -0700
+@@ -21,9 +21,9 @@
+  * questions.
+  */
+ 
++// key: compiler.misc.not.a.functional.intf.1
+ // key: compiler.err.prob.found.req
+-// key: compiler.misc.bad.intersection.target.for.functional.expr
+-// key: compiler.misc.not.an.intf.component
++// key: compiler.misc.incompatible.abstracts
+ 
+ class NotAnInterfaceComponent {
+     Object o = (String & Runnable) ()-> { };
+

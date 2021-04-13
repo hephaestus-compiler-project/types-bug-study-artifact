@@ -1,0 +1,82 @@
+diff --git a/compiler/frontend/src/org/jetbrains/jet/lang/types/expressions/ExpressionTypingVisitorForStatements.java b/compiler/frontend/src/org/jetbrains/jet/lang/types/expressions/ExpressionTypingVisitorForStatements.java
+index 28e9841d690..8bbf7aed6ab 100644
+--- a/compiler/frontend/src/org/jetbrains/jet/lang/types/expressions/ExpressionTypingVisitorForStatements.java
++++ b/compiler/frontend/src/org/jetbrains/jet/lang/types/expressions/ExpressionTypingVisitorForStatements.java
+@@ -299,6 +299,7 @@ public class ExpressionTypingVisitorForStatements extends ExpressionTypingVisito
+                 basic.resolveArrayAccessSetMethod((JetArrayAccessExpression) left, right, contextForResolve, context.trace);
+             }
+             dataFlowInfo = facade.getTypeInfo(right, context.replaceDataFlowInfo(dataFlowInfo)).getDataFlowInfo();
++            DataFlowUtils.checkType(binaryOperationType, expression, leftType, dataFlowInfo, context.trace);
+             BasicExpressionTypingVisitor.checkLValue(context.trace, leftOperand);
+         }
+         temporary.commit();
+diff --git a/compiler/testData/diagnostics/tests/operatorsOverloading/assignmentOperationsCheckReturnType.kt b/compiler/testData/diagnostics/tests/operatorsOverloading/assignmentOperationsCheckReturnType.kt
+new file mode 100644
+index 00000000000..bf9d9cd5fe4
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/operatorsOverloading/assignmentOperationsCheckReturnType.kt
+@@ -0,0 +1,48 @@
++fun intBinEq() {
++    var x = 0
++    x += 'a'
++    x += 1.toByte()
++    x += 1.toShort()
++    <!TYPE_MISMATCH!>x += 1L<!>
++    <!TYPE_MISMATCH!>x += 1f<!>
++    <!TYPE_MISMATCH!>x += 1.0<!>
++    x *= 'a'
++    x *= 1.toByte()
++    x *= 1.toShort()
++    <!TYPE_MISMATCH!>x *= 1L<!>
++    <!TYPE_MISMATCH!>x *= 1f<!>
++    <!TYPE_MISMATCH!>x *= 1.0<!>
++}
++
++fun shortBinEq() {
++    var x = 0.toShort()
++    <!TYPE_MISMATCH!>x += 'a'<!>
++    <!TYPE_MISMATCH!>x += 1.toByte()<!>
++    <!TYPE_MISMATCH!>x += 1.toShort()<!>
++    <!TYPE_MISMATCH!>x += 1L<!>
++    <!TYPE_MISMATCH!>x += 1f<!>
++    <!TYPE_MISMATCH!>x += 1.0<!>
++
++    <!TYPE_MISMATCH!>x *= 'a'<!>
++    <!TYPE_MISMATCH!>x *= 1.toByte()<!>
++    <!TYPE_MISMATCH!>x *= 1.toShort()<!>
++    <!TYPE_MISMATCH!>x *= 1L<!>
++    <!TYPE_MISMATCH!>x *= 1f<!>
++    <!TYPE_MISMATCH!>x *= 1.0<!>
++}
++
++class A {
++    fun plus(x : A) : A { return x }
++}
++
++class B {
++    fun plus(x : A) : A { return x }
++}
++
++fun overloading() {
++    var x = A()
++    var y = A()
++    x += y
++    var z = B()
++    <!TYPE_MISMATCH!>z += x<!>
++}
+diff --git a/compiler/tests/org/jetbrains/jet/checkers/JetDiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/jet/checkers/JetDiagnosticsTestGenerated.java
+index ad4f9eba082..4a61fcf18c5 100644
+--- a/compiler/tests/org/jetbrains/jet/checkers/JetDiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/jet/checkers/JetDiagnosticsTestGenerated.java
+@@ -5909,6 +5909,11 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
+                 doTest("compiler/testData/diagnostics/tests/operatorsOverloading/AssignmentOperations.kt");
+             }
+             
++            @TestMetadata("assignmentOperationsCheckReturnType.kt")
++            public void testAssignmentOperationsCheckReturnType() throws Exception {
++                doTest("compiler/testData/diagnostics/tests/operatorsOverloading/assignmentOperationsCheckReturnType.kt");
++            }
++            
+             @TestMetadata("IteratorAmbiguity.kt")
+             public void testIteratorAmbiguity() throws Exception {
+                 doTest("compiler/testData/diagnostics/tests/operatorsOverloading/IteratorAmbiguity.kt");

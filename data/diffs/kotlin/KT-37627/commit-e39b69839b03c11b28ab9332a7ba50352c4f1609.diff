@@ -1,0 +1,332 @@
+diff --git a/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java b/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
+index 6b0b4a3913d..7d903835c63 100644
+--- a/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
++++ b/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
+@@ -10725,6 +10725,11 @@ public class FirOldFrontendDiagnosticsTestGenerated extends AbstractFirOldFronte
+                 runTest("compiler/testData/diagnostics/tests/inference/constraints/approximationWithDefNotNullInInvPositionDuringInference.kt");
+             }
+ 
++            @TestMetadata("complexDependencyWihtoutProperConstraints.kt")
++            public void testComplexDependencyWihtoutProperConstraints() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/inference/constraints/complexDependencyWihtoutProperConstraints.kt");
++            }
++
+             @TestMetadata("constraintFromVariantTypeWithNestedProjection.kt")
+             public void testConstraintFromVariantTypeWithNestedProjection() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/inference/constraints/constraintFromVariantTypeWithNestedProjection.kt");
+diff --git a/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestWithStdlibGenerated.java b/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestWithStdlibGenerated.java
+index f998ff0bc16..276fe8a7a0b 100644
+--- a/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestWithStdlibGenerated.java
++++ b/compiler/fir/analysis-tests/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestWithStdlibGenerated.java
+@@ -1906,6 +1906,11 @@ public class FirOldFrontendDiagnosticsTestWithStdlibGenerated extends AbstractFi
+             runTest("compiler/testData/diagnostics/testsWithStdLib/inference/kt36249.kt");
+         }
+ 
++        @TestMetadata("kt37627.kt")
++        public void testKt37627() throws Exception {
++            runTest("compiler/testData/diagnostics/testsWithStdLib/inference/kt37627.kt");
++        }
++
+         @TestMetadata("kt4975.kt")
+         public void testKt4975() throws Exception {
+             runTest("compiler/testData/diagnostics/testsWithStdLib/inference/kt4975.kt");
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/KotlinConstraintSystemCompleter.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/KotlinConstraintSystemCompleter.kt
+index 864845cf4ef..c944224e967 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/KotlinConstraintSystemCompleter.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/KotlinConstraintSystemCompleter.kt
+@@ -214,10 +214,9 @@ class KotlinConstraintSystemCompleter(
+         val expectedTypeVariable =
+             expectedTypeAtom?.constructor?.takeIf { it in allTypeVariables } ?: variable
+ 
+-        val shouldAnalyzeByEqualityExpectedTypeToVariable =
+-            hasProperAtom || !variableForFixation.hasProperConstraint || variableForFixation.hasOnlyTrivialProperConstraint
++        val shouldAnalyze = hasProperAtom || !variableForFixation.hasProperConstraint || variableForFixation.hasOnlyTrivialProperConstraint
+ 
+-        if (!shouldAnalyzeByEqualityExpectedTypeToVariable)
++        if (!shouldAnalyze)
+             return false
+ 
+         analyze(preparePostponedAtom(expectedTypeVariable, postponedAtom, variable.builtIns, diagnosticsHolder) ?: return false)
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/VariableFixationFinder.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/VariableFixationFinder.kt
+index d4491b8c075..177a1221de8 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/VariableFixationFinder.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/VariableFixationFinder.kt
+@@ -114,6 +114,12 @@ class VariableFixationFinder(
+         return when (candidateReadiness) {
+             TypeVariableFixationReadiness.FORBIDDEN -> null
+             TypeVariableFixationReadiness.WITHOUT_PROPER_ARGUMENT_CONSTRAINT -> VariableForFixation(candidate, false)
++            TypeVariableFixationReadiness.WITH_COMPLEX_DEPENDENCY_UPPER,
++            TypeVariableFixationReadiness.WITH_COMPLEX_DEPENDENCY_LOWER -> VariableForFixation(
++                candidate,
++                hasProperConstraint = variableHasProperArgumentConstraints(candidate),
++                hasOnlyTrivialProperConstraint = variableHasTrivialOrNonProperConstraints(candidate)
++            )
+             TypeVariableFixationReadiness.WITH_TRIVIAL_OR_NON_PROPER_CONSTRAINTS ->
+                 VariableForFixation(candidate, hasProperConstraint = true, hasOnlyTrivialProperConstraint = true)
+ 
+diff --git a/compiler/testData/diagnostics/tests/inference/constraints/complexDependencyWihtoutProperConstraints.fir.kt b/compiler/testData/diagnostics/tests/inference/constraints/complexDependencyWihtoutProperConstraints.fir.kt
+new file mode 100644
+index 00000000000..5143e3323fb
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/constraints/complexDependencyWihtoutProperConstraints.fir.kt
+@@ -0,0 +1,69 @@
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER -UNUSED_EXPRESSION
++// Isuue: KT-37627
++
++class Inv<T>(arg: T)
++class Pair<A, B>
++infix fun <M, N> M.to(other: N): Pair<M, N> = TODO()
++
++fun <I> id(arg: I): I = arg
++fun <S> select(vararg args: S): S = TODO()
++
++fun test(bool: Boolean) {
++    val test1 = if (bool) {
++        { "1" }
++    } else null
++    test1
++
++    val test2 = if (bool) {
++        id { "2" }
++    } else null
++    test2
++
++    val test3 = if (bool) {
++        Inv { "3" }
++    } else null
++    test3
++
++    val test4 = if (bool) {
++        4 to { "4" }
++    } else null
++    test4
++
++    val test5 = if (bool) {
++        {{ "5" }}
++    } else null
++    test5
++
++    val test6 = if (bool) {
++        id { { "6" } }
++    } else null
++    test6
++
++    val test7 = if (bool) {
++        Inv { { "7" } }
++    } else null
++    test7
++
++    val test8 = if (bool) {
++        8 to { { "8" } }
++    } else null
++    test8
++
++    val test9 = select({ "9" }, null)
++    test9
++
++    val test10 = select(id { "10" }, null)
++    test10
++
++    val test11 = select(null, Inv { "11" })
++    test11
++
++    val test12 = select({ 12 to "" }, null)
++    test12
++
++    val test13: Pair<Int, () -> () -> String>? = if(bool) {
++        13 to { { "13" } }
++    } else null
++    test13
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/constraints/complexDependencyWihtoutProperConstraints.kt b/compiler/testData/diagnostics/tests/inference/constraints/complexDependencyWihtoutProperConstraints.kt
+new file mode 100644
+index 00000000000..df2e5f71649
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/constraints/complexDependencyWihtoutProperConstraints.kt
+@@ -0,0 +1,69 @@
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER -UNUSED_EXPRESSION
++// Isuue: KT-37627
++
++class Inv<T>(arg: T)
++class Pair<A, B>
++infix fun <M, N> M.to(other: N): Pair<M, N> = TODO()
++
++fun <I> id(arg: I): I = arg
++fun <S> select(vararg args: S): S = TODO()
++
++fun test(bool: Boolean) {
++    val test1 = if (bool) {
++        { "1" }
++    } else null
++    <!DEBUG_INFO_EXPRESSION_TYPE("(() -> kotlin.String)?")!>test1<!>
++
++    val test2 = if (bool) {
++        id { "2" }
++    } else null
++    <!DEBUG_INFO_EXPRESSION_TYPE("(() -> kotlin.String)?")!>test2<!>
++
++    val test3 = if (bool) {
++        Inv { "3" }
++    } else null
++    <!DEBUG_INFO_EXPRESSION_TYPE("Inv<() -> kotlin.String>?")!>test3<!>
++
++    val test4 = if (bool) {
++        4 to { "4" }
++    } else null
++    <!DEBUG_INFO_EXPRESSION_TYPE("Pair<kotlin.Int, () -> kotlin.String>?")!>test4<!>
++
++    val test5 = if (bool) {
++        {{ "5" }}
++    } else null
++    <!DEBUG_INFO_EXPRESSION_TYPE("(() -> () -> kotlin.String)?")!>test5<!>
++
++    val test6 = if (bool) {
++        id { { "6" } }
++    } else null
++    <!DEBUG_INFO_EXPRESSION_TYPE("(() -> () -> kotlin.String)?")!>test6<!>
++
++    val test7 = if (bool) {
++        Inv { { "7" } }
++    } else null
++    <!DEBUG_INFO_EXPRESSION_TYPE("Inv<() -> () -> kotlin.String>?")!>test7<!>
++
++    val test8 = if (bool) {
++        8 to { { "8" } }
++    } else null
++    <!DEBUG_INFO_EXPRESSION_TYPE("Pair<kotlin.Int, () -> () -> kotlin.String>?")!>test8<!>
++
++    val test9 = select({ "9" }, null)
++    <!DEBUG_INFO_EXPRESSION_TYPE("(() -> kotlin.String)?")!>test9<!>
++
++    val test10 = select(id { "10" }, null)
++    <!DEBUG_INFO_EXPRESSION_TYPE("(() -> kotlin.String)?")!>test10<!>
++
++    val test11 = select(null, Inv { "11" })
++    <!DEBUG_INFO_EXPRESSION_TYPE("Inv<() -> kotlin.String>?")!>test11<!>
++
++    val test12 = select({ 12 to "" }, null)
++    <!DEBUG_INFO_EXPRESSION_TYPE("(() -> Pair<kotlin.Int, kotlin.String>)?")!>test12<!>
++
++    val test13: Pair<Int, () -> () -> String>? = if(bool) {
++        13 to { { "13" } }
++    } else null
++    <!DEBUG_INFO_EXPRESSION_TYPE("Pair<kotlin.Int, () -> () -> kotlin.String>?")!>test13<!>
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/constraints/complexDependencyWihtoutProperConstraints.txt b/compiler/testData/diagnostics/tests/inference/constraints/complexDependencyWihtoutProperConstraints.txt
+new file mode 100644
+index 00000000000..93ae335a0b5
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/constraints/complexDependencyWihtoutProperConstraints.txt
+@@ -0,0 +1,20 @@
++package
++
++public fun </*0*/ I> id(/*0*/ arg: I): I
++public fun </*0*/ S> select(/*0*/ vararg args: S /*kotlin.Array<out S>*/): S
++public fun test(/*0*/ bool: kotlin.Boolean): kotlin.Unit
++public infix fun </*0*/ M, /*1*/ N> M.to(/*0*/ other: N): Pair<M, N>
++
++public final class Inv</*0*/ T> {
++    public constructor Inv</*0*/ T>(/*0*/ arg: T)
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Pair</*0*/ A, /*1*/ B> {
++    public constructor Pair</*0*/ A, /*1*/ B>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/inference/kt37627.kt b/compiler/testData/diagnostics/testsWithStdLib/inference/kt37627.kt
+new file mode 100644
+index 00000000000..c9026d6a44e
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithStdLib/inference/kt37627.kt
+@@ -0,0 +1,9 @@
++// FIR_IDENTICAL
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -NAME_SHADOWING -UNUSED_VARIABLE
++
++fun foo(x: Int) {
++    val x = if (true) { // OI: Map<String, () → Int>?, NI: Nothing?, error
++        "" to { x }
++    } else { null }
++}
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/inference/kt37627.txt b/compiler/testData/diagnostics/testsWithStdLib/inference/kt37627.txt
+new file mode 100644
+index 00000000000..3afacee3aa4
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithStdLib/inference/kt37627.txt
+@@ -0,0 +1,3 @@
++package
++
++public fun foo(/*0*/ x: kotlin.Int): kotlin.Unit
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index b3871a4fef4..86b6c0bce8d 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -10732,6 +10732,11 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTestWithFirVali
+                     runTest("compiler/testData/diagnostics/tests/inference/constraints/approximationWithDefNotNullInInvPositionDuringInference.kt");
+                 }
+ 
++                @TestMetadata("complexDependencyWihtoutProperConstraints.kt")
++                public void testComplexDependencyWihtoutProperConstraints() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/constraints/complexDependencyWihtoutProperConstraints.kt");
++                }
++
+                 @TestMetadata("constraintFromVariantTypeWithNestedProjection.kt")
+                 public void testConstraintFromVariantTypeWithNestedProjection() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/constraints/constraintFromVariantTypeWithNestedProjection.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
+index bbf169ece4c..997b69aa844 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
+@@ -2886,6 +2886,11 @@ public class DiagnosticsTestWithStdLibGenerated extends AbstractDiagnosticsTestW
+             runTest("compiler/testData/diagnostics/testsWithStdLib/inference/kt36249.kt");
+         }
+ 
++        @TestMetadata("kt37627.kt")
++        public void testKt37627() throws Exception {
++            runTest("compiler/testData/diagnostics/testsWithStdLib/inference/kt37627.kt");
++        }
++
+         @TestMetadata("kt4975.kt")
+         public void testKt4975() throws Exception {
+             runTest("compiler/testData/diagnostics/testsWithStdLib/inference/kt4975.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
+index cb3e8020d51..4d44949a4d6 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
+@@ -2886,6 +2886,11 @@ public class DiagnosticsTestWithStdLibUsingJavacGenerated extends AbstractDiagno
+             runTest("compiler/testData/diagnostics/testsWithStdLib/inference/kt36249.kt");
+         }
+ 
++        @TestMetadata("kt37627.kt")
++        public void testKt37627() throws Exception {
++            runTest("compiler/testData/diagnostics/testsWithStdLib/inference/kt37627.kt");
++        }
++
+         @TestMetadata("kt4975.kt")
+         public void testKt4975() throws Exception {
+             runTest("compiler/testData/diagnostics/testsWithStdLib/inference/kt4975.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index 001d6ecc926..32ac1ea7023 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -10727,6 +10727,11 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                     runTest("compiler/testData/diagnostics/tests/inference/constraints/approximationWithDefNotNullInInvPositionDuringInference.kt");
+                 }
+ 
++                @TestMetadata("complexDependencyWihtoutProperConstraints.kt")
++                public void testComplexDependencyWihtoutProperConstraints() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/constraints/complexDependencyWihtoutProperConstraints.kt");
++                }
++
+                 @TestMetadata("constraintFromVariantTypeWithNestedProjection.kt")
+                 public void testConstraintFromVariantTypeWithNestedProjection() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/constraints/constraintFromVariantTypeWithNestedProjection.kt");

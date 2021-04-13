@@ -1,0 +1,137 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/ArgumentTypeResolver.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/ArgumentTypeResolver.java
+index cec9c630012..98ee7708319 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/ArgumentTypeResolver.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/ArgumentTypeResolver.java
+@@ -17,6 +17,7 @@
+ package org.jetbrains.kotlin.resolve.calls;
+ 
+ import kotlin.Pair;
++import kotlin.collections.CollectionsKt;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ import org.jetbrains.kotlin.builtins.FunctionTypesKt;
+@@ -265,7 +266,7 @@ public class ArgumentTypeResolver {
+ 
+         if (overloadResolutionResults == null) return null;
+ 
+-        if (overloadResolutionResults.isSingleResult()) {
++        if (isSingleAndPossibleTransformToSuccess(overloadResolutionResults)) {
+             ResolvedCall<?> resolvedCall =
+                     OverloadResolutionResultsUtil.getResultingCall(overloadResolutionResults, context.contextDependency);
+             if (resolvedCall == null) return null;
+@@ -284,6 +285,12 @@ public class ArgumentTypeResolver {
+         );
+     }
+ 
++    private static boolean isSingleAndPossibleTransformToSuccess(@NotNull OverloadResolutionResults<?> overloadResolutionResults) {
++        if (!overloadResolutionResults.isSingleResult()) return false;
++        ResolvedCall<?> call = CollectionsKt.singleOrNull(overloadResolutionResults.getResultingCalls());
++        return call != null && call.getStatus().possibleTransformToSuccess();
++    }
++
+     @NotNull
+     public KotlinTypeInfo getFunctionLiteralTypeInfo(
+             @NotNull KtExpression expression,
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt
+index 6089c55a042..4bf73a9f0e8 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt
+@@ -665,7 +665,7 @@ class DoubleColonExpressionResolver(
+             resolutionResults.isNothing -> null
+             else -> ResolutionResultsAndTraceCommitCallback(resolutionResults) {
+                 checkReservedYield(reference, outerContext.trace)
+-                if (resolutionMode != ResolveArgumentsMode.SHAPE_FUNCTION_ARGUMENTS || resolutionResults.isSingleResult) {
++                if (resolutionMode != ResolveArgumentsMode.SHAPE_FUNCTION_ARGUMENTS || resolutionResults.isSuccess) {
+                     temporaryTrace.commit()
+                 }
+             }
+diff --git a/compiler/testData/diagnostics/tests/j+k/callableReferencesStaticMemberClash.kt b/compiler/testData/diagnostics/tests/j+k/callableReferencesStaticMemberClash.kt
+new file mode 100644
+index 00000000000..86149c53609
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/j+k/callableReferencesStaticMemberClash.kt
+@@ -0,0 +1,16 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++// FILE: A.java
++public class A {
++    public static void foo() {}
++    public static void foo(String x) {}
++
++    private void foo(int y) {}
++}
++
++// FILE: main.kt
++
++fun baz(x: (String) -> Unit) {}
++
++fun bar() {
++    baz(A::foo)
++}
+diff --git a/compiler/testData/diagnostics/tests/j+k/callableReferencesStaticMemberClash.txt b/compiler/testData/diagnostics/tests/j+k/callableReferencesStaticMemberClash.txt
+new file mode 100644
+index 00000000000..bdf0c646977
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/j+k/callableReferencesStaticMemberClash.txt
+@@ -0,0 +1,16 @@
++package
++
++public fun bar(): kotlin.Unit
++public fun baz(/*0*/ x: (kotlin.String) -> kotlin.Unit): kotlin.Unit
++
++public open class A {
++    public constructor A()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    private open fun foo(/*0*/ y: kotlin.Int): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    // Static members
++    public open fun foo(): kotlin.Unit
++    public open fun foo(/*0*/ x: kotlin.String!): kotlin.Unit
++}
+diff --git a/compiler/testData/diagnostics/testsWithJava8/patternCompileCallableReference.kt b/compiler/testData/diagnostics/testsWithJava8/patternCompileCallableReference.kt
+new file mode 100644
+index 00000000000..7342800b750
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithJava8/patternCompileCallableReference.kt
+@@ -0,0 +1,6 @@
++// SKIP_TXT
++import java.util.regex.Pattern
++
++val strs: List<String> = listOf("regex1", "regex2")
++
++val patterns: List<Pattern> = strs.map(Pattern::compile)
+diff --git a/compiler/tests-java8/tests/org/jetbrains/kotlin/checkers/DiagnosticsWithJava8TestGenerated.java b/compiler/tests-java8/tests/org/jetbrains/kotlin/checkers/DiagnosticsWithJava8TestGenerated.java
+index 97909fbac75..6d92e0a79b5 100644
+--- a/compiler/tests-java8/tests/org/jetbrains/kotlin/checkers/DiagnosticsWithJava8TestGenerated.java
++++ b/compiler/tests-java8/tests/org/jetbrains/kotlin/checkers/DiagnosticsWithJava8TestGenerated.java
+@@ -60,6 +60,12 @@ public class DiagnosticsWithJava8TestGenerated extends AbstractDiagnosticsWithFu
+         doTest(fileName);
+     }
+ 
++    @TestMetadata("patternCompileCallableReference.kt")
++    public void testPatternCompileCallableReference() throws Exception {
++        String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/testsWithJava8/patternCompileCallableReference.kt");
++        doTest(fileName);
++    }
++
+     @TestMetadata("samWithConsumer.kt")
+     public void testSamWithConsumer() throws Exception {
+         String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/testsWithJava8/samWithConsumer.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 49713204f7e..294f6d0007c 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -11830,6 +11830,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("callableReferencesStaticMemberClash.kt")
++            public void testCallableReferencesStaticMemberClash() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/j+k/callableReferencesStaticMemberClash.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("canDeclareIfSamAdapterIsInherited.kt")
+             public void testCanDeclareIfSamAdapterIsInherited() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/j+k/canDeclareIfSamAdapterIsInherited.kt");

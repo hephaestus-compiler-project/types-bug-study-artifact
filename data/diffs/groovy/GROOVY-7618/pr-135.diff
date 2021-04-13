@@ -1,0 +1,40 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 76bd0d8475f..3c22aedcb2b 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -2363,7 +2363,10 @@ private void inferSAMType(Parameter param, ClassNode receiver, MethodNode method
+         ClassNode[] blockParameterTypes = (ClassNode[]) openBlock.getNodeMetaData(StaticTypesMarker.CLOSURE_ARGUMENTS);
+         if (blockParameterTypes==null) {
+             Parameter[] p = openBlock.getParameters();
+-            if (p.length==0 && parameterTypesForSAM.length!=0) {
++            if (p == null) {
++                // zero parameter closure e.g. { -> println 'no args' }
++                blockParameterTypes = ClassNode.EMPTY_ARRAY;
++            } else if (p.length==0 && parameterTypesForSAM.length!=0) {
+                 // implicit it
+                 blockParameterTypes = parameterTypesForSAM;
+             } else {
+diff --git a/src/test/groovy/transform/stc/ClosuresSTCTest.groovy b/src/test/groovy/transform/stc/ClosuresSTCTest.groovy
+index fae7988753d..1eaeca878f6 100644
+--- a/src/test/groovy/transform/stc/ClosuresSTCTest.groovy
++++ b/src/test/groovy/transform/stc/ClosuresSTCTest.groovy
+@@ -500,5 +500,19 @@ class ClosuresSTCTest extends StaticTypeCheckingTestCase {
+             A.doSomething()
+         '''
+     }
++
++    void testParameterlessClosureToSAMTypeArgumentCoercion() {
++        assertScript '''
++            interface SamType {
++                int sam()
++            }
++
++            int foo(SamType samt) {
++                samt.sam()
++            }
++
++            assert foo { -> 1 }  == 1
++        '''
++    }
+ }
+ 

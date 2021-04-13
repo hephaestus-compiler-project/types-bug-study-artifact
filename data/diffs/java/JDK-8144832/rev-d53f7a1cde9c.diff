@@ -1,0 +1,124 @@
+changeset:   3174:d53f7a1cde9c
+user:        vromero
+date:        Wed Dec 16 14:23:08 2015 -0800
+summary:     8144832: cast conversion fails when converting a type-variable to primitive type
+
+diff -r 25ad096cd625 -r d53f7a1cde9c src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java	Wed Dec 16 14:29:49 2015 +0100
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java	Wed Dec 16 14:23:08 2015 -0800
+@@ -1436,12 +1436,13 @@
+     public boolean isCastable(Type t, Type s, Warner warn) {
+         if (t == s)
+             return true;
+-
+-        if (t.isPrimitive() != s.isPrimitive())
++        if (t.isPrimitive() != s.isPrimitive()) {
++            t = skipTypeVars(t, false);
+             return (isConvertible(t, s, warn)
+                     || (allowObjectToPrimitiveCast &&
+                         s.isPrimitive() &&
+                         isSubtype(boxedClass(s).type, t)));
++        }
+         if (warn != warnStack.head) {
+             try {
+                 warnStack = warnStack.prepend(warn);
+diff -r 25ad096cd625 -r d53f7a1cde9c test/tools/javac/types/CastTest.java
+--- a/test/tools/javac/types/CastTest.java	Wed Dec 16 14:29:49 2015 +0100
++++ b/test/tools/javac/types/CastTest.java	Wed Dec 16 14:23:08 2015 -0800
+@@ -35,8 +35,6 @@
+  */
+ 
+ import com.sun.tools.javac.code.Type;
+-import com.sun.tools.javac.code.Type.*;
+-import com.sun.tools.javac.code.Symbol.*;
+ import java.lang.reflect.Array;
+ 
+ import static com.sun.tools.javac.code.Flags.*;
+@@ -65,7 +63,7 @@
+     /*C*/       { F   , F    , F  , F   , F    , F     , F   , F   , T, F , T, T, F     , F      , F    , F     , F      , F       , F     , F     , F  , F   , F  , F },
+     /*+C*/      { F   , F    , F  , F   , F    , F     , F   , F   , F, T , F, T, F     , F      , F    , F     , F      , F       , F     , F     , F  , F   , F  , F },
+     /*I*/       { F   , F    , F  , F   , F    , F     , F   , F   , T, F , T, T, F     , F      , F    , F     , F      , F       , F     , F     , F  , F   , F  , F },
+-    /*T*/       { F   , F    , F  , F   , F    , F     , F   , F   , T, T , T, T, T     , T      , T    , T     , T      , T       , T     , T     , T  , T   , T  , T },
++    /*T*/       { T   , T    , T  , T   , T    , T     , T   , T   , T, T , T, T, T     , T      , T    , T     , T      , T       , T     , T     , T  , T   , T  , T },
+     /*byte[]*/  { F   , F    , F  , F   , F    , F     , F   , F   , F, F , F, T, T     , F      , F    , F     , F      , F       , F     , F     , F  , F   , F  , F },
+     /*short[]*/ { F   , F    , F  , F   , F    , F     , F   , F   , F, F , F, T, F     , T      , F    , F     , F      , F       , F     , F     , F  , F   , F  , F },
+     /*int[]*/   { F   , F    , F  , F   , F    , F     , F   , F   , F, F , F, T, F     , F      , T    , F     , F      , F       , F     , F     , F  , F   , F  , F },
+diff -r 25ad096cd625 -r d53f7a1cde9c test/tools/javac/types/CastToTypeVarTest.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/types/CastToTypeVarTest.java	Wed Dec 16 14:23:08 2015 -0800
+@@ -0,0 +1,35 @@
++/*
++ * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8144832
++ * @summary cast conversion fails when converting a type-variable to primitive type
++ * @compile -Werror -Xlint:all CastToTypeVarTest.java
++ */
++
++public class CastToTypeVarTest<X, Y extends X> {
++    void foo(Y y) {
++        X x = (X)y;
++    }
++}
+diff -r 25ad096cd625 -r d53f7a1cde9c test/tools/javac/types/CastTypeVarToPrimitiveTest.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/types/CastTypeVarToPrimitiveTest.java	Wed Dec 16 14:23:08 2015 -0800
+@@ -0,0 +1,35 @@
++/*
++ * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8144832
++ * @summary cast conversion fails when converting a type-variable to primitive type
++ * @compile CastTypeVarToPrimitiveTest.java
++ */
++
++public class CastTypeVarToPrimitiveTest<T> {
++    void foo(T valIn){
++        double val = (double)valIn;
++    }
++}
+

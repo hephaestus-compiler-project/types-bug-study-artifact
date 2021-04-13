@@ -1,0 +1,196 @@
+changeset:   51897:eb3e72f181af
+user:        jlahoda
+date:        Thu Sep 27 10:24:12 2018 +0200
+summary:     8211102: Crash with -XDfind=lambda and -source 7
+
+diff -r e9d38b28380e -r eb3e72f181af src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Analyzer.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Analyzer.java	Thu Sep 27 09:29:52 2018 +0200
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Analyzer.java	Thu Sep 27 10:24:12 2018 +0200
+@@ -166,10 +166,10 @@
+                 res = EnumSet.allOf(AnalyzerMode.class);
+             }
+             for (AnalyzerMode mode : values()) {
+-                if (modes.contains(mode.opt)) {
++                if (modes.contains("-" + mode.opt) || !mode.feature.allowedInSource(source)) {
++                    res.remove(mode);
++                } else if (modes.contains(mode.opt)) {
+                     res.add(mode);
+-                } else if (modes.contains("-" + mode.opt) || !mode.feature.allowedInSource(source)) {
+-                    res.remove(mode);
+                 }
+             }
+             return res;
+diff -r e9d38b28380e -r eb3e72f181af src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Sep 27 09:29:52 2018 +0200
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Sep 27 10:24:12 2018 +0200
+@@ -2689,12 +2689,14 @@
+      */
+     @Override
+     public void visitLambda(final JCLambda that) {
++        boolean wrongContext = false;
+         if (pt().isErroneous() || (pt().hasTag(NONE) && pt() != Type.recoveryType)) {
+             if (pt().hasTag(NONE) && (env.info.enclVar == null || !env.info.enclVar.type.isErroneous())) {
+                 //lambda only allowed in assignment or method invocation/cast context
+                 log.error(that.pos(), Errors.UnexpectedLambda);
+             }
+             resultInfo = recoveryInfo;
++            wrongContext = true;
+         }
+         //create an environment for attribution of the lambda expression
+         final Env<AttrContext> localEnv = lambdaEnv(that, env);
+@@ -2811,7 +2813,8 @@
+ 
+                 checkAccessibleTypes(that, localEnv, resultInfo.checkContext.inferenceContext(), lambdaType, currentTarget);
+             }
+-            result = check(that, currentTarget, KindSelector.VAL, resultInfo);
++            result = wrongContext ? that.type = types.createErrorType(pt())
++                                  : check(that, currentTarget, KindSelector.VAL, resultInfo);
+         } catch (Types.FunctionDescriptorLookupError ex) {
+             JCDiagnostic cause = ex.getDiagnostic();
+             resultInfo.checkContext.report(that, cause);
+@@ -5343,23 +5346,12 @@
+         }
+ 
+         @Override
+-        public void visitLambda(JCLambda that) {
+-            super.visitLambda(that);
+-            if (that.target == null) {
+-                that.target = syms.unknownType;
+-            }
+-        }
+-
+-        @Override
+         public void visitReference(JCMemberReference that) {
+             super.visitReference(that);
+             if (that.sym == null) {
+                 that.sym = new MethodSymbol(0, names.empty, dummyMethodType(),
+                         syms.noSymbol);
+             }
+-            if (that.target == null) {
+-                that.target = syms.unknownType;
+-            }
+         }
+     }
+     // </editor-fold>
+diff -r e9d38b28380e -r eb3e72f181af test/langtools/tools/javac/analyzer/AnalyzersCheckSourceLevel.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/analyzer/AnalyzersCheckSourceLevel.java	Thu Sep 27 10:24:12 2018 +0200
+@@ -0,0 +1,15 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8211102
++ * @summary Ensure that the lambda analyzer does not run when -source 7 is specified,
++ *          even if explicitly requested
++ * @compile/fail/ref=AnalyzersCheckSourceLevel.out -Werror -XDfind=lambda -XDrawDiagnostics AnalyzersCheckSourceLevel.java
++ * @compile -Werror -source 7 -Xlint:-options -XDfind=lambda AnalyzersCheckSourceLevel.java
++ */
++public class AnalyzersCheckSourceLevel {
++    void t() {
++        Runnable r = new Runnable() {
++            @Override public void run() {}
++        };
++    }
++}
+\ No newline at end of file
+diff -r e9d38b28380e -r eb3e72f181af test/langtools/tools/javac/analyzer/AnalyzersCheckSourceLevel.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/analyzer/AnalyzersCheckSourceLevel.out	Thu Sep 27 10:24:12 2018 +0200
+@@ -0,0 +1,4 @@
++AnalyzersCheckSourceLevel.java:11:37: compiler.warn.potential.lambda.found
++- compiler.err.warnings.and.werror
++1 error
++1 warning
+diff -r e9d38b28380e -r eb3e72f181af test/langtools/tools/javac/analyzer/T8211102.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/analyzer/T8211102.java	Thu Sep 27 10:24:12 2018 +0200
+@@ -0,0 +1,37 @@
++/*
++ * Copyright (c) 2018, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/**
++ * @test
++ * @bug 8211102
++ * @summary Verify javac does not crash in lambda analyzer
++ * @compile -Werror -XDfind=lambda -source 7 -Xlint:-options T8211102.java
++ */
++import java.util.*;
++
++public class T8211102 {
++    private void t(boolean b) {
++        (b ? Collections.emptyList()
++           : new Iterable<String>() { public Iterator<String> iterator() { return null; } }).toString();
++    }
++}
+diff -r e9d38b28380e -r eb3e72f181af test/langtools/tools/javac/lambda/LambdaNoFuncIntfFlow.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/lambda/LambdaNoFuncIntfFlow.java	Thu Sep 27 10:24:12 2018 +0200
+@@ -0,0 +1,16 @@
++/**
++ * @test /nodynamiccopyright/
++ * @bug 8211102
++ * @summary Ensure Flow does not crash for recovered lambdas
++ * @compile/fail/ref=LambdaNoFuncIntfFlow.out -XDshould-stop.at=FLOW -XDrawDiagnostics LambdaNoFuncIntfFlow.java
++ */
++
++import java.util.*;
++
++public class LambdaNoFuncIntfFlow {
++    private void t(Object i) {
++        int j = i instanceof ArrayList ? (ArrayList<String>) i : () -> { return null; };
++        j = 0;
++        Runnable r = () -> t(j);
++    }
++}
+diff -r e9d38b28380e -r eb3e72f181af test/langtools/tools/javac/lambda/LambdaNoFuncIntfFlow.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/lambda/LambdaNoFuncIntfFlow.out	Thu Sep 27 10:24:12 2018 +0200
+@@ -0,0 +1,6 @@
++LambdaNoFuncIntfFlow.java:12:42: compiler.err.prob.found.req: (compiler.misc.incompatible.type.in.conditional: (compiler.misc.inconvertible.types: java.util.ArrayList<java.lang.String>, int))
++LambdaNoFuncIntfFlow.java:12:66: compiler.err.prob.found.req: (compiler.misc.incompatible.type.in.conditional: (compiler.misc.not.a.functional.intf: int))
++LambdaNoFuncIntfFlow.java:14:30: compiler.err.cant.ref.non.effectively.final.var: j, (compiler.misc.lambda)
++- compiler.note.unchecked.filename: LambdaNoFuncIntfFlow.java
++- compiler.note.unchecked.recompile
++3 errors
+diff -r e9d38b28380e -r eb3e72f181af test/langtools/tools/javac/lambda/NoTargetLambda.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/lambda/NoTargetLambda.java	Thu Sep 27 10:24:12 2018 +0200
+@@ -0,0 +1,12 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8211102
++ * @summary Ensure javac does not crash for (invalid) lambda in standalone conditional expression.
++ * @compile/fail/ref=NoTargetLambda.out -XDrawDiagnostics NoTargetLambda.java
++ */
++
++public class NoTargetLambda {
++    private void t(boolean b) {
++        (b ? "" : () -> { return null; }).toString();
++    }
++}
+diff -r e9d38b28380e -r eb3e72f181af test/langtools/tools/javac/lambda/NoTargetLambda.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/lambda/NoTargetLambda.out	Thu Sep 27 10:24:12 2018 +0200
+@@ -0,0 +1,2 @@
++NoTargetLambda.java:10:19: compiler.err.unexpected.lambda
++1 error
+

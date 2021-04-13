@@ -1,0 +1,75 @@
+diff --git a/compiler/src/dotty/tools/dotc/ast/Desugar.scala b/compiler/src/dotty/tools/dotc/ast/Desugar.scala
+index fea57a20dc..71276a3d35 100644
+--- a/compiler/src/dotty/tools/dotc/ast/Desugar.scala
++++ b/compiler/src/dotty/tools/dotc/ast/Desugar.scala
+@@ -1159,9 +1159,10 @@ object desugar {
+     Function(param :: Nil, Block(vdefs, body))
+   }
+ 
+-  def makeContextualFunction(formals: List[Type], body: Tree)(implicit ctx: Context): Tree = {
+-    val params = makeImplicitParameters(formals.map(TypeTree), Given)
+-    new FunctionWithMods(params, body, Modifiers(Implicit | Given))
++  def makeContextualFunction(formals: List[Type], body: Tree, isErased: Boolean)(implicit ctx: Context): Tree = {
++    val mods = if (isErased) Given | Erased else Given
++    val params = makeImplicitParameters(formals.map(TypeTree), mods)
++    new FunctionWithMods(params, body, Modifiers(Implicit | mods))
+   }
+ 
+   /** Add annotation to tree:
+diff --git a/compiler/src/dotty/tools/dotc/printing/RefinedPrinter.scala b/compiler/src/dotty/tools/dotc/printing/RefinedPrinter.scala
+index 1cf5220e9d..eeb3b7961b 100644
+--- a/compiler/src/dotty/tools/dotc/printing/RefinedPrinter.scala
++++ b/compiler/src/dotty/tools/dotc/printing/RefinedPrinter.scala
+@@ -232,7 +232,7 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
+           case dummyTreeOfType(tp) :: Nil if !(tp isRef defn.NullClass) => "null: " ~ toText(tp)
+           case _ => toTextGlobal(args, ", ")
+         }
+-        return "[applied to " ~ (Str("given ") provided tp.isContextual) ~ "(" ~ argsText ~ ") returning " ~ toText(resultType) ~ "]"
++        return "[applied to " ~ (Str("given ") provided tp.isContextual) ~ (Str("erased ") provided tp.isErasedMethod) ~ "(" ~ argsText ~ ") returning " ~ toText(resultType) ~ "]"
+       case IgnoredProto(ignored) =>
+         return "?" ~ (("(ignored: " ~ toText(ignored) ~ ")") provided ctx.settings.verbose.value)
+       case tp @ PolyProto(targs, resType) =>
+@@ -529,10 +529,12 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
+       case Function(args, body) =>
+         var implicitSeen: Boolean = false
+         var contextual: Boolean = false
++        var isErased: Boolean = false
+         def argToText(arg: Tree) = arg match {
+           case arg @ ValDef(name, tpt, _) =>
+             val implicitText =
+               if ((arg.mods is Given)) { contextual = true; "" }
++              else if ((arg.mods is Erased)) { isErased = true; "" }
+               else if ((arg.mods is Implicit) && !implicitSeen) { implicitSeen = true; keywordStr("implicit ") }
+               else ""
+             implicitText ~ toText(name) ~ optAscription(tpt)
+@@ -545,6 +547,7 @@ class RefinedPrinter(_ctx: Context) extends PlainPrinter(_ctx) {
+         }
+         changePrec(GlobalPrec) {
+ 		  (keywordText("given ") provided contextual) ~
++		  (keywordText("erased ") provided isErased) ~
+           argsText ~ " => " ~ toText(body)
+         }
+       case InfixOp(l, op, r) =>
+diff --git a/compiler/src/dotty/tools/dotc/typer/Typer.scala b/compiler/src/dotty/tools/dotc/typer/Typer.scala
+index f07563ec49..a7d5eb1668 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Typer.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Typer.scala
+@@ -2184,7 +2184,7 @@ class Typer extends Namer
+ 
+   protected def makeContextualFunction(tree: untpd.Tree, pt: Type)(implicit ctx: Context): Tree = {
+     val defn.FunctionOf(formals, _, true, _) = pt.dropDependentRefinement
+-    val ifun = desugar.makeContextualFunction(formals, tree)
++    val ifun = desugar.makeContextualFunction(formals, tree, defn.isErasedFunctionType(pt))
+     typr.println(i"make contextual function $tree / $pt ---> $ifun")
+     typed(ifun, pt)
+   }
+diff --git a/tests/pos/i4509.scala b/tests/pos/i4509.scala
+new file mode 100644
+index 0000000000..67dc468ddc
+--- /dev/null
++++ b/tests/pos/i4509.scala
+@@ -0,0 +1,4 @@
++object Main {
++  def fun[T](op: given erased (Int) => T) = op given 0
++  fun { }
++}

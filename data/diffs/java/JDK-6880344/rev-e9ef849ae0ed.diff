@@ -1,0 +1,110 @@
+changeset:   560:e9ef849ae0ed
+user:        mcimadamore
+date:        Wed May 19 16:41:57 2010 +0100
+summary:     6880344: Recursive type parameters do not compile
+
+diff -r ebf09be0222c -r e9ef849ae0ed src/share/classes/com/sun/tools/javac/code/Types.java
+--- a/src/share/classes/com/sun/tools/javac/code/Types.java	Thu May 13 11:30:28 2010 -0700
++++ b/src/share/classes/com/sun/tools/javac/code/Types.java	Wed May 19 16:41:57 2010 +0100
+@@ -588,10 +588,21 @@
+                 case BYTE: case CHAR: case SHORT: case INT: case LONG: case FLOAT:
+                 case DOUBLE: case BOOLEAN: case VOID: case BOT: case NONE:
+                     return t.tag == s.tag;
+-                case TYPEVAR:
+-                    return s.isSuperBound()
+-                        && !s.isExtendsBound()
+-                        && visit(t, upperBound(s));
++                case TYPEVAR: {
++                    if (s.tag == TYPEVAR) {
++                        //type-substitution does not preserve type-var types
++                        //check that type var symbols and bounds are indeed the same
++                        return t.tsym == s.tsym &&
++                                visit(t.getUpperBound(), s.getUpperBound());
++                    }
++                    else {
++                        //special case for s == ? super X, where upper(s) = u
++                        //check that u == t, where u has been set by Type.withTypeVar
++                        return s.isSuperBound() &&
++                                !s.isExtendsBound() &&
++                                visit(t, upperBound(s));
++                    }
++                }
+                 default:
+                     throw new AssertionError("isSameType " + t.tag);
+                 }
+diff -r ebf09be0222c -r e9ef849ae0ed src/share/classes/com/sun/tools/javac/comp/Check.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Check.java	Thu May 13 11:30:28 2010 -0700
++++ b/src/share/classes/com/sun/tools/javac/comp/Check.java	Wed May 19 16:41:57 2010 +0100
+@@ -915,7 +915,7 @@
+                 List<Type> actuals = tree.type.allparams();
+                 List<JCExpression> args = tree.arguments;
+                 List<Type> forms = tree.type.tsym.type.getTypeArguments();
+-                ListBuffer<TypeVar> tvars_buf = new ListBuffer<TypeVar>();
++                ListBuffer<Type> tvars_buf = new ListBuffer<Type>();
+ 
+                 // For matching pairs of actual argument types `a' and
+                 // formal type parameters with declared bound `b' ...
+@@ -946,12 +946,15 @@
+                 }
+ 
+                 args = tree.arguments;
+-                List<TypeVar> tvars = tvars_buf.toList();
++                List<Type> tvars = tvars_buf.toList();
+ 
+                 while (args.nonEmpty() && tvars.nonEmpty()) {
++                    Type actual = types.subst(args.head.type,
++                        tree.type.tsym.type.getTypeArguments(),
++                        tvars_buf.toList());
+                     checkExtends(args.head.pos(),
+-                                 args.head.type,
+-                                 tvars.head);
++                                 actual,
++                                 (TypeVar)tvars.head);
+                     args = args.tail;
+                     tvars = tvars.tail;
+                 }
+diff -r ebf09be0222c -r e9ef849ae0ed test/tools/javac/generics/typevars/T6880344.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/typevars/T6880344.java	Wed May 19 16:41:57 2010 +0100
+@@ -0,0 +1,40 @@
++/*
++ * Copyright 2009 Sun Microsystems, Inc.  All Rights Reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa Clara,
++ * CA 95054 USA or visit www.sun.com if you need additional information or
++ * have any questions.
++ */
++
++/*
++ * @test
++ * @bug     6880344
++ * @summary Recursive type parameters do not compile
++ * @author  mcimadamore
++ * @compile T6880344.java
++ */
++
++class T6880344 {
++    static class A<X1 extends G<X1>> {
++        public A<N<X1>> xyz;
++    }
++
++    static class N<X2 extends G<X2>> implements G<N<X2>> { }
++
++    interface G<X3 extends G<X3>> { }
++}
+

@@ -1,0 +1,439 @@
+diff --git a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Resolve.java b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Resolve.java
+index 5d9a6bb23e3..e18409a2348 100644
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Resolve.java
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Resolve.java
+@@ -112,6 +112,7 @@ public class Resolve {
+     private final boolean allowLocalVariableTypeInference;
+     private final boolean allowYieldStatement;
+     final EnumSet<VerboseResolutionMode> verboseResolutionMode;
++    final boolean dumpMethodReferenceSearchResults;
+ 
+     WriteableScope polymorphicSignatureScope;
+ 
+@@ -151,6 +152,7 @@ public class Resolve {
+         polymorphicSignatureScope = WriteableScope.create(syms.noSymbol);
+         allowModules = Feature.MODULES.allowedInSource(source);
+         allowRecords = Feature.RECORDS.allowedInSource(source);
++        dumpMethodReferenceSearchResults = options.isSet("debug.dumpMethodReferenceSearchResults");
+     }
+ 
+     /** error symbols, which are returned when resolution fails
+@@ -2777,7 +2779,7 @@ public class Resolve {
+             // Check that there is already a method symbol for the method
+             // type and owner
+             if (types.isSameType(mtype, sym.type) &&
+-                    spMethod.owner == sym.owner) {
++                spMethod.owner == sym.owner) {
+                 return sym;
+             }
+         }
+@@ -3090,6 +3092,9 @@ public class Resolve {
+         Symbol boundSym = lookupMethod(boundEnv, env.tree.pos(),
+                 site.tsym, boundSearchResolveContext, boundLookupHelper);
+         ReferenceLookupResult boundRes = new ReferenceLookupResult(boundSym, boundSearchResolveContext);
++        if (dumpMethodReferenceSearchResults) {
++            dumpMethodReferenceSearchResults(referenceTree, boundSearchResolveContext, boundSym, true);
++        }
+ 
+         //step 2 - unbound lookup
+         Symbol unboundSym = methodNotFound;
+@@ -3103,6 +3108,9 @@ public class Resolve {
+             unboundSym = lookupMethod(unboundEnv, env.tree.pos(),
+                     site.tsym, unboundSearchResolveContext, unboundLookupHelper);
+             unboundRes = new ReferenceLookupResult(unboundSym, unboundSearchResolveContext);
++            if (dumpMethodReferenceSearchResults) {
++                dumpMethodReferenceSearchResults(referenceTree, unboundSearchResolveContext, unboundSym, false);
++            }
+         }
+ 
+         //merge results
+@@ -3126,6 +3134,42 @@ public class Resolve {
+         return res;
+     }
+ 
++    private void dumpMethodReferenceSearchResults(JCMemberReference referenceTree,
++                                                  MethodResolutionContext resolutionContext,
++                                                  Symbol bestSoFar,
++                                                  boolean bound) {
++        ListBuffer<JCDiagnostic> subDiags = new ListBuffer<>();
++        int pos = 0;
++        int mostSpecificPos = -1;
++        for (Candidate c : resolutionContext.candidates) {
++            if (resolutionContext.step != c.step || !c.isApplicable()) {
++                continue;
++            } else {
++                JCDiagnostic subDiag = null;
++                if (c.sym.type.hasTag(FORALL)) {
++                    subDiag = diags.fragment(Fragments.PartialInstSig(c.mtype));
++                }
++
++                String key = subDiag == null ?
++                        "applicable.method.found.2" :
++                        "applicable.method.found.3";
++                subDiags.append(diags.fragment(key, pos,
++                        c.sym.isStatic() ? Fragments.Static : Fragments.NonStatic, c.sym, subDiag));
++                if (c.sym == bestSoFar)
++                    mostSpecificPos = pos;
++                pos++;
++            }
++        }
++        JCDiagnostic main = diags.note(
++                log.currentSource(),
++                referenceTree,
++                "method.ref.search.results.multi",
++                bound ? Fragments.Bound : Fragments.Unbound,
++                referenceTree.toString(), mostSpecificPos);
++        JCDiagnostic d = new JCDiagnostic.MultilineDiagnostic(main, subDiags.toList());
++        log.report(d);
++    }
++
+     /**
+      * This class is used to represent a method reference lookup result. It keeps track of two
+      * things: (i) the symbol found during a method reference lookup and (ii) the static kind
+@@ -3280,12 +3324,12 @@ public class Resolve {
+ 
+         @Override
+         ReferenceLookupResult unboundResult(ReferenceLookupResult boundRes, ReferenceLookupResult unboundRes) {
+-            if (boundRes.hasKind(StaticKind.STATIC) &&
++            if (boundRes.isSuccess() && boundRes.sym.isStatic() &&
+                     (!unboundRes.isSuccess() || unboundRes.hasKind(StaticKind.STATIC))) {
+                 //the first search produces a static method and no non-static method is applicable
+                 //during the second search
+                 return boundRes;
+-            } else if (unboundRes.hasKind(StaticKind.NON_STATIC) &&
++            } else if (unboundRes.isSuccess() && !unboundRes.sym.isStatic() &&
+                     (!boundRes.isSuccess() || boundRes.hasKind(StaticKind.NON_STATIC))) {
+                 //the second search produces a non-static method and no static method is applicable
+                 //during the first search
+diff --git a/src/jdk.compiler/share/classes/com/sun/tools/javac/resources/compiler.properties b/src/jdk.compiler/share/classes/com/sun/tools/javac/resources/compiler.properties
+index 6b9362f8b9f..7cc4505778f 100644
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/resources/compiler.properties
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/resources/compiler.properties
+@@ -3066,6 +3066,37 @@ compiler.note.deferred.method.inst=\
+ compiler.note.verbose.l2m.deduplicate=\
+     deduplicating lambda implementation method {0}
+ 
++########################################
++# Diagnostics for method reference search
++# results used by Resolve (debug only)
++########################################
++
++# 0: fragment, 1: string, 2: number
++compiler.note.method.ref.search.results.multi=\
++    {0} search results for {1}, with most specific {2}\n\
++    applicable candidates:
++
++# 0: number, 1: fragment, 2: symbol
++compiler.misc.applicable.method.found.2=\
++    #{0} applicable method found: {1} {2}
++
++# 0: number, 1: fragment, 2: symbol, 3: message segment
++compiler.misc.applicable.method.found.3=\
++    #{0} applicable method found: {1} {2}\n\
++    ({3})
++
++compiler.misc.static=\
++    static
++
++compiler.misc.non.static=\
++    non-static
++
++compiler.misc.bound=\
++    bound
++
++compiler.misc.unbound=\
++    unbound
++
+ ########################################
+ # Diagnostics for where clause implementation
+ # used by the RichDiagnosticFormatter.
+diff --git a/test/langtools/lib/combo/tools/javac/combo/CompilationTestCase.java b/test/langtools/lib/combo/tools/javac/combo/CompilationTestCase.java
+index 9fd36c78f9b..27a2940a2c8 100644
+--- a/test/langtools/lib/combo/tools/javac/combo/CompilationTestCase.java
++++ b/test/langtools/lib/combo/tools/javac/combo/CompilationTestCase.java
+@@ -121,6 +121,10 @@ public class CompilationTestCase extends JavacTemplateTestBase {
+         return assertCompile(expandMarkers(constructs), this::assertCompileSucceeded, generate);
+     }
+ 
++    protected File assertOK(Consumer<Diagnostic<?>> diagConsumer, String... constructs) {
++        return assertCompile(expandMarkers(constructs), () -> assertCompileSucceeded(diagConsumer), false);
++    }
++
+     protected void assertOKWithWarning(String warning, String... constructs) {
+         assertCompile(expandMarkers(constructs), () -> assertCompileSucceededWithWarning(warning), false);
+     }
+diff --git a/test/langtools/lib/combo/tools/javac/combo/Diagnostics.java b/test/langtools/lib/combo/tools/javac/combo/Diagnostics.java
+index b65fd5fb2ee..47f496b5891 100644
+--- a/test/langtools/lib/combo/tools/javac/combo/Diagnostics.java
++++ b/test/langtools/lib/combo/tools/javac/combo/Diagnostics.java
+@@ -66,6 +66,10 @@ public class Diagnostics implements javax.tools.DiagnosticListener<JavaFileObjec
+         return null;
+     }
+ 
++    public List<Diagnostic<?>> getAllDiags() {
++        return diags.stream().map(d -> (Diagnostic<?>)d).collect(toList());
++    }
++
+     /** Do the diagnostics contain the specified error key? */
+     public boolean containsErrorKey(String key) {
+         return diags.stream()
+diff --git a/test/langtools/lib/combo/tools/javac/combo/JavacTemplateTestBase.java b/test/langtools/lib/combo/tools/javac/combo/JavacTemplateTestBase.java
+index cd1be44745f..be94ec7a3fa 100644
+--- a/test/langtools/lib/combo/tools/javac/combo/JavacTemplateTestBase.java
++++ b/test/langtools/lib/combo/tools/javac/combo/JavacTemplateTestBase.java
+@@ -177,6 +177,13 @@ public abstract class JavacTemplateTestBase {
+             fail("Expected successful compilation");
+     }
+ 
++    /** Assert that all previous calls to compile() succeeded, also accepts a diagnostics consumer */
++    protected void assertCompileSucceeded(Consumer<Diagnostic<?>> diagConsumer) {
++        if (diags.errorsFound())
++            fail("Expected successful compilation");
++        diags.getAllDiags().stream().forEach(diagConsumer);
++    }
++
+     /** Assert that all previous calls to compile() succeeded */
+     protected void assertCompileSucceededWithWarning(String warning) {
+         if (diags.errorsFound())
+diff --git a/test/langtools/tools/javac/diags/examples/BoundUnboundMethRefSearch.java b/test/langtools/tools/javac/diags/examples/BoundUnboundMethRefSearch.java
+new file mode 100644
+index 00000000000..0bc33b87abf
+--- /dev/null
++++ b/test/langtools/tools/javac/diags/examples/BoundUnboundMethRefSearch.java
+@@ -0,0 +1,41 @@
++/*
++ * Copyright (c) 2020, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++// key: compiler.note.method.ref.search.results.multi
++// key: compiler.misc.bound
++// key: compiler.misc.applicable.method.found.2
++// key: compiler.misc.static
++// key: compiler.misc.non.static
++// key: compiler.misc.unbound
++// options: --debug=dumpMethodReferenceSearchResults
++
++import java.util.function.*;
++
++class BoundUnboundMethRefSearch {
++    public String foo(Object o) { return "foo"; }
++    public static String foo(String o) { return "bar"; }
++
++    void m() {
++        Function<String, String> f = BoundUnboundMethRefSearch::foo;
++    }
++}
+diff --git a/test/langtools/tools/javac/diags/examples/BoundUnboundMethRefSearch2.java b/test/langtools/tools/javac/diags/examples/BoundUnboundMethRefSearch2.java
+new file mode 100644
+index 00000000000..78e661d7767
+--- /dev/null
++++ b/test/langtools/tools/javac/diags/examples/BoundUnboundMethRefSearch2.java
+@@ -0,0 +1,47 @@
++/*
++ * Copyright (c) 2020, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++// key: compiler.note.method.ref.search.results.multi
++// key: compiler.misc.bound
++// key: compiler.misc.applicable.method.found.3
++// key: compiler.misc.static
++// key: compiler.misc.partial.inst.sig
++// key: compiler.misc.unbound
++// options: --debug=dumpMethodReferenceSearchResults
++
++import java.util.function.*;
++
++class BoundUnboundMethRefSearch2 {
++    interface SAM <T> {
++        boolean test(T n, T m);
++    }
++
++    static <T> boolean foo(T x, T y) {
++        return false;
++    }
++
++    void bar() {
++        SAM <Integer> mRef = BoundUnboundMethRefSearch2::<Integer>foo;
++    }
++
++}
+diff --git a/test/langtools/tools/javac/lambda/methodReference/BoundUnboundSearchTest.java b/test/langtools/tools/javac/lambda/methodReference/BoundUnboundSearchTest.java
+new file mode 100644
+index 00000000000..e5119f2c0b8
+--- /dev/null
++++ b/test/langtools/tools/javac/lambda/methodReference/BoundUnboundSearchTest.java
+@@ -0,0 +1,136 @@
++/*
++ * Copyright (c) 2020, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8231461
++ * @summary static/instance overload leads to 'unexpected static method found in unbound lookup' when resolving method reference
++ * @library /lib/combo /tools/lib /tools/javac/lib
++ * @modules
++ *      jdk.compiler/com.sun.tools.javac.api
++ *      jdk.compiler/com.sun.tools.javac.util
++ * @run testng BoundUnboundSearchTest
++ */
++
++import java.util.function.*;
++
++import javax.tools.Diagnostic;
++
++import com.sun.tools.javac.api.ClientCodeWrapper.DiagnosticSourceUnwrapper;
++import com.sun.tools.javac.util.Assert;
++import com.sun.tools.javac.util.JCDiagnostic;
++
++import org.testng.annotations.Test;
++import tools.javac.combo.CompilationTestCase;
++
++import static org.testng.Assert.assertEquals;
++
++@Test
++public class BoundUnboundSearchTest extends CompilationTestCase {
++    static final String TEMPLATE =
++            """
++            import java.util.function.*;
++            class Test {
++                #CANDIDATES
++                void m() {
++                    Function<String, String> f = Test::foo;
++                }
++            }
++            """;
++
++    public BoundUnboundSearchTest() {
++        setDefaultFilename("Test.java");
++        setCompileOptions(new String[]{"--debug=dumpMethodReferenceSearchResults"});
++    }
++
++    private Consumer<Diagnostic<?>> getDiagConsumer(final int boundCandidate, final int unboundCandidate) {
++        return diagWrapper -> {
++            JCDiagnostic diagnostic = ((DiagnosticSourceUnwrapper)diagWrapper).d;
++            Object[] args = diagnostic.getArgs();
++            if (args[0].toString().equals("bound")) {
++                Assert.check(args[2].equals(boundCandidate));
++            } else if (args[0].toString().equals("unbound")) {
++                Assert.check(args[2].equals(unboundCandidate));
++            }
++        };
++    }
++
++    public void test() {
++        assertOK(
++            getDiagConsumer(0, -1),
++                TEMPLATE.replaceFirst("#CANDIDATES",
++                    """
++                    public String foo(Object o) { return "foo"; }           // candidate 0
++                    public static String foo(String o) { return "bar"; }    // candidate 1
++                    """
++            )
++        );
++
++        assertOK(
++                getDiagConsumer(0, -1),
++                TEMPLATE.replaceFirst("#CANDIDATES",
++                    """
++                    public static String foo(Object o) { return "foo"; }    // candidate 0
++                    public static String foo(String o) { return "bar"; }    // candidate 0
++                    """
++                )
++        );
++
++        assertFail("compiler.err.prob.found.req",
++                getDiagConsumer(0, -1),
++                TEMPLATE.replaceFirst("#CANDIDATES",
++                    """
++                    public static String foo(Object o) { return "foo"; }    // candidate 0
++                    public String foo(String o) { return "bar"; }           // candidate 1
++                    """
++                )
++        );
++
++        assertFail("compiler.err.prob.found.req",
++                getDiagConsumer(0, -1),
++                TEMPLATE.replaceFirst("#CANDIDATES",
++                    """
++                    public String foo(Object o) { return "foo"; }           // candidate 0
++                    public String foo(String o) { return "bar"; }           // candidate 1
++                    """
++                )
++        );
++
++        assertFail("compiler.err.invalid.mref",
++                getDiagConsumer(-1, -1),
++                """
++                import java.util.function.*;
++
++                public class Test {
++                    public String foo(Object o) { return "foo"; }
++                    public static String foo(String o) { return "bar"; }
++
++                    public void test() {
++                        // method bar doesn't exist
++                        Function<String, String> f = Test::bar;
++                    }
++                }
++                """
++        );
++    }
++}

@@ -1,0 +1,55 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/callableReferences/CallableReferencesResolutionUtils.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/callableReferences/CallableReferencesResolutionUtils.kt
+index 27d822cc5dd..5855e99c32b 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/callableReferences/CallableReferencesResolutionUtils.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/callableReferences/CallableReferencesResolutionUtils.kt
+@@ -78,9 +78,9 @@ fun resolvePossiblyAmbiguousCallableReference(
+         return null
+     }
+ 
+-    val typeElement = callableReferenceExpression.typeReference?.typeElement
+-    if (typeElement is KtUserType) {
+-        val qualifier = ClassQualifier(typeElement.referenceExpression!!, classifier)
++    val referenceExpression = (callableReferenceExpression.typeReference?.typeElement as? KtUserType)?.referenceExpression
++    if (referenceExpression != null) {
++        val qualifier = ClassQualifier(referenceExpression, classifier)
+         val possibleStatic = resolveWithReceiver("resolve unbound callable reference in static scope", qualifier)
+         if (possibleStatic != null) return possibleStatic
+     }
+diff --git a/compiler/testData/diagnostics/tests/regressions/kt13685.kt b/compiler/testData/diagnostics/tests/regressions/kt13685.kt
+new file mode 100644
+index 00000000000..ac200abfa10
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/regressions/kt13685.kt
+@@ -0,0 +1,6 @@
++// !DIAGNOSTICS: -UNREACHABLE_CODE
++
++fun foo() {
++    val <!UNUSED_VARIABLE!>text<!>: List<Any> = null!!
++    text.<!UNRESOLVED_REFERENCE!>map<!> <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>Any<!><!SYNTAX!>?<!>::<!OVERLOAD_RESOLUTION_AMBIGUITY!>toString<!>
++}
+diff --git a/compiler/testData/diagnostics/tests/regressions/kt13685.txt b/compiler/testData/diagnostics/tests/regressions/kt13685.txt
+new file mode 100644
+index 00000000000..65a6ac47e1f
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/regressions/kt13685.txt
+@@ -0,0 +1,3 @@
++package
++
++public fun foo(): kotlin.Unit
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index e8d6390a345..4ba45303bd0 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -14289,6 +14289,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("kt13685.kt")
++            public void testKt13685() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/regressions/kt13685.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("kt1489_1728.kt")
+             public void testKt1489_1728() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/regressions/kt1489_1728.kt");

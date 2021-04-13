@@ -1,0 +1,160 @@
+diff --git a/src/reflect/scala/reflect/internal/tpe/TypeMaps.scala b/src/reflect/scala/reflect/internal/tpe/TypeMaps.scala
+index 6295c17ccf62..9c4b62f0338c 100644
+--- a/src/reflect/scala/reflect/internal/tpe/TypeMaps.scala
++++ b/src/reflect/scala/reflect/internal/tpe/TypeMaps.scala
+@@ -964,11 +964,13 @@ private[internal] trait TypeMaps {
+             // We can just map over the components and wait until we see the underlying type before we call
+             // normalize.
+             tp.mapOver(this)
++          case TypeRef(_, sym1, _) if (sym == sym1) => result = true // catch aliases before normalization
+           case _ =>
+             tp.normalize match {
+               case TypeRef(_, sym1, _) if (sym == sym1) => result = true
+               case refined: RefinedType =>
+-                tp.prefix.mapOver(this)
++                tp.prefix.mapOver(this) // Assumption is that tp was a TypeRef prior to normalization so we should
++                                        // mapOver its prefix
+                 refined.mapOver(this)
+               case SingleType(_, sym1) if (sym == sym1) => result = true
+               case _ => tp.mapOver(this)
+diff --git a/test/files/neg/t10545.check b/test/files/neg/t10545.check
+new file mode 100644
+index 000000000000..5012d2485a88
+--- /dev/null
++++ b/test/files/neg/t10545.check
+@@ -0,0 +1,7 @@
++t10545.scala:32: error: ambiguous implicit values:
++ both method barF0 in object Bar of type [F[_]](implicit fooF: Foo[F])Bar[F]
++ and method barF1 in object Bar of type [F[_]](implicit fooF: Foo[F])Bar[F]
++ match expected type Bar[Option]
++  implicitly[Bar[Option]]
++            ^
++one error found
+diff --git a/test/files/neg/t10545.scala b/test/files/neg/t10545.scala
+new file mode 100644
+index 000000000000..164511f84d20
+--- /dev/null
++++ b/test/files/neg/t10545.scala
+@@ -0,0 +1,33 @@
++class Foo[F[_]]
++object Foo {
++  // Prior to this fix these two are ambiguous
++  implicit def fooF0[F[_]]: Foo[F] = new Foo[F]
++  implicit def fooF1: Foo[Option] = new Foo[Option]
++}
++
++class Bar[F[_]]
++object Bar extends Bar0 {
++  // Prior to this fix these two aren't selected because there is no
++  // Foo[F] due to the ambiguity above
++  // After this fix these two are ambiguous
++  implicit def barF0[F[_]](implicit fooF: Foo[F]): Bar[F] = new Bar[F]
++  implicit def barF1[F[_]](implicit fooF: Foo[F]): Bar[F] = new Bar[F]
++}
++
++trait Bar0 {
++  // Prior to this fix we fall back to here
++  implicit def barF2[F[_]]: Bar[F] = new Bar[F]
++}
++
++object Test {
++  // Prior to this fix Bar.barF1[Option]
++  // After this fix,
++  // error: ambiguous implicit values:
++  //   both method barF0 in object Bar of type [F[_]](implicit fooF: Foo[F])Bar[F]
++  //   and method barF1 in object Bar of type [F[_]](implicit fooF: Foo[F])Bar[F]
++  //   match expected type Bar[Option]
++  //    implicitly[Bar[Option]]
++  //              ^
++  // one error found
++  implicitly[Bar[Option]]
++}
+diff --git a/test/files/run/t10545.scala b/test/files/run/t10545.scala
+new file mode 100644
+index 000000000000..16dacf36235d
+--- /dev/null
++++ b/test/files/run/t10545.scala
+@@ -0,0 +1,15 @@
++import scala.language.higherKinds
++
++class D[T]
++
++class C[F[_]](val i: Int)
++object C {
++  def apply[F[_]](implicit cf: C[F]): Int = cf.i
++
++  implicit def c0[F[_]]: C[F] = new C[F](0)
++  implicit def c1: C[D] = new C[D](1)
++}
++
++object Test extends App {
++  assert(C[D] == 1) // Works in Dotty ...
++}
+diff --git a/test/junit/scala/reflect/internal/Infer.scala b/test/junit/scala/reflect/internal/Infer.scala
+new file mode 100644
+index 000000000000..5b5e9e0c3dd2
+--- /dev/null
++++ b/test/junit/scala/reflect/internal/Infer.scala
+@@ -0,0 +1,62 @@
++package scala.reflect.internal
++
++import org.junit.Assert._
++import org.junit.{After, Assert, Before, Test}
++import org.junit.runner.RunWith
++import org.junit.runners.JUnit4
++import scala.collection.mutable
++import scala.tools.nsc.settings.ScalaVersion
++import scala.tools.nsc.symtab.SymbolTableForUnitTesting
++
++import scala.tools.testing.BytecodeTesting
++
++@RunWith(classOf[JUnit4])
++class InferTest extends BytecodeTesting {
++  import compiler.global._, definitions._, analyzer._, typer.infer._
++
++  class D[T]
++  class A
++
++  type DA = D[A]
++
++  class C[F[_]](val i: Int)
++
++  object Foo {
++    implicit def foo0[F[_]]: C[F] = ???
++    implicit def foo1: C[D] = ???
++  }
++
++  @Test
++  def testContains(): Unit = {
++    val run = new global.Run
++
++    enteringPhase(run.typerPhase) {
++      val asym = symbolOf[A]
++      val dsym = symbolOf[D[_]]
++
++      val tp0 = typeOf[D[A]]
++      assert(tp0.contains(asym))
++
++      val tp2 = typeOf[C[D]]
++      assert(tp2.contains(dsym))
++
++      val foo0Sym = typeOf[Foo.type].member(TermName("foo0"))
++      val foo0Tpe = foo0Sym.info
++
++      val PolyType(List(fSym), NullaryMethodType(restpe0)) = foo0Tpe
++      assert(restpe0.contains(fSym))
++
++      // existentialAbstraction uses contains
++      val abstracted = existentialAbstraction(List(fSym), restpe0)
++      val expected = ExistentialType(List(fSym), restpe0)
++      assert(abstracted == expected)
++
++      val foo1Sym = typeOf[Foo.type].member(TermName("foo1"))
++      val foo1Tpe = foo1Sym.info
++
++      // isStrictlyMoreSpecific uses existentialAbstraction
++      assert(!isStrictlyMoreSpecific(foo0Tpe, foo1Tpe, foo0Sym, foo1Sym))
++      assert(isStrictlyMoreSpecific(foo1Tpe, foo0Tpe, foo1Sym, foo0Sym))
++    }
++  }
++}

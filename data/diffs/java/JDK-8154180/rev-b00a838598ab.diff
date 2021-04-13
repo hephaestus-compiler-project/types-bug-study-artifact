@@ -1,0 +1,151 @@
+changeset:   3401:b00a838598ab
+user:        mcimadamore
+date:        Mon May 16 14:51:17 2016 +0100
+summary:     8154180: Regression: stuck expressions do not behave correctly
+
+diff -r 97132c765562 -r b00a838598ab src/jdk.compiler/share/classes/com/sun/tools/javac/comp/ArgumentAttr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/ArgumentAttr.java	Mon May 16 15:41:57 2016 +0200
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/ArgumentAttr.java	Mon May 16 14:51:17 2016 +0100
+@@ -365,18 +365,22 @@
+ 
+         @Override
+         Type speculativeType(Symbol msym, MethodResolutionPhase phase) {
+-            for (Map.Entry<ResultInfo, Type> _entry : speculativeTypes.entrySet()) {
+-                DeferredAttrContext deferredAttrContext = _entry.getKey().checkContext.deferredAttrContext();
+-                if (deferredAttrContext.phase == phase && deferredAttrContext.msym == msym) {
+-                    return _entry.getValue();
++            if (pertinentToApplicability) {
++                for (Map.Entry<ResultInfo, Type> _entry : speculativeTypes.entrySet()) {
++                    DeferredAttrContext deferredAttrContext = _entry.getKey().checkContext.deferredAttrContext();
++                    if (deferredAttrContext.phase == phase && deferredAttrContext.msym == msym) {
++                        return _entry.getValue();
++                    }
+                 }
++                return Type.noType;
++            } else {
++                return super.speculativeType(msym, phase);
+             }
+-            return Type.noType;
+         }
+ 
+         @Override
+         JCTree speculativeTree(DeferredAttrContext deferredAttrContext) {
+-            return speculativeTree;
++            return pertinentToApplicability ? speculativeTree : super.speculativeTree(deferredAttrContext);
+         }
+ 
+         /**
+diff -r 97132c765562 -r b00a838598ab src/jdk.compiler/share/classes/com/sun/tools/javac/comp/DeferredAttr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/DeferredAttr.java	Mon May 16 15:41:57 2016 +0200
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/DeferredAttr.java	Mon May 16 14:51:17 2016 +0100
+@@ -172,6 +172,7 @@
+         public JCExpression tree;
+         Env<AttrContext> env;
+         AttrMode mode;
++        boolean pertinentToApplicability = true;
+         SpeculativeCache speculativeCache;
+ 
+         DeferredType(JCExpression tree, Env<AttrContext> env) {
+@@ -290,6 +291,7 @@
+                     resultInfo.checkContext.deferredAttrContext();
+             Assert.check(deferredAttrContext != emptyDeferredAttrContext);
+             if (deferredStuckPolicy.isStuck()) {
++                pertinentToApplicability = false;
+                 deferredAttrContext.addDeferredAttrNode(this, resultInfo, deferredStuckPolicy);
+                 return Type.noType;
+             } else {
+diff -r 97132c765562 -r b00a838598ab test/tools/javac/lambda/speculative/8154180/T8154180a.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/speculative/8154180/T8154180a.java	Mon May 16 14:51:17 2016 +0100
+@@ -0,0 +1,49 @@
++/*
++ * Copyright (c) 2016, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++import java.util.function.Consumer;
++import java.nio.ByteBuffer;
++
++/*
++ * @test
++ * @bug 8154180
++ * @summary Regression: stuck expressions do not behave correctly
++ * @compile T8154180a.java
++ */
++class T8154180a {
++    T8154180a(Consumer<ByteBuffer> cb) { }
++
++    public static void main(String[] args) {
++        new T8154180a(b -> System.out.println(asString(b)));
++        new T8154180a((b -> System.out.println(asString(b))));
++        new T8154180a(true ? b -> System.out.println(asString(b)) : b -> System.out.println(asString(b)));
++        new T8154180a((true ? b -> System.out.println(asString(b)) : b -> System.out.println(asString(b))));
++        new T8154180a((true ? (b -> System.out.println(asString(b))) : (b -> System.out.println(asString(b)))));
++    }
++
++    static String asString(ByteBuffer buf) {
++        return null;
++    }
++}
+diff -r 97132c765562 -r b00a838598ab test/tools/javac/lambda/speculative/8154180/T8154180b.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/speculative/8154180/T8154180b.java	Mon May 16 14:51:17 2016 +0100
+@@ -0,0 +1,27 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8154180
++ * @summary Regression: stuck expressions do not behave correctly
++ * @compile/fail/ref=T8154180b.out -XDrawDiagnostics T8154180b.java
++ */
++class T8154180b {
++    interface Foo1 {
++       Object m(String s);
++    }
++
++    interface Foo2 {
++       String m(String s);
++    }
++
++
++    void m(Foo1 f1) { }
++    void m(Foo2 f2) { }
++
++    void test() {
++        m(x->"");
++        m((x->""));
++        m(true ? x -> "" : x -> "");
++        m((true ? x -> "" : x -> ""));
++        m((true ? (x -> "") : (x -> "")));
++    }
++}
+diff -r 97132c765562 -r b00a838598ab test/tools/javac/lambda/speculative/8154180/T8154180b.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/speculative/8154180/T8154180b.out	Mon May 16 14:51:17 2016 +0100
+@@ -0,0 +1,6 @@
++T8154180b.java:21:9: compiler.err.ref.ambiguous: m, kindname.method, m(T8154180b.Foo1), T8154180b, kindname.method, m(T8154180b.Foo2), T8154180b
++T8154180b.java:22:9: compiler.err.ref.ambiguous: m, kindname.method, m(T8154180b.Foo1), T8154180b, kindname.method, m(T8154180b.Foo2), T8154180b
++T8154180b.java:23:9: compiler.err.ref.ambiguous: m, kindname.method, m(T8154180b.Foo1), T8154180b, kindname.method, m(T8154180b.Foo2), T8154180b
++T8154180b.java:24:9: compiler.err.ref.ambiguous: m, kindname.method, m(T8154180b.Foo1), T8154180b, kindname.method, m(T8154180b.Foo2), T8154180b
++T8154180b.java:25:9: compiler.err.ref.ambiguous: m, kindname.method, m(T8154180b.Foo1), T8154180b, kindname.method, m(T8154180b.Foo2), T8154180b
++5 errors
+

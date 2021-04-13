@@ -1,0 +1,62 @@
+diff --git a/src/compiler/scala/tools/nsc/typechecker/SuperAccessors.scala b/src/compiler/scala/tools/nsc/typechecker/SuperAccessors.scala
+index fa72ad64bf..bad49385aa 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/SuperAccessors.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/SuperAccessors.scala
+@@ -80,32 +80,11 @@ abstract class SuperAccessors extends transform.Transform with transform.TypingT
+     private def transformArgs(params: List[Symbol], args: List[Tree]) = {
+       treeInfo.mapMethodParamsAndArgs(params, args) { (param, arg) =>
+         if (isByNameParamType(param.tpe))
+-          withInvalidOwner { checkPackedConforms(transform(arg), param.tpe.typeArgs.head) }
++          withInvalidOwner(transform(arg))
+         else transform(arg)
+       }
+     }
+ 
+-    private def checkPackedConforms(tree: Tree, pt: Type): Tree = {
+-      def typeError(typer: analyzer.Typer, pos: Position, found: Type, req: Type) {
+-        if (!found.isErroneous && !req.isErroneous) {
+-          val msg = analyzer.ErrorUtils.typeErrorMsg(found, req, typer.infer.isPossiblyMissingArgs(found, req))
+-          typer.context.error(pos, analyzer.withAddendum(pos)(msg))
+-          if (settings.explaintypes.value)
+-            explainTypes(found, req)
+-        }
+-      }
+-
+-      if (tree.tpe exists (_.typeSymbol.isExistentialSkolem)) {
+-        val packed = localTyper.packedType(tree, NoSymbol)
+-        if (!(packed <:< pt)) {
+-          val errorContext = localTyper.context.make(localTyper.context.tree)
+-          errorContext.setReportErrors()
+-          typeError(analyzer.newTyper(errorContext), tree.pos, packed, pt)
+-        }
+-      }
+-      tree
+-    }
+-
+     /** Check that a class and its companion object to not both define
+      *  a class or module with same name
+      */
+diff --git a/test/files/pos/t5886.scala b/test/files/pos/t5886.scala
+new file mode 100644
+index 0000000000..066187322d
+--- /dev/null
++++ b/test/files/pos/t5886.scala
+@@ -0,0 +1,18 @@
++object A {
++  def f0[T](x: T): T = x
++  def f1[T](x: => T): T = x
++  def f2[T](x: () => T): T = x()
++
++  f0(this.getClass)  // ok
++  f1(this.getClass)
++  f2(this.getClass)  // ok
++
++  // a.scala:7: error: type mismatch;
++  //  found   : Class[_ <: A.type]
++  //  required: Class[?0(in value x1)] where type ?0(in value x1) <: A.type
++  // Note: A.type >: ?0, but Java-defined class Class is invariant in type T.
++  // You may wish to investigate a wildcard type such as `_ >: ?0`. (SLS 3.2.10)
++  //   val x1 = f1(this.getClass)
++  //                    ^
++  // one error found
++}

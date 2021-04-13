@@ -1,0 +1,69 @@
+changeset:   880:4ce95dc0b908
+user:        mcimadamore
+date:        Fri Feb 18 12:28:49 2011 +0000
+summary:     7020043: Project Coin: diamond allowed on non-generic type
+
+diff -r 0c24826853b2 -r 4ce95dc0b908 src/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Attr.java	Wed Feb 16 10:27:00 2011 -0800
++++ b/src/share/classes/com/sun/tools/javac/comp/Attr.java	Fri Feb 18 12:28:49 2011 +0000
+@@ -1584,6 +1584,11 @@
+         if (!TreeInfo.isDiamond(tree)) {
+             clazztype = chk.checkClassType(
+                 tree.clazz.pos(), clazztype, true);
++        } else if (!clazztype.isErroneous() &&
++                !clazztype.tsym.type.isParameterized()) {
++            log.error(tree.clazz.pos(),
++                    "cant.apply.diamond.1",
++                    clazztype, diags.fragment("diamond.non.generic", clazztype));
+         }
+         chk.validate(clazz, localEnv);
+         if (tree.encl != null) {
+@@ -1609,7 +1614,7 @@
+         List<Type> argtypes = attribArgs(tree.args, localEnv);
+         List<Type> typeargtypes = attribTypes(tree.typeargs, localEnv);
+ 
+-        if (TreeInfo.isDiamond(tree)) {
++        if (TreeInfo.isDiamond(tree) && clazztype.tsym.type.isParameterized()) {
+             clazztype = attribDiamond(localEnv, tree, clazztype, mapping, argtypes, typeargtypes);
+             clazz.type = clazztype;
+         } else if (allowDiamondFinder &&
+diff -r 0c24826853b2 -r 4ce95dc0b908 src/share/classes/com/sun/tools/javac/resources/compiler.properties
+--- a/src/share/classes/com/sun/tools/javac/resources/compiler.properties	Wed Feb 16 10:27:00 2011 -0800
++++ b/src/share/classes/com/sun/tools/javac/resources/compiler.properties	Fri Feb 18 12:28:49 2011 +0000
+@@ -1584,6 +1584,10 @@
+ compiler.misc.diamond=\
+     {0}<>
+ 
++# 0: type
++compiler.misc.diamond.non.generic=\
++    cannot use ''<>'' with non-generic class {0}
++
+ # 0: list of type, 1: message segment
+ compiler.misc.diamond.invalid.arg=\
+     type argument {0} inferred for {1} is not allowed in this context
+diff -r 0c24826853b2 -r 4ce95dc0b908 test/tools/javac/generics/diamond/neg/Neg12.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/diamond/neg/Neg12.java	Fri Feb 18 12:28:49 2011 +0000
+@@ -0,0 +1,15 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 7020043
++ *
++ * @summary  Project Coin: diamond allowed on non-generic type
++ * @author R&eacute;mi Forax
++ * @compile/fail/ref=Neg12.out Neg12.java -XDrawDiagnostics
++ *
++ */
++
++class DiamondRaw {
++   public static void main(String[] args) {
++     String s = new String<>("foo");
++   }
++}
+diff -r 0c24826853b2 -r 4ce95dc0b908 test/tools/javac/generics/diamond/neg/Neg12.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/diamond/neg/Neg12.out	Fri Feb 18 12:28:49 2011 +0000
+@@ -0,0 +1,2 @@
++Neg12.java:13:27: compiler.err.cant.apply.diamond.1: java.lang.String, (compiler.misc.diamond.non.generic: java.lang.String)
++1 error
+

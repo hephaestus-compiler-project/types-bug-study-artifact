@@ -1,0 +1,99 @@
+diff --git a/compiler/src/dotty/tools/dotc/typer/Applications.scala b/compiler/src/dotty/tools/dotc/typer/Applications.scala
+index 25f9a3ca1211..e2bb30797380 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Applications.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Applications.scala
+@@ -9,6 +9,7 @@ import util.Stats.record
+ import util.{SrcPos, NoSourcePosition, SourceFile}
+ import Trees.Untyped
+ import Contexts._
++import Phases._
+ import Flags._
+ import Symbols._
+ import Denotations.Denotation
+@@ -539,6 +540,8 @@ trait Applications extends Compatibility {
+            *           in the remaining formal parameters.
+            */
+           def addTyped(arg: Arg, formal: Type): List[Type] =
++            if !ctx.isAfterTyper && isVarArg(arg) && !formal.isRepeatedParam then
++              fail(i"Sequence argument type annotation `: _*` cannot be used here: the corresponding parameter has type $formal which is not a repeated parameter type", arg)
+             addArg(typedArg(arg, formal), formal)
+             if methodType.isParamDependent && typeOfArg(arg).exists then
+               // `typeOfArg(arg)` could be missing because the evaluation of `arg` produced type errors
+diff --git a/compiler/src/dotty/tools/dotc/typer/Inliner.scala b/compiler/src/dotty/tools/dotc/typer/Inliner.scala
+index c8ce76db64d9..00963f1c17f1 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Inliner.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Inliner.scala
+@@ -407,7 +407,7 @@ class Inliner(call: tpd.Tree, rhsToInline: tpd.Tree)(using Context) {
+         wrapArray(arg1, arg0.tpe.elemType)
+       case _ => arg0
+     }
+-    val argtpe = arg.tpe.dealiasKeepAnnots
++    val argtpe = arg.tpe.dealiasKeepAnnots.translateFromRepeated(toArray = false)
+     val isByName = paramtp.dealias.isInstanceOf[ExprType]
+     var inlineFlags: FlagSet = InlineProxy
+     if (paramtp.widenExpr.hasAnnotation(defn.InlineParamAnnot)) inlineFlags |= Inline
+diff --git a/tests/neg/i9749.scala b/tests/neg/i9749.scala
+new file mode 100644
+index 000000000000..a316ec032040
+--- /dev/null
++++ b/tests/neg/i9749.scala
+@@ -0,0 +1,7 @@
++class A {
++  def f(x: Any) = 1
++
++  def foo(x: List[String]): Unit = {
++    f(x: _*) // error
++  }
++}
+diff --git a/tests/pos-java-interop/i9912/JavaLogger.java b/tests/pos-java-interop/i9912/JavaLogger.java
+new file mode 100644
+index 000000000000..f337587700d2
+--- /dev/null
++++ b/tests/pos-java-interop/i9912/JavaLogger.java
+@@ -0,0 +1,5 @@
++public class JavaLogger {
++    public void info(String format, Object arg) {}
++
++    public void info(String in, Object... args){}
++}
+diff --git a/tests/pos-java-interop/i9912/Test.scala b/tests/pos-java-interop/i9912/Test.scala
+new file mode 100644
+index 000000000000..19d58b199d9d
+--- /dev/null
++++ b/tests/pos-java-interop/i9912/Test.scala
+@@ -0,0 +1,9 @@
++class Test {
++  val logger = new JavaLogger
++  def log(): Unit = {
++      logger.info(
++        "My {} String {} with multiple args {}",
++        Array("a", "b", "c"): _*
++      )
++  }
++}
+diff --git a/tests/pos/i9749.scala b/tests/pos/i9749.scala
+new file mode 100644
+index 000000000000..612ac1d40a73
+--- /dev/null
++++ b/tests/pos/i9749.scala
+@@ -0,0 +1,8 @@
++class A {
++  def f(x: Any) = 1
++  def f(x: String*) = 1
++
++  def foo(x: List[String]): Unit = {
++    f(x: _*)
++  }
++}
+diff --git a/tests/pos/test-desugar.scala b/tests/pos/test-desugar.scala
+index a0bbe738e82b..3b9b9719d36f 100644
+--- a/tests/pos/test-desugar.scala
++++ b/tests/pos/test-desugar.scala
+@@ -76,7 +76,6 @@ object desugar {
+     val pair: Int ~ String = 1 -> "abc"
+     def foo(xs: Int*) = xs.length
+     foo(list: _*)
+-    println(list: _*)
+     (list length)
+     - desugar.x
+     def bar(x: => Int) = x

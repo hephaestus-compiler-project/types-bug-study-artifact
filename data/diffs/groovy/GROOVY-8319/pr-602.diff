@@ -1,0 +1,60 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index a257aa04e78..28c6368687c 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -873,6 +873,8 @@ private boolean typeCheckMultipleAssignmentAndContinue(Expression leftExpression
+             if (!isAssignableTo(elemType, tupleType)) {
+                 addStaticTypeError("Cannot assign value of type " + elemType.toString(false) + " to variable of type " + tupleType.toString(false), rightExpression);
+                 return false; // avoids too many errors
++            } else {
++                storeType(tupleExpression, elemType);
+             }
+         }
+ 
+@@ -923,7 +925,7 @@ private void addPrecisionErrors(ClassNode leftRedirect, ClassNode lhsType, Class
+             }
+         } else if (rightExpression instanceof ListExpression) {
+             for (Expression element : ((ListExpression) rightExpression).getExpressions()) {
+-                ClassNode rightComponentType = element.getType().redirect();
++                ClassNode rightComponentType = this.getType(element);
+                 if (!checkCompatibleAssignmentTypes(leftComponentType, rightComponentType)
+                         && !(isNullConstant(element) && !isPrimitiveType(leftComponentType))) {
+                     addStaticTypeError("Cannot assign value of type " + rightComponentType.toString(false) + " into array of type " + lhsType.toString(false), rightExpression);
+diff --git a/src/test/groovy/transform/stc/STCAssignmentTest.groovy b/src/test/groovy/transform/stc/STCAssignmentTest.groovy
+index 7b4030416fb..3c00185b90a 100644
+--- a/src/test/groovy/transform/stc/STCAssignmentTest.groovy
++++ b/src/test/groovy/transform/stc/STCAssignmentTest.groovy
+@@ -844,5 +844,33 @@ class STCAssignmentTest extends StaticTypeCheckingTestCase {
+             assert fooParameterAssignment(null) == 42            
+         '''
+     }
++
++    void testIntegerArraySmartType() {
++        assertScript '''
++        def m() {
++            def a  = 1
++            Integer[] b = [a]
++        }            
++        '''
++    }
++
++    void testIntegerSecondDimArraySmartType() {
++        assertScript '''
++        def m() {
++            def a = new int[5]
++            int[][] b = [a]
++        }            
++        '''
++    }
++
++    void testMultiAssign() {
++        assertScript '''
++        def m() {
++            def row = ["", "", ""]
++            def (left, right) = [row[0], row[1]]
++            left.toUpperCase()
++        }            
++        '''
++    }
+ }
+ 

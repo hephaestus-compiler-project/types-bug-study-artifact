@@ -1,0 +1,336 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/callableReferences/CallableReferencesResolutionUtils.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/callableReferences/CallableReferencesResolutionUtils.kt
+index c9980f3aaaa..a02236cfebd 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/callableReferences/CallableReferencesResolutionUtils.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/callableReferences/CallableReferencesResolutionUtils.kt
+@@ -22,7 +22,6 @@ import org.jetbrains.kotlin.descriptors.annotations.Annotations
+ import org.jetbrains.kotlin.diagnostics.Errors.CALLABLE_REFERENCE_LHS_NOT_A_CLASS
+ import org.jetbrains.kotlin.psi.KtCallableReferenceExpression
+ import org.jetbrains.kotlin.psi.KtSimpleNameExpression
+-import org.jetbrains.kotlin.resolve.DescriptorUtils
+ import org.jetbrains.kotlin.resolve.calls.CallResolver
+ import org.jetbrains.kotlin.resolve.calls.callResolverUtil.ResolveArgumentsMode
+ import org.jetbrains.kotlin.resolve.calls.context.BasicCallResolutionContext
+@@ -151,24 +150,15 @@ fun resolvePossiblyAmbiguousCallableReference(
+     return null
+ }
+ 
+-fun createReflectionTypeForCallableDescriptor(
++fun createKCallableTypeForReference(
+         descriptor: CallableDescriptor,
+-        lhsType: KotlinType?,
++        lhs: DoubleColonLHS?,
+         reflectionTypes: ReflectionTypes,
+-        ignoreReceiver: Boolean,
+         scopeOwnerDescriptor: DeclarationDescriptor
+ ): KotlinType? {
+-    val extensionReceiver = descriptor.extensionReceiverParameter
+-    val dispatchReceiver = descriptor.dispatchReceiverParameter?.let { dispatchReceiver ->
+-        // See CallableDescriptor#getOwnerForEffectiveDispatchReceiverParameter
+-        if ((descriptor as? CallableMemberDescriptor)?.kind == CallableMemberDescriptor.Kind.FAKE_OVERRIDE)
+-            DescriptorUtils.getDispatchReceiverParameterIfNeeded(descriptor.containingDeclaration)
+-        else dispatchReceiver
+-    }
+-
+     val receiverType =
+-            if ((extensionReceiver != null || dispatchReceiver != null) && !ignoreReceiver)
+-                lhsType ?: extensionReceiver?.type ?: dispatchReceiver?.type
++            if (descriptor.extensionReceiverParameter != null || descriptor.dispatchReceiverParameter != null)
++                (lhs as? DoubleColonLHS.Type)?.type
+             else null
+ 
+     return when (descriptor) {
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/ArgumentTypeResolver.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/ArgumentTypeResolver.java
+index 8862e433340..55841ca8654 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/ArgumentTypeResolver.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/ArgumentTypeResolver.java
+@@ -261,9 +261,8 @@ public class ArgumentTypeResolver {
+                     OverloadResolutionResultsUtil.getResultingCall(overloadResolutionResults, context.contextDependency);
+             if (resolvedCall == null) return null;
+ 
+-            return CallableReferencesResolutionUtilsKt.createReflectionTypeForCallableDescriptor(
+-                    resolvedCall.getResultingDescriptor(), lhs != null ? lhs.getType() : null, reflectionTypes,
+-                    callableReferenceExpression.isEmptyLHS(), context.scope.getOwnerDescriptor()
++            return CallableReferencesResolutionUtilsKt.createKCallableTypeForReference(
++                    resolvedCall.getResultingDescriptor(), lhs, reflectionTypes, context.scope.getOwnerDescriptor()
+             );
+         }
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.kt
+index ec941675074..3eb613b0806 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.kt
+@@ -27,7 +27,7 @@ import org.jetbrains.kotlin.diagnostics.Errors.*
+ import org.jetbrains.kotlin.progress.ProgressIndicatorAndCompilationCanceledStatus
+ import org.jetbrains.kotlin.psi.*
+ import org.jetbrains.kotlin.resolve.*
+-import org.jetbrains.kotlin.resolve.callableReferences.createReflectionTypeForCallableDescriptor
++import org.jetbrains.kotlin.resolve.callableReferences.createKCallableTypeForReference
+ import org.jetbrains.kotlin.resolve.calls.CallTransformer.CallForImplicitInvoke
+ import org.jetbrains.kotlin.resolve.calls.callResolverUtil.ResolveArgumentsMode
+ import org.jetbrains.kotlin.resolve.calls.callResolverUtil.ResolveArgumentsMode.SHAPE_FUNCTION_ARGUMENTS
+@@ -158,12 +158,14 @@ class CandidateResolver(
+     private fun <D : CallableDescriptor> CallCandidateResolutionContext<D>.checkExpectedCallableType()
+             = check {
+                 if (!noExpectedType(expectedType)) {
+-                    val callableReferenceExpression = call.callElement.parent as? KtCallableReferenceExpression
+-                    val candidateReflectionType = createReflectionTypeForCallableDescriptor(
+-                            candidateCall.candidateDescriptor, null, reflectionTypes,
+-                            callableReferenceExpression?.isEmptyLHS == true, scope.ownerDescriptor
++                    val candidateKCallableType = createKCallableTypeForReference(
++                            candidateCall.candidateDescriptor,
++                            (call.callElement.parent as? KtCallableReferenceExpression)?.receiverExpression?.let {
++                                trace.bindingContext.get(BindingContext.DOUBLE_COLON_LHS, it)
++                            },
++                            reflectionTypes, scope.ownerDescriptor
+                     )
+-                    if (candidateReflectionType == null || !KotlinTypeChecker.DEFAULT.isSubtypeOf(candidateReflectionType, expectedType)) {
++                    if (candidateKCallableType == null || !KotlinTypeChecker.DEFAULT.isSubtypeOf(candidateKCallableType, expectedType)) {
+                         candidateCall.addStatus(OTHER_ERROR)
+                     }
+                 }
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt
+index 020643c84c1..8daf4ae4869 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DoubleColonExpressionResolver.kt
+@@ -30,7 +30,7 @@ import org.jetbrains.kotlin.psi.*
+ import org.jetbrains.kotlin.psi.codeFragmentUtil.suppressDiagnosticsInDebugMode
+ import org.jetbrains.kotlin.psi.psiUtil.getQualifiedElementSelector
+ import org.jetbrains.kotlin.resolve.*
+-import org.jetbrains.kotlin.resolve.callableReferences.createReflectionTypeForCallableDescriptor
++import org.jetbrains.kotlin.resolve.callableReferences.createKCallableTypeForReference
+ import org.jetbrains.kotlin.resolve.callableReferences.resolvePossiblyAmbiguousCallableReference
+ import org.jetbrains.kotlin.resolve.calls.CallResolver
+ import org.jetbrains.kotlin.resolve.calls.callResolverUtil.ResolveArgumentsMode
+@@ -286,10 +286,7 @@ class DoubleColonExpressionResolver(
+ 
+         checkReferenceIsToAllowedMember(descriptor, context.trace, expression)
+ 
+-        val ignoreReceiver = lhs is DoubleColonLHS.Expression || expression.isEmptyLHS
+-        val type = createReflectionTypeForCallableDescriptor(
+-                descriptor, lhs?.type, reflectionTypes, ignoreReceiver, context.scope.ownerDescriptor
+-        ) ?: return null
++        val type = createKCallableTypeForReference(descriptor, lhs, reflectionTypes, context.scope.ownerDescriptor) ?: return null
+ 
+         when (descriptor) {
+             is FunctionDescriptor -> bindFunctionReference(expression, type, context)
+diff --git a/compiler/testData/codegen/box/callableReference/bound/kt12738.kt b/compiler/testData/codegen/box/callableReference/bound/kt12738.kt
+new file mode 100644
+index 00000000000..4d0e0c85c47
+--- /dev/null
++++ b/compiler/testData/codegen/box/callableReference/bound/kt12738.kt
+@@ -0,0 +1,9 @@
++fun <T> get(t: T): () -> String {
++    return t::toString
++}
++
++fun box(): String {
++    if (get(null).invoke() != "null") return "Fail null"
++
++    return get("OK").invoke()
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/resolve/kt10036_bound.kt b/compiler/testData/diagnostics/tests/callableReference/resolve/kt10036_bound.kt
+new file mode 100644
+index 00000000000..128893c5704
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/resolve/kt10036_bound.kt
+@@ -0,0 +1,11 @@
++// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
++
++class OverloadTest {
++    fun foo(bar: Boolean) {}
++    fun foo(bar: Any?) {}
++}
++
++inline fun <T : Any> OverloadTest.overload(value: T?, function: (T) -> Unit) {
++}
++
++fun OverloadTest.overloadBoolean(value: Boolean?) = overload(value, OverloadTest()::foo)
+diff --git a/compiler/testData/diagnostics/tests/callableReference/resolve/kt10036_bound.txt b/compiler/testData/diagnostics/tests/callableReference/resolve/kt10036_bound.txt
+new file mode 100644
+index 00000000000..25a0c6c3b86
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/resolve/kt10036_bound.txt
+@@ -0,0 +1,13 @@
++package
++
++public inline fun </*0*/ T : kotlin.Any> OverloadTest.overload(/*0*/ value: T?, /*1*/ function: (T) -> kotlin.Unit): kotlin.Unit
++public fun OverloadTest.overloadBoolean(/*0*/ value: kotlin.Boolean?): kotlin.Unit
++
++public final class OverloadTest {
++    public constructor OverloadTest()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final fun foo(/*0*/ bar: kotlin.Any?): kotlin.Unit
++    public final fun foo(/*0*/ bar: kotlin.Boolean): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/resolve/kt12751.kt b/compiler/testData/diagnostics/tests/callableReference/resolve/kt12751.kt
+new file mode 100644
+index 00000000000..47b939fef44
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/resolve/kt12751.kt
+@@ -0,0 +1,15 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++// KT-12751 Type inference failed with forEach and bound reference
++
++class L<out T>
++
++fun <T> L<T>.foo(action: (T) -> Unit): Unit {}
++
++class B {
++    fun remove(charSequence: CharSequence) {}
++}
++
++fun foo(list: L<CharSequence>, b: B) {
++    list.foo(b::remove)
++    list.foo<CharSequence>(b::remove)
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/resolve/kt12751.txt b/compiler/testData/diagnostics/tests/callableReference/resolve/kt12751.txt
+new file mode 100644
+index 00000000000..238ab0cdacc
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/resolve/kt12751.txt
+@@ -0,0 +1,19 @@
++package
++
++public fun foo(/*0*/ list: L<kotlin.CharSequence>, /*1*/ b: B): kotlin.Unit
++public fun </*0*/ T> L<T>.foo(/*0*/ action: (T) -> kotlin.Unit): kotlin.Unit
++
++public final class B {
++    public constructor B()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun remove(/*0*/ charSequence: kotlin.CharSequence): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class L</*0*/ out T> {
++    public constructor L</*0*/ out T>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/resolve/overloadsBound.kt b/compiler/testData/diagnostics/tests/callableReference/resolve/overloadsBound.kt
+new file mode 100644
+index 00000000000..f2c83059d3e
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/resolve/overloadsBound.kt
+@@ -0,0 +1,13 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++// KT-12799 Bound callable references not resolved for overload
++
++class C {
++    fun xf1(){}
++    fun xf1(s: String){}
++}
++
++fun foo(p: (String) -> Unit){}
++
++fun bar(c: C) {
++    foo(c::xf1)
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/resolve/overloadsBound.txt b/compiler/testData/diagnostics/tests/callableReference/resolve/overloadsBound.txt
+new file mode 100644
+index 00000000000..b8fb3301e35
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/resolve/overloadsBound.txt
+@@ -0,0 +1,13 @@
++package
++
++public fun bar(/*0*/ c: C): kotlin.Unit
++public fun foo(/*0*/ p: (kotlin.String) -> kotlin.Unit): kotlin.Unit
++
++public final class C {
++    public constructor C()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    public final fun xf1(): kotlin.Unit
++    public final fun xf1(/*0*/ s: kotlin.String): kotlin.Unit
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 5b65f9faea1..b23cb6499c8 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -2234,6 +2234,18 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                     doTest(fileName);
+                 }
+ 
++                @TestMetadata("kt10036_bound.kt")
++                public void testKt10036_bound() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/resolve/kt10036_bound.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("kt12751.kt")
++                public void testKt12751() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/resolve/kt12751.kt");
++                    doTest(fileName);
++                }
++
+                 @TestMetadata("kt9601.kt")
+                 public void testKt9601() throws Exception {
+                     String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/resolve/kt9601.kt");
+@@ -2258,6 +2270,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                     doTest(fileName);
+                 }
+ 
++                @TestMetadata("overloadsBound.kt")
++                public void testOverloadsBound() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/resolve/overloadsBound.kt");
++                    doTest(fileName);
++                }
++
+                 @TestMetadata("overloadsMember.kt")
+                 public void testOverloadsMember() throws Exception {
+                     String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/resolve/overloadsMember.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+index db4a06930e1..a8f0b6fd026 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+@@ -1458,6 +1458,12 @@ public class BlackBoxCodegenTestGenerated extends AbstractBlackBoxCodegenTest {
+                 KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/codegen/box/callableReference/bound"), Pattern.compile("^(.+)\\.kt$"), true);
+             }
+ 
++            @TestMetadata("kt12738.kt")
++            public void testKt12738() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/bound/kt12738.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("simpleFunction.kt")
+             public void testSimpleFunction() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/callableReference/bound/simpleFunction.kt");
+diff --git a/idea/idea-completion/src/org/jetbrains/kotlin/idea/completion/smart/Utils.kt b/idea/idea-completion/src/org/jetbrains/kotlin/idea/completion/smart/Utils.kt
+index d546ff9fcd8..b63d142853e 100644
+--- a/idea/idea-completion/src/org/jetbrains/kotlin/idea/completion/smart/Utils.kt
++++ b/idea/idea-completion/src/org/jetbrains/kotlin/idea/completion/smart/Utils.kt
+@@ -33,8 +33,10 @@ import org.jetbrains.kotlin.idea.completion.suppressAutoInsertion
+ import org.jetbrains.kotlin.idea.core.*
+ import org.jetbrains.kotlin.idea.resolve.ResolutionFacade
+ import org.jetbrains.kotlin.idea.util.*
+-import org.jetbrains.kotlin.resolve.callableReferences.createReflectionTypeForCallableDescriptor
++import org.jetbrains.kotlin.resolve.PossiblyBareType
++import org.jetbrains.kotlin.resolve.callableReferences.createKCallableTypeForReference
+ import org.jetbrains.kotlin.types.TypeSubstitutor
++import org.jetbrains.kotlin.types.expressions.DoubleColonLHS
+ import org.jetbrains.kotlin.types.typeUtil.TypeNullability
+ import org.jetbrains.kotlin.types.typeUtil.isNothing
+ import org.jetbrains.kotlin.util.descriptorsEqualWithSubstitution
+@@ -248,8 +250,14 @@ private fun MutableCollection<LookupElement>.addLookupElementsForNullable(factor
+ 
+ fun CallableDescriptor.callableReferenceType(resolutionFacade: ResolutionFacade): FuzzyType? {
+     if (!CallType.CALLABLE_REFERENCE.descriptorKindFilter.accepts(this)) return null // not supported by callable references
+-    return createReflectionTypeForCallableDescriptor(
+-            this, null, resolutionFacade.getFrontendService(ReflectionTypes::class.java), false, resolutionFacade.moduleDescriptor
++
++    return createKCallableTypeForReference(
++            this,
++            (dispatchReceiverParameter?.type ?: extensionReceiverParameter?.type)?.let {
++                DoubleColonLHS.Type(it, PossiblyBareType.type(it))
++            },
++            resolutionFacade.getFrontendService(ReflectionTypes::class.java),
++            resolutionFacade.moduleDescriptor
+     )?.toFuzzyType(emptyList())
+ }
+ 

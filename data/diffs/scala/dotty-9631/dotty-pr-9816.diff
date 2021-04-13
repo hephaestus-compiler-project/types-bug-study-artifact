@@ -1,0 +1,375 @@
+diff --git a/compiler/src/dotty/tools/dotc/core/TypeOps.scala b/compiler/src/dotty/tools/dotc/core/TypeOps.scala
+index 8cfb7759b6d0..ba63eb48c8a3 100644
+--- a/compiler/src/dotty/tools/dotc/core/TypeOps.scala
++++ b/compiler/src/dotty/tools/dotc/core/TypeOps.scala
+@@ -658,44 +658,70 @@ object TypeOps:
+    *  Otherwise, return NoType.
+    */
+   private def instantiateToSubType(tp1: NamedType, tp2: Type)(using Context): Type = {
+-    /** expose abstract type references to their bounds or tvars according to variance */
+-    class AbstractTypeMap(maximize: Boolean)(using Context) extends TypeMap {
+-      def expose(lo: Type, hi: Type): Type =
+-        if (variance == 0)
+-          newTypeVar(TypeBounds(lo, hi))
+-        else if (variance == 1)
+-          if (maximize) hi else lo
+-        else
+-          if (maximize) lo else hi
++    // In order for a child type S to qualify as a valid subtype of the parent
++    // T, we need to test whether it is possible S <: T. Therefore, we replace
++    // type parameters in T with tvars, and see if the subtyping is true.
++    val approximateTypeParams = new TypeMap {
++      val boundTypeParams = util.HashMap[TypeRef, TypeVar]()
+ 
+-      def apply(tp: Type): Type = tp match {
++      def apply(tp: Type): Type = tp.dealias match {
+         case _: MatchType =>
+           tp // break cycles
+ 
+-        case tp: TypeRef if isBounds(tp.underlying) =>
+-          val lo = this(tp.info.loBound)
+-          val hi = this(tp.info.hiBound)
+-          // See tests/patmat/gadt.scala  tests/patmat/exhausting.scala  tests/patmat/t9657.scala
+-          val exposed = expose(lo, hi)
+-          typr.println(s"$tp exposed to =====> $exposed")
+-          exposed
+-
+-        case AppliedType(tycon: TypeRef, args) if isBounds(tycon.underlying) =>
+-          val args2 = args.map(this)
+-          val lo = this(tycon.info.loBound).applyIfParameterized(args2)
+-          val hi = this(tycon.info.hiBound).applyIfParameterized(args2)
+-          val exposed = expose(lo, hi)
+-          typr.println(s"$tp exposed to =====> $exposed")
+-          exposed
++        case tp: TypeRef if !tp.symbol.isClass =>
++          def lo = LazyRef(apply(tp.underlying.loBound))
++          def hi = LazyRef(apply(tp.underlying.hiBound))
++          val lookup = boundTypeParams.lookup(tp)
++          if lookup != null then lookup
++          else
++            val tv = newTypeVar(TypeBounds(lo, hi))
++            boundTypeParams(tp) = tv
++            // Force lazy ref eagerly using current context
++            // Otherwise, the lazy ref will be forced with a unknown context,
++            // which causes a problem in tests/patmat/i3645e.scala
++            lo.ref
++            hi.ref
++            tv
++          end if
++
++        case AppliedType(tycon: TypeRef, _) if !tycon.dealias.typeSymbol.isClass =>
++
++          // In tests/patmat/i3645g.scala, we need to tell whether it's possible
++          // that K1 <: K[Foo]. If yes, we issue a warning; otherwise, no
++          // warnings.
++          //
++          // - K1 <: K[Foo] is possible <==>
++          // - K[Int] <: K[Foo] is possible <==>
++          // - Int <: Foo is possible <==>
++          // - Int <: Module.Foo.Type is possible
++          //
++          // If we remove this special case, we will encounter the case Int <:
++          // X[Y], where X and Y are tvars. The subtype checking will simply
++          // return false. But depending on the bounds of X and Y, the subtyping
++          // can be true.
++          //
++          // As a workaround, we approximate higher-kinded type parameters with
++          // the value types that can be instantiated from its bounds.
++          //
++          // Note that `HKTypeLambda.resType` may contain TypeParamRef that are
++          // bound in the HKTypeLambda. This is fine, as the TypeComparer will
++          // recurse on the bounds of `TypeParamRef`.
++          val bounds: TypeBounds = tycon.underlying match {
++            case TypeBounds(tl1: HKTypeLambda, tl2: HKTypeLambda) =>
++              TypeBounds(tl1.resType, tl2.resType)
++            case TypeBounds(tl1: HKTypeLambda, tp2) =>
++              TypeBounds(tl1.resType, tp2)
++            case TypeBounds(tp1, tl2: HKTypeLambda) =>
++              TypeBounds(tp1, tl2.resType)
++          }
+ 
+-        case _ =>
++          newTypeVar(bounds)
++
++        case tp =>
+           mapOver(tp)
+       }
+     }
+ 
+-    def minTypeMap(using Context) = new AbstractTypeMap(maximize = false)
+-    def maxTypeMap(using Context) = new AbstractTypeMap(maximize = true)
+-
+     // Prefix inference, replace `p.C.this.Child` with `X.Child` where `X <: p.C`
+     // Note: we need to strip ThisType in `p` recursively.
+     //
+@@ -721,37 +747,25 @@ object TypeOps:
+     val tvars = tp1.typeParams.map { tparam => newTypeVar(tparam.paramInfo.bounds) }
+     val protoTp1 = inferThisMap.apply(tp1).appliedTo(tvars)
+ 
+-    val force = new ForceDegree.Value(
+-      tvar =>
+-        !(ctx.typerState.constraint.entry(tvar.origin) `eq` tvar.origin.underlying) ||
+-        (tvar `eq` inferThisMap.prefixTVar), // always instantiate prefix
+-      IfBottom.flip
+-    )
+-
+     // If parent contains a reference to an abstract type, then we should
+     // refine subtype checking to eliminate abstract types according to
+     // variance. As this logic is only needed in exhaustivity check,
+     // we manually patch subtyping check instead of changing TypeComparer.
+     // See tests/patmat/i3645b.scala
+-    def parentQualify = tp1.widen.classSymbol.info.parents.exists { parent =>
+-      inContext(ctx.fresh.setNewTyperState()) {
+-        parent.argInfos.nonEmpty && minTypeMap.apply(parent) <:< maxTypeMap.apply(tp2)
+-      }
++    def parentQualify(tp1: Type, tp2: Type) = tp1.widen.classSymbol.info.parents.exists { parent =>
++      parent.argInfos.nonEmpty && approximateTypeParams(parent) <:< tp2
+     }
+ 
+-    if (protoTp1 <:< tp2) {
++    def instantiate(): Type = {
+       maximizeType(protoTp1, NoSpan, fromScala2x = false)
+       wildApprox(protoTp1)
+     }
++
++    if (protoTp1 <:< tp2) instantiate()
+     else {
+-      val protoTp2 = maxTypeMap.apply(tp2)
+-      if (protoTp1 <:< protoTp2 || parentQualify)
+-        if (isFullyDefined(AndType(protoTp1, protoTp2), force)) protoTp1
+-        else wildApprox(protoTp1)
+-      else {
+-        typr.println(s"$protoTp1 <:< $protoTp2 = false")
+-        NoType
+-      }
++      val protoTp2 = approximateTypeParams(tp2)
++      if (protoTp1 <:< protoTp2 || parentQualify(protoTp1, protoTp2)) instantiate()
++      else NoType
+     }
+   }
+ 
+diff --git a/compiler/src/dotty/tools/dotc/transform/patmat/Space.scala b/compiler/src/dotty/tools/dotc/transform/patmat/Space.scala
+index 6491da4f5efc..df4b43d8c19f 100644
+--- a/compiler/src/dotty/tools/dotc/transform/patmat/Space.scala
++++ b/compiler/src/dotty/tools/dotc/transform/patmat/Space.scala
+@@ -623,6 +623,8 @@ class SpaceEngine(using Context) extends SpaceLogic {
+           val sym1 = if (sym.is(ModuleClass)) sym.sourceModule else sym
+           val refined = TypeOps.refineUsingParent(tp, sym1)
+ 
++          debug.println(sym1.show + " refined to " + refined.show)
++
+           def inhabited(tp: Type): Boolean =
+             tp.dealias match {
+               case AndType(tp1, tp2) => !TypeComparer.provablyDisjoint(tp1, tp2)
+diff --git a/tests/patmat/i6088.scala b/tests/patmat/i6088.scala
+new file mode 100644
+index 000000000000..0c6b3733e41d
+--- /dev/null
++++ b/tests/patmat/i6088.scala
+@@ -0,0 +1,31 @@
++/** Natural transformation. */
++trait ~>[F[_], G[_]] {
++  def apply[A](fa: F[A]): G[A]
++}
++
++/** Higher-kinded pattern functor typeclass. */
++trait HFunctor[H[f[_], i]] {
++  def hmap[A[_], B[_]](nt: A ~> B): ([x] =>> H[A,x]) ~> ([x] =>> H[B,x])
++}
++
++/** Some HK pattern functor. */
++enum ExprF[R[_],I] {
++  case Const[R[_]](i: Int) extends ExprF[R,Int]
++  case Neg[R[_]](l: R[Int]) extends ExprF[R,Int]
++  case Eq[R[_]](l: R[Int], r: R[Int]) extends ExprF[R,Boolean]
++}
++
++/** Companion. */
++object ExprF {
++  given hfunctor as HFunctor[ExprF] {
++    def hmap[A[_], B[_]](nt: A ~> B): ([x] =>> ExprF[A,x]) ~> ([x] =>> ExprF[B,x]) = {
++      new ~>[[x] =>> ExprF[A,x], [x] =>> ExprF[B,x]] {
++        def apply[I](fa: ExprF[A,I]): ExprF[B,I] = fa match {
++          case Const(i) => Const(i)
++          case Neg(l) => Neg(nt(l))
++          case Eq(l, r) => Eq(nt(l), nt(r))
++        }
++      }
++    }
++  }
++}
+diff --git a/tests/patmat/i9631.scala b/tests/patmat/i9631.scala
+new file mode 100644
+index 000000000000..3f6099221725
+--- /dev/null
++++ b/tests/patmat/i9631.scala
+@@ -0,0 +1,12 @@
++trait Txn[T <: Txn[T]]
++
++sealed trait SkipList[T <: Txn[T]]
++
++trait Set[T <: Txn[T]] extends SkipList[T]
++
++object HASkipList {
++  def debug[T <: Txn[T]](in: SkipList[T]): Set[T] = in match {
++    case impl: Set[T] => impl
++    // case _ =>
++  }
++}
+diff --git a/tests/patmat/i9841.scala b/tests/patmat/i9841.scala
+new file mode 100644
+index 000000000000..928cacd999e8
+--- /dev/null
++++ b/tests/patmat/i9841.scala
+@@ -0,0 +1,19 @@
++trait Txn[T <: Txn[T]]
++
++object Impl {
++  sealed trait Entry[T <: Txn[T], A]
++  case class EntrySingle[T <: Txn[T], A](term: Long, v: A)  extends Entry[T, A]
++}
++
++trait Impl[T <: Txn[T], K] {
++  import Impl._
++
++  def put[A](): Unit = {
++    val opt: Option[Entry[T, A]] = ???
++
++    opt match {
++      case Some(EntrySingle(_, prevValue)) => ???   // crashes
++      case _ =>
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/tests/patmat/t10100.check b/tests/patmat/t10100.check
+new file mode 100644
+index 000000000000..d11715a5f371
+--- /dev/null
++++ b/tests/patmat/t10100.check
+@@ -0,0 +1 @@
++12: Pattern Match Exhaustivity: (_, FancyFoo(_))
+diff --git a/tests/patmat/t10100.scala b/tests/patmat/t10100.scala
+new file mode 100644
+index 000000000000..def5fd971ebc
+--- /dev/null
++++ b/tests/patmat/t10100.scala
+@@ -0,0 +1,27 @@
++sealed trait Foo {
++  val index: Int
++}
++
++case class BasicFoo(index: Int) extends Foo
++
++class NonExhaustive {
++  case class FancyFoo(index: Int) extends Foo
++
++  def convert(foos: Vector[Foo]): Vector[Int] = {
++    foos.foldLeft(Vector.empty[Int]) {
++      case (acc, basic: BasicFoo) => acc :+ basic.index
++      case (acc, fancy: FancyFoo) => acc :+ fancy.index
++    }
++  }
++}
++
++@main
++def Test = {
++  val a = new NonExhaustive
++  val b = new NonExhaustive
++
++  val fa: Foo = a.FancyFoo(3)
++  val fb: Foo = b.FancyFoo(4)
++
++  a.convert(Vector(fa, fb))
++}
+diff --git a/tests/patmat/t11649.scala b/tests/patmat/t11649.scala
+new file mode 100644
+index 000000000000..784819d953e4
+--- /dev/null
++++ b/tests/patmat/t11649.scala
+@@ -0,0 +1,7 @@
++sealed trait Command { type Err }
++final case class Kick() extends Command { type Err = String }
++final case class Box() extends Command { type Err = Int }
++def handle[E](cmd: Command {type Err = E}): Either[E, Unit] = cmd match {
++  case Kick() => ???
++  case Box() => ???
++}
+diff --git a/tests/pos-deep-subtype/i9631.scala b/tests/pos-deep-subtype/i9631.scala
+new file mode 100644
+index 000000000000..5806bda33b4f
+--- /dev/null
++++ b/tests/pos-deep-subtype/i9631.scala
+@@ -0,0 +1,19 @@
++trait Txn[T <: Txn[T]]
++
++object SkipList {
++  trait Set[T <: Txn[T], A] extends SkipList[T, A, A]
++}
++sealed trait SkipList[T <: Txn[T], A, E]
++
++object HASkipList {
++  def debug[T <: Txn[T], A](in: SkipList[T, A, _], key: A)(implicit tx: T): Int = in match {
++    case impl: Impl[T, A, _] => impl.foo(key)
++    case _ => -1
++  }
++
++  private trait Impl[T <: Txn[T], A, E] {
++    self: SkipList[T, A, E] =>
++
++    def foo(key: A)(implicit tx: T): Int
++  }
++}
+diff --git a/tests/pos-special/fatal-warnings/t10373.scala b/tests/pos-special/fatal-warnings/t10373.scala
+new file mode 100644
+index 000000000000..da054b9fe365
+--- /dev/null
++++ b/tests/pos-special/fatal-warnings/t10373.scala
+@@ -0,0 +1,15 @@
++abstract class Foo {
++  def bar(): Unit = this match {
++    case Foo_1() => //do something
++    case Foo_2() => //do something
++                    // Works fine
++  }
++
++  def baz(that: Foo): Unit = (this, that) match {
++    case (Foo_1(), _) => //do something
++    case (Foo_2(), _) => //do something
++                         // match may not be exhaustive
++  }
++}
++case class Foo_1() extends Foo
++case class Foo_2() extends Foo
+diff --git a/tests/pos/i9841b.scala b/tests/pos/i9841b.scala
+new file mode 100644
+index 000000000000..f3e9a585b79f
+--- /dev/null
++++ b/tests/pos/i9841b.scala
+@@ -0,0 +1,25 @@
++trait Exec[T <: Exec[T]]
++
++object Tree {
++  sealed trait Next[+T, +PL, +P, +H, +A]
++
++  sealed trait Child[+T, +PL, +P, +H, +A]
++
++  sealed trait Branch[T <: Exec[T], PL, P, H, A] extends Child[T, PL, P, H, A] with NonEmpty[T, PL, P, H]
++
++  sealed trait NonEmpty[T <: Exec[T], PL, P, H]
++
++  case object Empty extends Next[Nothing, Nothing, Nothing, Nothing, Nothing]
++
++  sealed trait RightBranch[T <: Exec[T], PL, P, H, A] extends Next[T, PL, P, H, A] with Branch[T, PL, P, H, A]
++
++  trait BranchImpl[T <: Exec[T], PL, P, H, A] {
++    def next: Next[T, PL, P, H, A]
++
++    def nextOption: Option[Branch[T, PL, P, H, A]] =
++      next match {  // crashes
++        case b: RightBranch[T, PL, P, H, A] => Some(b)
++        case Empty                          => None
++      }
++  }
++}
+\ No newline at end of file

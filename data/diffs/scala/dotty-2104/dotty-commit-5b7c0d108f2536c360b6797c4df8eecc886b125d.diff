@@ -1,0 +1,46 @@
+diff --git a/compiler/src/dotty/tools/dotc/typer/Applications.scala b/compiler/src/dotty/tools/dotc/typer/Applications.scala
+index c731d2054b..4936986e88 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Applications.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Applications.scala
+@@ -920,6 +920,7 @@ trait Applications extends Compatibility { self: Typer with Dynamic =>
+         val ownType =
+           if (selType <:< unapplyArgType) {
+             unapp.println(i"case 1 $unapplyArgType ${ctx.typerState.constraint}")
++            fullyDefinedType(unapplyArgType, "pattern selector", tree.pos)
+             selType
+           } else if (isSubTypeOfParent(unapplyArgType, selType)(ctx.addMode(Mode.GADTflexible))) {
+             maximizeType(unapplyArgType) match {
+@@ -952,7 +953,6 @@ trait Applications extends Compatibility { self: Typer with Dynamic =>
+               ex"Pattern type $unapplyArgType is neither a subtype nor a supertype of selector type $selType",
+               tree.pos)
+           }
+-
+         val dummyArg = dummyTreeOfType(ownType)
+         val unapplyApp = typedExpr(untpd.TypedSplice(Apply(unapplyFn, dummyArg :: Nil)))
+         val unapplyImplicits = unapplyApp match {
+diff --git a/tests/pos/i2104.scala b/tests/pos/i2104.scala
+new file mode 100644
+index 0000000000..b2066d6daa
+--- /dev/null
++++ b/tests/pos/i2104.scala
+@@ -0,0 +1,20 @@
++case class Pair[A, B](_1: A, _2: B)
++
++trait Cons[+H, +T]
++
++object Cons {
++  def apply[H, T](h: H, t: T): Cons[H, T] = ???
++  def unapply[H, T](t: Cons[H, T]): Option[Pair[H, T]] = ???
++}
++
++
++
++object Test {
++  def main(args: Array[String]): Unit = {
++    Cons(Option(1), None) match {
++      case Cons(Some(i), None) =>
++        i: Int // error: found: Any(i), requires: Int
++        assert(i == 1)
++    }
++  }
++}

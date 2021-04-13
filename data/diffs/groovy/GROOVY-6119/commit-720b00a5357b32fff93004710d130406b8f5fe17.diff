@@ -1,0 +1,430 @@
+diff --git a/src/main/org/codehaus/groovy/transform/ImmutableASTTransformation.java b/src/main/org/codehaus/groovy/transform/ImmutableASTTransformation.java
+index d795394eae..09adc39547 100644
+--- a/src/main/org/codehaus/groovy/transform/ImmutableASTTransformation.java
++++ b/src/main/org/codehaus/groovy/transform/ImmutableASTTransformation.java
+@@ -31,6 +31,9 @@ import org.codehaus.groovy.control.CompilePhase;
+ import org.codehaus.groovy.control.SourceUnit;
+ import org.codehaus.groovy.runtime.DefaultGroovyMethods;
+ import org.codehaus.groovy.runtime.InvokerHelper;
++import org.codehaus.groovy.runtime.ReflectionMethodInvoker;
++import org.codehaus.groovy.syntax.Token;
++import org.codehaus.groovy.syntax.Types;
+ 
+ import java.util.ArrayList;
+ import java.util.Arrays;
+@@ -39,6 +42,10 @@ import java.util.Date;
+ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
++import java.util.Set;
++import java.util.SortedSet;
++import java.util.SortedMap;
++import java.util.Collections;
+ 
+ import static org.codehaus.groovy.transform.AbstractASTTransformUtil.*;
+ import static org.codehaus.groovy.transform.EqualsAndHashCodeASTTransformation.createEquals;
+@@ -55,15 +62,15 @@ import static org.codehaus.groovy.transform.ToStringASTTransformation.createToSt
+ public class ImmutableASTTransformation extends AbstractASTTransformation {
+ 
+     /*
+-      Currently leaving BigInteger and BigDecimal in list but see:
+-      http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6348370
++                      Currently leaving BigInteger and BigDecimal in list but see:
++                      http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6348370
+ 
+-      Also, Color is not final so while not normally used with child
+-      classes, it isn't strictly immutable. Use at your own risk.
++                      Also, Color is not final so while not normally used with child
++                      classes, it isn't strictly immutable. Use at your own risk.
+ 
+-      This list can by extended by providing "known immutable" classes
+-      via Immutable.knownImmutableClasses
+-     */
++                      This list can by extended by providing "known immutable" classes
++                      via Immutable.knownImmutableClasses
++                     */
+     private static List<String> immutableList = Arrays.asList(
+             "java.lang.Boolean",
+             "java.lang.Byte",
+@@ -94,6 +101,13 @@ public class ImmutableASTTransformation extends AbstractASTTransformation {
+     private static final ClassNode SELF_TYPE = ClassHelper.make(ImmutableASTTransformation.class);
+     private static final ClassNode HASHMAP_TYPE = ClassHelper.makeWithoutCaching(HashMap.class, false);
+     private static final ClassNode MAP_TYPE = ClassHelper.makeWithoutCaching(Map.class, false);
++    private static final ClassNode REFLECTION_INVOKER_TYPE = ClassHelper.make(ReflectionMethodInvoker.class);
++    private static final ClassNode SORTEDSET_CLASSNODE = ClassHelper.make(SortedSet.class);
++    private static final ClassNode SORTEDMAP_CLASSNODE = ClassHelper.make(SortedMap.class);
++    private static final ClassNode SET_CLASSNODE = ClassHelper.make(Set.class);
++    private static final ClassNode MAP_CLASSNODE = ClassHelper.make(Map.class);
++
++
+ 
+     public void visit(ASTNode[] nodes, SourceUnit source) {
+         init(nodes, source);
+@@ -247,11 +261,37 @@ public class ImmutableASTTransformation extends AbstractASTTransformation {
+     }
+ 
+     private Expression cloneCollectionExpr(Expression fieldExpr) {
+-        return new StaticMethodCallExpression(DGM_TYPE, "asImmutable", fieldExpr);
+-    }
+-
+-    private Expression cloneArrayOrCloneableExpr(Expression fieldExpr) {
+-        return new MethodCallExpression(fieldExpr, "clone", MethodCallExpression.NO_ARGUMENTS);
++        TernaryExpression expression = createIfInstanceOfAsImmutableStatement(fieldExpr, SORTEDSET_CLASSNODE,
++                createIfInstanceOfAsImmutableStatement(fieldExpr, SORTEDMAP_CLASSNODE,
++                        createIfInstanceOfAsImmutableStatement(fieldExpr, SET_CLASSNODE,
++                                createIfInstanceOfAsImmutableStatement(fieldExpr, MAP_CLASSNODE,
++                                        createIfInstanceOfAsImmutableStatement(fieldExpr, ClassHelper.LIST_TYPE,
++                                                createAsImmutableExpression(fieldExpr, COLLECTION_TYPE))))));
++        return expression;
++    }
++
++    private TernaryExpression createIfInstanceOfAsImmutableStatement(Expression expr, ClassNode type, Expression elseStatement) {
++        return new TernaryExpression(
++                new BooleanExpression(new BinaryExpression(expr, Token.newSymbol(Types.KEYWORD_INSTANCEOF, -1, -1), new ClassExpression(type))),
++                createAsImmutableExpression(expr, type),
++                elseStatement);
++    }
++
++    private Expression createAsImmutableExpression(final Expression expr, final ClassNode type) {
++        return new StaticMethodCallExpression(DGM_TYPE, "asImmutable", new CastExpression(type, expr));
++    }
++
++    private Expression cloneArrayOrCloneableExpr(Expression fieldExpr, ClassNode type) {
++        StaticMethodCallExpression smce = new StaticMethodCallExpression(
++                REFLECTION_INVOKER_TYPE,
++                "invoke",
++                new ArgumentListExpression(
++                        fieldExpr,
++                        new ConstantExpression("clone"),
++                        new ArrayExpression(ClassHelper.OBJECT_TYPE.makeArray(), Collections.<Expression>emptyList())
++                )
++        );
++        return new CastExpression(type, smce);
+     }
+ 
+     private void createConstructorMapSpecial(ClassNode cNode, List<PropertyNode> list) {
+@@ -396,6 +436,7 @@ public class ImmutableASTTransformation extends AbstractASTTransformation {
+         Expression initExpr = fNode.getInitialValueExpression();
+         if (initExpr == null) initExpr = new ConstantExpression(null);
+         Expression collection = findArg(fNode.getName());
++        ClassNode fieldType = fieldExpr.getType();
+         return new IfStatement(
+                 equalsNullExpr(collection),
+                 new IfStatement(
+@@ -404,7 +445,7 @@ public class ImmutableASTTransformation extends AbstractASTTransformation {
+                         assignStatement(fieldExpr, cloneCollectionExpr(initExpr))),
+                 new IfStatement(
+                         isInstanceOf(collection, CLONEABLE_TYPE),
+-                        assignStatement(fieldExpr, cloneCollectionExpr(cloneArrayOrCloneableExpr(collection))),
++                        assignStatement(fieldExpr, cloneCollectionExpr(cloneArrayOrCloneableExpr(collection, fieldType))),
+                         assignStatement(fieldExpr, cloneCollectionExpr(collection))));
+     }
+ 
+@@ -428,6 +469,7 @@ public class ImmutableASTTransformation extends AbstractASTTransformation {
+     private Statement createConstructorStatementArrayOrCloneable(FieldNode fNode) {
+         final Expression fieldExpr = new VariableExpression(fNode);
+         Expression initExpr = fNode.getInitialValueExpression();
++        ClassNode fieldType = fNode.getType();
+         if (initExpr == null) initExpr = new ConstantExpression(null);
+         final Expression array = findArg(fNode.getName());
+         return new IfStatement(
+@@ -435,8 +477,8 @@ public class ImmutableASTTransformation extends AbstractASTTransformation {
+                 new IfStatement(
+                         equalsNullExpr(initExpr),
+                         assignStatement(fieldExpr, new ConstantExpression(null)),
+-                        assignStatement(fieldExpr, cloneArrayOrCloneableExpr(initExpr))),
+-                assignStatement(fieldExpr, cloneArrayOrCloneableExpr(array)));
++                        assignStatement(fieldExpr, cloneArrayOrCloneableExpr(initExpr, fieldType))),
++                assignStatement(fieldExpr, cloneArrayOrCloneableExpr(array, fieldType)));
+     }
+ 
+     private Statement createConstructorStatementDate(FieldNode fNode) {
+@@ -501,7 +543,7 @@ public class ImmutableASTTransformation extends AbstractASTTransformation {
+ 
+     private Statement createGetterBodyArrayOrCloneable(FieldNode fNode) {
+         final Expression fieldExpr = new VariableExpression(fNode);
+-        final Expression expression = cloneArrayOrCloneableExpr(fieldExpr);
++        final Expression expression = cloneArrayOrCloneableExpr(fieldExpr, fNode.getType());
+         return safeExpression(fieldExpr, expression);
+     }
+ 
+diff --git a/src/main/org/codehaus/groovy/transform/sc/transformers/ConstructorCallTransformer.java b/src/main/org/codehaus/groovy/transform/sc/transformers/ConstructorCallTransformer.java
+index 096478d9be..37bb0431d1 100644
+--- a/src/main/org/codehaus/groovy/transform/sc/transformers/ConstructorCallTransformer.java
++++ b/src/main/org/codehaus/groovy/transform/sc/transformers/ConstructorCallTransformer.java
+@@ -17,10 +17,12 @@ package org.codehaus.groovy.transform.sc.transformers;
+ 
+ import org.codehaus.groovy.ast.*;
+ import org.codehaus.groovy.ast.expr.*;
++import org.codehaus.groovy.ast.stmt.EmptyStatement;
+ import org.codehaus.groovy.classgen.*;
+ import org.codehaus.groovy.classgen.asm.*;
+ import org.codehaus.groovy.syntax.Token;
+ import org.codehaus.groovy.transform.stc.StaticTypeCheckingSupport;
++import org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor;
+ import org.objectweb.asm.MethodVisitor;
+ import org.objectweb.asm.Opcodes;
+ 
+@@ -37,7 +39,9 @@ public class ConstructorCallTransformer {
+     Expression transformConstructorCall(final ConstructorCallExpression expr) {
+         ConstructorNode node = (ConstructorNode) expr.getNodeMetaData(DIRECT_METHOD_CALL_TARGET);
+         if (node == null) return expr;
+-        if (node.getParameters().length == 1 && StaticTypeCheckingSupport.implementsInterfaceOrIsSubclassOf(node.getParameters()[0].getType(), ClassHelper.MAP_TYPE)) {
++        if (node.getParameters().length == 1
++                && StaticTypeCheckingSupport.implementsInterfaceOrIsSubclassOf(node.getParameters()[0].getType(), ClassHelper.MAP_TYPE)
++                && node.getCode() == StaticTypeCheckingVisitor.GENERATED_EMPTY_STATEMENT) {
+             Expression arguments = expr.getArguments();
+             if (arguments instanceof TupleExpression) {
+                 TupleExpression tupleExpression = (TupleExpression) arguments;
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index d050db0989..3a35d6d028 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -53,6 +53,9 @@ import static org.codehaus.groovy.transform.stc.StaticTypeCheckingSupport.*;
+  * @author Jochen Theodorou
+  */
+ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
++
++    private final static boolean DEBUG_GENERATED_CODE = Boolean.valueOf(System.getProperty("groovy.stc.debug", "false"));
++
+     protected static final Object ERROR_COLLECTOR = ErrorCollector.class;
+     protected static final ClassNode ITERABLE_TYPE = ClassHelper.make(Iterable.class);
+     protected static final List<MethodNode> EMPTY_METHODNODE_LIST = Collections.emptyList();
+@@ -67,6 +70,11 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+     protected static final MethodNode GET_THISOBJECT = CLOSURE_TYPE.getGetterMethod("getThisObject");
+     protected static final ClassNode DELEGATES_TO = ClassHelper.make(DelegatesTo.class);
+     protected static final ClassNode DELEGATES_TO_TARGET = ClassHelper.make(DelegatesTo.Target.class);
++    protected static final ClassNode LINKEDHASHMAP_CLASSNODE = make(LinkedHashMap.class);
++
++
++
++    public static final Statement GENERATED_EMPTY_STATEMENT = new EmptyStatement();
+ 
+     public static final MethodNode CLOSURE_CALL_NO_ARG;
+     public static final MethodNode CLOSURE_CALL_ONE_ARG;
+@@ -1406,7 +1414,10 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+ 
+         ClassNode[] args = getArgumentTypes(argumentList);
+         MethodNode node = null;
+-        if (args.length == 1 && implementsInterfaceOrIsSubclassOf(args[0], MAP_TYPE) && findMethod(receiver, "<init>", ClassNode.EMPTY_ARRAY).size() == 1) {
++        if (args.length == 1
++                && implementsInterfaceOrIsSubclassOf(args[0], MAP_TYPE)
++                && findMethod(receiver, "<init>", ClassNode.EMPTY_ARRAY).size() == 1
++                && findMethod(receiver, "<init>", args).isEmpty()) {
+             // bean-style constructor
+             node = typeCheckMapConstructor(call, receiver, arguments);
+             if (node != null) {
+@@ -1435,7 +1446,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                 if (expression instanceof MapExpression) {
+                     MapExpression argList = (MapExpression) expression;
+                     checkGroovyConstructorMap(call, receiver, argList);
+-                    node = new ConstructorNode(Opcodes.ACC_PUBLIC, new Parameter[]{new Parameter(MAP_TYPE, "map")}, ClassNode.EMPTY_ARRAY, EmptyStatement.INSTANCE);
++                    node = new ConstructorNode(Opcodes.ACC_PUBLIC, new Parameter[]{new Parameter(MAP_TYPE, "map")}, ClassNode.EMPTY_ARRAY, GENERATED_EMPTY_STATEMENT);
+                     node.setDeclaringClass(receiver);
+                 }
+             }
+@@ -2767,7 +2778,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                             method.getModifiers(),
+                             newParams,
+                             method.getExceptions(),
+-                            EmptyStatement.INSTANCE
++                            GENERATED_EMPTY_STATEMENT
+                     );
+ 
+                 } else {
+@@ -2777,7 +2788,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                             method.getReturnType(),
+                             newParams,
+                             method.getExceptions(),
+-                            EmptyStatement.INSTANCE
++                            GENERATED_EMPTY_STATEMENT
+                     );
+                 }
+                 stubbed.setDeclaringClass(receiver);
+@@ -2794,7 +2805,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         if ("<init>".equals(name)) {
+             methods = addGeneratedMethods(receiver,new ArrayList<MethodNode>(receiver.getDeclaredConstructors()));
+             if (methods.isEmpty()) {
+-                MethodNode node = new ConstructorNode(Opcodes.ACC_PUBLIC, Parameter.EMPTY_ARRAY, ClassNode.EMPTY_ARRAY, EmptyStatement.INSTANCE);
++                MethodNode node = new ConstructorNode(Opcodes.ACC_PUBLIC, Parameter.EMPTY_ARRAY, ClassNode.EMPTY_ARRAY, GENERATED_EMPTY_STATEMENT);
+                 node.setDeclaringClass(receiver);
+                 return Collections.singletonList(node);
+             }
+@@ -2829,7 +2840,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                         curNode = curNode.getSuperClass();
+                     }
+                     if (property != null) {
+-                        MethodNode node = new MethodNode(name, Opcodes.ACC_PUBLIC, property.getType(), Parameter.EMPTY_ARRAY, ClassNode.EMPTY_ARRAY, EmptyStatement.INSTANCE);
++                        MethodNode node = new MethodNode(name, Opcodes.ACC_PUBLIC, property.getType(), Parameter.EMPTY_ARRAY, ClassNode.EMPTY_ARRAY, GENERATED_EMPTY_STATEMENT);
+                         if (property.isStatic()) {
+                             node.setModifiers(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC);
+                         }
+@@ -2854,7 +2865,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                         if (implementsInterfaceOrIsSubclassOf(args[0], type)) {
+                             MethodNode node = new MethodNode(name, Opcodes.ACC_PUBLIC, VOID_TYPE, new Parameter[]{
+                                     new Parameter(type, "arg")
+-                            }, ClassNode.EMPTY_ARRAY, EmptyStatement.INSTANCE);
++                            }, ClassNode.EMPTY_ARRAY, GENERATED_EMPTY_STATEMENT);
+                             if (property.isStatic()) {
+                                 node.setModifiers(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC);
+                             }
+@@ -3099,7 +3110,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+     }
+ 
+     protected ClassNode inferMapExpressionType(final MapExpression map) {
+-        ClassNode mapType = map.getType();
++        ClassNode mapType = LINKEDHASHMAP_CLASSNODE.getPlainNodeReference();
+         List<MapEntryExpression> entryExpressions = map.getMapEntryExpressions();
+         if (entryExpressions.isEmpty()) return mapType;
+         GenericsType[] genericsTypes = mapType.getGenericsTypes();
+@@ -3555,7 +3566,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+     @Override
+     protected void addError(final String msg, final ASTNode expr) {
+         Long err = ((long) expr.getLineNumber()) << 16 + expr.getColumnNumber();
+-        if (!typeCheckingContext.reportedErrors.contains(err)) {
++        if ((DEBUG_GENERATED_CODE && expr.getLineNumber()<0) || !typeCheckingContext.reportedErrors.contains(err)) {
+             typeCheckingContext.getErrorCollector().addErrorAndContinue(new SyntaxErrorMessage(
+                     new SyntaxException(msg + '\n', expr.getLineNumber(), expr.getColumnNumber(), expr.getLastLineNumber(), expr.getLastColumnNumber()),
+                     typeCheckingContext.source)
+@@ -3568,6 +3579,9 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         if (expr.getColumnNumber() > 0 && expr.getLineNumber() > 0) {
+             addError(StaticTypesTransformation.STATIC_ERROR_PREFIX + msg, expr);
+         } else {
++            if (DEBUG_GENERATED_CODE) {
++                addError(StaticTypesTransformation.STATIC_ERROR_PREFIX + "Error in generated code ["+expr.getText()+"] - "+ msg, expr);
++            }
+             // ignore errors which are related to unknown source locations
+             // because they are likely related to generated code
+         }
+diff --git a/src/test/groovy/transform/stc/BugsSTCTest.groovy b/src/test/groovy/transform/stc/BugsSTCTest.groovy
+index 8a7fbe2f5f..60f868995f 100644
+--- a/src/test/groovy/transform/stc/BugsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/BugsSTCTest.groovy
+@@ -439,4 +439,33 @@ class BugsSTCTest extends StaticTypeCheckingTestCase {
+             assert foo
+         '''
+     }
++
++    // GROOVY-6119
++    void testShouldCallConstructorWithMap() {
++        assertScript '''
++            class Foo {
++                String message
++                Foo(Map map) {
++                    message = map.msg
++                }
++            }
++            def foo = new Foo(msg: 'bar')
++            assert foo.message == 'bar'
++        '''
++    }
++
++    // GROOVY-6119
++    void testShouldCallConstructorWithHashMap() {
++        assertScript '''
++            class Foo {
++                String message
++                Foo(HashMap map) {
++                    message = map.msg
++                }
++            }
++            def foo = new Foo(msg: 'bar')
++            assert foo.message == 'bar'
++        '''
++    }
++
+ }
+diff --git a/src/test/org/codehaus/groovy/classgen/asm/sc/CompatWithASTXFormStaticCompileTest.groovy b/src/test/org/codehaus/groovy/classgen/asm/sc/CompatWithASTXFormStaticCompileTest.groovy
+new file mode 100644
+index 0000000000..be46391f23
+--- /dev/null
++++ b/src/test/org/codehaus/groovy/classgen/asm/sc/CompatWithASTXFormStaticCompileTest.groovy
+@@ -0,0 +1,46 @@
++/*
++ * Copyright 2003-2013 the original author or authors.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package org.codehaus.groovy.classgen.asm.sc
++
++import groovy.transform.stc.StaticTypeCheckingTestCase
++
++/**
++ * Unit tests which checks compatibility of various AST xforms with the
++ * {@link groovy.transform.CompileStatic} annotation.
++ *
++ * @author Cedric Champeau
++ */
++@Mixin(StaticCompilationTestSupport)
++class CompatWithASTXFormStaticCompileTest extends StaticTypeCheckingTestCase {
++    @Override
++    protected void setUp() {
++        super.setUp()
++        extraSetup()
++    }
++
++    void testShouldNotThrowArrayIndexOutOfBoundsError() {
++        assertScript '''import groovy.transform.Immutable
++                @Immutable
++                class MyClass {
++                    List<String> myList
++                }
++
++                new MyClass(myList:[])
++        '''
++    }
++
++}
+diff --git a/src/test/org/codehaus/groovy/transform/ImmutableTransformTest.groovy b/src/test/org/codehaus/groovy/transform/ImmutableTransformTest.groovy
+index a37ef1e5f4..3755b475f7 100644
+--- a/src/test/org/codehaus/groovy/transform/ImmutableTransformTest.groovy
++++ b/src/test/org/codehaus/groovy/transform/ImmutableTransformTest.groovy
+@@ -21,7 +21,7 @@ package org.codehaus.groovy.transform
+ class ImmutableTransformTest extends GroovyShellTestCase {
+ 
+     void testImmutable() {
+-        def objects = evaluate("""
++        def objects = evaluate('''
+             import groovy.transform.Immutable
+             enum Coin { HEAD, TAIL }
+             @Immutable class Bar {
+@@ -31,11 +31,11 @@ class ImmutableTransformTest extends GroovyShellTestCase {
+             }
+             [new Bar(x:'x', y:'y', c:Coin.HEAD, nums:[1,2]),
+              new Bar('x', 'y', Coin.HEAD, [1,2])]
+-        """)
++        ''')
+ 
+-        assertEquals objects[0].hashCode(), objects[1].hashCode()
+-        assertEquals objects[0], objects[1]
+-        assertTrue objects[0].nums.class.name.contains("Unmodifiable")
++        assert objects[0].hashCode() == objects[1].hashCode()
++        assert objects[0] == objects[1]
++        assert objects[0].nums.class.name.contains("Unmodifiable")
+     }
+ 
+     void testImmutableClonesListAndCollectionFields() {
+diff --git a/subprojects/groovy-console/src/test/groovy/groovy/inspect/swingui/AstNodeToScriptAdapterTest.groovy b/subprojects/groovy-console/src/test/groovy/groovy/inspect/swingui/AstNodeToScriptAdapterTest.groovy
+index bebeab6ac9..bcf66fcb94 100644
+--- a/subprojects/groovy-console/src/test/groovy/groovy/inspect/swingui/AstNodeToScriptAdapterTest.groovy
++++ b/subprojects/groovy-console/src/test/groovy/groovy/inspect/swingui/AstNodeToScriptAdapterTest.groovy
+@@ -579,7 +579,7 @@ public class AstNodeToScriptAdapterTest extends GroovyTestCase {
+         assert result.contains('_result = org.codehaus.groovy.util.HashCodeHelper.updateHash( _result , this.getColor())')
+ 
+         // assert clones
+-        assert result.contains('return when.clone()')
++        assert result.contains('((org.codehaus.groovy.runtime.ReflectionMethodInvoker.invoke(when, \'clone\', new java.lang.Object[][])) as java.util.Date)')
+     }
+ 
+     public void testAnonymousInnerClass() {

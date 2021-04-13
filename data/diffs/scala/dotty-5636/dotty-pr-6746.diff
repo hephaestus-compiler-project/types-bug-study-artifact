@@ -1,0 +1,35 @@
+diff --git a/compiler/src/dotty/tools/dotc/typer/Typer.scala b/compiler/src/dotty/tools/dotc/typer/Typer.scala
+index 547f132d2066..7de0a03d0134 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Typer.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Typer.scala
+@@ -300,13 +300,9 @@ class Typer extends Namer
+                 if (isSelfDenot(defDenot)) curOwner.enclosingClass.thisType
+                 else {
+                   val effectiveOwner =
+-                    if (curOwner.isTerm && defDenot.symbol.isType)
++                    if (curOwner.isTerm && defDenot.symbol.maybeOwner.isType)
+                       // Don't mix NoPrefix and thisType prefixes, since type comparer
+-                      // would not detect types to be compatible. Note: If we replace the
+-                      // 2nd condition by `defDenot.symbol.maybeOwner.isType` we get lots
+-                      // of failures in the `tastyBootstrap` test. Trying to compile these
+-                      // files in isolation works though.
+-                      // TODO: Investigate why that happens.
++                      // would not detect types to be compatible.
+                       defDenot.symbol.owner
+                     else
+                       curOwner
+diff --git a/tests/pos/i5636.scala b/tests/pos/i5636.scala
+new file mode 100644
+index 000000000000..0a38439d718e
+--- /dev/null
++++ b/tests/pos/i5636.scala
+@@ -0,0 +1,9 @@
++class A
++trait Bar[X] {
++  // same for `val foo: X = ???`
++  def foo: X = ???
++}
++// same for `class Foo(...)...`
++trait Foo(val a: A) extends Bar[a.type] {
++  val same: a.type = foo
++}

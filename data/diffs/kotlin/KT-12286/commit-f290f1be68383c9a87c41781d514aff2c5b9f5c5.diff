@@ -1,0 +1,218 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallCompleter.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallCompleter.kt
+index 291e136f05a..428ca4c6b2e 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallCompleter.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallCompleter.kt
+@@ -17,6 +17,8 @@
+ package org.jetbrains.kotlin.resolve.calls
+ 
+ import org.jetbrains.kotlin.builtins.KotlinBuiltIns
++import org.jetbrains.kotlin.builtins.getReturnTypeFromFunctionType
++import org.jetbrains.kotlin.builtins.isFunctionType
+ import org.jetbrains.kotlin.config.LanguageFeatureSettings
+ import org.jetbrains.kotlin.coroutines.controllerTypeIfCoroutine
+ import org.jetbrains.kotlin.coroutines.resolveCoroutineHandleResultCallIfNeeded
+@@ -172,6 +174,15 @@ class CallCompleter(
+     ) {
+         val returnType = candidateDescriptor.returnType
+ 
++        val expectedReturnType =
++                if (isResolvingCallableReference(call)) {
++                    // TODO: compute generic type argument for R in the kotlin.Function<R> supertype (KT-12963)
++                    // TODO: also add constraints for parameter types (KT-12964)
++                    if (!TypeUtils.noExpectedType(expectedType) && expectedType.isFunctionType) getReturnTypeFromFunctionType(expectedType)
++                    else TypeUtils.NO_EXPECTED_TYPE
++                }
++                else expectedType
++
+         fun ConstraintSystem.Builder.returnTypeInSystem(): KotlinType? =
+                 returnType?.let {
+                     val substitutor = typeVariableSubstitutors[call.toHandle()] ?: error("No substitutor for call: $call")
+@@ -185,11 +196,11 @@ class CallCompleter(
+             }
+         }
+ 
+-        if (returnType != null && !TypeUtils.noExpectedType(expectedType)) {
++        if (returnType != null && !TypeUtils.noExpectedType(expectedReturnType)) {
+             updateSystemIfNeeded { builder ->
+                 val returnTypeInSystem = builder.returnTypeInSystem()
+                 if (returnTypeInSystem != null) {
+-                    builder.addSubtypeConstraint(returnTypeInSystem, expectedType, EXPECTED_TYPE_POSITION.position())
++                    builder.addSubtypeConstraint(returnTypeInSystem, expectedReturnType, EXPECTED_TYPE_POSITION.position())
+                     builder.build()
+                 }
+                 else null
+@@ -209,7 +220,7 @@ class CallCompleter(
+             }
+         }
+ 
+-        if (returnType != null && expectedType === TypeUtils.UNIT_EXPECTED_TYPE) {
++        if (returnType != null && expectedReturnType === TypeUtils.UNIT_EXPECTED_TYPE) {
+             updateSystemIfNeeded { builder ->
+                 val returnTypeInSystem = builder.returnTypeInSystem()
+                 if (returnTypeInSystem != null) {
+@@ -230,6 +241,11 @@ class CallCompleter(
+         setResultingSubstitutor(system.resultingSubstitutor)
+     }
+ 
++    private fun isResolvingCallableReference(call: Call): Boolean {
++        val callElement = call.callElement
++        return (callElement.parent as? KtCallableReferenceExpression)?.callableReference == callElement
++    }
++
+     private fun <D : CallableDescriptor> MutableResolvedCall<D>.updateResolutionStatusFromConstraintSystem(
+             context: BasicCallResolutionContext,
+             tracing: TracingStrategy
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.kt
+index 2d1e64b66ed..3428e7abc9f 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.kt
+@@ -163,12 +163,24 @@ class CandidateResolver(
+                             },
+                             reflectionTypes, scope.ownerDescriptor
+                     )
+-                    if (candidateKCallableType == null || !KotlinTypeChecker.DEFAULT.isSubtypeOf(candidateKCallableType, expectedType)) {
++                    if (candidateKCallableType == null ||
++                        !canBeSubtype(candidateKCallableType, expectedType, candidateCall.candidateDescriptor.typeParameters)) {
+                         candidateCall.addStatus(OTHER_ERROR)
+                     }
+                 }
+             }
+ 
++    private fun canBeSubtype(subType: KotlinType, superType: KotlinType, candidateTypeParameters: List<TypeParameterDescriptor>): Boolean {
++        // Here we need to check that there exists a substitution from type parameters (used in types in candidate signature)
++        // to arguments such that substituted candidateKCallableType would be a subtype of expectedType.
++        // It looks like in general this can only be decided by constructing a constraint system and checking
++        // if it has a contradiction. Currently we use a heuristic that may not work ideally in all cases.
++        // TODO: use constraint system to check if candidateKCallableType can be a subtype of expectedType
++        val substituteDontCare = makeConstantSubstitutor(candidateTypeParameters, TypeUtils.DONT_CARE)
++        val subTypeSubstituted = substituteDontCare.substitute(subType, Variance.INVARIANT) ?: return true
++        return KotlinTypeChecker.ERROR_TYPES_ARE_EQUAL_TO_ANYTHING.isSubtypeOf(subTypeSubstituted, superType)
++    }
++
+     private fun CallCandidateResolutionContext<*>.checkVisibilityWithoutReceiver() = checkAndReport {
+         checkVisibilityWithDispatchReceiver(Visibilities.ALWAYS_SUITABLE_RECEIVER, null)
+     }
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/kt10968.kt b/compiler/testData/diagnostics/tests/callableReference/generic/kt10968.kt
+new file mode 100644
+index 00000000000..fa82df7a68f
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/kt10968.kt
+@@ -0,0 +1,11 @@
++// !DIAGNOSTICS: -UNUSED_VARIABLE
++// KT-10968 Callable reference: type inference by function return type
++
++fun <T> getT(): T = null!!
++
++fun getString() = ""
++
++fun test() {
++    val a : () -> String = ::getString
++    val b : () -> String = ::getT
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/kt10968.txt b/compiler/testData/diagnostics/tests/callableReference/generic/kt10968.txt
+new file mode 100644
+index 00000000000..d058a8ddaee
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/kt10968.txt
+@@ -0,0 +1,5 @@
++package
++
++public fun getString(): kotlin.String
++public fun </*0*/ T> getT(): T
++public fun test(): kotlin.Unit
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/kt11075.kt b/compiler/testData/diagnostics/tests/callableReference/generic/kt11075.kt
+new file mode 100644
+index 00000000000..8648a002e0b
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/kt11075.kt
+@@ -0,0 +1,10 @@
++// KT-11075 NONE_APPLICABLE reported for callable reference to an overloaded generic function with expected type provided
++
++object TestCallableReferences {
++    fun <A> foo(x: A) = x
++    fun <B> foo(x: List<B>) = x
++
++    fun test0(): (String) -> String = TestCallableReferences::foo
++
++    fun <T> test1(): (List<T>) -> List<T> = TestCallableReferences::foo
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/kt11075.txt b/compiler/testData/diagnostics/tests/callableReference/generic/kt11075.txt
+new file mode 100644
+index 00000000000..21820ba32a4
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/kt11075.txt
+@@ -0,0 +1,12 @@
++package
++
++public object TestCallableReferences {
++    private constructor TestCallableReferences()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final fun </*0*/ A> foo(/*0*/ x: A): A
++    public final fun </*0*/ B> foo(/*0*/ x: kotlin.collections.List<B>): kotlin.collections.List<B>
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun test0(): (kotlin.String) -> kotlin.String
++    public final fun </*0*/ T> test1(): (kotlin.collections.List<T>) -> kotlin.collections.List<T>
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/kt12286.kt b/compiler/testData/diagnostics/tests/callableReference/generic/kt12286.kt
+new file mode 100644
+index 00000000000..2286bb05bcf
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/kt12286.kt
+@@ -0,0 +1,8 @@
++// !DIAGNOSTICS: -UNUSED_VARIABLE
++// KT-12286 Strange type is required for generic callable reference
++
++fun <T: Comparable<T>> maxOf(a: T, b: T): T = if (a < b) b else a
++
++fun <T: Comparable<T>> useMaxOf() {
++    val f: (T, T) -> T = ::maxOf
++}
+diff --git a/compiler/testData/diagnostics/tests/callableReference/generic/kt12286.txt b/compiler/testData/diagnostics/tests/callableReference/generic/kt12286.txt
+new file mode 100644
+index 00000000000..e32227ec8ca
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/callableReference/generic/kt12286.txt
+@@ -0,0 +1,4 @@
++package
++
++public fun </*0*/ T : kotlin.Comparable<T>> maxOf(/*0*/ a: T, /*1*/ b: T): T
++public fun </*0*/ T : kotlin.Comparable<T>> useMaxOf(): kotlin.Unit
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 3469cbcfa98..d6daa37b85a 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -2085,6 +2085,33 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 }
+             }
+ 
++            @TestMetadata("compiler/testData/diagnostics/tests/callableReference/generic")
++            @TestDataPath("$PROJECT_ROOT")
++            @RunWith(JUnit3RunnerWithInners.class)
++            public static class Generic extends AbstractDiagnosticsTest {
++                public void testAllFilesPresentInGeneric() throws Exception {
++                    KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/diagnostics/tests/callableReference/generic"), Pattern.compile("^(.+)\\.kt$"), true);
++                }
++
++                @TestMetadata("kt10968.kt")
++                public void testKt10968() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/kt10968.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("kt11075.kt")
++                public void testKt11075() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/kt11075.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("kt12286.kt")
++                public void testKt12286() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/callableReference/generic/kt12286.kt");
++                    doTest(fileName);
++                }
++            }
++
+             @TestMetadata("compiler/testData/diagnostics/tests/callableReference/property")
+             @TestDataPath("$PROJECT_ROOT")
+             @RunWith(JUnit3RunnerWithInners.class)

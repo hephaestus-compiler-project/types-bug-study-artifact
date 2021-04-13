@@ -1,0 +1,474 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+index ca5f322bffb..ae11b637fcf 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+@@ -296,7 +296,7 @@ public interface Errors {
+ 
+     // Members
+ 
+-    DiagnosticFactory2<KtDeclaration, CallableMemberDescriptor, DeclarationDescriptor> CONFLICTING_OVERLOADS =
++    DiagnosticFactory2<PsiElement, CallableMemberDescriptor, DeclarationDescriptor> CONFLICTING_OVERLOADS =
+             DiagnosticFactory2.create(ERROR, DECLARATION_SIGNATURE_OR_DEFAULT);
+ 
+     DiagnosticFactory0<KtNamedDeclaration> NON_FINAL_MEMBER_IN_FINAL_CLASS = DiagnosticFactory0.create(WARNING, modifierSetPosition(
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/TraceBasedRedeclarationHandler.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/TraceBasedRedeclarationHandler.java
+index ddb0aadc248..8a5ee243f8d 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/TraceBasedRedeclarationHandler.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/TraceBasedRedeclarationHandler.java
+@@ -18,9 +18,11 @@ package org.jetbrains.kotlin.resolve;
+ 
+ import com.intellij.psi.PsiElement;
+ import org.jetbrains.annotations.NotNull;
++import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor;
+ import org.jetbrains.kotlin.descriptors.DeclarationDescriptor;
+ import org.jetbrains.kotlin.resolve.scopes.RedeclarationHandler;
+ 
++import static org.jetbrains.kotlin.diagnostics.Errors.CONFLICTING_OVERLOADS;
+ import static org.jetbrains.kotlin.diagnostics.Errors.REDECLARATION;
+ 
+ public class TraceBasedRedeclarationHandler implements RedeclarationHandler {
+@@ -32,11 +34,27 @@ public class TraceBasedRedeclarationHandler implements RedeclarationHandler {
+     
+     @Override
+     public void handleRedeclaration(@NotNull DeclarationDescriptor first, @NotNull DeclarationDescriptor second) {
+-        report(first);
+-        report(second);
++        reportRedeclaration(first);
++        reportRedeclaration(second);
+     }
+ 
+-    private void report(DeclarationDescriptor descriptor) {
++    @Override
++    public void handleConflictingOverloads(@NotNull CallableMemberDescriptor first, @NotNull CallableMemberDescriptor second) {
++        reportConflictingOverloads(first, second.getContainingDeclaration());
++        reportConflictingOverloads(second, first.getContainingDeclaration());
++    }
++
++    private void reportConflictingOverloads(CallableMemberDescriptor conflicting, DeclarationDescriptor withContainedIn) {
++        PsiElement reportElement = DescriptorToSourceUtils.descriptorToDeclaration(conflicting);
++        if (reportElement != null) {
++            trace.report(CONFLICTING_OVERLOADS.on(reportElement, conflicting, withContainedIn));
++        }
++        else {
++            throw new IllegalStateException("No declaration found for " + conflicting);
++        }
++    }
++
++    private void reportRedeclaration(DeclarationDescriptor descriptor) {
+         PsiElement firstElement = DescriptorToSourceUtils.descriptorToDeclaration(descriptor);
+         if (firstElement != null) {
+             trace.report(REDECLARATION.on(firstElement, descriptor.getName().asString()));
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/scopes/RedeclarationHandler.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/scopes/RedeclarationHandler.java
+index 7e96bc6c28c..acd676e919a 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/scopes/RedeclarationHandler.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/scopes/RedeclarationHandler.java
+@@ -17,6 +17,7 @@
+ package org.jetbrains.kotlin.resolve.scopes;
+ 
+ import org.jetbrains.annotations.NotNull;
++import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor;
+ import org.jetbrains.kotlin.descriptors.DeclarationDescriptor;
+ import org.jetbrains.kotlin.resolve.DescriptorUtils;
+ 
+@@ -25,6 +26,10 @@ public interface RedeclarationHandler {
+         @Override
+         public void handleRedeclaration(@NotNull DeclarationDescriptor first, @NotNull DeclarationDescriptor second) {
+         }
++
++        @Override
++        public void handleConflictingOverloads(@NotNull CallableMemberDescriptor first, @NotNull CallableMemberDescriptor second) {
++        }
+     };
+     RedeclarationHandler THROW_EXCEPTION = new RedeclarationHandler() {
+         @Override
+@@ -34,7 +39,17 @@ public interface RedeclarationHandler {
+                                   DescriptorUtils.getFqName(second), second)
+             );
+         }
++
++        @Override
++        public void handleConflictingOverloads(@NotNull CallableMemberDescriptor first, @NotNull CallableMemberDescriptor second) {
++            throw new IllegalStateException(
++                    String.format("Conflicting overloads: %s (%s) and %s (%s) (no line info available)",
++                                  DescriptorUtils.getFqName(first), first,
++                                  DescriptorUtils.getFqName(second), second)
++            );
++        }
+     };
+ 
+     void handleRedeclaration(@NotNull DeclarationDescriptor first, @NotNull DeclarationDescriptor second);
++    void handleConflictingOverloads(@NotNull CallableMemberDescriptor first, @NotNull CallableMemberDescriptor second);
+ }
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/scopes/WritableScopeStorage.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/scopes/WritableScopeStorage.kt
+index bc3e66e12f4..3160bf9dc0b 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/scopes/WritableScopeStorage.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/scopes/WritableScopeStorage.kt
+@@ -17,11 +17,9 @@
+ package org.jetbrains.kotlin.resolve.scopes
+ 
+ import com.intellij.util.SmartList
+-import org.jetbrains.kotlin.descriptors.ClassifierDescriptor
+-import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
+-import org.jetbrains.kotlin.descriptors.FunctionDescriptor
+-import org.jetbrains.kotlin.descriptors.VariableDescriptor
++import org.jetbrains.kotlin.descriptors.*
+ import org.jetbrains.kotlin.name.Name
++import org.jetbrains.kotlin.resolve.OverloadUtil
+ import java.util.*
+ 
+ abstract class WritableScopeStorage(val redeclarationHandler: RedeclarationHandler) {
+@@ -50,16 +48,34 @@ abstract class WritableScopeStorage(val redeclarationHandler: RedeclarationHandl
+     }
+ 
+     protected fun addFunctionDescriptorInternal(functionDescriptor: FunctionDescriptor) {
+-        val descriptorIndex = addDescriptor(functionDescriptor)
++        checkOverloadConflicts(functionDescriptor)
+ 
++        val name = functionDescriptor.name
++        val descriptorIndex = addDescriptor(functionDescriptor)
+         if (functionsByName == null) {
+             functionsByName = HashMap(1)
+         }
+-        val name = functionDescriptor.name
+         //TODO: could not use += because of KT-8050
+         functionsByName!![name] = functionsByName!![name] + descriptorIndex
+     }
+ 
++    private fun checkOverloadConflicts(functionDescriptor: FunctionDescriptor) {
++        val name = functionDescriptor.name
++        val originalFunctions = functionsByName(name).orEmpty()
++        val originalVariableOrClass = variableOrClassDescriptorByName(name)
++        val potentiallyConflictingOverloads =
++                if (originalVariableOrClass is ClassDescriptor)
++                    originalFunctions + originalVariableOrClass.constructors
++                else
++                    originalFunctions
++        for (overloadedDescriptor in potentiallyConflictingOverloads) {
++            if (!OverloadUtil.isOverloadable(overloadedDescriptor, functionDescriptor)) {
++                redeclarationHandler.handleConflictingOverloads(functionDescriptor, overloadedDescriptor)
++                break
++            }
++        }
++    }
++
+     protected fun variableOrClassDescriptorByName(name: Name, descriptorLimit: Int = addedDescriptors.size): DeclarationDescriptor? {
+         if (descriptorLimit == 0) return null
+ 
+diff --git a/compiler/testData/diagnostics/tests/declarationChecks/FunctionWithMissingNames.kt b/compiler/testData/diagnostics/tests/declarationChecks/FunctionWithMissingNames.kt
+index 4df483c4293..978845bf5ea 100644
+--- a/compiler/testData/diagnostics/tests/declarationChecks/FunctionWithMissingNames.kt
++++ b/compiler/testData/diagnostics/tests/declarationChecks/FunctionWithMissingNames.kt
+@@ -18,9 +18,9 @@ class Outer {
+ }
+ 
+ fun outerFun() {
+-    <!FUNCTION_DECLARATION_WITH_NO_NAME!>fun ()<!> {}
++    <!FUNCTION_DECLARATION_WITH_NO_NAME, CONFLICTING_OVERLOADS!>fun ()<!> {}
+     <!FUNCTION_DECLARATION_WITH_NO_NAME!>fun B.()<!> {}
+ 
+-    <!FUNCTION_DECLARATION_WITH_NO_NAME!>@a fun ()<!> {}
++    <!FUNCTION_DECLARATION_WITH_NO_NAME, CONFLICTING_OVERLOADS!>@a fun ()<!> {}
+     <!FUNCTION_DECLARATION_WITH_NO_NAME!>fun @a A.()<!> {}
+ }
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/duplicateJvmSignature/missingNames.kt b/compiler/testData/diagnostics/tests/duplicateJvmSignature/missingNames.kt
+index cfd1849fa0e..cc975df88e6 100644
+--- a/compiler/testData/diagnostics/tests/duplicateJvmSignature/missingNames.kt
++++ b/compiler/testData/diagnostics/tests/duplicateJvmSignature/missingNames.kt
+@@ -58,10 +58,10 @@ class Outer {
+ }
+ 
+ fun outerFun() {
+-    <!FUNCTION_DECLARATION_WITH_NO_NAME!>fun ()<!> {
++    <!FUNCTION_DECLARATION_WITH_NO_NAME, CONFLICTING_OVERLOADS!>fun ()<!> {
+ 
+     }
+-    <!FUNCTION_DECLARATION_WITH_NO_NAME!>fun ()<!> {
++    <!FUNCTION_DECLARATION_WITH_NO_NAME, CONFLICTING_OVERLOADS!>fun ()<!> {
+ 
+     }
+ }
+diff --git a/compiler/testData/diagnostics/tests/overload/LocalFunctions.kt b/compiler/testData/diagnostics/tests/overload/LocalFunctions.kt
+new file mode 100644
+index 00000000000..1898fb1c6e0
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/overload/LocalFunctions.kt
+@@ -0,0 +1,213 @@
++fun test() {
++    <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++    <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++
++    fun Any.test2() {}
++    fun test2(x: Any) = x
++
++    <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++    <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++
++    <!CONFLICTING_OVERLOADS!>fun test4(): Int<!> = 0
++    <!CONFLICTING_OVERLOADS!>fun test4(): String<!> = ""
++
++    class Test5<!CONFLICTING_OVERLOADS!>(val x: Int)<!> {
++        <!CONFLICTING_OVERLOADS!>constructor()<!>: this(0)
++    }
++    <!CONFLICTING_OVERLOADS!>fun Test5()<!> {}
++    <!CONFLICTING_OVERLOADS!>fun Test5(x: Int)<!> = x
++
++    fun local() {
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++
++        fun Any.test2() {}
++        fun test2(x: Any) = x
++
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++
++        <!CONFLICTING_OVERLOADS!>fun test4(): Int<!> = 0
++        <!CONFLICTING_OVERLOADS!>fun test4(): String<!> = ""
++
++        class Test5<!CONFLICTING_OVERLOADS!>(val x: Int)<!> {
++            <!CONFLICTING_OVERLOADS!>constructor()<!>: this(0)
++        }
++        <!CONFLICTING_OVERLOADS!>fun Test5()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Test5(x: Int)<!> = x
++    }
++}
++
++class Test {
++    init {
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++
++        fun Any.test2() {}
++        fun test2(x: Any) = x
++
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++
++        <!CONFLICTING_OVERLOADS!>fun test4(): Int<!> = 0
++        <!CONFLICTING_OVERLOADS!>fun test4(): String<!> = ""
++
++        class Test5<!CONFLICTING_OVERLOADS!>(val x: Int)<!> {
++            <!CONFLICTING_OVERLOADS!>constructor()<!>: this(0)
++        }
++        <!CONFLICTING_OVERLOADS!>fun Test5()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Test5(x: Int)<!> = x
++    }
++
++    fun test() {
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++
++        fun Any.test2() {}
++        fun test2(x: Any) = x
++
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++
++        <!CONFLICTING_OVERLOADS!>fun test4(): Int<!> = 0
++        <!CONFLICTING_OVERLOADS!>fun test4(): String<!> = ""
++
++        class Test5<!CONFLICTING_OVERLOADS!>(val x: Int)<!> {
++            <!CONFLICTING_OVERLOADS!>constructor()<!>: this(0)
++        }
++        <!CONFLICTING_OVERLOADS!>fun Test5()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Test5(x: Int)<!> = x
++    }
++
++    val property: Any get() {
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++
++        fun Any.test2() {}
++        fun test2(x: Any) = x
++
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++
++        <!CONFLICTING_OVERLOADS!>fun test4(): Int<!> = 0
++        <!CONFLICTING_OVERLOADS!>fun test4(): String<!> = ""
++
++        class Test5<!CONFLICTING_OVERLOADS!>(val x: Int)<!> {
++            <!CONFLICTING_OVERLOADS!>constructor()<!>: this(0)
++        }
++        <!CONFLICTING_OVERLOADS!>fun Test5()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Test5(x: Int)<!> = x
++
++        return 0
++    }
++}
++
++val property: Any get() {
++    <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++    <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++
++    fun Any.test2() {}
++    fun test2(x: Any) = x
++
++    <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++    <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++
++    <!CONFLICTING_OVERLOADS!>fun test4(): Int<!> = 0
++    <!CONFLICTING_OVERLOADS!>fun test4(): String<!> = ""
++
++    class Test5<!CONFLICTING_OVERLOADS!>(val x: Int)<!> {
++        <!CONFLICTING_OVERLOADS!>constructor()<!>: this(0)
++    }
++    <!CONFLICTING_OVERLOADS!>fun Test5()<!> {}
++    <!CONFLICTING_OVERLOADS!>fun Test5(x: Int)<!> = x
++
++    return 0
++}
++
++object Object {
++    fun test() {
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++
++        fun Any.test2() {}
++        fun test2(x: Any) = x
++
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++
++        <!CONFLICTING_OVERLOADS!>fun test4(): Int<!> = 0
++        <!CONFLICTING_OVERLOADS!>fun test4(): String<!> = ""
++
++        class Test5<!CONFLICTING_OVERLOADS!>(val x: Int)<!> {
++            <!CONFLICTING_OVERLOADS!>constructor()<!>: this(0)
++        }
++        <!CONFLICTING_OVERLOADS!>fun Test5()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Test5(x: Int)<!> = x
++    }
++
++    val property: Any get() {
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++
++        fun Any.test2() {}
++        fun test2(x: Any) = x
++
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++
++        <!CONFLICTING_OVERLOADS!>fun test4(): Int<!> = 0
++        <!CONFLICTING_OVERLOADS!>fun test4(): String<!> = ""
++
++        class Test5<!CONFLICTING_OVERLOADS!>(val x: Int)<!> {
++            <!CONFLICTING_OVERLOADS!>constructor()<!>: this(0)
++        }
++        <!CONFLICTING_OVERLOADS!>fun Test5()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Test5(x: Int)<!> = x
++
++        return 0
++    }
++}
++
++val obj = object {
++    fun test() {
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++
++        fun Any.test2() {}
++        fun test2(x: Any) = x
++
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++
++        <!CONFLICTING_OVERLOADS!>fun test4(): Int<!> = 0
++        <!CONFLICTING_OVERLOADS!>fun test4(): String<!> = ""
++
++        class Test5<!CONFLICTING_OVERLOADS!>(val x: Int)<!> {
++            <!CONFLICTING_OVERLOADS!>constructor()<!>: this(0)
++        }
++        <!CONFLICTING_OVERLOADS!>fun Test5()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Test5(x: Int)<!> = x
++    }
++
++    val property: Any get() {
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
++
++        fun Any.test2() {}
++        fun test2(x: Any) = x
++
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Any.test3()<!> {}
++
++        <!CONFLICTING_OVERLOADS!>fun test4(): Int<!> = 0
++        <!CONFLICTING_OVERLOADS!>fun test4(): String<!> = ""
++
++        class Test5<!CONFLICTING_OVERLOADS!>(val x: Int)<!> {
++            <!CONFLICTING_OVERLOADS!>constructor()<!>: this(0)
++        }
++        <!CONFLICTING_OVERLOADS!>fun Test5()<!> {}
++        <!CONFLICTING_OVERLOADS!>fun Test5(x: Int)<!> = x
++
++        return 0
++    }
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/overload/LocalFunctions.txt b/compiler/testData/diagnostics/tests/overload/LocalFunctions.txt
+new file mode 100644
+index 00000000000..9475a6d7a6b
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/overload/LocalFunctions.txt
+@@ -0,0 +1,23 @@
++package
++
++public val obj: kotlin.Any
++public val property: kotlin.Any
++public fun test(): kotlin.Unit
++
++public object Object {
++    private constructor Object()
++    public final val property: kotlin.Any
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun test(): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Test {
++    public constructor Test()
++    public final val property: kotlin.Any
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun test(): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 15c8eae59c1..ff9cc269959 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -11781,6 +11781,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("LocalFunctions.kt")
++            public void testLocalFunctions() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/overload/LocalFunctions.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("OverloadFunRegularAndExt.kt")
+             public void testOverloadFunRegularAndExt() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/overload/OverloadFunRegularAndExt.kt");
+diff --git a/idea/testData/unifier/equivalence/declarations/localCallables/localExtensionFunctions.kt b/idea/testData/unifier/equivalence/declarations/localCallables/localExtensionFunctions.kt
+index 9bedf65a2eb..81085e22483 100644
+--- a/idea/testData/unifier/equivalence/declarations/localCallables/localExtensionFunctions.kt
++++ b/idea/testData/unifier/equivalence/declarations/localCallables/localExtensionFunctions.kt
+@@ -1,3 +1,4 @@
++// DISABLE-ERRORS
+ class A(val n: Int)
+ 
+ fun test() {
+diff --git a/idea/testData/unifier/equivalence/declarations/localCallables/localFunctions.kt b/idea/testData/unifier/equivalence/declarations/localCallables/localFunctions.kt
+index 1f3b20900a5..1b9a13d65f2 100644
+--- a/idea/testData/unifier/equivalence/declarations/localCallables/localFunctions.kt
++++ b/idea/testData/unifier/equivalence/declarations/localCallables/localFunctions.kt
+@@ -1,3 +1,4 @@
++// DISABLE-ERRORS
+ class A(val n: Int)
+ 
+ fun test() {

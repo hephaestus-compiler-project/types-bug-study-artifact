@@ -1,0 +1,161 @@
+diff --git a/compiler/testData/diagnostics/tests/j+k/kt6720_abstractProperty.kt b/compiler/testData/diagnostics/tests/j+k/kt6720_abstractProperty.kt
+new file mode 100644
+index 00000000000..b406a3a6ffc
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/j+k/kt6720_abstractProperty.kt
+@@ -0,0 +1,18 @@
++// FILE: AC.kt
++
++trait A {
++    val a: Int
++}
++
++// FILE: B.java
++
++public abstract class B implements A {
++}
++
++// FILE: C.kt
++
++<!ABSTRACT_MEMBER_NOT_IMPLEMENTED!>class C<!> : B()
++
++fun main() {
++    C().a
++}
+diff --git a/compiler/testData/diagnostics/tests/j+k/kt6720_abstractProperty.txt b/compiler/testData/diagnostics/tests/j+k/kt6720_abstractProperty.txt
+new file mode 100644
+index 00000000000..37463fcf716
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/j+k/kt6720_abstractProperty.txt
+@@ -0,0 +1,26 @@
++package
++
++internal fun main(): kotlin.Unit
++
++internal trait A {
++    internal abstract val a: kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public abstract class B : A {
++    public constructor B()
++    internal abstract override /*1*/ /*fake_override*/ val a: kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++internal final class C : B {
++    public constructor C()
++    internal abstract override /*1*/ /*fake_override*/ val a: kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
+index a9b40045b05..81051aa43eb 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
+@@ -6780,6 +6780,12 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("kt6720_abstractProperty.kt")
++            public void testKt6720_abstractProperty() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/j+k/kt6720_abstractProperty.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("mutableIterator.kt")
+             public void testMutableIterator() throws Exception {
+                 String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/j+k/mutableIterator.kt");
+diff --git a/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyJavaClassMemberScope.kt b/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyJavaClassMemberScope.kt
+index 6e7939d9dfc..777b21bb924 100644
+--- a/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyJavaClassMemberScope.kt
++++ b/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyJavaClassMemberScope.kt
+@@ -36,6 +36,7 @@ import org.jetbrains.kotlin.load.java.descriptors.JavaConstructorDescriptor
+ import org.jetbrains.kotlin.load.java.components.DescriptorResolverUtils
+ import org.jetbrains.kotlin.types.JetType
+ import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
++import java.util.LinkedHashSet
+ 
+ public class LazyJavaClassMemberScope(
+         c: LazyJavaResolverContext,
+@@ -233,6 +234,14 @@ public class LazyJavaClassMemberScope(
+     override fun getClassNames(kindFilter: DescriptorKindFilter, nameFilter: (Name) -> Boolean): Collection<Name>
+             = nestedClassIndex().keySet() + enumEntryIndex().keySet()
+ 
++    override fun getPropertyNames(kindFilter: DescriptorKindFilter, nameFilter: (Name) -> Boolean): Collection<Name> =
++            memberIndex().getAllFieldNames() +
++            getContainingDeclaration().getTypeConstructor().getSupertypes().flatMapTo(LinkedHashSet<Name>()) { supertype ->
++                supertype.getMemberScope().getDescriptors(kindFilter, nameFilter).map { variable ->
++                    variable.getName()
++                }
++            }
++
+     // TODO
+     override fun getImplicitReceiversHierarchy(): List<ReceiverParameterDescriptor> = listOf()
+ 
+diff --git a/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyJavaMemberScope.kt b/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyJavaMemberScope.kt
+index f72ebe5b10b..8a9f20fba8c 100644
+--- a/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyJavaMemberScope.kt
++++ b/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyJavaMemberScope.kt
+@@ -219,6 +219,8 @@ public abstract class LazyJavaMemberScope(
+ 
+     protected abstract fun computeNonDeclaredProperties(name: Name, result: MutableCollection<PropertyDescriptor>)
+ 
++    protected abstract fun getPropertyNames(kindFilter: DescriptorKindFilter, nameFilter: (Name) -> Boolean): Collection<Name>
++
+     private val properties = c.storageManager.createMemoizedFunction {
+         (name: Name) ->
+         val properties = ArrayList<PropertyDescriptor>()
+@@ -288,9 +290,6 @@ public abstract class LazyJavaMemberScope(
+ 
+     override fun getProperties(name: Name): Collection<VariableDescriptor> = properties(name)
+ 
+-    // we do not have nameFilter here because it only makes sense in package but java package does not contain any properties
+-    protected open fun getAllPropertyNames(): Collection<Name> = memberIndex().getAllFieldNames()
+-
+     override fun getLocalVariable(name: Name): VariableDescriptor? = null
+     override fun getDeclarationsByLabel(labelName: Name) = listOf<DeclarationDescriptor>()
+ 
+@@ -321,7 +320,7 @@ public abstract class LazyJavaMemberScope(
+         }
+ 
+         if (kindFilter.acceptsKinds(DescriptorKindFilter.VARIABLES_MASK) && !kindFilter.excludes.contains(NonExtensions)) {
+-            for (name in getAllPropertyNames()) {
++            for (name in getPropertyNames(kindFilter, nameFilter)) {
+                 if (nameFilter(name)) {
+                     result.addAll(getProperties(name))
+                 }
+diff --git a/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyJavaStaticClassScope.kt b/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyJavaStaticClassScope.kt
+index 3f7d6dbba95..08eee39184a 100644
+--- a/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyJavaStaticClassScope.kt
++++ b/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyJavaStaticClassScope.kt
+@@ -49,7 +49,10 @@ public class LazyJavaStaticClassScope(
+         }
+         return super.getFunctionNames(kindFilter, nameFilter)
+     }
+-    
++
++    override fun getPropertyNames(kindFilter: DescriptorKindFilter, nameFilter: (Name) -> Boolean): Collection<Name> =
++            memberIndex().getAllFieldNames()
++
+     override fun getClassNames(kindFilter: DescriptorKindFilter, nameFilter: (Name) -> Boolean): Collection<Name> = listOf()
+     override fun getClassifier(name: Name): ClassifierDescriptor? = null
+ 
+diff --git a/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyPackageFragmentScopeForJavaPackage.kt b/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyPackageFragmentScopeForJavaPackage.kt
+index c34decd5ee7..f0b717e9dc2 100644
+--- a/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyPackageFragmentScopeForJavaPackage.kt
++++ b/core/descriptor.loader.java/src/org/jetbrains/kotlin/load/java/lazy/descriptors/LazyPackageFragmentScopeForJavaPackage.kt
+@@ -110,7 +110,7 @@ public class LazyPackageFragmentScopeForJavaPackage(
+ 
+     override fun getSubPackages() = subPackages()
+ 
+-    override fun getAllPropertyNames() = listOf<Name>()
++    override fun getPropertyNames(kindFilter: DescriptorKindFilter, nameFilter: (Name) -> Boolean) = listOf<Name>()
+ 
+     // we don't use implementation from super which caches all descriptors and does not use filters
+     override fun getDescriptors(kindFilter: DescriptorKindFilter, nameFilter: (Name) -> Boolean): Collection<DeclarationDescriptor> {

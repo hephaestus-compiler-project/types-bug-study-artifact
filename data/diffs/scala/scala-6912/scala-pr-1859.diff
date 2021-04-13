@@ -1,0 +1,43 @@
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Infer.scala b/src/compiler/scala/tools/nsc/typechecker/Infer.scala
+index 7ae8923e4321..771b1255d338 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Infer.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Infer.scala
+@@ -1510,6 +1510,13 @@ trait Infer extends Checkable {
+         } else if (!competing.isEmpty) {
+           if (noAlternatives) NoBestExprAlternativeError(tree, pt, isSecondTry)
+           else if (!pt.isErroneous) AmbiguousExprAlternativeError(tree, pre, best, competing.head, pt, isSecondTry)
++          else {
++            // SI-6912 Don't give up and leave an OverloadedType on the tree.
++            //         Originally I wrote this as `if (secondTry) ... `, but `tryTwice` won't attempt the second try
++            //         unless an error is issued. We're not issuing an error, in the assumption that it would be
++            //         spurious in light of the erroneous expected type
++            setError(tree)
++          }
+         } else {
+ //          val applicable = alts1 filter (alt =>
+ //            global.typer.infer.isWeaklyCompatible(pre.memberType(alt), pt))
+diff --git a/test/files/neg/t6912.check b/test/files/neg/t6912.check
+new file mode 100644
+index 000000000000..137b65170555
+--- /dev/null
++++ b/test/files/neg/t6912.check
+@@ -0,0 +1,4 @@
++t6912.scala:8: error: not found: type Xxxx
++  def test[T]: Xxxx = Foo1[T]
++               ^
++one error found
+diff --git a/test/files/neg/t6912.scala b/test/files/neg/t6912.scala
+new file mode 100644
+index 000000000000..f2540ee8c68d
+--- /dev/null
++++ b/test/files/neg/t6912.scala
+@@ -0,0 +1,9 @@
++object Foo1 {
++  def apply[T](a: Int = 0): Nothing = sys.error("")
++  def apply[T](z: String = ""): Nothing = sys.error("")
++}
++
++object Test {
++  // Triggered a cycle in Typers#adapt
++  def test[T]: Xxxx = Foo1[T]
++}

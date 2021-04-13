@@ -1,0 +1,94 @@
+changeset:   2997:2289e78ae8b2
+user:        mcimadamore
+date:        Thu Jul 30 13:21:01 2015 +0100
+summary:     8129214: Access error when unboxing a primitive whose target is a type-variable in a different package
+
+diff -r 3c1da6c1ef9d -r 2289e78ae8b2 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Lower.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Lower.java	Thu Jul 30 13:20:01 2015 +0100
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Lower.java	Thu Jul 30 13:21:01 2015 +0100
+@@ -3084,7 +3084,7 @@
+             if (!unboxedTarget.hasTag(NONE)) {
+                 if (!types.isSubtype(tree.type, unboxedTarget)) //e.g. Character c = 89;
+                     tree.type = unboxedTarget.constType(tree.type.constValue());
+-                return (T)boxPrimitive((JCExpression)tree, type);
++                return (T)boxPrimitive((JCExpression)tree, types.erasure(type));
+             } else {
+                 tree = (T)boxPrimitive((JCExpression)tree);
+             }
+diff -r 3c1da6c1ef9d -r 2289e78ae8b2 test/tools/javac/generics/typevars/8129214/T8129214.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/typevars/8129214/T8129214.java	Thu Jul 30 13:21:01 2015 +0100
+@@ -0,0 +1,38 @@
++/*
++ * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug     8129214
++ * @summary Access error when unboxing a primitive whose target is a type-variable in a different package
++ * @compile T8129214.java
++ */
++import pkg.Foo;
++
++class T8129214 {
++    void test() {
++        Foo.foo(10);
++    }
++}
+diff -r 3c1da6c1ef9d -r 2289e78ae8b2 test/tools/javac/generics/typevars/8129214/pkg/Foo.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/typevars/8129214/pkg/Foo.java	Thu Jul 30 13:21:01 2015 +0100
+@@ -0,0 +1,30 @@
++/*
++ * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++package pkg;
++
++public class Foo {
++    public static <T extends Integer> void foo(T a1){}
++}
+

@@ -1,0 +1,134 @@
+changeset:   1215:6aafebe9a394
+user:        mcimadamore
+date:        Fri Mar 02 12:57:47 2012 +0000
+summary:     7148242: Regression: valid code rejected during generic type well-formedness check
+
+diff -r 161230ec7c73 -r 6aafebe9a394 src/share/classes/com/sun/tools/javac/comp/Check.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Check.java	Fri Mar 02 12:57:04 2012 +0000
++++ b/src/share/classes/com/sun/tools/javac/comp/Check.java	Fri Mar 02 12:57:47 2012 +0000
+@@ -525,16 +525,16 @@
+      *  @param a             The type that should be bounded by bs.
+      *  @param bs            The bound.
+      */
+-    private boolean checkExtends(Type a, TypeVar bs) {
++    private boolean checkExtends(Type a, Type bound) {
+          if (a.isUnbound()) {
+              return true;
+          } else if (a.tag != WILDCARD) {
+              a = types.upperBound(a);
+-             return types.isSubtype(a, bs.bound);
++             return types.isSubtype(a, bound);
+          } else if (a.isExtendsBound()) {
+-             return types.isCastable(bs.getUpperBound(), types.upperBound(a), Warner.noWarnings);
++             return types.isCastable(bound, types.upperBound(a), Warner.noWarnings);
+          } else if (a.isSuperBound()) {
+-             return !types.notSoftSubtype(types.lowerBound(a), bs.getUpperBound());
++             return !types.notSoftSubtype(types.lowerBound(a), bound);
+          }
+          return true;
+      }
+@@ -776,18 +776,16 @@
+             List<Type> actuals = type.allparams();
+             List<Type> args = type.getTypeArguments();
+             List<Type> forms = type.tsym.type.getTypeArguments();
+-            ListBuffer<Type> tvars_buf = new ListBuffer<Type>();
++            ListBuffer<Type> bounds_buf = new ListBuffer<Type>();
+ 
+             // For matching pairs of actual argument types `a' and
+             // formal type parameters with declared bound `b' ...
+             while (args.nonEmpty() && forms.nonEmpty()) {
+                 // exact type arguments needs to know their
+                 // bounds (for upper and lower bound
+-                // calculations).  So we create new TypeVars with
+-                // bounds substed with actuals.
+-                tvars_buf.append(types.substBound(((TypeVar)forms.head),
+-                                                  formals,
+-                                                  actuals));
++                // calculations).  So we create new bounds where
++                // type-parameters are replaced with actuals argument types.
++                bounds_buf.append(types.subst(forms.head.getUpperBound(), formals, actuals));
+                 args = args.tail;
+                 forms = forms.tail;
+             }
+@@ -804,32 +802,30 @@
+             }
+ 
+             args = type.getTypeArguments();
+-            List<Type> tvars = tvars_buf.toList();
++            List<Type> bounds = bounds_buf.toList();
+ 
+-            while (args.nonEmpty() && tvars.nonEmpty()) {
+-                Type actual = types.subst(args.head,
+-                    type.tsym.type.getTypeArguments(),
+-                    tvars_buf.toList());
++            while (args.nonEmpty() && bounds.nonEmpty()) {
++                Type actual = args.head;
+                 if (!isTypeArgErroneous(actual) &&
+-                        !tvars.head.getUpperBound().isErroneous() &&
+-                        !checkExtends(actual, (TypeVar)tvars.head)) {
++                        !bounds.head.isErroneous() &&
++                        !checkExtends(actual, bounds.head)) {
+                     return args.head;
+                 }
+                 args = args.tail;
+-                tvars = tvars.tail;
++                bounds = bounds.tail;
+             }
+ 
+             args = type.getTypeArguments();
+-            tvars = tvars_buf.toList();
++            bounds = bounds_buf.toList();
+ 
+             for (Type arg : types.capture(type).getTypeArguments()) {
+                 if (arg.tag == TYPEVAR &&
+                         arg.getUpperBound().isErroneous() &&
+-                        !tvars.head.getUpperBound().isErroneous() &&
++                        !bounds.head.isErroneous() &&
+                         !isTypeArgErroneous(args.head)) {
+                     return args.head;
+                 }
+-                tvars = tvars.tail;
++                bounds = bounds.tail;
+                 args = args.tail;
+             }
+ 
+diff -r 161230ec7c73 -r 6aafebe9a394 test/tools/javac/generics/typevars/T7148242.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/typevars/T7148242.java	Fri Mar 02 12:57:47 2012 +0000
+@@ -0,0 +1,35 @@
++/*
++ * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug     7148242
++ * @summary Regression: valid code rejected during generic type well-formedness check
++ * @compile T7148242.java
++ */
++class T7148242 {
++   static abstract class A<K, V, I extends Pair<K, V>, I2 extends Pair<V, K>> {
++      abstract A<V, K, I2, I> test();
++   }
++   static class Pair<K, V> { }
++}
+

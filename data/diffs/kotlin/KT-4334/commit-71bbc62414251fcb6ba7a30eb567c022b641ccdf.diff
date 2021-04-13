@@ -1,0 +1,129 @@
+diff --git a/compiler/frontend/src/org/jetbrains/jet/lang/cfg/JetControlFlowProcessor.java b/compiler/frontend/src/org/jetbrains/jet/lang/cfg/JetControlFlowProcessor.java
+index 481e14cee3f..3656470ebca 100644
+--- a/compiler/frontend/src/org/jetbrains/jet/lang/cfg/JetControlFlowProcessor.java
++++ b/compiler/frontend/src/org/jetbrains/jet/lang/cfg/JetControlFlowProcessor.java
+@@ -636,7 +636,6 @@ public class JetControlFlowProcessor {
+         public void visitBreakExpressionVoid(@NotNull JetBreakExpression expression, CFPContext context) {
+             JetElement loop = getCorrespondingLoop(expression);
+             if (loop != null) {
+-                checkJumpDoesNotCrossFunctionBoundary(expression, loop);
+                 builder.jump(builder.getExitPoint(loop));
+             }
+         }
+@@ -645,7 +644,6 @@ public class JetControlFlowProcessor {
+         public void visitContinueExpressionVoid(@NotNull JetContinueExpression expression, CFPContext context) {
+             JetElement loop = getCorrespondingLoop(expression);
+             if (loop != null) {
+-                checkJumpDoesNotCrossFunctionBoundary(expression, loop);
+                 builder.jump(builder.getEntryPoint(loop));
+             }
+         }
+@@ -674,16 +672,6 @@ public class JetControlFlowProcessor {
+             return loop;
+         }
+ 
+-        private void checkJumpDoesNotCrossFunctionBoundary(@NotNull JetLabelQualifiedExpression jumpExpression, @NotNull JetElement jumpTarget) {
+-            BindingContext bindingContext = trace.getBindingContext();
+-
+-            FunctionDescriptor labelExprEnclosingFunc = BindingContextUtils.getEnclosingFunctionDescriptor(bindingContext, jumpExpression);
+-            FunctionDescriptor labelTargetEnclosingFunc = BindingContextUtils.getEnclosingFunctionDescriptor(bindingContext, jumpTarget);
+-            if (labelExprEnclosingFunc != labelTargetEnclosingFunc) {
+-                trace.report(BREAK_OR_CONTINUE_JUMPS_ACROSS_FUNCTION_BOUNDARY.on(jumpExpression));
+-            }
+-        }
+-
+         @Override
+         public void visitReturnExpressionVoid(@NotNull JetReturnExpression expression, CFPContext context) {
+             JetExpression returnedExpression = expression.getReturnedExpression();
+diff --git a/compiler/frontend/src/org/jetbrains/jet/lang/diagnostics/Errors.java b/compiler/frontend/src/org/jetbrains/jet/lang/diagnostics/Errors.java
+index 45656172c98..a9165da3e7d 100644
+--- a/compiler/frontend/src/org/jetbrains/jet/lang/diagnostics/Errors.java
++++ b/compiler/frontend/src/org/jetbrains/jet/lang/diagnostics/Errors.java
+@@ -431,7 +431,6 @@ public interface Errors {
+     DiagnosticFactory0<JetSimpleNameExpression> AMBIGUOUS_LABEL = DiagnosticFactory0.create(ERROR);
+ 
+     DiagnosticFactory0<JetLabelQualifiedExpression> BREAK_OR_CONTINUE_OUTSIDE_A_LOOP = DiagnosticFactory0.create(ERROR);
+-    DiagnosticFactory0<JetLabelQualifiedExpression> BREAK_OR_CONTINUE_JUMPS_ACROSS_FUNCTION_BOUNDARY = DiagnosticFactory0.create(ERROR);
+     DiagnosticFactory1<JetLabelQualifiedExpression, String> NOT_A_LOOP_LABEL = DiagnosticFactory1.create(ERROR);
+     DiagnosticFactory1<JetReturnExpression, String> NOT_A_RETURN_LABEL = DiagnosticFactory1.create(ERROR);
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/jet/lang/diagnostics/rendering/DefaultErrorMessages.java b/compiler/frontend/src/org/jetbrains/jet/lang/diagnostics/rendering/DefaultErrorMessages.java
+index 2091e0fd379..e211addda96 100644
+--- a/compiler/frontend/src/org/jetbrains/jet/lang/diagnostics/rendering/DefaultErrorMessages.java
++++ b/compiler/frontend/src/org/jetbrains/jet/lang/diagnostics/rendering/DefaultErrorMessages.java
+@@ -327,7 +327,6 @@ public class DefaultErrorMessages {
+         MAP.put(NO_TAIL_CALLS_FOUND, "A function is marked as tail-recursive but no tail calls are found");
+         MAP.put(VALUE_PARAMETER_WITH_NO_TYPE_ANNOTATION, "A type annotation is required on a value parameter");
+         MAP.put(BREAK_OR_CONTINUE_OUTSIDE_A_LOOP, "'break' and 'continue' are only allowed inside a loop");
+-        MAP.put(BREAK_OR_CONTINUE_JUMPS_ACROSS_FUNCTION_BOUNDARY, "'break' or 'continue' jumps across a function boundary");
+         MAP.put(NOT_A_LOOP_LABEL, "The label ''{0}'' does not denote a loop", TO_STRING);
+         MAP.put(NOT_A_RETURN_LABEL, "The label ''{0}'' does not reference to a context from which we can return", TO_STRING);
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/jet/lang/resolve/BindingContextUtils.java b/compiler/frontend/src/org/jetbrains/jet/lang/resolve/BindingContextUtils.java
+index ef98c328fe0..1dedc0dee6f 100644
+--- a/compiler/frontend/src/org/jetbrains/jet/lang/resolve/BindingContextUtils.java
++++ b/compiler/frontend/src/org/jetbrains/jet/lang/resolve/BindingContextUtils.java
+@@ -236,11 +236,6 @@ public class BindingContextUtils {
+         return descriptor;
+     }
+ 
+-    public static FunctionDescriptor getEnclosingFunctionDescriptor(@NotNull BindingContext context, @NotNull JetElement element) {
+-        JetFunction function = PsiTreeUtil.getParentOfType(element, JetFunction.class);
+-        return (FunctionDescriptor)context.get(DECLARATION_TO_DESCRIPTOR, function);
+-    }
+-
+     public static void reportAmbiguousLabel(
+             @NotNull BindingTrace trace,
+             @NotNull JetSimpleNameExpression targetLabel,
+diff --git a/compiler/testData/diagnostics/tests/controlStructures/jumpAcrossFunctionBoundary.kt b/compiler/testData/diagnostics/tests/controlStructures/jumpAcrossFunctionBoundary.kt
+deleted file mode 100644
+index b46f894c48c..00000000000
+--- a/compiler/testData/diagnostics/tests/controlStructures/jumpAcrossFunctionBoundary.kt
++++ /dev/null
+@@ -1,17 +0,0 @@
+-fun call(f: () -> Unit) = f()
+-
+-fun f1() {
+-    @outer while (true) {
+-        call {
+-            <!BREAK_OR_CONTINUE_JUMPS_ACROSS_FUNCTION_BOUNDARY!>break@outer<!>
+-        }
+-    }
+-}
+-
+-fun f2() {
+-    do {
+-        fun inner() {
+-            <!BREAK_OR_CONTINUE_JUMPS_ACROSS_FUNCTION_BOUNDARY!>continue<!>
+-        }
+-    } while (true)
+-}
+diff --git a/compiler/testData/diagnostics/tests/incompleteCode/pseudocodeTraverseNextInstructions.kt b/compiler/testData/diagnostics/tests/incompleteCode/pseudocodeTraverseNextInstructions.kt
+index d83399b474a..52db12e29b4 100644
+--- a/compiler/testData/diagnostics/tests/incompleteCode/pseudocodeTraverseNextInstructions.kt
++++ b/compiler/testData/diagnostics/tests/incompleteCode/pseudocodeTraverseNextInstructions.kt
+@@ -3,6 +3,6 @@ package b
+ fun foo() {
+     for (i in <!UNRESOLVED_REFERENCE!>collection<!>) {
+         <!UNUSED_FUNCTION_LITERAL!>{
+-         <!BREAK_OR_CONTINUE_JUMPS_ACROSS_FUNCTION_BOUNDARY!>break<!>
++         break
+     }<!>
+ }<!SYNTAX!><!>
+\ No newline at end of file
+diff --git a/compiler/tests/org/jetbrains/jet/checkers/JetDiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/jet/checkers/JetDiagnosticsTestGenerated.java
+index b94c92e5ae0..4e1d965816b 100644
+--- a/compiler/tests/org/jetbrains/jet/checkers/JetDiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/jet/checkers/JetDiagnosticsTestGenerated.java
+@@ -1745,11 +1745,6 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
+                 doTest("compiler/testData/diagnostics/tests/controlStructures/ForbidStatementAsDirectFunctionBody.kt");
+             }
+             
+-            @TestMetadata("jumpAcrossFunctionBoundary.kt")
+-            public void testJumpAcrossFunctionBoundary() throws Exception {
+-                doTest("compiler/testData/diagnostics/tests/controlStructures/jumpAcrossFunctionBoundary.kt");
+-            }
+-            
+             @TestMetadata("kt1075.kt")
+             public void testKt1075() throws Exception {
+                 doTest("compiler/testData/diagnostics/tests/controlStructures/kt1075.kt");

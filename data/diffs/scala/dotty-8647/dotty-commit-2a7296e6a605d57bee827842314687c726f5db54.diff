@@ -1,0 +1,72 @@
+diff --git a/compiler/src/dotty/tools/dotc/core/TypeComparer.scala b/compiler/src/dotty/tools/dotc/core/TypeComparer.scala
+index e2ba1745c1..5744461c1c 100644
+--- a/compiler/src/dotty/tools/dotc/core/TypeComparer.scala
++++ b/compiler/src/dotty/tools/dotc/core/TypeComparer.scala
+@@ -2359,7 +2359,7 @@ class TypeComparer(initctx: Context) extends ConstraintHandling[AbsentContext] w
+                     x && {
+                       t match {
+                         case tp: TypeRef if tp.symbol.isAbstractOrParamType => false
+-                        case _: SkolemType | _: TypeVar | _: TypeParamRef => false
++                        case _: SkolemType | _: TypeVar => false
+                         case _ => foldOver(x, t)
+                       }
+                     }
+diff --git a/tests/pos/8647.scala b/tests/pos/8647.scala
+new file mode 100644
+index 0000000000..5e8f839b27
+--- /dev/null
++++ b/tests/pos/8647.scala
+@@ -0,0 +1,53 @@
++final class Two[A, B]()
++
++final class Blaaa
++
++final class Bla[X]
++
++object Test1 {
++
++  type Foo[X] = X match
++    case Two[Blaaa, _] =>
++      String
++    case Two[String, _] =>
++      Int
++
++  def test: Foo[Two[String, String]] = 1
++}
++
++object Test2 {
++  type Foo[X] = X match
++    case Two[Bla[_], _] =>
++      String
++    case Two[String, _] =>
++      Int
++
++  def test: Foo[Two[String, String]] = 1
++}
++
++
++object Test3 {
++  type Id[W] = W
++
++  type M[X, Y] = X match {
++    case Int   => String
++    case Id[x] => Y match {
++      case Two[Bla[a], _] => Int
++      case _ => String
++    }
++  }
++  val x: M[Boolean, Two[Boolean, Boolean]] = ""
++}
++
++object Test4 {
++  type Id[W] = W
++
++  type M[X, Y] = X match {
++    case Int   => String
++    case Id[x] => Y match {
++      case Two[Bla[`x`], _] => Int
++      case _ => String
++    }
++  }
++  val x: M[Boolean, Two[Bla[Boolean], Boolean]] = 1
++}

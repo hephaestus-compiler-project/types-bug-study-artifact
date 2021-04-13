@@ -1,0 +1,227 @@
+diff --git a/src/main/org/codehaus/groovy/classgen/asm/BinaryExpressionMultiTypeDispatcher.java b/src/main/org/codehaus/groovy/classgen/asm/BinaryExpressionMultiTypeDispatcher.java
+index 98358d7070..98c2dc09e9 100644
+--- a/src/main/org/codehaus/groovy/classgen/asm/BinaryExpressionMultiTypeDispatcher.java
++++ b/src/main/org/codehaus/groovy/classgen/asm/BinaryExpressionMultiTypeDispatcher.java
+@@ -33,6 +33,7 @@ import org.codehaus.groovy.classgen.AsmClassGenerator;
+ import org.codehaus.groovy.runtime.BytecodeInterface8;
+ 
+ import static org.codehaus.groovy.ast.ClassHelper.*;
++import static org.codehaus.groovy.syntax.TokenUtil.removeAssignment;
+ import static org.codehaus.groovy.syntax.Types.*;
+ import static org.codehaus.groovy.ast.tools.WideningCategories.*;
+ 
+@@ -40,8 +41,6 @@ import static org.codehaus.groovy.ast.tools.WideningCategories.*;
+  * This class is for internal use only!
+  * This class will dispatch to the right type adapters according to the 
+  * kind of binary expression that is provided.
+- * @author <a href="mailto:blackdrag@gmx.org">Jochen "blackdrag" Theodorou</a>
+- * @author Roshan Dawrani
+  */
+ public class BinaryExpressionMultiTypeDispatcher extends BinaryExpressionHelper {
+     
+@@ -243,28 +242,7 @@ public class BinaryExpressionMultiTypeDispatcher extends BinaryExpressionHelper
+         if (leftBinExpr.getOperation().getType() != LEFT_SQUARE_BRACKET) return false;
+         return true;
+     }
+-    
+-    private static int removeAssignment(int op) {
+-        switch (op) {
+-            case PLUS_EQUAL: return PLUS;
+-            case MINUS_EQUAL: return MINUS;
+-            case MULTIPLY_EQUAL: return MULTIPLY;
+-            case LEFT_SHIFT_EQUAL: return LEFT_SHIFT;
+-            case RIGHT_SHIFT_EQUAL: return RIGHT_SHIFT;
+-            case RIGHT_SHIFT_UNSIGNED_EQUAL: return RIGHT_SHIFT_UNSIGNED;
+-            case LOGICAL_OR_EQUAL: return LOGICAL_OR;
+-            case LOGICAL_AND_EQUAL: return LOGICAL_AND;
+-            case MOD_EQUAL: return MOD;
+-            case DIVIDE_EQUAL: return DIVIDE;
+-            case INTDIV_EQUAL: return INTDIV;
+-            case POWER_EQUAL: return POWER;
+-            case BITWISE_OR_EQUAL: return BITWISE_OR;
+-            case BITWISE_AND_EQUAL: return BITWISE_AND;
+-            case BITWISE_XOR_EQUAL: return BITWISE_XOR;
+-            default: return op;
+-        }
+-    }
+-    
++
+     private boolean doAssignmentToArray(BinaryExpression binExp) {
+         if (!isAssignmentToArray(binExp)) return false;
+         // we need to handle only assignment to arrays combined with an operation
+diff --git a/src/main/org/codehaus/groovy/syntax/TokenUtil.java b/src/main/org/codehaus/groovy/syntax/TokenUtil.java
+new file mode 100644
+index 0000000000..bfad78741b
+--- /dev/null
++++ b/src/main/org/codehaus/groovy/syntax/TokenUtil.java
+@@ -0,0 +1,48 @@
++/*
++ *  Licensed to the Apache Software Foundation (ASF) under one
++ *  or more contributor license agreements.  See the NOTICE file
++ *  distributed with this work for additional information
++ *  regarding copyright ownership.  The ASF licenses this file
++ *  to you under the Apache License, Version 2.0 (the
++ *  "License"); you may not use this file except in compliance
++ *  with the License.  You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ *  Unless required by applicable law or agreed to in writing,
++ *  software distributed under the License is distributed on an
++ *  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++ *  KIND, either express or implied.  See the License for the
++ *  specific language governing permissions and limitations
++ *  under the License.
++ */
++
++package org.codehaus.groovy.syntax;
++
++import static org.codehaus.groovy.syntax.Types.*;
++
++public class TokenUtil {
++    private TokenUtil() {
++    }
++
++    public static int removeAssignment(int op) {
++        switch (op) {
++            case PLUS_EQUAL: return PLUS;
++            case MINUS_EQUAL: return MINUS;
++            case MULTIPLY_EQUAL: return MULTIPLY;
++            case LEFT_SHIFT_EQUAL: return LEFT_SHIFT;
++            case RIGHT_SHIFT_EQUAL: return RIGHT_SHIFT;
++            case RIGHT_SHIFT_UNSIGNED_EQUAL: return RIGHT_SHIFT_UNSIGNED;
++            case LOGICAL_OR_EQUAL: return LOGICAL_OR;
++            case LOGICAL_AND_EQUAL: return LOGICAL_AND;
++            case MOD_EQUAL: return MOD;
++            case DIVIDE_EQUAL: return DIVIDE;
++            case INTDIV_EQUAL: return INTDIV;
++            case POWER_EQUAL: return POWER;
++            case BITWISE_OR_EQUAL: return BITWISE_OR;
++            case BITWISE_AND_EQUAL: return BITWISE_AND;
++            case BITWISE_XOR_EQUAL: return BITWISE_XOR;
++            default: return op;
++        }
++    }
++}
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 437780a6da..fdbf350aa5 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -66,6 +66,7 @@ import org.codehaus.groovy.runtime.DefaultGroovyMethods;
+ import org.codehaus.groovy.runtime.MetaClassHelper;
+ import org.codehaus.groovy.syntax.SyntaxException;
+ import org.codehaus.groovy.syntax.Token;
++import org.codehaus.groovy.syntax.TokenUtil;
+ import org.codehaus.groovy.transform.StaticTypesTransformation;
+ import org.codehaus.groovy.transform.trait.Traits;
+ import org.codehaus.groovy.util.ListHashMap;
+@@ -717,11 +718,11 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         // but we must check if the binary expression is an assignment
+         // because we need to check if a setter uses @DelegatesTo
+         VariableExpression ve = new VariableExpression("%", setterInfo.receiverType);
+-        MethodCallExpression call = new MethodCallExpression(
+-                ve,
+-                setterInfo.name,
+-                rightExpression
+-        );
++        // for compound assignment "x op= y" find type as if it was "x = (x op y)"
++        final Expression newRightExpression = isCompoundAssignment(expression)
++                ? new BinaryExpression(leftExpression, getOpWithoutEqual(expression), rightExpression)
++                : rightExpression;
++        MethodCallExpression call = new MethodCallExpression(ve, setterInfo.name, newRightExpression);
+         call.setImplicitThis(false);
+         visitMethodCallExpression(call);
+         MethodNode directSetterCandidate = call.getNodeMetaData(StaticTypesMarker.DIRECT_METHOD_CALL_TARGET);
+@@ -731,11 +732,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+             for (MethodNode setter : setterInfo.setters) {
+                 ClassNode type = getWrapper(setter.getParameters()[0].getOriginType());
+                 if (Boolean_TYPE.equals(type) || STRING_TYPE.equals(type) || CLASS_Type.equals(type)) {
+-                    call = new MethodCallExpression(
+-                            ve,
+-                            setterInfo.name,
+-                            new CastExpression(type,rightExpression)
+-                    );
++                    call = new MethodCallExpression(ve, setterInfo.name, new CastExpression(type, newRightExpression));
+                     call.setImplicitThis(false);
+                     visitMethodCallExpression(call);
+                     directSetterCandidate = call.getNodeMetaData(StaticTypesMarker.DIRECT_METHOD_CALL_TARGET);
+@@ -749,18 +746,31 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+             for (MethodNode setter : setterInfo.setters) {
+                 if (setter == directSetterCandidate) {
+                     leftExpression.putNodeMetaData(StaticTypesMarker.DIRECT_METHOD_CALL_TARGET, directSetterCandidate);
+-                    storeType(leftExpression, getType(rightExpression));
++                    storeType(leftExpression, getType(newRightExpression));
+                     break;
+                 }
+             }
+         } else {
+             ClassNode firstSetterType = setterInfo.setters.iterator().next().getParameters()[0].getOriginType();
+-            addAssignmentError(firstSetterType, getType(rightExpression), expression);
++            addAssignmentError(firstSetterType, getType(newRightExpression), expression);
+             return true;
+         }
+         return false;
+     }
+ 
++    private boolean isCompoundAssignment(Expression exp) {
++        if (!(exp instanceof BinaryExpression)) return false;
++        int type = ((BinaryExpression) exp).getOperation().getType();
++        return isAssignment(type) && type != ASSIGN;
++    }
++
++    private Token getOpWithoutEqual(Expression exp) {
++        if (!(exp instanceof BinaryExpression)) return null; // should never happen
++        Token op = ((BinaryExpression) exp).getOperation();
++        int typeWithoutEqual = TokenUtil.removeAssignment(op.getType());
++        return new Token(typeWithoutEqual, op.getText() /* will do */, op.getStartLine(), op.getStartColumn());
++    }
++
+     protected ClassNode getOriginalDeclarationType(Expression lhs) {
+         if (lhs instanceof VariableExpression) {
+             Variable var = findTargetVariable((VariableExpression) lhs);
+diff --git a/src/test/groovy/transform/stc/Groovy7888Bug.groovy b/src/test/groovy/transform/stc/Groovy7888Bug.groovy
+new file mode 100644
+index 0000000000..5c511bc130
+--- /dev/null
++++ b/src/test/groovy/transform/stc/Groovy7888Bug.groovy
+@@ -0,0 +1,40 @@
++/*
++ *  Licensed to the Apache Software Foundation (ASF) under one
++ *  or more contributor license agreements.  See the NOTICE file
++ *  distributed with this work for additional information
++ *  regarding copyright ownership.  The ASF licenses this file
++ *  to you under the Apache License, Version 2.0 (the
++ *  "License"); you may not use this file except in compliance
++ *  with the License.  You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ *  Unless required by applicable law or agreed to in writing,
++ *  software distributed under the License is distributed on an
++ *  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++ *  KIND, either express or implied.  See the License for the
++ *  specific language governing permissions and limitations
++ *  under the License.
++ */
++package groovy.transform.stc
++
++class Groovy7888Bug extends GroovyTestCase {
++    void testCompoundAssignmentUsesCorrectType() {
++        assertScript '''
++            class ContainsSet {
++                private Set<File> files = new HashSet<File>()
++                Set<File> getFiles() { files }
++                void setFiles(Set<File> files) { this.files = files }
++            }
++
++            @groovy.transform.TypeChecked
++            def modifyIdeaModel(ContainsSet set, File foo) {
++                set.files += foo
++            }
++
++            def cs = new ContainsSet()
++            modifyIdeaModel(cs, new File('foo'))
++            assert cs.files.size() == 1
++        '''
++    }
++}

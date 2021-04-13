@@ -1,0 +1,75 @@
+changeset:   969:f00986f55961
+user:        mcimadamore
+date:        Tue Apr 12 20:56:16 2011 -0700
+summary:     7034511: Loophole in typesafety
+
+diff -r 8cc5b440fdde -r f00986f55961 src/share/classes/com/sun/tools/javac/code/Types.java
+--- a/src/share/classes/com/sun/tools/javac/code/Types.java	Wed Apr 06 19:30:57 2011 -0700
++++ b/src/share/classes/com/sun/tools/javac/code/Types.java	Tue Apr 12 20:56:16 2011 -0700
+@@ -2309,7 +2309,7 @@
+             if (elemtype == t.elemtype)
+                 return t;
+             else
+-                return new ArrayType(upperBound(elemtype), t.tsym);
++                return new ArrayType(elemtype, t.tsym);
+         }
+ 
+         @Override
+diff -r 8cc5b440fdde -r f00986f55961 test/tools/javac/generics/7034511/T7034511a.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/7034511/T7034511a.java	Tue Apr 12 20:56:16 2011 -0700
+@@ -0,0 +1,21 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug     7034511
++ * @summary Loophole in typesafety
++ * @compile/fail/ref=T7034511a.out -XDrawDiagnostics T7034511a.java
++ */
++
++class T7034511a {
++
++    interface A<T> {
++        void foo(T x);
++    }
++
++    interface B<T> extends A<T[]> { }
++
++    static abstract class C implements B<Integer> {
++        <T extends B<?>> void test(T x, String[] ss) {
++            x.foo(ss);
++        }
++    }
++}
+diff -r 8cc5b440fdde -r f00986f55961 test/tools/javac/generics/7034511/T7034511a.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/7034511/T7034511a.out	Tue Apr 12 20:56:16 2011 -0700
+@@ -0,0 +1,2 @@
++T7034511a.java:18:14: compiler.err.cant.apply.symbol.1: kindname.method, foo, compiler.misc.type.captureof: 1, ?[], java.lang.String[], kindname.interface, T7034511a.A<T>, (compiler.misc.no.conforming.assignment.exists: java.lang.String[], compiler.misc.type.captureof: 1, ?[])
++1 error
+diff -r 8cc5b440fdde -r f00986f55961 test/tools/javac/generics/7034511/T7034511b.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/7034511/T7034511b.java	Tue Apr 12 20:56:16 2011 -0700
+@@ -0,0 +1,16 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug     7034511
++ * @summary Loophole in typesafety
++ * @compile/fail/ref=T7034511b.out -XDrawDiagnostics T7034511b.java
++ */
++
++class T7034511b {
++    static class MyList<E> {
++        E toArray(E[] e) { return null; }
++    }
++
++    void test(MyList<?> ml, Object o[]) {
++        ml.toArray(o);
++    }
++}
+diff -r 8cc5b440fdde -r f00986f55961 test/tools/javac/generics/7034511/T7034511b.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/7034511/T7034511b.out	Tue Apr 12 20:56:16 2011 -0700
+@@ -0,0 +1,2 @@
++T7034511b.java:14:11: compiler.err.cant.apply.symbol.1: kindname.method, toArray, compiler.misc.type.captureof: 1, ?[], java.lang.Object[], kindname.class, T7034511b.MyList<E>, (compiler.misc.no.conforming.assignment.exists: java.lang.Object[], compiler.misc.type.captureof: 1, ?[])
++1 error
+

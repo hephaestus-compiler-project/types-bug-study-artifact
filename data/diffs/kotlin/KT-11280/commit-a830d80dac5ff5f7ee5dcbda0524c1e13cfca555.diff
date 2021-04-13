@@ -1,0 +1,401 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowInfo.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowInfo.kt
+index e776ceba04f..c3d888307d9 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowInfo.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowInfo.kt
+@@ -70,9 +70,10 @@ interface DataFlowInfo {
+     fun assign(a: DataFlowValue, b: DataFlowValue): DataFlowInfo
+ 
+     /**
+-     * Call this function when it's known than a == b
++     * Call this function when it's known than a == b.
++     * sameTypes should be true iff we have guarantee that a and b have the same type
+      */
+-    fun equate(a: DataFlowValue, b: DataFlowValue): DataFlowInfo
++    fun equate(a: DataFlowValue, b: DataFlowValue, sameTypes: Boolean): DataFlowInfo
+ 
+     /**
+      * Call this function when it's known than a != b
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DelegatingDataFlowInfo.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DelegatingDataFlowInfo.kt
+index 98e79a8b79f..fadc1e42efb 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DelegatingDataFlowInfo.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DelegatingDataFlowInfo.kt
+@@ -151,7 +151,7 @@ internal class DelegatingDataFlowInfo private constructor(
+         return create(this, ImmutableMap.copyOf(nullability), if (newTypeInfo.isEmpty) EMPTY_TYPE_INFO else newTypeInfo, a)
+     }
+ 
+-    override fun equate(a: DataFlowValue, b: DataFlowValue): DataFlowInfo {
++    override fun equate(a: DataFlowValue, b: DataFlowValue, sameTypes: Boolean): DataFlowInfo {
+         val builder = Maps.newHashMap<DataFlowValue, Nullability>()
+         val nullabilityOfA = getPredictableNullability(a)
+         val nullabilityOfB = getPredictableNullability(b)
+@@ -159,19 +159,22 @@ internal class DelegatingDataFlowInfo private constructor(
+         var changed = putNullability(builder, a, nullabilityOfA.refine(nullabilityOfB)) or
+                       putNullability(builder, b, nullabilityOfB.refine(nullabilityOfA))
+ 
++        // NB: == has no guarantees of type equality, see KT-11280 for the example
+         val newTypeInfo = newTypeInfo()
+-        newTypeInfo.putAll(a, getPredictableTypes(b, false))
+-        newTypeInfo.putAll(b, getPredictableTypes(a, false))
+-        if (a.type != b.type) {
+-            // To avoid recording base types of own type
+-            if (!a.type.isSubtypeOf(b.type)) {
+-                newTypeInfo.put(a, b.type)
+-            }
+-            if (!b.type.isSubtypeOf(a.type)) {
+-                newTypeInfo.put(b, a.type)
++        if (sameTypes) {
++            newTypeInfo.putAll(a, getPredictableTypes(b, false))
++            newTypeInfo.putAll(b, getPredictableTypes(a, false))
++            if (a.type != b.type) {
++                // To avoid recording base types of own type
++                if (!a.type.isSubtypeOf(b.type)) {
++                    newTypeInfo.put(a, b.type)
++                }
++                if (!b.type.isSubtypeOf(a.type)) {
++                    newTypeInfo.put(b, a.type)
++                }
+             }
++            changed = changed or !newTypeInfo.isEmpty
+         }
+-        changed = changed or !newTypeInfo.isEmpty
+ 
+         return if (!changed) {
+             this
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DataFlowAnalyzer.java b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DataFlowAnalyzer.java
+index 3f17f3d2caf..0b4c170e3bf 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DataFlowAnalyzer.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/DataFlowAnalyzer.java
+@@ -22,20 +22,25 @@ import com.intellij.psi.tree.IElementType;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
++import org.jetbrains.kotlin.descriptors.*;
+ import org.jetbrains.kotlin.diagnostics.DiagnosticUtilsKt;
++import org.jetbrains.kotlin.incremental.KotlinLookupLocation;
+ import org.jetbrains.kotlin.lexer.KtTokens;
+ import org.jetbrains.kotlin.psi.*;
+ import org.jetbrains.kotlin.resolve.BindingContext;
+ import org.jetbrains.kotlin.resolve.BindingTrace;
++import org.jetbrains.kotlin.resolve.DescriptorUtils;
+ import org.jetbrains.kotlin.resolve.calls.checkers.AdditionalTypeChecker;
+ import org.jetbrains.kotlin.resolve.calls.context.ResolutionContext;
+ import org.jetbrains.kotlin.resolve.calls.smartcasts.*;
+ import org.jetbrains.kotlin.resolve.constants.*;
+ import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluator;
+ import org.jetbrains.kotlin.types.KotlinType;
++import org.jetbrains.kotlin.types.TypeConstructor;
+ import org.jetbrains.kotlin.types.TypeUtils;
+ import org.jetbrains.kotlin.types.checker.KotlinTypeChecker;
+ import org.jetbrains.kotlin.types.expressions.typeInfoFactory.TypeInfoFactoryKt;
++import org.jetbrains.kotlin.util.OperatorNameConventions;
+ 
+ import java.util.Collection;
+ 
+@@ -65,9 +70,52 @@ public class DataFlowAnalyzer {
+         this.facade = facade;
+     }
+ 
++    // NB: use this method only for functions from 'Any'
++    @Nullable
++    private static FunctionDescriptor getOverriddenDescriptorFromClass(@NotNull FunctionDescriptor descriptor) {
++        if (descriptor.getKind() != CallableMemberDescriptor.Kind.FAKE_OVERRIDE) return descriptor;
++        Collection<? extends FunctionDescriptor> overriddenDescriptors = descriptor.getOverriddenDescriptors();
++        if (overriddenDescriptors.isEmpty()) return descriptor;
++        for (FunctionDescriptor overridden : overriddenDescriptors) {
++            DeclarationDescriptor containingDeclaration = overridden.getContainingDeclaration();
++            if (DescriptorUtils.isClass(containingDeclaration) || DescriptorUtils.isObject(containingDeclaration)) {
++                // Exactly one class should exist in the list
++                return getOverriddenDescriptorFromClass(overridden);
++            }
++        }
++        return null;
++    }
++
++    private static boolean typeHasOverriddenEquals(@NotNull KotlinType type, @NotNull KtElement lookupElement) {
++        Collection<FunctionDescriptor> members = type.getMemberScope().getContributedFunctions(
++                OperatorNameConventions.EQUALS, new KotlinLookupLocation(lookupElement));
++        for (FunctionDescriptor member : members) {
++            KotlinType returnType = member.getReturnType();
++            if (returnType == null || !KotlinBuiltIns.isBoolean(returnType)) continue;
++            if (member.getValueParameters().size() != 1) continue;
++            KotlinType parameterType = member.getValueParameters().iterator().next().getType();
++            if (!KotlinBuiltIns.isNullableAny(parameterType)) continue;
++            FunctionDescriptor fromSuperClass = getOverriddenDescriptorFromClass(member);
++            if (fromSuperClass == null) return false;
++            ClassifierDescriptor superClassDescriptor = (ClassifierDescriptor) fromSuperClass.getContainingDeclaration();
++            // We should have override fun in class other than Any (to prove unknown behaviour)
++            return !KotlinBuiltIns.isAnyOrNullableAny(superClassDescriptor.getDefaultType());
++        }
++        return false;
++    }
++
++    // Returns true if we can prove that 'type' has equals method from 'Any' base type
++    public static boolean typeHasEqualsFromAny(@NotNull KotlinType type, @NotNull KtElement lookupElement) {
++        TypeConstructor constructor = type.getConstructor();
++        // Subtypes can override equals for non-final types
++        if (!constructor.isFinal()) return false;
++        // check whether 'equals' is overriden
++        return !typeHasOverriddenEquals(type, lookupElement);
++    }
++
+     @NotNull
+     public DataFlowInfo extractDataFlowInfoFromCondition(
+-            @Nullable KtExpression condition,
++            @Nullable final KtExpression condition,
+             final boolean conditionValue,
+             final ExpressionTypingContext context
+     ) {
+@@ -126,7 +174,9 @@ public class DataFlowAnalyzer {
+                     }
+                     if (equals != null) {
+                         if (equals == conditionValue) { // this means: equals && conditionValue || !equals && !conditionValue
+-                            result.set(context.dataFlowInfo.equate(leftValue, rightValue).and(expressionFlowInfo));
++                            boolean byIdentity = operationToken == KtTokens.EQEQEQ || operationToken == KtTokens.EXCLEQEQEQ ||
++                                                 typeHasEqualsFromAny(lhsType, condition);
++                            result.set(context.dataFlowInfo.equate(leftValue, rightValue, byIdentity).and(expressionFlowInfo));
+                         }
+                         else {
+                             result.set(context.dataFlowInfo.disequate(leftValue, rightValue).and(expressionFlowInfo));
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/PatternMatchingTypingVisitor.kt b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/PatternMatchingTypingVisitor.kt
+index 25d79630623..a90ea1fbec9 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/PatternMatchingTypingVisitor.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/PatternMatchingTypingVisitor.kt
+@@ -335,7 +335,8 @@ class PatternMatchingTypingVisitor internal constructor(facade: ExpressionTyping
+         val expressionDataFlowValue = DataFlowValueFactory.createDataFlowValue(expression, type, newContext)
+         val result = noChange(newContext)
+         return ConditionalDataFlowInfo(
+-                result.thenInfo.equate(subjectDataFlowValue, expressionDataFlowValue),
++                result.thenInfo.equate(subjectDataFlowValue, expressionDataFlowValue,
++                                       DataFlowAnalyzer.typeHasEqualsFromAny(subjectType, expression)),
+                 result.elseInfo.disequate(subjectDataFlowValue, expressionDataFlowValue))
+     }
+ 
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/fakeSmartCastOnEquality.kt b/compiler/testData/diagnostics/tests/smartCasts/fakeSmartCastOnEquality.kt
+new file mode 100644
+index 00000000000..8ae2c9af2aa
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/smartCasts/fakeSmartCastOnEquality.kt
+@@ -0,0 +1,95 @@
++abstract class Base {
++    override fun equals(other: Any?) = other is Base
++}
++
++class Derived1 : Base() {
++    fun foo() {}
++}
++
++class Derived2 : Base()
++
++fun check(x1: Derived1, x: Base) {
++    if (x1 == x) {
++        // Smart cast here will provoke CCA
++        x.<!UNRESOLVED_REFERENCE!>foo<!>()
++    }
++    if (x1 === x) {
++        // OK
++        <!DEBUG_INFO_SMARTCAST!>x<!>.foo()
++    }
++    if (x1 !== x) {} else {
++        // OK
++        <!DEBUG_INFO_SMARTCAST!>x<!>.foo()
++    }
++}
++
++class FinalClass { // <-- 'equals' on instances of this class is useful for smart casts
++    fun use() {}
++
++    fun equals(x: Int): Boolean = x > 42
++}
++
++fun foo(x: FinalClass?, y: Any) {
++    if (x == y) {
++        // OK
++        <!DEBUG_INFO_SMARTCAST!>x<!>.hashCode()
++        // OK
++        <!DEBUG_INFO_SMARTCAST!>y<!>.use()
++    }
++    when (x) {
++        // OK (equals from FinalClass)
++        y -> <!DEBUG_INFO_SMARTCAST!>y<!>.use()
++    }
++    when (y) {
++        // ERROR (equals from Any)
++        x -> y.<!UNRESOLVED_REFERENCE!>use<!>()
++    }
++}
++
++open class OpenClass {
++    override fun equals(other: Any?) = other is OpenClass
++}
++
++interface Dummy // should not influence anything
++
++class FinalClass2 : Dummy, OpenClass() { // but here not
++    fun use() {}
++}
++
++fun bar(x: FinalClass2?, y: Any) {
++    if (x == y) {
++        // OK
++        <!DEBUG_INFO_SMARTCAST!>x<!>.hashCode()
++        // ERROR
++        y.<!UNRESOLVED_REFERENCE!>use<!>()
++    }
++}
++
++open class OpenClass2 // and here too
++
++fun bar(x: OpenClass2?, y: Any) {
++    if (x == y) {
++        // OK
++        <!DEBUG_INFO_SMARTCAST!>x<!>.hashCode()
++        // ERROR
++        y.<!UNRESOLVED_REFERENCE!>use<!>()
++    }
++}
++
++sealed class Sealed {
++    override fun equals(other: Any?) = other is Sealed
++
++    class Sealed1 : Sealed() {
++        fun gav() {}
++    }
++
++    object Sealed2 : Sealed()
++
++    fun check(arg: Sealed1) {
++        if (arg == this) {
++            // Smart cast here will provoke CCA
++            this.<!UNRESOLVED_REFERENCE!>gav<!>()
++            <!UNRESOLVED_REFERENCE!>gav<!>()
++        }
++    }
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/fakeSmartCastOnEquality.txt b/compiler/testData/diagnostics/tests/smartCasts/fakeSmartCastOnEquality.txt
+new file mode 100644
+index 00000000000..898674e8430
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/smartCasts/fakeSmartCastOnEquality.txt
+@@ -0,0 +1,90 @@
++package
++
++public fun bar(/*0*/ x: FinalClass2?, /*1*/ y: kotlin.Any): kotlin.Unit
++public fun bar(/*0*/ x: OpenClass2?, /*1*/ y: kotlin.Any): kotlin.Unit
++public fun check(/*0*/ x1: Derived1, /*1*/ x: Base): kotlin.Unit
++public fun foo(/*0*/ x: FinalClass?, /*1*/ y: kotlin.Any): kotlin.Unit
++
++public abstract class Base {
++    public constructor Base()
++    public open override /*1*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Derived1 : Base {
++    public constructor Derived1()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final fun foo(): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Derived2 : Base {
++    public constructor Derived2()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface Dummy {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class FinalClass {
++    public constructor FinalClass()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final fun equals(/*0*/ x: kotlin.Int): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    public final fun use(): kotlin.Unit
++}
++
++public final class FinalClass2 : Dummy, OpenClass {
++    public constructor FinalClass2()
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++    public final fun use(): kotlin.Unit
++}
++
++public open class OpenClass {
++    public constructor OpenClass()
++    public open override /*1*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public open class OpenClass2 {
++    public constructor OpenClass2()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public sealed class Sealed {
++    private constructor Sealed()
++    public final fun check(/*0*/ arg: Sealed.Sealed1): kotlin.Unit
++    public open override /*1*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final class Sealed1 : Sealed {
++        public constructor Sealed1()
++        public final override /*1*/ /*fake_override*/ fun check(/*0*/ arg: Sealed.Sealed1): kotlin.Unit
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final fun gav(): kotlin.Unit
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public object Sealed2 : Sealed {
++        private constructor Sealed2()
++        public final override /*1*/ /*fake_override*/ fun check(/*0*/ arg: Sealed.Sealed1): kotlin.Unit
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/typeInComparison.kt b/compiler/testData/diagnostics/tests/smartCasts/typeInComparison.kt
+index c3ed05c0a59..0d6d059b265 100644
+--- a/compiler/testData/diagnostics/tests/smartCasts/typeInComparison.kt
++++ b/compiler/testData/diagnostics/tests/smartCasts/typeInComparison.kt
+@@ -2,7 +2,7 @@ fun foo(): Int {
+     val x: Any? = null
+     val y = 2
+     if (x == y) {
+-        return <!DEBUG_INFO_SMARTCAST!>x<!> + y
++        return x <!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>+<!> y
+     }
+     return y
+ }
+\ No newline at end of file
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 28a8e2f34c5..4add9c1fcfb 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -16170,6 +16170,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("fakeSmartCastOnEquality.kt")
++            public void testFakeSmartCastOnEquality() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/smartCasts/fakeSmartCastOnEquality.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("falseReceiverSmartCast.kt")
+             public void testFalseReceiverSmartCast() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/smartCasts/falseReceiverSmartCast.kt");

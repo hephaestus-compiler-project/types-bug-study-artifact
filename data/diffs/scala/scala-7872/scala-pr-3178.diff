@@ -1,0 +1,158 @@
+diff --git a/src/compiler/scala/tools/nsc/typechecker/RefChecks.scala b/src/compiler/scala/tools/nsc/typechecker/RefChecks.scala
+index 84531608e04a..38065d5ea839 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/RefChecks.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/RefChecks.scala
+@@ -1762,6 +1762,8 @@ abstract class RefChecks extends InfoTransform with scala.reflect.internal.trans
+              | TypeDef(_, _, _, _) =>
+             if (result.symbol.isLocal || result.symbol.isTopLevel)
+               varianceValidator.traverse(result)
++          case tt @ TypeTree() if tt.original != null =>
++            varianceValidator.traverse(tt.original) // See SI-7872
+           case _ =>
+         }
+         result
+diff --git a/src/reflect/scala/reflect/internal/Variances.scala b/src/reflect/scala/reflect/internal/Variances.scala
+index 52804670555f..cd09e83cd34a 100644
+--- a/src/reflect/scala/reflect/internal/Variances.scala
++++ b/src/reflect/scala/reflect/internal/Variances.scala
+@@ -162,6 +162,16 @@ trait Variances {
+           traverseTreess(vparamss)
+         case Template(_, _, _) =>
+           super.traverse(tree)
++        case CompoundTypeTree(templ) =>
++          super.traverse(tree)
++
++        // SI-7872 These two cases make sure we don't miss variance exploits
++        // in originals, e.g. in `foo[({type l[+a] = List[a]})#l]`
++        case tt @ TypeTree() if tt.original != null =>
++          super.traverse(tt.original)
++        case tt : TypTree =>
++          super.traverse(tt)
++
+         case _ =>
+       }
+     }
+diff --git a/test/files/neg/t7872.check b/test/files/neg/t7872.check
+new file mode 100644
+index 000000000000..57d9772abc5d
+--- /dev/null
++++ b/test/files/neg/t7872.check
+@@ -0,0 +1,10 @@
++t7872.scala:6: error: contravariant type a occurs in covariant position in type [-a]Cov[a] of type l
++  type x = {type l[-a] = Cov[a]}
++                 ^
++t7872.scala:8: error: covariant type a occurs in contravariant position in type [+a]Inv[a] of type l
++  foo[({type l[+a] = Inv[a]})#l]
++             ^
++t7872.scala:5: error: contravariant type a occurs in covariant position in type [-a]Cov[a] of type l
++  type l[-a] = Cov[a]
++       ^
++three errors found
+diff --git a/test/files/neg/t7872.scala b/test/files/neg/t7872.scala
+new file mode 100644
+index 000000000000..66d22a071507
+--- /dev/null
++++ b/test/files/neg/t7872.scala
+@@ -0,0 +1,9 @@
++trait Cov[+A]
++trait Inv[-A]
++
++object varianceExploit {  
++  type l[-a] = Cov[a]
++  type x = {type l[-a] = Cov[a]}
++  def foo[M[_]] = ()
++  foo[({type l[+a] = Inv[a]})#l]
++}
+diff --git a/test/files/neg/t7872b.check b/test/files/neg/t7872b.check
+new file mode 100644
+index 000000000000..0dc4e76301a4
+--- /dev/null
++++ b/test/files/neg/t7872b.check
+@@ -0,0 +1,7 @@
++t7872b.scala:8: error: contravariant type a occurs in covariant position in type [-a]List[a] of type l
++  def oops1 = down[({type l[-a] = List[a]})#l](List('whatever: Object)).head + "oops"
++                          ^
++t7872b.scala:19: error: covariant type a occurs in contravariant position in type [+a]coinv.Stringer[a] of type l
++  def oops2 = up[({type l[+a] = Stringer[a]})#l]("printed: " + _)
++                        ^
++two errors found
+diff --git a/test/files/neg/t7872b.scala b/test/files/neg/t7872b.scala
+new file mode 100644
+index 000000000000..307a1470c58f
+--- /dev/null
++++ b/test/files/neg/t7872b.scala
+@@ -0,0 +1,23 @@
++object coinv {
++  def up[F[+_]](fa: F[String]): F[Object] = fa
++  def down[F[-_]](fa: F[Object]): F[String] = fa
++ 
++  up(List("hi"))
++ 
++  // should not compile; `l' is unsound
++  def oops1 = down[({type l[-a] = List[a]})#l](List('whatever: Object)).head + "oops"
++  // scala> oops1
++  // java.lang.ClassCastException: scala.Symbol cannot be cast to java.lang.String
++  //         at com.nocandysw.coinv$.oops1(coinv.scala:12)
++ 
++  type Stringer[-A] = A => String
++  down[Stringer](_.toString)
++  // [error] type A is contravariant, but type _ is declared covariant
++  // up[Stringer]("printed: " + _)
++ 
++  // should not compile; `l' is unsound
++  def oops2 = up[({type l[+a] = Stringer[a]})#l]("printed: " + _)
++  // scala> oops2(Some(33))
++  // java.lang.ClassCastException: scala.Some cannot be cast to java.lang.String
++  //         at com.nocandysw.coinv$$anonfun$oops2$1.apply(coinv.scala:20)
++}
+diff --git a/test/files/neg/t7872c.check b/test/files/neg/t7872c.check
+new file mode 100644
+index 000000000000..469449dbd5bb
+--- /dev/null
++++ b/test/files/neg/t7872c.check
+@@ -0,0 +1,11 @@
++t7872c.scala:7: error: inferred kinds of the type arguments (List) do not conform to the expected kinds of the type parameters (type F).
++List's type parameters do not match type F's expected parameters:
++type A is covariant, but type _ is declared contravariant
++  down(List('whatever: Object))
++  ^
++t7872c.scala:7: error: type mismatch;
++ found   : List[Object]
++ required: F[Object]
++  down(List('whatever: Object))
++           ^
++two errors found
+diff --git a/test/files/neg/t7872c.scala b/test/files/neg/t7872c.scala
+new file mode 100644
+index 000000000000..fa12a523b5f8
+--- /dev/null
++++ b/test/files/neg/t7872c.scala
+@@ -0,0 +1,8 @@
++object coinv {
++  def up[F[+_]](fa: F[String]): F[Object] = fa
++  def down[F[-_]](fa: F[Object]): F[String] = fa
++ 
++  up(List("hi"))
++  // [error] type A is covariant, but type _ is declared contravariant
++  down(List('whatever: Object))
++}
+diff --git a/test/files/neg/variances.check b/test/files/neg/variances.check
+index 7d965e94dc0c..cb1a60a6323c 100644
+--- a/test/files/neg/variances.check
++++ b/test/files/neg/variances.check
+@@ -1,6 +1,9 @@
+ variances.scala:4: error: covariant type A occurs in contravariant position in type test.Vector[A] of value x
+   def append(x: Vector[A]): Vector[A]
+              ^
++variances.scala:75: error: covariant type A occurs in contravariant position in type => A => A of value m
++      val m: A => A
++          ^
+ variances.scala:18: error: covariant type A occurs in contravariant position in type A of value a
+     private def setA3(a : A) = this.a = a
+                       ^
+@@ -19,4 +22,4 @@ variances.scala:89: error: covariant type T occurs in invariant position in type
+ variances.scala:90: error: covariant type T occurs in contravariant position in type => test.TestAlias.B[C.this.A] of method foo
+     def foo: B[A]
+         ^
+-7 errors found
++8 errors found

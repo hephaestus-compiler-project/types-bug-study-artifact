@@ -1,0 +1,186 @@
+changeset:   2221:8832b6048e65
+user:        vromero
+date:        Fri Dec 13 14:13:03 2013 +0000
+summary:     8029721: javac crash for annotated parameter type of lambda in a field
+
+diff -r d80c3d6f4f05 -r 8832b6048e65 src/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Dec 12 19:19:07 2013 -0800
++++ b/src/share/classes/com/sun/tools/javac/comp/Attr.java	Fri Dec 13 14:13:03 2013 +0000
+@@ -2590,15 +2590,61 @@
+             }
+         }
+ 
++        /* Map to hold 'fake' clinit methods. If a lambda is used to initialize a
++         * static field and that lambda has type annotations, these annotations will
++         * also be stored at these fake clinit methods.
++         *
++         * LambdaToMethod also use fake clinit methods so they can be reused.
++         * Also as LTM is a phase subsequent to attribution, the methods from
++         * clinits can be safely removed by LTM to save memory.
++         */
++        private Map<ClassSymbol, MethodSymbol> clinits = new HashMap<>();
++
++        public MethodSymbol removeClinit(ClassSymbol sym) {
++            return clinits.remove(sym);
++        }
++
++        /* This method returns an environment to be used to attribute a lambda
++         * expression.
++         *
++         * The owner of this environment is a method symbol. If the current owner
++         * is not a method, for example if the lambda is used to initialize
++         * a field, then if the field is:
++         *
++         * - an instance field, we use the first constructor.
++         * - a static field, we create a fake clinit method.
++         */
+         private Env<AttrContext> lambdaEnv(JCLambda that, Env<AttrContext> env) {
+             Env<AttrContext> lambdaEnv;
+             Symbol owner = env.info.scope.owner;
+             if (owner.kind == VAR && owner.owner.kind == TYP) {
+                 //field initializer
+                 lambdaEnv = env.dup(that, env.info.dup(env.info.scope.dupUnshared()));
+-                lambdaEnv.info.scope.owner =
+-                    new MethodSymbol((owner.flags() & STATIC) | BLOCK, names.empty, null,
+-                                     env.info.scope.owner);
++                ClassSymbol enclClass = owner.enclClass();
++                /* if the field isn't static, then we can get the first constructor
++                 * and use it as the owner of the environment. This is what
++                 * LTM code is doing to look for type annotations so we are fine.
++                 */
++                if ((owner.flags() & STATIC) == 0) {
++                    for (Symbol s : enclClass.members_field.getElementsByName(names.init)) {
++                        lambdaEnv.info.scope.owner = s;
++                        break;
++                    }
++                } else {
++                    /* if the field is static then we need to create a fake clinit
++                     * method, this method can later be reused by LTM.
++                     */
++                    MethodSymbol clinit = clinits.get(enclClass);
++                    if (clinit == null) {
++                        Type clinitType = new MethodType(List.<Type>nil(),
++                                syms.voidType, List.<Type>nil(), syms.methodClass);
++                        clinit = new MethodSymbol(STATIC | SYNTHETIC | PRIVATE,
++                                names.clinit, clinitType, enclClass);
++                        clinit.params = List.<VarSymbol>nil();
++                        clinits.put(enclClass, clinit);
++                    }
++                    lambdaEnv.info.scope.owner = clinit;
++                }
+             } else {
+                 lambdaEnv = env.dup(that, env.info.dup(env.info.scope.dup()));
+             }
+diff -r d80c3d6f4f05 -r 8832b6048e65 src/share/classes/com/sun/tools/javac/comp/LambdaToMethod.java
+--- a/src/share/classes/com/sun/tools/javac/comp/LambdaToMethod.java	Thu Dec 12 19:19:07 2013 -0800
++++ b/src/share/classes/com/sun/tools/javac/comp/LambdaToMethod.java	Fri Dec 13 14:13:03 2013 +0000
+@@ -1474,12 +1474,27 @@
+         private Symbol initSym(ClassSymbol csym, long flags) {
+             boolean isStatic = (flags & STATIC) != 0;
+             if (isStatic) {
+-                //static clinits are generated in Gen - so we need to fake them
+-                Symbol clinit = clinits.get(csym);
++                /* static clinits are generated in Gen, so we need to use a fake
++                 * one. Attr creates a fake clinit method while attributing
++                 * lambda expressions used as initializers of static fields, so
++                 * let's use that one.
++                 */
++                MethodSymbol clinit = attr.removeClinit(csym);
++                if (clinit != null) {
++                    clinits.put(csym, clinit);
++                    return clinit;
++                }
++
++                /* if no clinit is found at Attr, then let's try at clinits.
++                 */
++                clinit = (MethodSymbol)clinits.get(csym);
+                 if (clinit == null) {
++                    /* no luck, let's create a new one
++                     */
+                     clinit = makePrivateSyntheticMethod(STATIC,
+                             names.clinit,
+-                            new MethodType(List.<Type>nil(), syms.voidType, List.<Type>nil(), syms.methodClass),
++                            new MethodType(List.<Type>nil(), syms.voidType,
++                                List.<Type>nil(), syms.methodClass),
+                             csym);
+                     clinits.put(csym, clinit);
+                 }
+diff -r d80c3d6f4f05 -r 8832b6048e65 test/tools/javac/annotations/typeAnnotations/newlocations/Lambda.java
+--- a/test/tools/javac/annotations/typeAnnotations/newlocations/Lambda.java	Thu Dec 12 19:19:07 2013 -0800
++++ b/test/tools/javac/annotations/typeAnnotations/newlocations/Lambda.java	Fri Dec 13 14:13:03 2013 +0000
+@@ -23,8 +23,9 @@
+ 
+ /*
+  * @test
+- * @bug 8008077
++ * @bug 8008077 8029721
+  * @summary new type annotation location: lambda expressions
++ * javac crash for annotated parameter type of lambda in a field
+  * @compile Lambda.java
+  * @author Werner Dietl
+  */
+@@ -57,6 +58,14 @@
+     LambdaInt2 getLambda() {
+         return (@TA Object x, @TB Object y) -> { @TA Object l = null; System.out.println("We have: " + (@TB Object) x); };
+     }
++
++    java.util.function.IntUnaryOperator x = (@TA int y) -> 1;
++
++    static java.util.function.IntUnaryOperator xx = (@TA int y) -> 1;
++
++    java.util.function.IntUnaryOperator foo() {
++        return (@TA int y) -> 2;
++    }
+ }
+ 
+ @Target({ElementType.TYPE_USE, ElementType.TYPE_PARAMETER})
+diff -r d80c3d6f4f05 -r 8832b6048e65 test/tools/javac/annotations/typeAnnotations/referenceinfos/Lambda.java
+--- a/test/tools/javac/annotations/typeAnnotations/referenceinfos/Lambda.java	Thu Dec 12 19:19:07 2013 -0800
++++ b/test/tools/javac/annotations/typeAnnotations/referenceinfos/Lambda.java	Fri Dec 13 14:13:03 2013 +0000
+@@ -23,8 +23,9 @@
+ 
+ /*
+  * @test
+- * @bug 8008077
++ * @bug 8008077 8029721
+  * @summary Test population of reference info for lambda expressions
++ * javac crash for annotated parameter type of lambda in a field
+  * @compile -g Driver.java ReferenceInfoUtil.java Lambda.java
+  * @run main Driver Lambda
+  * @author Werner Dietl
+@@ -285,4 +286,24 @@
+                 "  }" +
+                 "}";
+     }
++
++    @TADescriptions({
++        @TADescription(annotation = "TA", type = METHOD_FORMAL_PARAMETER,
++            paramIndex = 0)})
++    public String lambdaField1() {
++        return
++            "class Test {" +
++                " java.util.function.IntUnaryOperator field = (@TA int y) -> 1;" +
++            "}";
++    }
++
++    @TADescriptions({
++        @TADescription(annotation = "TA", type = METHOD_FORMAL_PARAMETER,
++            paramIndex = 0)})
++    public String lambdaField2() {
++        return
++            "class Test {" +
++                " static java.util.function.IntUnaryOperator field = (@TA int y) -> 1;" +
++            "}";
++    }
+ }
+diff -r d80c3d6f4f05 -r 8832b6048e65 test/tools/javac/lambda/LambdaScope05.out
+--- a/test/tools/javac/lambda/LambdaScope05.out	Thu Dec 12 19:19:07 2013 -0800
++++ b/test/tools/javac/lambda/LambdaScope05.out	Fri Dec 13 14:13:03 2013 +0000
+@@ -1,5 +1,5 @@
+ LambdaScope05.java:13:47: compiler.err.already.defined.in.clinit: kindname.variable, p, kindname.static.init, kindname.class, LambdaScope05
+-LambdaScope05.java:14:40: compiler.err.already.defined.in.clinit: kindname.variable, p, kindname.instance.init, kindname.class, LambdaScope05
++LambdaScope05.java:14:40: compiler.err.already.defined: kindname.variable, p, kindname.constructor, LambdaScope05()
+ LambdaScope05.java:17:43: compiler.err.already.defined.in.clinit: kindname.variable, p, kindname.static.init, kindname.class, LambdaScope05
+ LambdaScope05.java:21:43: compiler.err.already.defined.in.clinit: kindname.variable, p, kindname.instance.init, kindname.class, LambdaScope05
+ LambdaScope05.java:25:43: compiler.err.already.defined: kindname.variable, p, kindname.method, m_static()
+

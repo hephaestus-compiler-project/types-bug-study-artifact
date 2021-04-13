@@ -1,0 +1,47 @@
+diff --git a/src/main/org/codehaus/groovy/ast/GenericsType.java b/src/main/org/codehaus/groovy/ast/GenericsType.java
+index c92745eafb..f17045d6c9 100644
+--- a/src/main/org/codehaus/groovy/ast/GenericsType.java
++++ b/src/main/org/codehaus/groovy/ast/GenericsType.java
+@@ -169,7 +169,17 @@ public class GenericsType extends ASTNode {
+                 // if the classnode we compare to is a generics placeholder (like <E>) then we
+                 // only need to check that the names are equal
+                 GenericsType[] genericsTypes = classNode.getGenericsTypes();
+-                return genericsTypes==null||genericsTypes[0].getName().equals(name);
++                if (genericsTypes==null) return true;
++                if (isWildcard()) {
++                    if (lowerBound!=null) return genericsTypes[0].getName().equals(lowerBound.getUnresolvedName());
++                    if (upperBounds!=null) {
++                        for (ClassNode upperBound : upperBounds) {
++                            if (genericsTypes[0].getName().equals(upperBound.getUnresolvedName())) return true;
++                        }
++                        return false;
++                    }
++                }
++                return genericsTypes[0].getName().equals(name);
+             }
+             if (wildcard || placeholder) {
+                 // if the current generics spec is a wildcard spec or a placeholder spec
+diff --git a/src/test/groovy/transform/stc/GenericsSTCTest.groovy b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+index 4274ec03e3..9014dbc95f 100644
+--- a/src/test/groovy/transform/stc/GenericsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+@@ -279,6 +279,19 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+         }
+       '''
+     }
++
++    // GROOVY-5237
++    void testGenericTypeArgumentAsField() {
++        assertScript '''
++            class Container<T> {
++                private T initialValue
++                Container(T initialValue) { this.initialValue = initialValue }
++                T get() { initialValue }
++            }
++            Container<Date> c = new Container<Date>(new Date())
++            long time = c.get().time
++        '''
++    }
+   
+     static class MyList extends LinkedList<String> {}
+ }

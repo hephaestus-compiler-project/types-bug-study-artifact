@@ -1,0 +1,216 @@
+diff --git a/compiler/fir/fir2ir/tests/org/jetbrains/kotlin/codegen/ir/FirBlackBoxCodegenTestGenerated.java b/compiler/fir/fir2ir/tests/org/jetbrains/kotlin/codegen/ir/FirBlackBoxCodegenTestGenerated.java
+index 42ae780e266..ee9593507ca 100644
+--- a/compiler/fir/fir2ir/tests/org/jetbrains/kotlin/codegen/ir/FirBlackBoxCodegenTestGenerated.java
++++ b/compiler/fir/fir2ir/tests/org/jetbrains/kotlin/codegen/ir/FirBlackBoxCodegenTestGenerated.java
+@@ -12652,6 +12652,11 @@ public class FirBlackBoxCodegenTestGenerated extends AbstractFirBlackBoxCodegenT
+             runTest("compiler/testData/codegen/box/inference/manyFlexibleTypeParametersFromJavaAndConversions.kt");
+         }
+ 
++        @TestMetadata("mapCollectChainWithNullResult.kt")
++        public void testMapCollectChainWithNullResult() throws Exception {
++            runTest("compiler/testData/codegen/box/inference/mapCollectChainWithNullResult.kt");
++        }
++
+         @TestMetadata("noCoercionToUniForNullableLambdaReturnType.kt")
+         public void testNoCoercionToUniForNullableLambdaReturnType() throws Exception {
+             runTest("compiler/testData/codegen/box/inference/noCoercionToUniForNullableLambdaReturnType.kt");
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/inference/CoroutineInferenceSession.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/inference/CoroutineInferenceSession.kt
+index 4b5dbdbd5b4..7dce885fdeb 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/inference/CoroutineInferenceSession.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/inference/CoroutineInferenceSession.kt
+@@ -174,8 +174,13 @@ class CoroutineInferenceSession(
+         diagnosticsHolder: KotlinDiagnosticsHolder,
+     ): Map<TypeConstructor, UnwrappedType>? {
+         val (commonSystem, effectivelyEmptyConstraintSystem) = buildCommonSystem(initialStorage)
++        val initialStorageSubstitutor = initialStorage.buildResultingSubstitutor(commonSystem, transformTypeVariablesToErrorTypes = false)
+         if (effectivelyEmptyConstraintSystem) {
+-            updateCalls(lambda, commonSystem)
++            updateCalls(
++                lambda,
++                initialStorageSubstitutor,
++                commonSystem.errors
++            )
+             return null
+         }
+ 
+@@ -188,7 +193,9 @@ class CoroutineInferenceSession(
+             diagnosticsHolder
+         )
+ 
+-        updateCalls(lambda, commonSystem)
++        val resultingSubstitutor =
++            ComposedSubstitutor(initialStorageSubstitutor, commonSystem.buildCurrentSubstitutor() as NewTypeSubstitutor)
++        updateCalls(lambda, resultingSubstitutor, commonSystem.errors)
+ 
+         return commonSystem.fixedTypeVariables.cast() // TODO: SUB
+     }
+@@ -289,23 +296,22 @@ class CoroutineInferenceSession(
+         )
+     }
+ 
+-    private fun updateCalls(lambda: ResolvedLambdaAtom, commonSystem: NewConstraintSystemImpl) {
++    private fun updateCalls(lambda: ResolvedLambdaAtom, substitutor: NewTypeSubstitutor, errors: List<ConstraintSystemError>) {
+         val nonFixedToVariablesSubstitutor = createNonFixedTypeToVariableSubstitutor()
+-        val commonSystemSubstitutor = commonSystem.buildCurrentSubstitutor() as NewTypeSubstitutor
+ 
+-        val nonFixedTypesToResult = nonFixedToVariablesSubstitutor.map.mapValues { commonSystemSubstitutor.safeSubstitute(it.value) }
+-        val nonFixedTypesToResultSubstitutor = ComposedSubstitutor(commonSystemSubstitutor, nonFixedToVariablesSubstitutor)
++        val nonFixedTypesToResult = nonFixedToVariablesSubstitutor.map.mapValues { substitutor.safeSubstitute(it.value) }
++        val nonFixedTypesToResultSubstitutor = ComposedSubstitutor(substitutor, nonFixedToVariablesSubstitutor)
+ 
+         val atomCompleter = createResolvedAtomCompleter(nonFixedTypesToResultSubstitutor, topLevelCallContext)
+ 
+         for (completedCall in commonCalls) {
+             updateCall(completedCall, nonFixedTypesToResultSubstitutor, nonFixedTypesToResult)
+-            reportErrors(completedCall, completedCall.resolvedCall, commonSystem.errors)
++            reportErrors(completedCall, completedCall.resolvedCall, errors)
+         }
+ 
+         for (callInfo in partiallyResolvedCallsInfo) {
+             val resolvedCall = completeCall(callInfo, atomCompleter) ?: continue
+-            reportErrors(callInfo, resolvedCall, commonSystem.errors)
++            reportErrors(callInfo, resolvedCall, errors)
+         }
+ 
+         for (simpleCall in simpleCommonCalls) {
+diff --git a/compiler/testData/codegen/box/inference/mapCollectChainWithNullResult.kt b/compiler/testData/codegen/box/inference/mapCollectChainWithNullResult.kt
+new file mode 100644
+index 00000000000..e3c876cf04b
+--- /dev/null
++++ b/compiler/testData/codegen/box/inference/mapCollectChainWithNullResult.kt
+@@ -0,0 +1,38 @@
++// WITH_RUNTIME
++
++@file:OptIn(kotlin.experimental.ExperimentalTypeInference::class)
++
++interface Flow<out T> {
++    fun collect(collector: FlowCollector<T>)
++}
++
++interface FlowCollector<in T> {
++    fun emit(value: T)
++}
++
++fun <T> flow(block: FlowCollector<T>.() -> Unit): Flow<T> =
++    object : Flow<T> {
++        override fun collect(collector: FlowCollector<T>) = collector.block()
++    }
++
++fun <T> Flow<T>.collect(action: (value: T) -> Unit): Unit =
++    collect(object : FlowCollector<T> {
++        override fun emit(value: T) = action(value)
++    })
++
++fun <T, R> Flow<T>.transform(@BuilderInference transform: FlowCollector<R>.(T) -> Unit): Flow<R> =
++    flow { collect { transform(it) } }
++
++fun <T, R> Flow<T>.map(transform: (T) -> R): Flow<R> =
++    transform { emit(transform(it)) }
++
++var result: Any? = "not null"
++
++fun main() {
++    flow<Int> { emit(1) }.map { null }.collect { result = it }
++}
++
++fun box(): String {
++    main()
++    return if (result == null) "OK" else "fail: $result"
++}
+\ No newline at end of file
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+index 7260d404a0d..4bcb57976db 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+@@ -13877,6 +13877,11 @@ public class BlackBoxCodegenTestGenerated extends AbstractBlackBoxCodegenTest {
+             runTest("compiler/testData/codegen/box/inference/manyFlexibleTypeParametersFromJavaAndConversions.kt");
+         }
+ 
++        @TestMetadata("mapCollectChainWithNullResult.kt")
++        public void testMapCollectChainWithNullResult() throws Exception {
++            runTest("compiler/testData/codegen/box/inference/mapCollectChainWithNullResult.kt");
++        }
++
+         @TestMetadata("noCoercionToUniForNullableLambdaReturnType.kt")
+         public void testNoCoercionToUniForNullableLambdaReturnType() throws Exception {
+             runTest("compiler/testData/codegen/box/inference/noCoercionToUniForNullableLambdaReturnType.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
+index c6cda1bb1e7..ebc2b07dc58 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
+@@ -13877,6 +13877,11 @@ public class LightAnalysisModeTestGenerated extends AbstractLightAnalysisModeTes
+             runTest("compiler/testData/codegen/box/inference/manyFlexibleTypeParametersFromJavaAndConversions.kt");
+         }
+ 
++        @TestMetadata("mapCollectChainWithNullResult.kt")
++        public void testMapCollectChainWithNullResult() throws Exception {
++            runTest("compiler/testData/codegen/box/inference/mapCollectChainWithNullResult.kt");
++        }
++
+         @TestMetadata("noCoercionToUniForNullableLambdaReturnType.kt")
+         public void testNoCoercionToUniForNullableLambdaReturnType() throws Exception {
+             runTest("compiler/testData/codegen/box/inference/noCoercionToUniForNullableLambdaReturnType.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
+index 31788a3955b..c1e79b0e0de 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
+@@ -12652,6 +12652,11 @@ public class IrBlackBoxCodegenTestGenerated extends AbstractIrBlackBoxCodegenTes
+             runTest("compiler/testData/codegen/box/inference/manyFlexibleTypeParametersFromJavaAndConversions.kt");
+         }
+ 
++        @TestMetadata("mapCollectChainWithNullResult.kt")
++        public void testMapCollectChainWithNullResult() throws Exception {
++            runTest("compiler/testData/codegen/box/inference/mapCollectChainWithNullResult.kt");
++        }
++
+         @TestMetadata("noCoercionToUniForNullableLambdaReturnType.kt")
+         public void testNoCoercionToUniForNullableLambdaReturnType() throws Exception {
+             runTest("compiler/testData/codegen/box/inference/noCoercionToUniForNullableLambdaReturnType.kt");
+diff --git a/js/js.tests/test/org/jetbrains/kotlin/js/test/es6/semantics/IrJsCodegenBoxES6TestGenerated.java b/js/js.tests/test/org/jetbrains/kotlin/js/test/es6/semantics/IrJsCodegenBoxES6TestGenerated.java
+index 3a1c2844c9c..7407abf1631 100644
+--- a/js/js.tests/test/org/jetbrains/kotlin/js/test/es6/semantics/IrJsCodegenBoxES6TestGenerated.java
++++ b/js/js.tests/test/org/jetbrains/kotlin/js/test/es6/semantics/IrJsCodegenBoxES6TestGenerated.java
+@@ -10827,6 +10827,11 @@ public class IrJsCodegenBoxES6TestGenerated extends AbstractIrJsCodegenBoxES6Tes
+             runTest("compiler/testData/codegen/box/inference/lastExpressionOfLambdaWithNothingConstraint.kt");
+         }
+ 
++        @TestMetadata("mapCollectChainWithNullResult.kt")
++        public void testMapCollectChainWithNullResult() throws Exception {
++            runTest("compiler/testData/codegen/box/inference/mapCollectChainWithNullResult.kt");
++        }
++
+         @TestMetadata("noCoercionToUniForNullableLambdaReturnType.kt")
+         public void testNoCoercionToUniForNullableLambdaReturnType() throws Exception {
+             runTest("compiler/testData/codegen/box/inference/noCoercionToUniForNullableLambdaReturnType.kt");
+diff --git a/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java b/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java
+index 3e21d50e1cc..b590509c2bb 100644
+--- a/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java
++++ b/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java
+@@ -10827,6 +10827,11 @@ public class IrJsCodegenBoxTestGenerated extends AbstractIrJsCodegenBoxTest {
+             runTest("compiler/testData/codegen/box/inference/lastExpressionOfLambdaWithNothingConstraint.kt");
+         }
+ 
++        @TestMetadata("mapCollectChainWithNullResult.kt")
++        public void testMapCollectChainWithNullResult() throws Exception {
++            runTest("compiler/testData/codegen/box/inference/mapCollectChainWithNullResult.kt");
++        }
++
+         @TestMetadata("noCoercionToUniForNullableLambdaReturnType.kt")
+         public void testNoCoercionToUniForNullableLambdaReturnType() throws Exception {
+             runTest("compiler/testData/codegen/box/inference/noCoercionToUniForNullableLambdaReturnType.kt");
+diff --git a/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java b/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
+index 08efd7d88ae..d2e3febf121 100644
+--- a/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
++++ b/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
+@@ -10892,6 +10892,11 @@ public class JsCodegenBoxTestGenerated extends AbstractJsCodegenBoxTest {
+             runTest("compiler/testData/codegen/box/inference/lastExpressionOfLambdaWithNothingConstraint.kt");
+         }
+ 
++        @TestMetadata("mapCollectChainWithNullResult.kt")
++        public void testMapCollectChainWithNullResult() throws Exception {
++            runTest("compiler/testData/codegen/box/inference/mapCollectChainWithNullResult.kt");
++        }
++
+         @TestMetadata("noCoercionToUniForNullableLambdaReturnType.kt")
+         public void testNoCoercionToUniForNullableLambdaReturnType() throws Exception {
+             runTest("compiler/testData/codegen/box/inference/noCoercionToUniForNullableLambdaReturnType.kt");

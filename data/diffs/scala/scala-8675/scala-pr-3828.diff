@@ -1,0 +1,100 @@
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Typers.scala b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+index 66b1c2d87a3c..9a4d5e3c0676 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Typers.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+@@ -4399,7 +4399,7 @@ trait Typers extends Adaptations with Tags with TypersTracking with PatternTyper
+           if (retry) {
+             val Select(qual, name) = fun
+             tryTypedArgs(args, forArgMode(fun, mode)) match {
+-              case Some(args1) =>
++              case Some(args1) if !args1.exists(arg => arg.exists(_.isErroneous)) =>
+                 val qual1 =
+                   if (!pt.isError) adaptToArguments(qual, name, args1, pt, reportAmbiguous = true, saveErrors = true)
+                   else qual
+diff --git a/test/files/neg/t8675.check b/test/files/neg/t8675.check
+new file mode 100644
+index 000000000000..4e44fba91867
+--- /dev/null
++++ b/test/files/neg/t8675.check
+@@ -0,0 +1,11 @@
++t8675.scala:13: error: type mismatch;
++ found   : Boolean(true)
++ required: String
++    a.update(0, x[A]({new isString(true)})) // !!! allowed
++                                   ^
++t8675.scala:22: error: type mismatch;
++ found   : Boolean(true)
++ required: String
++    new X().m(x[A]({new isString(true)})) // !!! allowed
++                                 ^
++two errors found
+diff --git a/test/files/neg/t8675.scala b/test/files/neg/t8675.scala
+new file mode 100644
+index 000000000000..ca9bb57ffaa8
+--- /dev/null
++++ b/test/files/neg/t8675.scala
+@@ -0,0 +1,24 @@
++class A(s: String) {
++  def foo(x: A) = x
++}
++
++class isString(s: String)
++
++class Test {
++
++  def x[A](a: Any): A = ???
++
++  def test {
++    val a = Array[A]()
++    a.update(0, x[A]({new isString(true)})) // !!! allowed
++
++    // boils down to
++    class X {
++      def m(p: Any) {}
++    }
++    implicit class XOps(x: X) {
++      def m(p: Any) {}
++    }
++    new X().m(x[A]({new isString(true)})) // !!! allowed
++  }
++}
+diff --git a/test/files/neg/t8675b.check b/test/files/neg/t8675b.check
+new file mode 100644
+index 000000000000..cb7ac8af59a1
+--- /dev/null
++++ b/test/files/neg/t8675b.check
+@@ -0,0 +1,6 @@
++t8675b.scala:19: error: missing parameter type for expanded function
++The argument types of an anonymous function must be fully known. (SLS 8.5)
++Expected type was: List[Test.Reportable1[?,?]] => Boolean
++  for (path: List[Any] <- (null : Engine1).asRequirement.pathsIncludingSelf.toList) {
++                                                                            ^
++one error found
+diff --git a/test/files/neg/t8675b.scala b/test/files/neg/t8675b.scala
+new file mode 100644
+index 000000000000..2c5015b1d0a8
+--- /dev/null
++++ b/test/files/neg/t8675b.scala
+@@ -0,0 +1,22 @@
++object Test {
++  trait Engine1
++
++  implicit class EngineTools1[Params, R](e: Engine1) {
++    def asRequirement: Requirement1[Params, R] = ???
++  }
++  trait Requirement1[Params, R] {
++    def pathsIncludingSelf: Traversable[List[Reportable1[Params, R]]]
++  }
++  trait Reportable1[Params, R]
++
++  // "missing paramater type" error was swallowed in 2.11.0 leading to a crash
++  // in the backend.
++  //
++  // This error is itself a regression (or at least a change) in 2.11.0-M7,
++  // specifically in SI-7944. The type paramaters to the implicit view
++  // `EngineTools1` are undetermined, and are now treated as type variables
++  // in the expected type of the closure argument to `withFilter`.
++  for (path: List[Any] <- (null : Engine1).asRequirement.pathsIncludingSelf.toList) {
++    ???
++  }
++}

@@ -1,0 +1,302 @@
+diff --git a/src/main/java/org/codehaus/groovy/runtime/DefaultGroovyMethods.java b/src/main/java/org/codehaus/groovy/runtime/DefaultGroovyMethods.java
+index d5d0d44439..1b2b18b391 100644
+--- a/src/main/java/org/codehaus/groovy/runtime/DefaultGroovyMethods.java
++++ b/src/main/java/org/codehaus/groovy/runtime/DefaultGroovyMethods.java
+@@ -3762,7 +3762,7 @@ public class DefaultGroovyMethods extends DefaultGroovyMethodsSupport {
+      * @since 1.8.1
+      */
+     @Deprecated
+-    public static <T,E> List<T> collectMany(Collection<E> self, @ClosureParams(FirstParam.FirstGenericType.class) Closure<Collection<? extends T>> projection) {
++    public static <T,E> List<T> collectMany(Collection<E> self, @ClosureParams(FirstParam.FirstGenericType.class) Closure<? extends Collection<? extends T>> projection) {
+         return collectMany((Iterable)self, projection);
+     }
+ 
+@@ -3772,7 +3772,7 @@ public class DefaultGroovyMethods extends DefaultGroovyMethodsSupport {
+      * @since 1.8.5
+      */
+     @Deprecated
+-    public static <T,E> Collection<T> collectMany(Collection<E> self, Collection<T> collector, @ClosureParams(FirstParam.FirstGenericType.class) Closure<Collection<? extends T>> projection) {
++    public static <T,E> Collection<T> collectMany(Collection<E> self, Collection<T> collector, @ClosureParams(FirstParam.FirstGenericType.class) Closure<? extends Collection<? extends T>> projection) {
+         return collectMany((Iterable)self, collector, projection);
+     }
+ 
+@@ -3800,7 +3800,7 @@ public class DefaultGroovyMethods extends DefaultGroovyMethodsSupport {
+      * @see #sum(java.util.Collection, groovy.lang.Closure)
+      * @since 2.2.0
+      */
+-    public static <T,E> List<T> collectMany(Iterable<E> self, @ClosureParams(FirstParam.FirstGenericType.class) Closure<Collection<? extends T>> projection) {
++    public static <T,E> List<T> collectMany(Iterable<E> self, @ClosureParams(FirstParam.FirstGenericType.class) Closure<? extends Collection<? extends T>> projection) {
+         return (List<T>) collectMany(self, new ArrayList<T>(), projection);
+     }
+ 
+@@ -3824,7 +3824,7 @@ public class DefaultGroovyMethods extends DefaultGroovyMethodsSupport {
+      * @return the collector with the projected collections concatenated (flattened) into it
+      * @since 2.2.0
+      */
+-    public static <T,E> Collection<T> collectMany(Iterable<E> self, Collection<T> collector, @ClosureParams(FirstParam.FirstGenericType.class) Closure<Collection<? extends T>> projection) {
++    public static <T,E> Collection<T> collectMany(Iterable<E> self, Collection<T> collector, @ClosureParams(FirstParam.FirstGenericType.class) Closure<? extends Collection<? extends T>> projection) {
+         for (E next : self) {
+             collector.addAll(projection.call(next));
+         }
+@@ -3847,7 +3847,7 @@ public class DefaultGroovyMethods extends DefaultGroovyMethodsSupport {
+      * @return the collector with the projected collections concatenated (flattened) to it
+      * @since 1.8.8
+      */
+-    public static <T,K,V> Collection<T> collectMany(Map<K, V> self, Collection<T> collector, @ClosureParams(MapEntryOrKeyValue.class) Closure<Collection<? extends T>> projection) {
++    public static <T,K,V> Collection<T> collectMany(Map<K, V> self, Collection<T> collector, @ClosureParams(MapEntryOrKeyValue.class) Closure<? extends Collection<? extends T>> projection) {
+         for (Map.Entry<K, V> entry : self.entrySet()) {
+             collector.addAll(callClosureForMapEntry(projection, entry));
+         }
+@@ -3869,7 +3869,7 @@ public class DefaultGroovyMethods extends DefaultGroovyMethodsSupport {
+      * @return the collector with the projected collections concatenated (flattened) to it
+      * @since 1.8.8
+      */
+-    public static <T,K,V> Collection<T> collectMany(Map<K, V> self, @ClosureParams(MapEntryOrKeyValue.class) Closure<Collection<? extends T>> projection) {
++    public static <T,K,V> Collection<T> collectMany(Map<K, V> self, @ClosureParams(MapEntryOrKeyValue.class) Closure<? extends Collection<? extends T>> projection) {
+         return collectMany(self, new ArrayList<T>(), projection);
+     }
+ 
+@@ -3889,7 +3889,7 @@ public class DefaultGroovyMethods extends DefaultGroovyMethodsSupport {
+      * @since 1.8.1
+      */
+     @SuppressWarnings("unchecked")
+-    public static <T,E> List<T> collectMany(E[] self, @ClosureParams(FirstParam.Component.class) Closure<Collection<? extends T>> projection) {
++    public static <T,E> List<T> collectMany(E[] self, @ClosureParams(FirstParam.Component.class) Closure<? extends Collection<? extends T>> projection) {
+         return collectMany((Iterable<E>)toList(self), projection);
+     }
+ 
+@@ -3909,7 +3909,7 @@ public class DefaultGroovyMethods extends DefaultGroovyMethodsSupport {
+      * @since 1.8.1
+      */
+     @SuppressWarnings("unchecked")
+-    public static <T,E> List<T> collectMany(Iterator<E> self, @ClosureParams(FirstParam.FirstGenericType.class) Closure<Collection<? extends T>> projection) {
++    public static <T,E> List<T> collectMany(Iterator<E> self, @ClosureParams(FirstParam.FirstGenericType.class) Closure<? extends Collection<? extends T>> projection) {
+         return collectMany((Iterable)toList(self), projection);
+     }
+ 
+diff --git a/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 0447f9f19c..5b803f0f35 100644
+--- a/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -3531,17 +3531,16 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+             MethodNode target = (MethodNode) call.getNodeMetaData(DIRECT_METHOD_CALL_TARGET);
+             if (!callArgsVisited) {
+                 visitMethodCallArguments(receiver, argumentList, true, target);
+-                // GROOVY-6219
+-                if (target != null) {
+-                    List<Expression> argExpressions = argumentList.getExpressions();
+-                    Parameter[] parameters = target.getParameters();
+-                    for (int i = 0; i < argExpressions.size() && i < parameters.length; i += 1) {
+-                        Expression arg = argExpressions.get(i);
+-                        ClassNode aType = getType(arg), pType = parameters[i].getType();
+-                        if (CLOSURE_TYPE.equals(aType) && CLOSURE_TYPE.equals(pType) && !isAssignableTo(aType, pType)) {
+-                            addNoMatchingMethodError(receiver, name, getArgumentTypes(argumentList), call);
+-                            call.removeNodeMetaData(DIRECT_METHOD_CALL_TARGET);
+-                        }
++            }
++            if (target != null) {
++                List<Expression> argExpressions = argumentList.getExpressions();
++                Parameter[] parameters = target.getParameters();
++                for (int i = 0; i < argExpressions.size() && i < parameters.length; i += 1) {
++                    Expression arg = argExpressions.get(i);
++                    ClassNode aType = getType(arg), pType = parameters[i].getType();
++                    if (CLOSURE_TYPE.equals(aType) && CLOSURE_TYPE.equals(pType) && !isAssignableTo(aType, pType)) {
++                        addNoMatchingMethodError(receiver, name, getArgumentTypes(argumentList), call);
++                        call.removeNodeMetaData(DIRECT_METHOD_CALL_TARGET);
+                     }
+                 }
+             }
+diff --git a/src/test/groovy/bugs/Groovy8310.groovy b/src/test/groovy/bugs/Groovy8310.groovy
+new file mode 100644
+index 0000000000..838566faf8
+--- /dev/null
++++ b/src/test/groovy/bugs/Groovy8310.groovy
+@@ -0,0 +1,118 @@
++/*
++ *  Licensed to the Apache Software Foundation (ASF) under one
++ *  or more contributor license agreements.  See the NOTICE file
++ *  distributed with this work for additional information
++ *  regarding copyright ownership.  The ASF licenses this file
++ *  to you under the Apache License, Version 2.0 (the
++ *  "License"); you may not use this file except in compliance
++ *  with the License.  You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ *  Unless required by applicable law or agreed to in writing,
++ *  software distributed under the License is distributed on an
++ *  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++ *  KIND, either express or implied.  See the License for the
++ *  specific language governing permissions and limitations
++ *  under the License.
++ */
++package groovy.bugs
++
++import groovy.transform.CompileStatic
++import org.junit.Test
++
++import static groovy.test.GroovyAssert.assertScript
++import static groovy.test.GroovyAssert.shouldFail
++
++@CompileStatic
++final class Groovy8310 {
++
++    @Test
++    void testClosureReturnType1() {
++        def err = shouldFail '''
++            def bar(Closure<Collection<Integer>> block) {
++                block()
++            }
++
++            @groovy.transform.CompileStatic
++            def use() {
++                bar {
++                    [1]
++                }
++            }
++        '''
++
++        assert err =~ /Cannot find matching method \w+#bar\(groovy.lang.Closure <java.util.List>\)/
++    }
++
++    @Test
++    void testClosureReturnType2() {
++        def err = shouldFail '''
++            public <T> T bar(Closure<Collection<Integer>> block) {
++                block()
++            }
++
++            @groovy.transform.CompileStatic
++            def use() {
++                bar {
++                    [1]
++                }
++            }
++        '''
++
++        assert err =~ /Cannot find matching method \w+#bar\(groovy.lang.Closure <java.util.List>\)/
++    }
++
++    @Test
++    void testClosureReturnType3() {
++        assertScript '''
++            public <T> T bar(Closure<? extends Collection<Integer>> block) {
++                block()
++            }
++
++            @groovy.transform.CompileStatic
++            def use() {
++                bar {
++                    [1]
++                }
++            }
++
++            assert use() == [1]
++        '''
++    }
++
++    @Test
++    void testClosureReturnType4() {
++        assertScript '''
++            public <T> T bar(Closure<Collection<Integer>> block) {
++                block()
++            }
++
++            @groovy.transform.CompileStatic
++            def use() {
++                bar {
++                    (Collection<Integer>) [1]
++                }
++            }
++
++            assert use() == [1]
++        '''
++    }
++
++    @Test
++    void testClosureReturnType5() {
++        assertScript '''
++            public <T> T bar(Closure<Collection<Integer>> block) {
++                block()
++            }
++
++            def use() {
++                bar {
++                    [1] as Collection<Integer>
++                }
++            }
++
++            assert use() == [1]
++        '''
++    }
++}
+diff --git a/src/test/groovy/bugs/Groovy8439Bug.groovy b/src/test/groovy/bugs/Groovy8439.groovy
+similarity index 51%
+rename from src/test/groovy/bugs/Groovy8439Bug.groovy
+rename to src/test/groovy/bugs/Groovy8439.groovy
+index e01c78e3bb..a7d05a98f1 100644
+--- a/src/test/groovy/bugs/Groovy8439Bug.groovy
++++ b/src/test/groovy/bugs/Groovy8439.groovy
+@@ -18,34 +18,39 @@
+  */
+ package groovy.bugs
+ 
+-import groovy.test.GroovyTestCase
++import groovy.transform.CompileStatic
++import org.junit.Test
+ 
+-class Groovy8439Bug extends GroovyTestCase {
++import static groovy.test.GroovyAssert.assertScript
++
++@CompileStatic
++final class Groovy8439 {
++
++    @Test
+     void testSTCGenerics() {
+         assertScript '''
+-        import groovy.transform.CompileStatic
+-        @CompileStatic
+-        class Test<T extends Task> {
+-            static def something(Task task, Collection<BaseVariant> variants) {
+-                variants.collectMany { it.sourceFolders }.collect { ConfigurableFileTree tree ->
+-                    task.getBuildDir().toPath().relativize(tree.dir.toPath()).toString() + File.separator
++            @groovy.transform.CompileStatic
++            class Test<T extends Task> {
++                static def something(Task task, Collection<BaseVariant> variants) {
++                    variants.collectMany { it.sourceFolders }.collect { ConfigurableFileTree tree ->
++                        task.getBuildDir().toPath().relativize(tree.dir.toPath()).toString() + File.separator
++                    }
+                 }
+             }
+-        }
+-        
+-        interface BaseVariant {
+-            List<ConfigurableFileTree> getSourceFolders()
+-        }
+-        
+-        interface ConfigurableFileTree {
+-            File getDir()
+-        }
+-        
+-        interface Task {
+-            File getBuildDir()
+-        }
+-        
+-        Test.something(null, [])
++
++            interface BaseVariant {
++                List<ConfigurableFileTree> getSourceFolders()
++            }
++
++            interface ConfigurableFileTree {
++                File getDir()
++            }
++
++            interface Task {
++                File getBuildDir()
++            }
++
++            Test.something(null, [])
+         '''
+     }
+ }

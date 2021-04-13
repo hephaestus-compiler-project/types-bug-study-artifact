@@ -1,0 +1,173 @@
+changeset:   1197:84b61130cbed
+user:        mcimadamore
+date:        Tue Feb 14 15:43:52 2012 -0800
+summary:     7142086: performance problem in Check.checkOverrideClashes(...)
+
+diff -r 237198ef45f5 -r 84b61130cbed src/share/classes/com/sun/tools/javac/comp/Check.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Check.java	Mon Feb 13 16:01:43 2012 -0800
++++ b/src/share/classes/com/sun/tools/javac/comp/Check.java	Tue Feb 14 15:43:52 2012 -0800
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 1999, 2011, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 1999, 2012, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -2114,25 +2114,26 @@
+      */
+     void checkOverrideClashes(DiagnosticPosition pos, Type site, MethodSymbol sym) {
+          ClashFilter cf = new ClashFilter(site);
+-         //for each method m1 that is a member of 'site'...
+-         for (Symbol s1 : types.membersClosure(site, false).getElementsByName(sym.name, cf)) {
+-            //...find another method m2 that is overridden (directly or indirectly)
+-            //by method 'sym' in 'site'
+-            for (Symbol s2 : types.membersClosure(site, false).getElementsByName(sym.name, cf)) {
+-                if (s1 == s2 || !sym.overrides(s2, site.tsym, types, false)) continue;
++        //for each method m1 that is overridden (directly or indirectly)
++        //by method 'sym' in 'site'...
++        for (Symbol m1 : types.membersClosure(site, false).getElementsByName(sym.name, cf)) {
++            if (!sym.overrides(m1, site.tsym, types, false)) continue;
++             //...check each method m2 that is a member of 'site'
++             for (Symbol m2 : types.membersClosure(site, false).getElementsByName(sym.name, cf)) {
++                if (m2 == m1) continue;
+                 //if (i) the signature of 'sym' is not a subsignature of m1 (seen as
+                 //a member of 'site') and (ii) m1 has the same erasure as m2, issue an error
+-                if (!types.isSubSignature(sym.type, types.memberType(site, s1), false) &&
+-                        types.hasSameArgs(s1.erasure(types), s2.erasure(types))) {
++                if (!types.isSubSignature(sym.type, types.memberType(site, m2), false) &&
++                        types.hasSameArgs(m2.erasure(types), m1.erasure(types))) {
+                     sym.flags_field |= CLASH;
+-                    String key = s2 == sym ?
++                    String key = m1 == sym ?
+                             "name.clash.same.erasure.no.override" :
+                             "name.clash.same.erasure.no.override.1";
+                     log.error(pos,
+                             key,
+                             sym, sym.location(),
+-                            s1, s1.location(),
+-                            s2, s2.location());
++                            m2, m2.location(),
++                            m1, m1.location());
+                     return;
+                 }
+             }
+diff -r 237198ef45f5 -r 84b61130cbed test/tools/javac/7142086/T7142086.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/7142086/T7142086.java	Tue Feb 14 15:43:52 2012 -0800
+@@ -0,0 +1,115 @@
++/*
++ * Copyright (c) 2012, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 7142086
++ * @summary performance problem in Check.checkOverrideClashes(...)
++ * @run main/timeout=10 T7142086
++ */
++
++import com.sun.source.util.JavacTask;
++import java.net.URI;
++import java.util.List;
++import java.util.ArrayList;
++import java.util.Locale;
++import javax.tools.Diagnostic;
++import javax.tools.JavaCompiler;
++import javax.tools.JavaFileObject;
++import javax.tools.SimpleJavaFileObject;
++import javax.tools.StandardJavaFileManager;
++import javax.tools.ToolProvider;
++
++public class T7142086 {
++
++    final static int N_METHODS = 1000;
++
++    static class TestClass extends SimpleJavaFileObject {
++
++        String methTemplate = "abstract void m(A#N p);";
++        String classTemplate = "abstract class Test { #M }";
++
++        String source;
++
++        public TestClass() {
++            super(URI.create("myfo:/Test.java"), JavaFileObject.Kind.SOURCE);
++            StringBuilder buf = new StringBuilder();
++            for (int i = 0 ; i < N_METHODS ; i++) {
++                buf.append(methTemplate.replace("#N", String.valueOf(i)));
++                buf.append("\n");
++            }
++            source = classTemplate.replace("#M", buf.toString());
++        }
++
++        @Override
++        public CharSequence getCharContent(boolean ignoreEncodingErrors) {
++            return source;
++        }
++    }
++
++    static class AnSource extends SimpleJavaFileObject {
++
++        String classTemplate = "abstract class A#N { }";
++
++        String source;
++
++        public AnSource(int n) {
++            super(URI.create("myfo:/Test.java"), JavaFileObject.Kind.SOURCE);
++            source = classTemplate.replace("#N", String.valueOf(n));
++        }
++
++        @Override
++        public CharSequence getCharContent(boolean ignoreEncodingErrors) {
++            return source;
++        }
++    }
++
++    public static void main(String... args) throws Exception {
++        ArrayList<JavaFileObject> sources = new ArrayList<>();
++        for (int i = 0 ; i < N_METHODS ; i++) {
++            sources.add(new AnSource(i));
++        }
++        sources.add(new TestClass());
++        new T7142086().run(sources);
++    }
++
++    void run(List<JavaFileObject> sources) throws Exception {
++        DiagnosticChecker dc = new DiagnosticChecker();
++        JavaCompiler comp = ToolProvider.getSystemJavaCompiler();
++        StandardJavaFileManager fm = comp.getStandardFileManager(null, null, null);
++        JavacTask ct = (JavacTask)comp.getTask(null, fm, dc,
++                null, null, sources);
++        ct.analyze();
++    }
++
++    static class DiagnosticChecker implements javax.tools.DiagnosticListener<JavaFileObject> {
++
++        boolean errorFound;
++
++        public void report(Diagnostic<? extends JavaFileObject> diagnostic) {
++            if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
++                throw new AssertionError("unexpected diagnostic: " + diagnostic.getMessage(Locale.getDefault()));
++            }
++        }
++    }
++}
+

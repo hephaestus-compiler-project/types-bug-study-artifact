@@ -1,0 +1,34 @@
+changeset:   1955:f657d400c736
+user:        jlahoda
+date:        Thu Aug 15 22:36:08 2013 +0200
+summary:     8022508: javac crashes if the generics arity of a base class is wrong
+
+diff -r ec77c7b46c37 -r f657d400c736 src/share/classes/com/sun/tools/javac/comp/Check.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Check.java	Thu Aug 15 22:33:43 2013 +0200
++++ b/src/share/classes/com/sun/tools/javac/comp/Check.java	Thu Aug 15 22:36:08 2013 +0200
+@@ -1747,7 +1747,7 @@
+         if (!sup.hasTag(CLASS)) return;
+ 
+         for (Type t1 = sup;
+-             t1.tsym.type.isParameterized();
++             t1.hasTag(CLASS) && t1.tsym.type.isParameterized();
+              t1 = types.supertype(t1)) {
+             for (Scope.Entry e1 = t1.tsym.members().elems;
+                  e1 != null;
+diff -r ec77c7b46c37 -r f657d400c736 test/tools/javac/generics/8016640/T8016640.java
+--- a/test/tools/javac/generics/8016640/T8016640.java	Thu Aug 15 22:33:43 2013 +0200
++++ b/test/tools/javac/generics/8016640/T8016640.java	Thu Aug 15 22:36:08 2013 +0200
+@@ -1,10 +1,11 @@
+ /*
+  * @test /nodynamiccopyright/
+- * @bug     8016640
++ * @bug     8016640 8022508
+  * @summary compiler hangs if the generics arity of a base class is wrong
+  * @compile/fail/ref=T8016640.out -XDrawDiagnostics T8016640.java
+  */
+ class T8016640 {
+     static class Foo<X,Y> { }
+     static class BadFoo<T> extends Foo<T> { }
++    static class SubBadFoo<T> extends BadFoo<T> { }
+ }
+

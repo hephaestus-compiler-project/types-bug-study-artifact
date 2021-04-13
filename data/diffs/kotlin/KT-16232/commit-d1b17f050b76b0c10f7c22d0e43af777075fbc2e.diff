@@ -1,0 +1,105 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+index 0f38fa61194..088fa89e36e 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+@@ -892,6 +892,7 @@ public interface Errors {
+ 
+     DiagnosticFactory1<PsiElement, ClassDescriptor> INACCESSIBLE_OUTER_CLASS_EXPRESSION = DiagnosticFactory1.create(ERROR);
+     DiagnosticFactory0<KtClass> NESTED_CLASS_NOT_ALLOWED = DiagnosticFactory0.create(ERROR, DECLARATION_NAME);
++    DiagnosticFactory0<KtObjectDeclaration> NESTED_OBJECT_NOT_ALLOWED = DiagnosticFactory0.create(ERROR, DECLARATION_NAME);
+ 
+     //Inline and inlinable parameters
+     DiagnosticFactory2<KtElement, DeclarationDescriptor, DeclarationDescriptor> NON_PUBLIC_CALL_FROM_PUBLIC_INLINE = DiagnosticFactory2.create(ERROR, CALL_ELEMENT);
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+index ae9f3d2c8aa..e94d6d2634c 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+@@ -437,6 +437,7 @@ public class DefaultErrorMessages {
+ 
+         MAP.put(INACCESSIBLE_OUTER_CLASS_EXPRESSION, "Expression is inaccessible from a nested class ''{0}'', use ''inner'' keyword to make the class inner", NAME);
+         MAP.put(NESTED_CLASS_NOT_ALLOWED, "Nested class is not allowed here, use 'inner' keyword to make the class inner");
++        MAP.put(NESTED_OBJECT_NOT_ALLOWED, "Objects inside inner classes are prohibited");
+ 
+         MAP.put(HAS_NEXT_MISSING, "hasNext() cannot be called on iterator() of type ''{0}''", RENDER_TYPE);
+         MAP.put(HAS_NEXT_FUNCTION_AMBIGUITY, "hasNext() is ambiguous for iterator() of type ''{0}''", RENDER_TYPE);
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/ModifiersChecker.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/ModifiersChecker.java
+index 68716898525..e63e8c0b2c8 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/ModifiersChecker.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/ModifiersChecker.java
+@@ -36,6 +36,7 @@ import org.jetbrains.kotlin.resolve.checkers.UnderscoreChecker;
+ import java.util.*;
+ 
+ import static org.jetbrains.kotlin.diagnostics.Errors.NESTED_CLASS_NOT_ALLOWED;
++import static org.jetbrains.kotlin.diagnostics.Errors.NESTED_OBJECT_NOT_ALLOWED;
+ import static org.jetbrains.kotlin.lexer.KtTokens.*;
+ import static org.jetbrains.kotlin.psi.KtStubbedPsiUtil.getContainingDeclaration;
+ 
+@@ -219,10 +220,20 @@ public class ModifiersChecker {
+ 
+         public void checkModifiersForDeclaration(@NotNull KtDeclaration modifierListOwner, @NotNull MemberDescriptor descriptor) {
+             checkNestedClassAllowed(modifierListOwner, descriptor);
++            checkObjectInsideInnerClass(modifierListOwner, descriptor);
+             checkTypeParametersModifiers(modifierListOwner);
+             checkModifierListCommon(modifierListOwner, descriptor);
+         }
+ 
++        private void checkObjectInsideInnerClass(@NotNull KtDeclaration modifierListOwner, @NotNull MemberDescriptor descriptor) {
++            if (modifierListOwner instanceof KtObjectDeclaration) {
++                KtObjectDeclaration ktObject = (KtObjectDeclaration) modifierListOwner;
++                if (!ktObject.isLocal() && !ktObject.isCompanion() && isIllegalNestedClass(descriptor)) {
++                    trace.report(NESTED_OBJECT_NOT_ALLOWED.on(ktObject));
++                }
++            }
++        }
++
+         private void checkModifierListCommon(@NotNull KtDeclaration modifierListOwner, @NotNull DeclarationDescriptor descriptor) {
+             AnnotationUseSiteTargetChecker.INSTANCE.check(modifierListOwner, descriptor, trace);
+             runDeclarationCheckers(modifierListOwner, descriptor);
+diff --git a/compiler/testData/diagnostics/tests/inner/nestedObject.kt b/compiler/testData/diagnostics/tests/inner/nestedObject.kt
+new file mode 100644
+index 00000000000..c1f8c0fbf24
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inner/nestedObject.kt
+@@ -0,0 +1,12 @@
++// SKIP_TXT
++class Outer {
++    inner class Inner1 {
++        <!NESTED_OBJECT_NOT_ALLOWED!>object Obj1<!>
++
++        <!WRONG_MODIFIER_CONTAINING_DECLARATION!>companion<!> object Obj2
++
++        inner class Inner2 {
++            <!NESTED_OBJECT_NOT_ALLOWED!>object Obj3<!>
++        }
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/modifiers/const/applicability.kt b/compiler/testData/diagnostics/tests/modifiers/const/applicability.kt
+index 8f2e23cd075..d343f2ea051 100644
+--- a/compiler/testData/diagnostics/tests/modifiers/const/applicability.kt
++++ b/compiler/testData/diagnostics/tests/modifiers/const/applicability.kt
+@@ -61,7 +61,7 @@ enum class MyEnum {
+ 
+ class Outer {
+     inner class Inner {
+-        object C {
++        <!NESTED_OBJECT_NOT_ALLOWED!>object C<!> {
+             const val a = 18
+         }
+     }
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index e2cf60e5579..26afe498131 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -11425,6 +11425,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("nestedObject.kt")
++            public void testNestedObject() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/inner/nestedObject.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("nestedVsInnerAccessOuterMember.kt")
+             public void testNestedVsInnerAccessOuterMember() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/inner/nestedVsInnerAccessOuterMember.kt");

@@ -1,0 +1,224 @@
+diff --git a/compiler/backend/src/org/jetbrains/kotlin/codegen/AnnotationCodegen.java b/compiler/backend/src/org/jetbrains/kotlin/codegen/AnnotationCodegen.java
+index 1b1c17e299f..e9fad485888 100644
+--- a/compiler/backend/src/org/jetbrains/kotlin/codegen/AnnotationCodegen.java
++++ b/compiler/backend/src/org/jetbrains/kotlin/codegen/AnnotationCodegen.java
+@@ -108,6 +108,16 @@ public abstract class AnnotationCodegen {
+                         "Inconsistent target list for lambda annotation: " + applicableTargets + " on " + annotated;
+                 continue;
+             }
++            if (annotated instanceof ClassDescriptor
++                && !applicableTargets.contains(KotlinTarget.CLASS)
++                && !applicableTargets.contains(KotlinTarget.ANNOTATION_CLASS)) {
++                ClassDescriptor classDescriptor = (ClassDescriptor) annotated;
++                if (classDescriptor.getVisibility() == Visibilities.LOCAL) {
++                    assert applicableTargets.contains(KotlinTarget.EXPRESSION) :
++                            "Inconsistent target list for object literal annotation: " + applicableTargets + " on " + annotated;
++                    continue;
++                }
++            }
+ 
+             String descriptor = genAnnotation(annotation);
+             if (descriptor != null) {
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/descriptors/LazyClassDescriptor.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/descriptors/LazyClassDescriptor.java
+index bd82c6d547a..0cab02f55fa 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/descriptors/LazyClassDescriptor.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/descriptors/LazyClassDescriptor.java
+@@ -38,6 +38,7 @@ import org.jetbrains.kotlin.incremental.components.NoLookupLocation;
+ import org.jetbrains.kotlin.lexer.KtTokens;
+ import org.jetbrains.kotlin.name.Name;
+ import org.jetbrains.kotlin.psi.*;
++import org.jetbrains.kotlin.psi.psiUtil.KtPsiUtilKt;
+ import org.jetbrains.kotlin.resolve.*;
+ import org.jetbrains.kotlin.resolve.lazy.ForceResolveUtil;
+ import org.jetbrains.kotlin.resolve.lazy.LazyClassContext;
+@@ -172,8 +173,16 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
+                 return (syntaxKind == ClassKind.CLASS && modifierList != null && modifierList.hasModifier(KtTokens.ANNOTATION_KEYWORD)) ? ClassKind.ANNOTATION_CLASS : syntaxKind;
+             }
+         });
+-
++        // Annotation entries are taken from both own annotations (if any) and object literal annotations (if any)
++        List<KtAnnotationEntry> annotationEntries = new ArrayList<KtAnnotationEntry>();
++        if (classOrObject != null && classOrObject.getParent() instanceof KtObjectLiteralExpression) {
++            // TODO: it would be better to have separate ObjectLiteralDescriptor without so much magic
++            annotationEntries.addAll(KtPsiUtilKt.getAnnotationEntries((KtObjectLiteralExpression) classOrObject.getParent()));
++        }
+         if (modifierList != null) {
++            annotationEntries.addAll(modifierList.getAnnotationEntries());
++        }
++        if (!annotationEntries.isEmpty()) {
+             this.annotations = new LazyAnnotations(
+                     new LazyAnnotationsContext(
+                             c.getAnnotationResolver(),
+@@ -186,7 +195,7 @@ public class LazyClassDescriptor extends ClassDescriptorBase implements ClassDes
+                             return getOuterScope();
+                         }
+                     },
+-                    modifierList.getAnnotationEntries()
++                    annotationEntries
+             );
+         }
+         else {
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java
+index 69a02222167..34476585649 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java
+@@ -1587,7 +1587,10 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
+     }
+ 
+     public KotlinTypeInfo visitAnnotatedExpression(KtAnnotatedExpression expression, ExpressionTypingContext context, boolean isStatement) {
+-        components.annotationResolver.resolveAnnotationsWithArguments(context.scope, expression.getAnnotationEntries(), context.trace);
++        if (!(expression.getBaseExpression() instanceof KtObjectLiteralExpression)) {
++            // annotations on object literals are resolved later inside LazyClassDescriptor
++            components.annotationResolver.resolveAnnotationsWithArguments(context.scope, expression.getAnnotationEntries(), context.trace);
++        }
+ 
+         KtExpression baseExpression = expression.getBaseExpression();
+         if (baseExpression == null) {
+diff --git a/compiler/testData/codegen/boxWithStdlib/annotations/annotatedObjectLiteral.kt b/compiler/testData/codegen/boxWithStdlib/annotations/annotatedObjectLiteral.kt
+new file mode 100644
+index 00000000000..474b9aab1e8
+--- /dev/null
++++ b/compiler/testData/codegen/boxWithStdlib/annotations/annotatedObjectLiteral.kt
+@@ -0,0 +1,15 @@
++annotation class Ann(val v: String = "???")
++@Ann open class My
++fun box(): String {
++    val v = @Ann("OK") object: My() {}
++    val klass = v.javaClass
++
++    val annotations = klass.annotations
++    // Ann, kotlin.Metadata, kotlin.jvm.internal.KotlinClass
++    if (annotations.size != 3) return "Fail annotations size is ${annotations.size}: ${annotations.toList()}"
++    val annotation = annotations.filterIsInstance<Ann>().firstOrNull()
++                     ?: return "Fail no @Ann: ${annotations.toList()}"
++
++    return annotation.v
++}
++
+diff --git a/compiler/testData/codegen/bytecodeListing/annotations/kt9320.kt b/compiler/testData/codegen/bytecodeListing/annotations/kt9320.kt
+new file mode 100644
+index 00000000000..93c9a548e39
+--- /dev/null
++++ b/compiler/testData/codegen/bytecodeListing/annotations/kt9320.kt
+@@ -0,0 +1,11 @@
++annotation class Ann
++
++@Ann open class My
++
++@Target(AnnotationTarget.EXPRESSION)
++annotation class AnnExpr
++
++fun foo() {
++    val v = @Ann @AnnExpr object: My() {}
++    val w = @Ann @AnnExpr { v: My -> v.hashCode() }
++}
+diff --git a/compiler/testData/codegen/bytecodeListing/annotations/kt9320.txt b/compiler/testData/codegen/bytecodeListing/annotations/kt9320.txt
+new file mode 100644
+index 00000000000..e2d8574830f
+--- /dev/null
++++ b/compiler/testData/codegen/bytecodeListing/annotations/kt9320.txt
+@@ -0,0 +1,46 @@
++@java.lang.annotation.Retention
++@kotlin.Metadata
++@kotlin.jvm.internal.KotlinClass
++public abstract class Ann
++
++@kotlin.annotation.Target
++@java.lang.annotation.Retention
++@java.lang.annotation.Target
++@kotlin.Metadata
++@kotlin.jvm.internal.KotlinClass
++public abstract class AnnExpr
++
++@Ann
++@kotlin.Metadata
++@kotlin.jvm.internal.KotlinClass
++public final class Kt9320Kt$foo$v$1 {
++    inner class Kt9320Kt$foo$v$1
++    method <init>(): void
++}
++
++@kotlin.jvm.internal.KotlinSyntheticClass
++@kotlin.Metadata
++@kotlin.jvm.internal.KotlinFunction
++final class Kt9320Kt$foo$w$1 {
++    public final static field INSTANCE: Kt9320Kt$foo$w$1
++    inner class Kt9320Kt$foo$w$1
++    static method <clinit>(): void
++    method <init>(): void
++    public final @Ann method invoke(@org.jetbrains.annotations.NotNull p0: My): int
++    public synthetic method invoke(p0: java.lang.Object): java.lang.Object
++}
++
++@kotlin.Metadata
++@kotlin.jvm.internal.KotlinFileFacade
++public final class Kt9320Kt {
++    inner class Kt9320Kt$foo$v$1
++    inner class Kt9320Kt$foo$w$1
++    public final static method foo(): void
++}
++
++@Ann
++@kotlin.Metadata
++@kotlin.jvm.internal.KotlinClass
++public class My {
++    public method <init>(): void
++}
+diff --git a/compiler/testData/codegen/bytecodeListing/annotations/literals.kt b/compiler/testData/codegen/bytecodeListing/annotations/literals.kt
+index c4947fb49d6..572c4f27aa3 100644
+--- a/compiler/testData/codegen/bytecodeListing/annotations/literals.kt
++++ b/compiler/testData/codegen/bytecodeListing/annotations/literals.kt
+@@ -15,6 +15,5 @@ fun foo(arg: Int): My {
+     bar @FunAnn { arg }
+     bar @ExprAnn { arg }
+     val x = @FunAnn fun() = arg
+-    // TODO: KT-9320: ClsAnn does not appear in bytecode
+     return (@ClsAnn object: My() {})
+ }
+\ No newline at end of file
+diff --git a/compiler/testData/codegen/bytecodeListing/annotations/literals.txt b/compiler/testData/codegen/bytecodeListing/annotations/literals.txt
+index bc0b7e59e72..0c573966a49 100644
+--- a/compiler/testData/codegen/bytecodeListing/annotations/literals.txt
++++ b/compiler/testData/codegen/bytecodeListing/annotations/literals.txt
+@@ -41,6 +41,7 @@ final class LiteralsKt$foo$2 {
+     public synthetic method invoke(): java.lang.Object
+ }
+ 
++@ClsAnn
+ @kotlin.Metadata
+ @kotlin.jvm.internal.KotlinClass
+ public final class LiteralsKt$foo$3 {
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/BytecodeListingTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/BytecodeListingTestGenerated.java
+index 36a2cea1d84..b3caf30f385 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/BytecodeListingTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/BytecodeListingTestGenerated.java
+@@ -67,6 +67,12 @@ public class BytecodeListingTestGenerated extends AbstractBytecodeListingTest {
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("kt9320.kt")
++        public void testKt9320() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeListing/annotations/kt9320.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("literals.kt")
+         public void testLiterals() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeListing/annotations/literals.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/generated/BlackBoxWithStdlibCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/generated/BlackBoxWithStdlibCodegenTestGenerated.java
+index bb43e22afaa..695b4c1f2cb 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/generated/BlackBoxWithStdlibCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/generated/BlackBoxWithStdlibCodegenTestGenerated.java
+@@ -64,6 +64,12 @@ public class BlackBoxWithStdlibCodegenTestGenerated extends AbstractBlackBoxCode
+             doTestWithStdlib(fileName);
+         }
+ 
++        @TestMetadata("annotatedObjectLiteral.kt")
++        public void testAnnotatedObjectLiteral() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/boxWithStdlib/annotations/annotatedObjectLiteral.kt");
++            doTestWithStdlib(fileName);
++        }
++
+         @TestMetadata("annotationsOnDefault.kt")
+         public void testAnnotationsOnDefault() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/boxWithStdlib/annotations/annotationsOnDefault.kt");

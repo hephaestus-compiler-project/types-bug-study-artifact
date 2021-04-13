@@ -1,0 +1,128 @@
+diff --git a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
+index 8f6e9ade851..ffc4eeafee9 100644
+--- a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
++++ b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
+@@ -17801,6 +17801,11 @@ public class FirDiagnosticsSmokeTestGenerated extends AbstractFirDiagnosticsSmok
+             runTest("compiler/testData/diagnostics/tests/resolve/anonymousObjectFromTopLevelMember.kt");
+         }
+ 
++        @TestMetadata("callableReferenceInCST.kt")
++        public void testCallableReferenceInCST() throws Exception {
++            runTest("compiler/testData/diagnostics/tests/resolve/callableReferenceInCST.kt");
++        }
++
+         @TestMetadata("capturedTypesInLambdaParameter.kt")
+         public void testCapturedTypesInLambdaParameter() throws Exception {
+             runTest("compiler/testData/diagnostics/tests/resolve/capturedTypesInLambdaParameter.kt");
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/DiagnosticReporterByTrackingStrategy.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/DiagnosticReporterByTrackingStrategy.kt
+index 9f5812322da..4219d3623c7 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/DiagnosticReporterByTrackingStrategy.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/DiagnosticReporterByTrackingStrategy.kt
+@@ -32,6 +32,7 @@ import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluat
+ import org.jetbrains.kotlin.resolve.descriptorUtil.module
+ import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver
+ import org.jetbrains.kotlin.types.KotlinType
++import org.jetbrains.kotlin.utils.addToStdlib.cast
+ import org.jetbrains.kotlin.utils.addToStdlib.safeAs
+ 
+ class DiagnosticReporterByTrackingStrategy(
+@@ -132,8 +133,8 @@ class DiagnosticReporterByTrackingStrategy(
+                 trace.report(MIXING_NAMED_AND_POSITIONED_ARGUMENTS.on(callArgument.psiCallArgument.valueArgument.asElement()))
+ 
+             NoneCallableReferenceCandidates::class.java -> {
+-                val expression =
+-                    (diagnostic as NoneCallableReferenceCandidates).argument.psiExpression.safeAs<KtCallableReferenceExpression>()
++                val expression = diagnostic.cast<NoneCallableReferenceCandidates>()
++                    .argument.safeAs<CallableReferenceKotlinCallArgumentImpl>()?.ktCallableReferenceExpression
+                 reportIfNonNull(expression) {
+                     trace.report(UNRESOLVED_REFERENCE.on(it.callableReference, it.callableReference))
+                 }
+diff --git a/compiler/testData/diagnostics/tests/resolve/callableReferenceInCST.kt b/compiler/testData/diagnostics/tests/resolve/callableReferenceInCST.kt
+new file mode 100644
+index 00000000000..1c3e3498679
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/resolve/callableReferenceInCST.kt
+@@ -0,0 +1,36 @@
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -UNUSED_VARIABLE
++
++fun testWhen(x: Any?) {
++    val y = when (x) {
++        null -> ""
++        else -> ::<!UNRESOLVED_REFERENCE!>unresolved<!>
++    }
++}
++
++fun testWhenWithBraces(x: Any?) {
++    val z = when(x) {
++        null -> { "" }
++        else -> { ::<!UNRESOLVED_REFERENCE!>unresolved<!> }
++    }
++}
++
++fun testIf(x: Any?) {
++    val y = if (x != null) ::<!UNRESOLVED_REFERENCE!>unresolved<!> else null
++}
++
++fun testIfWithBraces(x: Any?) {
++    val z = if (x != null) { ::<!UNRESOLVED_REFERENCE!>unresolved<!> } else { null }
++}
++
++fun testElvis(x: Any?) {
++    val y = x ?: ::<!UNRESOLVED_REFERENCE!>unresolved<!>
++}
++
++fun testExclExcl() {
++    val y = :: <!UNRESOLVED_REFERENCE!>unresolved<!><!NEW_INFERENCE_NO_INFORMATION_FOR_PARAMETER, NOT_NULL_ASSERTION_ON_CALLABLE_REFERENCE!>!!<!>
++}
++
++fun testTry() {
++    val v = try { ::<!UNRESOLVED_REFERENCE!>unresolved<!> } catch (e: Exception) {}
++}
+diff --git a/compiler/testData/diagnostics/tests/resolve/callableReferenceInCST.txt b/compiler/testData/diagnostics/tests/resolve/callableReferenceInCST.txt
+new file mode 100644
+index 00000000000..f38c7cfa1cf
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/resolve/callableReferenceInCST.txt
+@@ -0,0 +1,9 @@
++package
++
++public fun testElvis(/*0*/ x: kotlin.Any?): kotlin.Unit
++public fun testExclExcl(): kotlin.Unit
++public fun testIf(/*0*/ x: kotlin.Any?): kotlin.Unit
++public fun testIfWithBraces(/*0*/ x: kotlin.Any?): kotlin.Unit
++public fun testTry(): kotlin.Unit
++public fun testWhen(/*0*/ x: kotlin.Any?): kotlin.Unit
++public fun testWhenWithBraces(/*0*/ x: kotlin.Any?): kotlin.Unit
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index fb4d44f1f72..d1368033271 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -17813,6 +17813,11 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 runTest("compiler/testData/diagnostics/tests/resolve/anonymousObjectFromTopLevelMember.kt");
+             }
+ 
++            @TestMetadata("callableReferenceInCST.kt")
++            public void testCallableReferenceInCST() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/resolve/callableReferenceInCST.kt");
++            }
++
+             @TestMetadata("capturedTypesInLambdaParameter.kt")
+             public void testCapturedTypesInLambdaParameter() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/resolve/capturedTypesInLambdaParameter.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index 0d47b33225e..24b26c3dcbd 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -17803,6 +17803,11 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                 runTest("compiler/testData/diagnostics/tests/resolve/anonymousObjectFromTopLevelMember.kt");
+             }
+ 
++            @TestMetadata("callableReferenceInCST.kt")
++            public void testCallableReferenceInCST() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/resolve/callableReferenceInCST.kt");
++            }
++
+             @TestMetadata("capturedTypesInLambdaParameter.kt")
+             public void testCapturedTypesInLambdaParameter() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/resolve/capturedTypesInLambdaParameter.kt");

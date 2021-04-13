@@ -1,0 +1,100 @@
+changeset:   50061:20520a835f48
+user:        vromero
+date:        Tue May 08 17:12:54 2018 -0700
+summary:     8202597: javac is not inducing a notional interface if Object appears in an intersection type
+
+diff -r 06d5b1f66553 -r 20520a835f48 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Tue May 08 23:02:13 2018 +0200
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Tue May 08 17:12:54 2018 -0700
+@@ -2705,6 +2705,9 @@
+                 Type target = null;
+                 for (Type bound : ict.getExplicitComponents()) {
+                     TypeSymbol boundSym = bound.tsym;
++                    if (bound.tsym == syms.objectType.tsym) {
++                        continue;
++                    }
+                     if (types.isFunctionalInterface(boundSym) &&
+                             types.findDescriptorSymbol(boundSym) == desc) {
+                         target = bound;
+diff -r 06d5b1f66553 -r 20520a835f48 test/langtools/tools/javac/T8202597/NotionalInterfaceNotBeingInducedTest.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/T8202597/NotionalInterfaceNotBeingInducedTest.java	Tue May 08 17:12:54 2018 -0700
+@@ -0,0 +1,41 @@
++/*
++ * Copyright (c) 2018, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8202597
++ * @summary javac is not inducing a notional interface if Object appears in an intersection type
++ * @compile NotionalInterfaceNotBeingInducedTest.java
++ */
++
++class NotionalInterfaceNotBeingInducedTest {
++    interface I {}
++    interface J { void foo(); }
++
++    public void test() {
++        Object o1 = (I & J) System::gc;
++        Object o2 = (J) System::gc;
++        Object o3 = (Object & J) System::gc;
++        Object o4 = (Object & I & J) System::gc;
++    }
++}
+diff -r 06d5b1f66553 -r 20520a835f48 test/langtools/tools/javac/diags/examples/NotAnInterfaceComponent.java
+--- a/test/langtools/tools/javac/diags/examples/NotAnInterfaceComponent.java	Tue May 08 23:02:13 2018 +0200
++++ b/test/langtools/tools/javac/diags/examples/NotAnInterfaceComponent.java	Tue May 08 17:12:54 2018 -0700
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2013, 2018, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -26,5 +26,5 @@
+ // key: compiler.misc.not.an.intf.component
+ 
+ class NotAnInterfaceComponent {
+-    Object o = (Object & Runnable) ()-> { };
++    Object o = (String & Runnable) ()-> { };
+ }
+diff -r 06d5b1f66553 -r 20520a835f48 test/langtools/tools/javac/lambda/intersection/IntersectionTargetTypeTest.java
+--- a/test/langtools/tools/javac/lambda/intersection/IntersectionTargetTypeTest.java	Tue May 08 23:02:13 2018 +0200
++++ b/test/langtools/tools/javac/lambda/intersection/IntersectionTargetTypeTest.java	Tue May 08 17:12:54 2018 -0700
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2012, 2017, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2012, 2018, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -276,7 +276,7 @@
+         if (ek.isFunctional) {
+             List<MethodKind> mks = new ArrayList<>();
+             for (TypeKind tk : cInfo.types) {
+-                if (tk.boundKind == BoundKind.CLASS) {
++                if (tk.boundKind == BoundKind.CLASS && !tk.typeStr.equals("Object")) {
+                     errorExpected = true;
+                     break;
+                 } else {
+

@@ -1,0 +1,37 @@
+diff --git a/compiler/src/dotty/tools/dotc/typer/Implicits.scala b/compiler/src/dotty/tools/dotc/typer/Implicits.scala
+index d35852a2b2e8..bc846b96053b 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Implicits.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Implicits.scala
+@@ -635,7 +635,9 @@ trait Implicits { self: Typer =>
+           case _ => false
+         }
+         if (lazyImplicit.exists && refersToLazyImplicit)
+-          Block(ValDef(lazyImplicit.asTerm, arg).withPos(pos) :: Nil, ref(lazyImplicit))
++          Block(
++            ValDef(lazyImplicit.asTerm, arg.changeOwner(ctx.owner, lazyImplicit)).withPos(pos) :: Nil,
++            ref(lazyImplicit))
+         else
+           arg
+       case fail @ SearchFailure(tree) =>
+diff --git a/tests/pos/i3585.scala b/tests/pos/i3585.scala
+new file mode 100644
+index 000000000000..01660a64e38e
+--- /dev/null
++++ b/tests/pos/i3585.scala
+@@ -0,0 +1,16 @@
++trait Foo[T]
++
++object Foo {
++  implicit def pair[T, U]
++    (implicit
++      fooT: => Foo[(T, U)],
++      fooU: => Foo[(U, T)]
++    ): Foo[(T, U)] = ???
++
++  implicit def int: Foo[Int] = ???
++  implicit def string: Foo[String] = ???
++}
++
++object Test extends App {
++  implicitly[Foo[(Int, String)]]
++}

@@ -1,0 +1,38 @@
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Typers.scala b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+index 3a85d16f55d6..377404b56430 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Typers.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+@@ -151,7 +151,7 @@ trait Typers extends Adaptations with Tags with TypersTracking with PatternTyper
+           for(ar <- argResultsBuff)
+             paramTp = paramTp.subst(ar.subst.from, ar.subst.to)
+ 
+-          val res = if (paramFailed || (paramTp.isError && {paramFailed = true; true})) SearchFailure else inferImplicit(fun, paramTp, context.reportErrors, isView = false, context)
++          val res = if (paramFailed || (paramTp.isErroneous && {paramFailed = true; true})) SearchFailure else inferImplicit(fun, paramTp, context.reportErrors, isView = false, context)
+           argResultsBuff += res
+ 
+           if (res.isSuccess) {
+diff --git a/test/files/neg/t9231.check b/test/files/neg/t9231.check
+new file mode 100644
+index 000000000000..43c14f53ca5a
+--- /dev/null
++++ b/test/files/neg/t9231.check
+@@ -0,0 +1,4 @@
++t9231.scala:8: error: not found: type DoesNotExist
++  foo[DoesNotExist]
++      ^
++one error found
+diff --git a/test/files/neg/t9231.scala b/test/files/neg/t9231.scala
+new file mode 100644
+index 000000000000..05b1d24e9a63
+--- /dev/null
++++ b/test/files/neg/t9231.scala
+@@ -0,0 +1,9 @@
++class M[A]
++class C {
++  implicit def M1: M[Int] = null
++  implicit def M2: M[String] = null
++
++  def foo[A](implicit M: M[A]) = null
++
++  foo[DoesNotExist]
++}

@@ -1,0 +1,203 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingUtils.java b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingUtils.java
+index cfdf6af39e3..df5824ff2c0 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingUtils.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingUtils.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2010-2016 JetBrains s.r.o.
++ * Copyright 2010-2017 JetBrains s.r.o.
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -108,18 +108,31 @@ public class ExpressionTypingUtils {
+             @NotNull VariableDescriptor variableDescriptor
+     ) {
+         VariableDescriptor oldDescriptor = ScopeUtilsKt.findLocalVariable(scope, variableDescriptor.getName());
++        if (oldDescriptor == null) return;
+ 
+-        if (oldDescriptor != null && isLocal(variableDescriptor.getContainingDeclaration(), oldDescriptor)) {
+-            PsiElement declaration = DescriptorToSourceUtils.descriptorToDeclaration(variableDescriptor);
+-            if (declaration != null) {
+-                if (declaration instanceof KtDestructuringDeclarationEntry && declaration.getParent().getParent() instanceof KtParameter) {
+-                    // foo { a, (a, b) -> } -- do not report NAME_SHADOWING on the second 'a', because REDECLARATION must be reported here
+-                    PsiElement oldElement = DescriptorToSourceUtils.descriptorToDeclaration(oldDescriptor);
++        DeclarationDescriptor variableContainingDeclaration = variableDescriptor.getContainingDeclaration();
++        if (!isLocal(variableContainingDeclaration, oldDescriptor)) return;
+ 
+-                    if (oldElement != null && oldElement.getParent().equals(declaration.getParent().getParent().getParent())) return;
+-                }
+-                trace.report(Errors.NAME_SHADOWING.on(declaration, variableDescriptor.getName().asString()));
++        if (variableDescriptor instanceof ParameterDescriptor) {
++            if (!isFunctionLiteral(variableContainingDeclaration)) {
++                return;
++            }
++
++            // parameter of lambda
++            if (variableContainingDeclaration.getContainingDeclaration() != oldDescriptor.getContainingDeclaration()) {
++                return;
++            }
++        }
++
++        PsiElement declaration = DescriptorToSourceUtils.descriptorToDeclaration(variableDescriptor);
++        if (declaration != null) {
++            if (declaration instanceof KtDestructuringDeclarationEntry && declaration.getParent().getParent() instanceof KtParameter) {
++                // foo { a, (a, b) -> } -- do not report NAME_SHADOWING on the second 'a', because REDECLARATION must be reported here
++                PsiElement oldElement = DescriptorToSourceUtils.descriptorToDeclaration(oldDescriptor);
++
++                if (oldElement != null && oldElement.getParent().equals(declaration.getParent().getParent().getParent())) return;
+             }
++            trace.report(Errors.NAME_SHADOWING.on(declaration, variableDescriptor.getName().asString()));
+         }
+     }
+ 
+diff --git a/compiler/testData/diagnostics/tests/annotations/blockLevelOnTheSameLineWarning.kt b/compiler/testData/diagnostics/tests/annotations/blockLevelOnTheSameLineWarning.kt
+index 5338b94f9f9..2120ea95cdd 100644
+--- a/compiler/testData/diagnostics/tests/annotations/blockLevelOnTheSameLineWarning.kt
++++ b/compiler/testData/diagnostics/tests/annotations/blockLevelOnTheSameLineWarning.kt
+@@ -45,8 +45,8 @@ fun foo(y: IntArray) {
+     <!ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE!>@Ann1 x<!> + 6 * 2 > 0
+     <!ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE!>@Ann1 x<!> * 6 + 2 > 0
+ 
+-    <!ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE!>@Ann1 object { operator fun plus(<!NAME_SHADOWING!>x<!>: Int) = 1 }<!> + 1
+-    <!ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE!>@Ann1 object { operator fun plus(<!NAME_SHADOWING!>x<!>: Int) = 1 }<!> + 1 * 4 > 0
++    <!ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE!>@Ann1 object { operator fun plus(x: Int) = 1 }<!> + 1
++    <!ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE!>@Ann1 object { operator fun plus(x: Int) = 1 }<!> + 1 * 4 > 0
+ 
+     <!ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE!>@Ann1 x<!> foo z + 8
+ 
+diff --git a/compiler/testData/diagnostics/tests/dataClasses/repeatedProperties.kt b/compiler/testData/diagnostics/tests/dataClasses/repeatedProperties.kt
+index fac59fb631f..5713d718dcf 100644
+--- a/compiler/testData/diagnostics/tests/dataClasses/repeatedProperties.kt
++++ b/compiler/testData/diagnostics/tests/dataClasses/repeatedProperties.kt
+@@ -1,4 +1,4 @@
+-data class A1(val <!REDECLARATION, REDECLARATION, REDECLARATION!>x<!>: Int, val y: String, val <!NAME_SHADOWING, REDECLARATION, REDECLARATION, REDECLARATION!>x<!>: Int) {
++data class A1(val <!REDECLARATION, REDECLARATION, REDECLARATION!>x<!>: Int, val y: String, val <!REDECLARATION, REDECLARATION, REDECLARATION!>x<!>: Int) {
+     val z = ""
+ }
+ 
+diff --git a/compiler/testData/diagnostics/tests/declarationChecks/mulitpleVarargParameters.kt b/compiler/testData/diagnostics/tests/declarationChecks/mulitpleVarargParameters.kt
+index f055c04c69d..638ec1e6117 100644
+--- a/compiler/testData/diagnostics/tests/declarationChecks/mulitpleVarargParameters.kt
++++ b/compiler/testData/diagnostics/tests/declarationChecks/mulitpleVarargParameters.kt
+@@ -1,10 +1,10 @@
+ // !DIAGNOSTICS: -UNUSED_PARAMETER -PRIMARY_CONSTRUCTOR_DELEGATION_CALL_EXPECTED
+ fun test(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x1: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x2: Int) {
+-    fun test2(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x1<!>: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x2<!>: Int) {
+-        class LocalClass(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x1<!>: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x2<!>: Int) {
+-        constructor(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x1<!>: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x2<!>: Int, xx: Int) {}
++    fun test2(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x1: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x2: Int) {
++        class LocalClass(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x1: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x2: Int) {
++        constructor(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x1: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x2: Int, xx: Int) {}
+     }
+-        fun test3(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x1<!>: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x2<!>: Int) {}
++        fun test3(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x1: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x2: Int) {}
+     }
+ }
+ 
+diff --git a/compiler/testData/diagnostics/tests/functionLiterals/underscopeParameters.kt b/compiler/testData/diagnostics/tests/functionLiterals/underscopeParameters.kt
+index cd90791f233..afcb91126c0 100644
+--- a/compiler/testData/diagnostics/tests/functionLiterals/underscopeParameters.kt
++++ b/compiler/testData/diagnostics/tests/functionLiterals/underscopeParameters.kt
+@@ -40,7 +40,7 @@ fun bar() {
+         _ checkType { _<String>() }
+     }
+ 
+-    foo { <!REDECLARATION, REDECLARATION, UNUSED_ANONYMOUS_PARAMETER!>`_`<!>, <!NAME_SHADOWING, REDECLARATION, REDECLARATION!>`_`<!> ->
++    foo { <!REDECLARATION, REDECLARATION, UNUSED_ANONYMOUS_PARAMETER!>`_`<!>, <!REDECLARATION, REDECLARATION!>`_`<!> ->
+         _ checkType { _<String>() }
+     }
+ 
+diff --git a/compiler/testData/diagnostics/tests/implicitIntersection.kt b/compiler/testData/diagnostics/tests/implicitIntersection.kt
+index dd7dd4cd625..ea537a4f67d 100644
+--- a/compiler/testData/diagnostics/tests/implicitIntersection.kt
++++ b/compiler/testData/diagnostics/tests/implicitIntersection.kt
+@@ -22,6 +22,6 @@ fun bar(b: B): String {
+     // Ok: local variable
+     val tmp = if (b is A && b is C) b else null
+     // Error: local function
+-    fun <!IMPLICIT_INTERSECTION_TYPE!>foo<!>(<!NAME_SHADOWING!>b<!>: B) = if (b is A && b is C) b else null
++    fun <!IMPLICIT_INTERSECTION_TYPE!>foo<!>(b: B) = if (b is A && b is C) b else null
+     return tmp.toString()
+ }
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/shadowing/noNameShadowingForSimpleParameters.kt b/compiler/testData/diagnostics/tests/shadowing/noNameShadowingForSimpleParameters.kt
+new file mode 100644
+index 00000000000..bb390470e40
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/shadowing/noNameShadowingForSimpleParameters.kt
+@@ -0,0 +1,24 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER, -UNUSED_ANONYMOUS_PARAMETER
++
++open class Base {
++    open fun foo(name: String) {}
++}
++
++fun test1(name: String) {
++    class Local : Base() {
++        override fun foo(name: String) {
++        }
++    }
++}
++
++fun test2(param: String) {
++    fun local(param: String) {}
++}
++
++fun test3(param: String) {
++    fun local() {
++        fff { param -> }
++    }
++}
++
++fun fff(x: (y: String) -> Unit) {}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/shadowing/noNameShadowingForSimpleParameters.txt b/compiler/testData/diagnostics/tests/shadowing/noNameShadowingForSimpleParameters.txt
+new file mode 100644
+index 00000000000..0c33327b0bb
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/shadowing/noNameShadowingForSimpleParameters.txt
+@@ -0,0 +1,14 @@
++package
++
++public fun fff(/*0*/ x: (y: kotlin.String) -> kotlin.Unit): kotlin.Unit
++public fun test1(/*0*/ name: kotlin.String): kotlin.Unit
++public fun test2(/*0*/ param: kotlin.String): kotlin.Unit
++public fun test3(/*0*/ param: kotlin.String): kotlin.Unit
++
++public open class Base {
++    public constructor Base()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open fun foo(/*0*/ name: kotlin.String): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/testsWithJsStdLib/noImpl.kt b/compiler/testData/diagnostics/testsWithJsStdLib/noImpl.kt
+index b8aa51bb43b..161bf5dab35 100644
+--- a/compiler/testData/diagnostics/testsWithJsStdLib/noImpl.kt
++++ b/compiler/testData/diagnostics/testsWithJsStdLib/noImpl.kt
+@@ -15,7 +15,7 @@ fun foo(x: Int, y: String = <!CALL_TO_DEFINED_EXTERNALLY_FROM_NON_EXTERNAL_DECLA
+ 
+     listOf<String>()
+             .map<String, String> { <!CALL_TO_DEFINED_EXTERNALLY_FROM_NON_EXTERNAL_DECLARATION!>definedExternally<!> }
+-            .filter(fun(<!NAME_SHADOWING!>x<!>: String): Boolean { <!CALL_TO_DEFINED_EXTERNALLY_FROM_NON_EXTERNAL_DECLARATION!>definedExternally<!> })
++            .filter(fun(x: String): Boolean { <!CALL_TO_DEFINED_EXTERNALLY_FROM_NON_EXTERNAL_DECLARATION!>definedExternally<!> })
+ 
+     <!CALL_TO_DEFINED_EXTERNALLY_FROM_NON_EXTERNAL_DECLARATION!>definedExternally<!>
+ }
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 8814a3ec0ee..9dc56aca301 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -19402,6 +19402,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/diagnostics/tests/shadowing"), Pattern.compile("^(.+)\\.kt$"), TargetBackend.ANY, true);
+             }
+ 
++            @TestMetadata("noNameShadowingForSimpleParameters.kt")
++            public void testNoNameShadowingForSimpleParameters() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/shadowing/noNameShadowingForSimpleParameters.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("ShadowLambdaParameter.kt")
+             public void testShadowLambdaParameter() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/shadowing/ShadowLambdaParameter.kt");

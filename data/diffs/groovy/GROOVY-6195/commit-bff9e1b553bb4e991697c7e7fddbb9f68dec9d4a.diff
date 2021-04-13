@@ -1,0 +1,33 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index 9f94daf86f..aaa212c5fd 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -1017,6 +1017,8 @@ public abstract class StaticTypeCheckingSupport {
+                     System.arraycopy(params, 0, firstParams, 0, firstParams.length);
+                     dist = allParametersAndArgumentsMatch(firstParams, args);
+                     firstParamMatches =  dist >= 0;
++                } else {
++                    dist = 0;
+                 }
+                 if (firstParamMatches) {
+                     // there are three case for vargs
+diff --git a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+index b7b6ff957b..204cc3b838 100644
+--- a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+@@ -925,6 +925,15 @@ class MethodCallsSTCTest extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
++    // GROOVY-6195
++    void testShouldNotThrowAmbiguousVargs() {
++        assertScript '''
++            def list = ['a', 'b', 'c']
++            Object[] arr = list.toArray()
++            println arr
++        '''
++    }
++
+     static class MyMethodCallTestClass {
+ 
+         static int mul(int... args) { args.toList().inject(1) { x,y -> x*y } }

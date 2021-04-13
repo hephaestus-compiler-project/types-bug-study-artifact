@@ -1,0 +1,43 @@
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Typers.scala b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+index 1a2e498bca8b..bf2170310f9e 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Typers.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+@@ -2010,6 +2010,8 @@ trait Typers extends Modes with Adaptations with Tags {
+ 
+       // !!! This method is redundant with other, less buggy ones.
+       def decompose(call: Tree): (Tree, List[Tree]) = call match {
++        case _ if call.isErrorTyped => // e.g. SI-7636
++          (call, Nil)
+         case Apply(fn, args) =>
+           // an object cannot be allowed to pass a reference to itself to a superconstructor
+           // because of initialization issues; SI-473, SI-3913, SI-6928.
+diff --git a/test/files/neg/t7636-neg.check b/test/files/neg/t7636-neg.check
+new file mode 100644
+index 000000000000..f70d50bee3c5
+--- /dev/null
++++ b/test/files/neg/t7636-neg.check
+@@ -0,0 +1,10 @@
++t7636.scala:3: error: illegal inheritance;
++ self-type Main.C does not conform to Main.ResultTable[_$3]'s selftype Main.ResultTable[_$3]
++  class C extends ResultTable(Left(5):Either[_,_])(5)
++                  ^
++t7636.scala:3: error: type mismatch;
++ found   : Either[_$2,_$3(in constructor C)] where type _$3(in constructor C), type _$2
++ required: Either[_, _$3(in object Main)] where type _$3(in object Main)
++  class C extends ResultTable(Left(5):Either[_,_])(5)
++                                     ^
++two errors found
+diff --git a/test/files/neg/t7636.scala b/test/files/neg/t7636.scala
+new file mode 100644
+index 000000000000..a7b1b90151f9
+--- /dev/null
++++ b/test/files/neg/t7636.scala
+@@ -0,0 +1,7 @@
++object Main extends App{
++  class ResultTable[E]( query : Either[_,E] )( columns : Int )
++  class C extends ResultTable(Left(5):Either[_,_])(5)
++}
++// Inference of the existential type for the parent type argument
++// E still fails. That looks tricky to fix, see the comments in SI-7636.
++// But we at least prevent a cascading NPE.
+\ No newline at end of file

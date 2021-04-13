@@ -1,0 +1,2278 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+index d329ed0a944..aac3184c78d 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+@@ -104,6 +104,8 @@ public interface Errors {
+     DiagnosticFactory0<PsiElement> EXPANSIVE_INHERITANCE = DiagnosticFactory0.create(ERROR);
+     DiagnosticFactory1<PsiElement, String> EXPANSIVE_INHERITANCE_IN_JAVA = DiagnosticFactory1.create(WARNING);
+ 
++    DiagnosticFactory0<KtTypeArgumentList> TYPE_ARGUMENTS_FOR_OUTER_CLASS_WHEN_NESTED_REFERENCED = DiagnosticFactory0.create(ERROR);
++
+     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+ 
+     // Errors in declarations
+@@ -180,8 +182,6 @@ public interface Errors {
+ 
+     DiagnosticFactory0<PsiElement> NO_GENERICS_IN_SUPERTYPE_SPECIFIER = DiagnosticFactory0.create(ERROR);
+ 
+-    DiagnosticFactory0<PsiElement> GENERICS_IN_CONTAINING_TYPE_NOT_ALLOWED = DiagnosticFactory0.create(ERROR);
+-
+     DiagnosticFactory0<KtTypeReference> MANY_CLASSES_IN_SUPERTYPE_LIST = DiagnosticFactory0.create(ERROR);
+     DiagnosticFactory0<KtTypeReference> SUPERTYPE_APPEARS_TWICE = DiagnosticFactory0.create(ERROR);
+     DiagnosticFactory3<KtDelegationSpecifierList, TypeParameterDescriptor, ClassDescriptor, Collection<KotlinType>>
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+index 5871af98710..d4d1dc1481b 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+@@ -328,7 +328,6 @@ public class DefaultErrorMessages {
+         MAP.put(TYPE_PARAMETER_IS_NOT_AN_EXPRESSION, "Type parameter ''{0}'' is not an expression", NAME);
+         MAP.put(TYPE_PARAMETER_ON_LHS_OF_DOT, "Type parameter ''{0}'' cannot have or inherit a companion object, so it cannot be on the left hand side of dot", NAME);
+         MAP.put(NO_GENERICS_IN_SUPERTYPE_SPECIFIER, "Generic arguments of the base type must be specified");
+-        MAP.put(GENERICS_IN_CONTAINING_TYPE_NOT_ALLOWED, "Generic arguments in containing types are not allowed");
+         MAP.put(NESTED_CLASS_ACCESSED_VIA_INSTANCE_REFERENCE, "Nested {0} accessed via instance reference", RENDER_CLASS_OR_OBJECT_NAME);
+         MAP.put(NESTED_CLASS_SHOULD_BE_QUALIFIED, "Nested {0} should be qualified as ''{1}''", RENDER_CLASS_OR_OBJECT_NAME, TO_STRING);
+ 
+@@ -512,6 +511,8 @@ public class DefaultErrorMessages {
+         MAP.put(REDUNDANT_PROJECTION, "Projection is redundant: the corresponding type parameter of {0} has the same variance", NAME);
+         MAP.put(CONFLICTING_PROJECTION, "Projection is conflicting with variance of the corresponding type parameter of {0}. Remove the projection or replace it with ''*''", NAME);
+ 
++        MAP.put(TYPE_ARGUMENTS_FOR_OUTER_CLASS_WHEN_NESTED_REFERENCED, "Type arguments for outer class are redundant when nested class is referenced");
++
+         MAP.put(TYPE_MISMATCH_IN_FOR_LOOP, "The loop iterates over values of type {0} but the parameter is declared to be {1}", RENDER_TYPE,
+                 RENDER_TYPE);
+         MAP.put(TYPE_MISMATCH_IN_CONDITION, "Condition must be of type kotlin.Boolean, but is of type {0}", RENDER_TYPE);
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/psi/KtUserType.java b/compiler/frontend/src/org/jetbrains/kotlin/psi/KtUserType.java
+index 1012a57cefc..fcddcfbef62 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/psi/KtUserType.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/psi/KtUserType.java
+@@ -50,6 +50,7 @@ public class KtUserType extends KtElementImplStub<KotlinUserTypeStub> implements
+         return visitor.visitUserType(this, data);
+     }
+ 
++    @Nullable
+     public KtTypeArgumentList getTypeArgumentList() {
+         return getStubOrPsiChild(KtStubElementTypes.TYPE_ARGUMENT_LIST);
+     }
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/DescriptorResolver.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/DescriptorResolver.java
+index ee3ad9051d8..50ae15896ec 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/DescriptorResolver.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/DescriptorResolver.java
+@@ -1199,7 +1199,7 @@ public class DescriptorResolver {
+             return;
+         }
+ 
+-        assert jetTypeArguments.size() == arguments.size() : typeElement.getText() + ": " + jetTypeArguments + " - " + arguments;
++        assert jetTypeArguments.size() <= arguments.size() : typeElement.getText() + ": " + jetTypeArguments + " - " + arguments;
+ 
+         TypeSubstitutor substitutor = TypeSubstitutor.create(type);
+         for (int i = 0; i < jetTypeArguments.size(); i++) {
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/QualifiedExpressionResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/QualifiedExpressionResolver.kt
+index 5a082c7e3b0..28b980dbf8e 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/QualifiedExpressionResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/QualifiedExpressionResolver.kt
+@@ -50,24 +50,35 @@ public class QualifiedExpressionResolver(val symbolUsageValidator: SymbolUsageVa
+         }
+     }
+ 
+-    public fun resolveDescriptorForUserType(
++    data class TypeQualifierResolutionResult(
++            val qualifierParts: List<QualifierPart>,
++            val classifierDescriptor: ClassifierDescriptor? = null
++    ) {
++        val allProjections: List<KtTypeProjection>
++            get() = qualifierParts.flatMap { it.typeArguments?.arguments.orEmpty() }
++    }
++
++    public fun resolveDescriptorForType(
+             userType: KtUserType,
+             scope: LexicalScope,
+             trace: BindingTrace
+-    ): ClassifierDescriptor? {
++    ): TypeQualifierResolutionResult {
+         if (userType.qualifier == null && !userType.startWithPackage) { // optimization for non-qualified types
+-            return userType.referenceExpression?.let {
++            val descriptor = userType.referenceExpression?.let {
+                 val classifier = scope.findClassifier(it.getReferencedNameAsName(), KotlinLookupLocation(it))
+                 storeResult(trace, it, classifier, scope.ownerDescriptor, inImport = false, isQualifier = false)
+                 classifier
+             }
++
++            return TypeQualifierResolutionResult(userType.asQualifierPartList().first, descriptor)
+         }
+ 
+         val module = scope.ownerDescriptor.module
+         val (qualifierPartList, hasError) = userType.asQualifierPartList()
+         if (hasError) {
+-            resolveToPackageOrClass(qualifierPartList, module, trace, scope.ownerDescriptor, scope, inImport = false)
+-            return null
++            val descriptor = resolveToPackageOrClass(
++                    qualifierPartList, module, trace, scope.ownerDescriptor, scope, inImport = false) as? ClassifierDescriptor
++            return TypeQualifierResolutionResult(qualifierPartList, descriptor)
+         }
+         assert(qualifierPartList.size() >= 1) {
+             "Too short qualifier list for user type $userType : ${qualifierPartList.joinToString()}"
+@@ -76,7 +87,7 @@ public class QualifiedExpressionResolver(val symbolUsageValidator: SymbolUsageVa
+         val qualifier = resolveToPackageOrClass(
+                 qualifierPartList.subList(0, qualifierPartList.size() - 1), module,
+                 trace, scope.ownerDescriptor, scope.check { !userType.startWithPackage }, inImport = false
+-        ) ?: return null
++        ) ?: return TypeQualifierResolutionResult(qualifierPartList, null)
+ 
+         val lastPart = qualifierPartList.last()
+         val classifier = when (qualifier) {
+@@ -85,7 +96,8 @@ public class QualifiedExpressionResolver(val symbolUsageValidator: SymbolUsageVa
+             else -> null
+         }
+         storeResult(trace, lastPart.expression, classifier, scope.ownerDescriptor, inImport = false, isQualifier = false)
+-        return classifier
++
++        return TypeQualifierResolutionResult(qualifierPartList, classifier)
+     }
+ 
+     private val KtUserType.startWithPackage: Boolean
+@@ -266,7 +278,7 @@ public class QualifiedExpressionResolver(val symbolUsageValidator: SymbolUsageVa
+         return result.asReversed()
+     }
+ 
+-    private data class QualifierPart(
++    data class QualifierPart(
+             val name: Name,
+             val expression: KtSimpleNameExpression,
+             val typeArguments: KtTypeArgumentList? = null
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/TypeResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/TypeResolver.kt
+index b4fd079dd7f..c4aa656f7e4 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/TypeResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/TypeResolver.kt
+@@ -16,14 +16,13 @@
+ 
+ package org.jetbrains.kotlin.resolve
+ 
++import com.intellij.util.SmartList
+ import org.jetbrains.kotlin.context.TypeLazinessToken
+-import org.jetbrains.kotlin.descriptors.ClassDescriptor
+-import org.jetbrains.kotlin.descriptors.ClassifierDescriptor
+-import org.jetbrains.kotlin.descriptors.ModuleDescriptor
+-import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
++import org.jetbrains.kotlin.descriptors.*
+ import org.jetbrains.kotlin.descriptors.annotations.Annotations
+ import org.jetbrains.kotlin.diagnostics.Errors
+ import org.jetbrains.kotlin.diagnostics.Errors.*
++import org.jetbrains.kotlin.incremental.components.NoLookupLocation
+ import org.jetbrains.kotlin.lexer.KtTokens
+ import org.jetbrains.kotlin.psi.*
+ import org.jetbrains.kotlin.psi.codeFragmentUtil.debugTypeInfo
+@@ -37,6 +36,7 @@ import org.jetbrains.kotlin.resolve.lazy.LazyEntity
+ import org.jetbrains.kotlin.resolve.scopes.MemberScope
+ import org.jetbrains.kotlin.resolve.scopes.LazyScopeAdapter
+ import org.jetbrains.kotlin.resolve.scopes.LexicalScope
++import org.jetbrains.kotlin.resolve.scopes.utils.findClassifier
+ import org.jetbrains.kotlin.storage.LockBasedStorageManager
+ import org.jetbrains.kotlin.storage.StorageManager
+ import org.jetbrains.kotlin.types.*
+@@ -154,9 +154,12 @@ public class TypeResolver(
+         var result: PossiblyBareType? = null
+         typeElement?.accept(object : KtVisitorVoid() {
+             override fun visitUserType(type: KtUserType) {
+-                val classifierDescriptor = resolveClass(c.scope, type, c.trace)
++                val qualifierResolutionResults = resolveDescriptorForType(c.scope, type, c.trace)
++                val (qualifierParts, classifierDescriptor) = qualifierResolutionResults
++
+                 if (classifierDescriptor == null) {
+-                    val arguments = resolveTypeProjections(c, ErrorUtils.createErrorType("No type").getConstructor(), type.getTypeArguments())
++                    val arguments = resolveTypeProjections(
++                            c, ErrorUtils.createErrorType("No type").constructor, qualifierResolutionResults.allProjections)
+                     result = type(ErrorUtils.createErrorTypeWithArguments(type.getDebugText(), arguments))
+                     return
+                 }
+@@ -167,15 +170,16 @@ public class TypeResolver(
+ 
+                 c.trace.record(BindingContext.REFERENCE_TARGET, referenceExpression, classifierDescriptor)
+ 
+-                if (type.hasTypesWithTypeArgsInside()) {
+-                    c.trace.report(Errors.GENERICS_IN_CONTAINING_TYPE_NOT_ALLOWED.on(type))
+-                }
+-
+                 result = when (classifierDescriptor) {
+                     is TypeParameterDescriptor -> {
++                        assert(qualifierParts.size == 1) {
++                            "Type parameter can be resolved only by it's short name, but '${type.text}' is contradiction " +
++                            "with ${qualifierParts.size} qualifier parts"
++                        }
++
+                         type(resolveTypeForTypeParameter(c, annotations, classifierDescriptor, referenceExpression, type))
+                     }
+-                    is ClassDescriptor -> resolveTypeForClass(c, annotations, classifierDescriptor, type)
++                    is ClassDescriptor -> resolveTypeForClass(c, annotations, classifierDescriptor, type, qualifierResolutionResults)
+                     else -> error("Unexpected classifier type: ${classifierDescriptor.javaClass}")
+                 }
+             }
+@@ -288,35 +292,41 @@ public class TypeResolver(
+ 
+     private fun resolveTypeForClass(
+             c: TypeResolutionContext, annotations: Annotations,
+-            classDescriptor: ClassDescriptor, type: KtUserType
++            classDescriptor: ClassDescriptor, type: KtUserType,
++            qualifierResolutionResult: QualifiedExpressionResolver.TypeQualifierResolutionResult
+     ): PossiblyBareType {
+         val typeConstructor = classDescriptor.typeConstructor
+-        val arguments = resolveTypeProjections(c, typeConstructor, type.typeArguments)
++
++        val projectionFromAllQualifierParts = qualifierResolutionResult.allProjections
+         val parameters = typeConstructor.parameters
+-        val expectedArgumentCount = parameters.size()
+-        val actualArgumentCount = arguments.size()
++        if (c.allowBareTypes && projectionFromAllQualifierParts.isEmpty() && parameters.isNotEmpty()) {
++            // See docs for PossiblyBareType
++            return PossiblyBareType.bare(typeConstructor, false)
++        }
+ 
+         if (ErrorUtils.isError(classDescriptor)) {
+-            return type(ErrorUtils.createErrorTypeWithArguments("[Error type: $typeConstructor]", arguments))
++            return createErrorTypeAndResolveArguments(c, projectionFromAllQualifierParts, "[Error type: $typeConstructor]")
+         }
+ 
+-        if (actualArgumentCount != expectedArgumentCount) {
+-            if (actualArgumentCount == 0) {
+-                // See docs for PossiblyBareType
+-                if (c.allowBareTypes) {
+-                    return PossiblyBareType.bare(typeConstructor, false)
+-                }
+-                c.trace.report(WRONG_NUMBER_OF_TYPE_ARGUMENTS.on(type, expectedArgumentCount))
+-            }
+-            else {
+-                c.trace.report(WRONG_NUMBER_OF_TYPE_ARGUMENTS.on(type.typeArgumentList, expectedArgumentCount))
+-            }
++        val collectedArgumentAsTypeProjections =
++                collectArgumentsForClassTypeConstructor(c, classDescriptor, qualifierResolutionResult.qualifierParts)
++                ?: return createErrorTypeAndResolveArguments(c, projectionFromAllQualifierParts, typeConstructor.toString())
+ 
+-            return type(ErrorUtils.createErrorTypeWithArguments("" + typeConstructor, arguments))
++        assert(collectedArgumentAsTypeProjections.size <= parameters.size) {
++            "Collected arguments count should be not greater then parameters count," +
++            " but ${collectedArgumentAsTypeProjections.size} instead of ${parameters.size} found in ${type.text}"
++        }
++
++        val argumentsFromUserType = resolveTypeProjections(c, typeConstructor, collectedArgumentAsTypeProjections)
++        val arguments = argumentsFromUserType + appendDefaultArgumentsForInnerScope(argumentsFromUserType.size, parameters)
++
++        assert(arguments.size == parameters.size) {
++            "Collected arguments count should be equal to parameters count," +
++            " but ${collectedArgumentAsTypeProjections.size} instead of ${parameters.size} found in ${type.text}"
+         }
+ 
+         if (Flexibility.FLEXIBLE_TYPE_CLASSIFIER.asSingleFqName().toUnsafe() == DescriptorUtils.getFqName(classDescriptor)
+-            && classDescriptor.typeConstructor.parameters.size() == 2) {
++            && parameters.size == 2) {
+             // We create flexible types by convention here
+             // This is not intended to be used in normal users' environments, only for tests and debugger etc
+             return type(DelegatingFlexibleType.create(
+@@ -332,7 +342,7 @@ public class TypeResolver(
+             for (i in parameters.indices) {
+                 val parameter = parameters[i]
+                 val argument = arguments[i].type
+-                val typeReference = type.typeArguments[i].typeReference
++                val typeReference = collectedArgumentAsTypeProjections.getOrNull(i)?.typeReference
+ 
+                 if (typeReference != null) {
+                     DescriptorResolver.checkBounds(typeReference, argument, parameter, substitutor, c.trace)
+@@ -343,6 +353,114 @@ public class TypeResolver(
+         return type(resultingType)
+     }
+ 
++    private fun collectArgumentsForClassTypeConstructor(
++            c: TypeResolutionContext,
++            classDescriptor: ClassDescriptor,
++            qualifierParts: List<QualifiedExpressionResolver.QualifierPart>
++    ): List<KtTypeProjection>? {
++        val classDescriptorChain = classDescriptor.classDescriptorChain()
++        val reversedQualifierParts = qualifierParts.asReversed()
++
++        var wasStatic = false
++        var result = SmartList<KtTypeProjection>()
++
++        val classChainLastIndex = Math.min(classDescriptorChain.size, reversedQualifierParts.size) - 1
++
++        for (index in 0..classChainLastIndex) {
++            val qualifierPart = reversedQualifierParts[index]
++            val currentArguments = qualifierPart.typeArguments?.arguments.orEmpty()
++            val declaredTypeParameters = classDescriptorChain[index].declaredTypeParameters
++            val currentParameters = if (wasStatic) emptyList() else declaredTypeParameters
++
++            if (wasStatic && currentArguments.isNotEmpty() && declaredTypeParameters.isNotEmpty()) {
++                c.trace.report(TYPE_ARGUMENTS_FOR_OUTER_CLASS_WHEN_NESTED_REFERENCED.on(qualifierPart.typeArguments!!))
++                return null
++            }
++
++            if (currentArguments.size != currentParameters.size) {
++                c.trace.report(
++                        WRONG_NUMBER_OF_TYPE_ARGUMENTS.on(qualifierPart.typeArguments ?: qualifierPart.expression, currentParameters.size))
++                return null
++            }
++
++            result.addAll(currentArguments)
++
++            wasStatic = wasStatic || !classDescriptorChain[index].isInner
++        }
++
++        val nonClassQualifierParts =
++                reversedQualifierParts.subList(
++                        Math.min(classChainLastIndex + 1, reversedQualifierParts.size),
++                        reversedQualifierParts.size)
++
++        for (qualifierPart in nonClassQualifierParts) {
++            if (qualifierPart.typeArguments != null) {
++                c.trace.report(WRONG_NUMBER_OF_TYPE_ARGUMENTS.on(qualifierPart.typeArguments, 0))
++                return null
++            }
++        }
++
++        val parameters = classDescriptor.typeConstructor.parameters
++        if (result.size < parameters.size) {
++            if (parameters.subList(result.size, parameters.size).any { parameter -> !parameter.isDeclaredInScope(c) }) {
++                c.trace.report(WRONG_NUMBER_OF_TYPE_ARGUMENTS.on(qualifierParts.last().expression, parameters.size))
++                return null
++            }
++        }
++
++        return result
++    }
++
++    private fun ClassifierDescriptor?.classDescriptorChain(): List<ClassDescriptor>
++            = sequence({ this as? ClassDescriptor }, { it.containingDeclaration as? ClassDescriptor }).toList()
++
++    private fun TypeParameterDescriptor.isDeclaredInScope(c: TypeResolutionContext): Boolean {
++        assert(containingDeclaration is ClassDescriptor) { "This function is implemented for classes only, but $containingDeclaration was given" }
++
++        // This function checks whether this@TypeParameterDescriptor ()is reachable from current scope by it's name
++        // The only way it can be is that we are within class that contains it
++        // We could just walk through containing declarations as it's done on last return, but it can be rather slow, so we at first look into scope.
++        // Latter can fail if we found some other classifier with same name, but parameter can still be reachable, so
++        // in case of fail we fall back into slow but exact computation.
++
++        val contributedClassifier = c.scope.findClassifier(name, NoLookupLocation.WHEN_RESOLVING_DEFAULT_TYPE_ARGUMENTS) ?: return false
++        if (contributedClassifier.typeConstructor == typeConstructor) return true
++
++        return c.scope.ownerDescriptor.isInsideOfClass(original.containingDeclaration as ClassDescriptor)
++    }
++
++    private fun DeclarationDescriptor.isInsideOfClass(classDescriptor: ClassDescriptor)
++            = sequence(this, { it.containingDeclaration }).any { it.original == classDescriptor }
++
++
++    private fun resolveTypeProjectionsWithErrorConstructor(
++            c: TypeResolutionContext,
++            argumentElements: List<KtTypeProjection>,
++            message: String = "Error type for resolving type projections"
++    ) = resolveTypeProjections(c, ErrorUtils.createErrorTypeConstructor(message), argumentElements)
++
++    private fun createErrorTypeAndResolveArguments(
++            c: TypeResolutionContext,
++            argumentElements: List<KtTypeProjection>,
++            message: String = ""
++    ): PossiblyBareType
++        = type(ErrorUtils.createErrorTypeWithArguments(message, resolveTypeProjectionsWithErrorConstructor(c, argumentElements)))
++
++    // In cases like
++    // class Outer<F> {
++    //      inner class Inner<E>
++    //      val inner: Inner<String>
++    // }
++    //
++    // FQ type of 'inner' val is Outer<F>.Inner<String> (saying strictly it's Outer.Inner<String, F>), but 'F' is implicitly came from scope
++    // So we just add it explicitly to make type complete, in a sense of having arguments count equal to parameters one.
++    private fun appendDefaultArgumentsForInnerScope(
++            fromIndex: Int,
++            constructorParameters: List<TypeParameterDescriptor>
++    ) = constructorParameters.subList(fromIndex, constructorParameters.size).map {
++        TypeProjectionImpl((it.original as TypeParameterDescriptor).defaultType)
++    }
++
+     private fun resolveTypeProjections(c: TypeResolutionContext, constructor: TypeConstructor, argumentElements: List<KtTypeProjection>): List<TypeProjection> {
+         return argumentElements.mapIndexed { i, argumentElement ->
+ 
+@@ -378,7 +496,13 @@ public class TypeResolver(
+         }
+     }
+ 
+-    public fun resolveClass(scope: LexicalScope, userType: KtUserType, trace: BindingTrace): ClassifierDescriptor? {
++    public fun resolveClass(
++            scope: LexicalScope, userType: KtUserType, trace: BindingTrace
++    ): ClassifierDescriptor? = resolveDescriptorForType(scope, userType, trace).classifierDescriptor
++
++    public fun resolveDescriptorForType(
++            scope: LexicalScope, userType: KtUserType, trace: BindingTrace
++    ): QualifiedExpressionResolver.TypeQualifierResolutionResult {
+         if (userType.qualifier != null) { // we must resolve all type references in arguments of qualifier type
+             for (typeArgument in userType.qualifier!!.typeArguments) {
+                 typeArgument.typeReference?.let {
+@@ -387,11 +511,12 @@ public class TypeResolver(
+             }
+         }
+ 
+-        val classifierDescriptor = qualifiedExpressionResolver.resolveDescriptorForUserType(userType, scope, trace)
+-        if (classifierDescriptor != null) {
+-            PlatformTypesMappedToKotlinChecker.reportPlatformClassMappedToKotlin(moduleDescriptor, trace, userType, classifierDescriptor)
++        val result = qualifiedExpressionResolver.resolveDescriptorForType(userType, scope, trace)
++        if (result.classifierDescriptor != null) {
++            PlatformTypesMappedToKotlinChecker.reportPlatformClassMappedToKotlin(
++                    moduleDescriptor, trace, userType, result.classifierDescriptor)
+         }
+-        return classifierDescriptor
++        return result
+     }
+ 
+     companion object {
+diff --git a/compiler/testData/codegen/boxWithJava/innerGenericClass/JavaClass.java b/compiler/testData/codegen/boxWithJava/innerGenericClass/JavaClass.java
+new file mode 100644
+index 00000000000..41c4032833c
+--- /dev/null
++++ b/compiler/testData/codegen/boxWithJava/innerGenericClass/JavaClass.java
+@@ -0,0 +1,5 @@
++public abstract class JavaClass {
++    public static String test() {
++        return Test.INSTANCE.foo(new Outer<String>("OK").new Inner<Integer>(1));
++    }
++}
+diff --git a/compiler/testData/codegen/boxWithJava/innerGenericClass/Kotlin.kt b/compiler/testData/codegen/boxWithJava/innerGenericClass/Kotlin.kt
+new file mode 100644
+index 00000000000..deffb928d1d
+--- /dev/null
++++ b/compiler/testData/codegen/boxWithJava/innerGenericClass/Kotlin.kt
+@@ -0,0 +1,15 @@
++class Outer<E>(val x: E) {
++    inner class Inner<F>(val y: F) {
++        fun foo() = x.toString() + y.toString()
++    }
++}
++
++object Test {
++    fun foo(x: Outer<String>.Inner<Integer>) = x.foo()
++}
++
++fun box(): String {
++    val result = JavaClass.test()
++    if (result != "OK1") return "Fail: $result"
++    return "OK"
++}
+diff --git a/compiler/testData/diagnostics/tests/classLiteral/genericClasses.kt b/compiler/testData/diagnostics/tests/classLiteral/genericClasses.kt
+index 9a1bdb4103b..395850c149d 100644
+--- a/compiler/testData/diagnostics/tests/classLiteral/genericClasses.kt
++++ b/compiler/testData/diagnostics/tests/classLiteral/genericClasses.kt
+@@ -15,8 +15,8 @@ val n1 = A.Nested::class
+ val n2 = <!CLASS_LITERAL_LHS_NOT_A_CLASS!>A.Nested<*>::class<!>
+ 
+ val i1 = A.Inner::class
+-val i2 = <!CLASS_LITERAL_LHS_NOT_A_CLASS!><!GENERICS_IN_CONTAINING_TYPE_NOT_ALLOWED!>A<*>.Inner<*><!>::class<!>
+-val i3 = <!CLASS_LITERAL_LHS_NOT_A_CLASS!><!GENERICS_IN_CONTAINING_TYPE_NOT_ALLOWED!>A<Int>.Inner<CharSequence><!>::class<!>
++val i2 = <!CLASS_LITERAL_LHS_NOT_A_CLASS!>A<*>.Inner<*>::class<!>
++val i3 = <!CLASS_LITERAL_LHS_NOT_A_CLASS!>A<Int>.Inner<CharSequence>::class<!>
+ 
+ val m1 = Map::class
+ val m2 = <!CLASS_LITERAL_LHS_NOT_A_CLASS!>Map<Int, *>::class<!>
+diff --git a/compiler/testData/diagnostics/tests/classLiteral/genericClasses.txt b/compiler/testData/diagnostics/tests/classLiteral/genericClasses.txt
+index f63bcb878b1..9033974e811 100644
+--- a/compiler/testData/diagnostics/tests/classLiteral/genericClasses.txt
++++ b/compiler/testData/diagnostics/tests/classLiteral/genericClasses.txt
+@@ -6,7 +6,7 @@ public val a3: [ERROR : Unresolved class]
+ public val a4: [ERROR : Unresolved class]
+ public val b1: kotlin.reflect.KClass<kotlin.Int>
+ public val b2: kotlin.reflect.KClass<kotlin.Nothing>
+-public val i1: kotlin.reflect.KClass<A.Inner<*>>
++public val i1: kotlin.reflect.KClass<A<*>.Inner<*>>
+ public val i2: [ERROR : Unresolved class]
+ public val i3: [ERROR : Unresolved class]
+ public val m1: kotlin.reflect.KClass<kotlin.Map<*, *>>
+diff --git a/compiler/testData/diagnostics/tests/generics/genericsInType.kt b/compiler/testData/diagnostics/tests/generics/genericsInType.kt
+index 44390e5ac96..6b619b9fe4d 100644
+--- a/compiler/testData/diagnostics/tests/generics/genericsInType.kt
++++ b/compiler/testData/diagnostics/tests/generics/genericsInType.kt
+@@ -19,18 +19,18 @@ fun test() {
+     a<Foo.Bar<String>>()
+     a<Foo.Bar.Baz>()
+ 
+-    <!GENERICS_IN_CONTAINING_TYPE_NOT_ALLOWED!>Foo<String>.Bar<!>::class
+-    <!GENERICS_IN_CONTAINING_TYPE_NOT_ALLOWED!>Foo<<!DEBUG_INFO_MISSING_UNRESOLVED!>String<!>>.Bar.Baz<!>::class
++    Foo<String>.<!WRONG_NUMBER_OF_TYPE_ARGUMENTS!>Bar<!>::class
++    Foo<!TYPE_ARGUMENTS_FOR_OUTER_CLASS_WHEN_NESTED_REFERENCED!><String><!>.Bar.Baz::class
+ 
+-    a<<!GENERICS_IN_CONTAINING_TYPE_NOT_ALLOWED, WRONG_NUMBER_OF_TYPE_ARGUMENTS!>Foo<String>.Bar<!>>()
+-    a<<!GENERICS_IN_CONTAINING_TYPE_NOT_ALLOWED!>Foo<<!DEBUG_INFO_MISSING_UNRESOLVED!>String<!>>.Bar.Baz<!>>()
++    a<Foo<String>.<!WRONG_NUMBER_OF_TYPE_ARGUMENTS!>Bar<!>>()
++    a<Foo<!TYPE_ARGUMENTS_FOR_OUTER_CLASS_WHEN_NESTED_REFERENCED!><String><!>.Bar.Baz>()
+ 
+     a<Foo.Bar<Int>>()
+-    a<<!GENERICS_IN_CONTAINING_TYPE_NOT_ALLOWED!>Foo.Bar<Int>.Baz<!>>()
++    a<Foo.Bar<!TYPE_ARGUMENTS_FOR_OUTER_CLASS_WHEN_NESTED_REFERENCED!><Int><!>.Baz>()
+ }
+ 
+ fun <T: Foo<String.<!UNRESOLVED_REFERENCE!>Bar<!>>> x() {}
+-fun <!GENERICS_IN_CONTAINING_TYPE_NOT_ALLOWED, WRONG_NUMBER_OF_TYPE_ARGUMENTS!>Foo<String>.Bar<!>.ext() {}
++fun Foo<String>.<!WRONG_NUMBER_OF_TYPE_ARGUMENTS!>Bar<!>.ext() {}
+ 
+-fun ex1(<!UNUSED_PARAMETER!>a<!>: <!GENERICS_IN_CONTAINING_TYPE_NOT_ALLOWED!>Foo<String>.Bar<String><!>): <!GENERICS_IN_CONTAINING_TYPE_NOT_ALLOWED!>Foo<String>.Bar<String><!> {
++fun ex1(<!UNUSED_PARAMETER!>a<!>: Foo<!TYPE_ARGUMENTS_FOR_OUTER_CLASS_WHEN_NESTED_REFERENCED!><String><!>.Bar<String>): Foo<!TYPE_ARGUMENTS_FOR_OUTER_CLASS_WHEN_NESTED_REFERENCED!><String><!>.Bar<String> {
+ <!NO_RETURN_IN_FUNCTION_WITH_BLOCK_BODY!>}<!>
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/generics/genericsInType.txt b/compiler/testData/diagnostics/tests/generics/genericsInType.txt
+index aa6bfe85e5c..01766327b46 100644
+--- a/compiler/testData/diagnostics/tests/generics/genericsInType.txt
++++ b/compiler/testData/diagnostics/tests/generics/genericsInType.txt
+@@ -1,10 +1,10 @@
+ package
+ 
+ public fun </*0*/ T> a(): kotlin.Unit
+-public fun ex1(/*0*/ a: Foo.Bar<kotlin.String>): Foo.Bar<kotlin.String>
++public fun ex1(/*0*/ a: [ERROR : Bar]<kotlin.String, kotlin.String>): [ERROR : Bar]<kotlin.String, kotlin.String>
+ public fun test(): kotlin.Unit
+ public fun </*0*/ T : Foo<[ERROR : String.Bar]>> x(): kotlin.Unit
+-public fun [ERROR : Bar].ext(): kotlin.Unit
++public fun [ERROR : Bar]<kotlin.String>.ext(): kotlin.Unit
+ 
+ public final class Foo</*0*/ T> {
+     public constructor Foo</*0*/ T>()
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/bareTypes.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/bareTypes.kt
+new file mode 100644
+index 00000000000..8f4b237a12f
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/bareTypes.kt
+@@ -0,0 +1,20 @@
++class Outer<E> {
++    inner class Inner<F, G> {
++        inner abstract class Inner2Base
++        inner class Inner2 : Inner2Base()
++
++        inner abstract class Inner3Base<B>
++        inner class Inner3<H> : Inner3Base<H>()
++    }
++
++    fun foo(x: Outer<*>.Inner<*, *>.Inner2Base) {
++        if (x is Inner.Inner2) return
++    }
++}
++
++fun bare(x: Outer<*>.Inner<*, *>.Inner2Base, y: Outer<*>.Inner<*, *>.Inner3Base<Int>) {
++    if (x is Outer.Inner.Inner2) return
++    if (y is Outer.Inner.Inner3) return
++    if (y is Outer<String>.Inner.<!WRONG_NUMBER_OF_TYPE_ARGUMENTS!>Inner3<!>) return
++    if (y is <!WRONG_NUMBER_OF_TYPE_ARGUMENTS!>Outer<!>.Inner<String, Int>.Inner3<Double>) return
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/bareTypes.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/bareTypes.txt
+new file mode 100644
+index 00000000000..a2de89fd40d
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/bareTypes.txt
+@@ -0,0 +1,46 @@
++package
++
++public fun bare(/*0*/ x: Outer<*>.Inner<*, *>.Inner2Base, /*1*/ y: Outer<*>.Inner<*, *>.Inner3Base<kotlin.Int>): kotlin.Unit
++
++public final class Outer</*0*/ E> {
++    public constructor Outer</*0*/ E>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final fun foo(/*0*/ x: Outer<*>.Inner<*, *>.Inner2Base): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner</*0*/ F, /*1*/ G> {
++        public constructor Inner</*0*/ F, /*1*/ G>()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++        public final inner class Inner2 : Outer<E>.Inner<F, G>.Inner2Base {
++            public constructor Inner2()
++            public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++            public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++            public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++        }
++
++        public abstract inner class Inner2Base {
++            public constructor Inner2Base()
++            public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++            public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++            public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++        }
++
++        public final inner class Inner3</*0*/ H> : Outer<E>.Inner<F, G>.Inner3Base<H> {
++            public constructor Inner3</*0*/ H>()
++            public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++            public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++            public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++        }
++
++        public abstract inner class Inner3Base</*0*/ B> {
++            public constructor Inner3Base</*0*/ B>()
++            public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++            public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++            public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++        }
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/checkBoundsOuter.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/checkBoundsOuter.kt
+new file mode 100644
+index 00000000000..9004f84bb51
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/checkBoundsOuter.kt
+@@ -0,0 +1,5 @@
++class Outer<E : Any> {
++    inner class Inner<F, G>
++}
++
++val x: Outer<<!UPPER_BOUND_VIOLATED!>String?<!>>.Inner<String, Int> = null!!
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/checkBoundsOuter.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/checkBoundsOuter.txt
+new file mode 100644
+index 00000000000..4d0b97097c1
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/checkBoundsOuter.txt
+@@ -0,0 +1,17 @@
++package
++
++public val x: Outer<kotlin.String?>.Inner<kotlin.String, kotlin.Int>
++
++public final class Outer</*0*/ E : kotlin.Any> {
++    public constructor Outer</*0*/ E : kotlin.Any>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner</*0*/ F, /*1*/ G> {
++        public constructor Inner</*0*/ F, /*1*/ G>()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/importedInner.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/importedInner.kt
+new file mode 100644
+index 00000000000..37f695783e2
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/importedInner.kt
+@@ -0,0 +1,16 @@
++// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER
++import Outer.Inner
++
++
++class Outer<E> {
++    inner class Inner
++
++    fun foo() {
++        class E
++        val x: Inner = Inner()
++    }
++}
++
++class E
++
++fun bar(x: <!WRONG_NUMBER_OF_TYPE_ARGUMENTS!>Inner<!>) {}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/importedInner.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/importedInner.txt
+new file mode 100644
+index 00000000000..47977b9df52
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/importedInner.txt
+@@ -0,0 +1,25 @@
++package
++
++public fun bar(/*0*/ x: [ERROR : Inner]): kotlin.Unit
++
++public final class E {
++    public constructor E()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Outer</*0*/ E> {
++    public constructor Outer</*0*/ E>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final fun foo(): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner /*captured type parameters: /*0*/ E*/ {
++        public constructor Inner()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/innerTP.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/innerTP.kt
+new file mode 100644
+index 00000000000..792b62bcd46
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/innerTP.kt
+@@ -0,0 +1,41 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
++
++class Outer<E> {
++    inner class Inner<F> {
++        fun foo() = this
++        fun baz(): Inner<String> = null!!
++    }
++
++    fun innerFactory(): Outer<E>.Inner<String> = null!!
++
++    fun bar() = Inner<E>()
++    fun set(inner: Inner<out E>) {}
++
++    fun inside() {
++        innerFactory().checkType { _<Inner<String>>() }
++    }
++}
++
++fun factoryString(): Outer<String>.Inner<String> = null!!
++
++fun <T, Y> infer(x: T, y: Y): Outer<T>.Inner<Y> = null!!
++val infered = infer("", 1)
++
++fun main() {
++    val outer = Outer<String>()
++
++    checkSubtype<Outer<String>.Inner<String>>(outer.bar())
++    checkSubtype<Outer<String>.Inner<Int>>(outer.Inner<Int>())
++    checkSubtype<Outer<*>.Inner<*>>(outer.bar())
++    checkSubtype<Outer<*>.Inner<*>>(outer.Inner<Int>())
++
++    checkSubtype<Outer<CharSequence>.Inner<CharSequence>>(<!TYPE_MISMATCH!>outer.bar()<!>)
++    checkSubtype<Outer<CharSequence>.Inner<CharSequence>>(outer.<!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>Inner()<!>)
++
++    outer.set(outer.bar())
++    outer.set(outer.Inner())
++
++    val x: Outer<String>.Inner<String> = factoryString()
++    outer.set(x)
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/innerTP.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/innerTP.txt
+new file mode 100644
+index 00000000000..52a57951f7c
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/innerTP.txt
+@@ -0,0 +1,26 @@
++package
++
++public val infered: Outer<kotlin.String>.Inner<kotlin.Int>
++public fun factoryString(): Outer<kotlin.String>.Inner<kotlin.String>
++public fun </*0*/ T, /*1*/ Y> infer(/*0*/ x: T, /*1*/ y: Y): Outer<T>.Inner<Y>
++public fun main(): kotlin.Unit
++
++public final class Outer</*0*/ E> {
++    public constructor Outer</*0*/ E>()
++    public final fun bar(): Outer<E>.Inner<E>
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun innerFactory(): Outer<E>.Inner<kotlin.String>
++    public final fun inside(): kotlin.Unit
++    public final fun set(/*0*/ inner: Outer<E>.Inner<out E>): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner</*0*/ F> {
++        public constructor Inner</*0*/ F>()
++        public final fun baz(): Outer<E>.Inner<kotlin.String>
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final fun foo(): Outer<E>.Inner<F>
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/innerUncheckedCast.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/innerUncheckedCast.kt
+new file mode 100644
+index 00000000000..497f46f649c
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/innerUncheckedCast.kt
+@@ -0,0 +1,31 @@
++// !CHECK_TYPE
++
++class Outer<E> {
++    inner open class InnerBase<F>
++    inner class Inner<H> : InnerBase<H>() {
++        val prop: E = null!!
++    }
++
++    fun foo(x: InnerBase<String>, y: Any?, z: Outer<*>.InnerBase<String>) {
++        if (x is Inner) {
++            <!DEBUG_INFO_SMARTCAST!>x<!>.prop.checkType { _<E>() }
++        }
++
++        if (y is <!NO_TYPE_ARGUMENTS_ON_RHS!>Inner<!>) return
++
++        if (z is Inner) {
++            <!DEBUG_INFO_SMARTCAST!>z<!>.prop.checkType { _<Any?>() }
++            return
++        }
++
++        if (y is Outer<*>.Inner<*>) {
++            <!DEBUG_INFO_SMARTCAST!>y<!>.prop.checkType { _<Any?>() }
++        }
++    }
++
++    fun bar(x: InnerBase<String>, y: Any?, z: Outer<*>.InnerBase<String>) {
++        x as Inner
++        y as <!NO_TYPE_ARGUMENTS_ON_RHS!>Inner<!>
++        z as Inner
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/innerUncheckedCast.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/innerUncheckedCast.txt
+new file mode 100644
+index 00000000000..dd2a28c97bb
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/innerUncheckedCast.txt
+@@ -0,0 +1,25 @@
++package
++
++public final class Outer</*0*/ E> {
++    public constructor Outer</*0*/ E>()
++    public final fun bar(/*0*/ x: Outer<E>.InnerBase<kotlin.String>, /*1*/ y: kotlin.Any?, /*2*/ z: Outer<*>.InnerBase<kotlin.String>): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final fun foo(/*0*/ x: Outer<E>.InnerBase<kotlin.String>, /*1*/ y: kotlin.Any?, /*2*/ z: Outer<*>.InnerBase<kotlin.String>): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner</*0*/ H> : Outer<E>.InnerBase<H> {
++        public constructor Inner</*0*/ H>()
++        public final val prop: E
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public open inner class InnerBase</*0*/ F> {
++        public constructor InnerBase</*0*/ F>()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/innerVariance.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/innerVariance.kt
+new file mode 100644
+index 00000000000..11865acd8ee
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/innerVariance.kt
+@@ -0,0 +1,14 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++class Outer<out E, in F> {
++    inner class Inner {
++        fun unsafe1(x: <!TYPE_VARIANCE_CONFLICT!>E<!>) {}
++        fun unsafe2(x: Collection<<!TYPE_VARIANCE_CONFLICT!>E?<!>>) {}
++        fun unsafe3(): <!TYPE_VARIANCE_CONFLICT!>F?<!> = null
++        fun unsafe4(): Collection<<!TYPE_VARIANCE_CONFLICT!>F<!>>? = null
++    }
++
++    // Should be errors
++    // Refinement of variance checker is needed
++    fun foo(x: Inner) {}
++    fun bar(): Inner? = null
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/innerVariance.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/innerVariance.txt
+new file mode 100644
+index 00000000000..ea0bfb9877c
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/innerVariance.txt
+@@ -0,0 +1,21 @@
++package
++
++public final class Outer</*0*/ out E, /*1*/ in F> {
++    public constructor Outer</*0*/ out E, /*1*/ in F>()
++    public final fun bar(): Outer<E, F>.Inner?
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final fun foo(/*0*/ x: Outer<E, F>.Inner): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner {
++        public constructor Inner()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++        public final fun unsafe1(/*0*/ x: E): kotlin.Unit
++        public final fun unsafe2(/*0*/ x: kotlin.Collection<E?>): kotlin.Unit
++        public final fun unsafe3(): F?
++        public final fun unsafe4(): kotlin.Collection<F>?
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/iterator.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/iterator.kt
+new file mode 100644
+index 00000000000..fb2fb4b83ef
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/iterator.kt
+@@ -0,0 +1,35 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE -UNUSED_VALUE -UNUSED_PARAMETER -UNUSED_VARIABLE
++import java.util.*
++
++class A<T> : AbstractCollection<T>() {
++    override fun iterator(): MyIt = MyIt()
++
++    override val size: Int
++        get() = 1
++
++    inner class MyIt : MutableIterator<T> {
++        override fun next(): T {
++            throw UnsupportedOperationException()
++        }
++
++        override fun hasNext(): Boolean {
++            throw UnsupportedOperationException()
++        }
++
++        override fun remove() {
++            throw UnsupportedOperationException()
++        }
++    }
++}
++
++fun <E> commonSupertype(x: E, y: E): E = x
++
++fun foo() {
++    var myIt = A<String>().iterator()
++    myIt = <!TYPE_MISMATCH!>A<Int>().iterator()<!>
++
++    val csIt: Iterator<CharSequence> = A<String>().iterator()
++
++    commonSupertype(A<String>().iterator(), A<Int>().iterator()).checkType { _<A<out Any>.MyIt>() }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/iterator.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/iterator.txt
+new file mode 100644
+index 00000000000..01e0a1320fb
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/iterator.txt
+@@ -0,0 +1,34 @@
++package
++
++public fun </*0*/ E> commonSupertype(/*0*/ x: E, /*1*/ y: E): E
++public fun foo(): kotlin.Unit
++
++public final class A</*0*/ T> : java.util.AbstractCollection<T> {
++    public constructor A</*0*/ T>()
++    public open override /*1*/ val size: kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun add(/*0*/ element: T!): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun addAll(/*0*/ elements: kotlin.Collection<T!>): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun clear(): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun contains(/*0*/ element: T!): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun containsAll(/*0*/ elements: kotlin.Collection<T!>): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun isEmpty(): kotlin.Boolean
++    public open override /*1*/ fun iterator(): A<T>.MyIt
++    public open override /*1*/ /*fake_override*/ fun remove(/*0*/ element: T!): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun removeAll(/*0*/ elements: kotlin.Collection<T!>): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun retainAll(/*0*/ elements: kotlin.Collection<T!>): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun toArray(): kotlin.Array<(out) kotlin.Any!>!
++    public open override /*1*/ /*fake_override*/ fun </*0*/ T : kotlin.Any!> toArray(/*0*/ p0: kotlin.Array<(out) T!>!): kotlin.Array<(out) T!>!
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class MyIt : kotlin.MutableIterator<T> {
++        public constructor MyIt()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ fun hasNext(): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ fun next(): T
++        public open override /*1*/ fun remove(): kotlin.Unit
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/j+k.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/j+k.kt
+new file mode 100644
+index 00000000000..c8e48ba9b47
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/j+k.kt
+@@ -0,0 +1,28 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
++// FILE: Outer.java
++
++public class Outer<E> {
++    public class Inner<F> {
++        E foo() {}
++        F bar() {}
++
++        Outer<E> outer() {}
++    }
++
++    Inner<E> baz() { }
++    void set(Inner<String> x) {}
++}
++
++// FILE: main.kt
++
++fun main() {
++    var outerStr: Outer<String> = Outer()
++    outerStr.baz().checkType { _<Outer<String>.Inner<String>>() }
++
++    val strInt: Outer<String>.Inner<Int> = outerStr.Inner()
++
++    strInt.foo().checkType { _<String>() }
++    strInt.bar().checkType { _<Int>() }
++    strInt.outer().checkType { _<Outer<String>>() }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/j+k.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/j+k.txt
+new file mode 100644
+index 00000000000..787fcf1e968
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/j+k.txt
+@@ -0,0 +1,22 @@
++package
++
++public fun main(): kotlin.Unit
++
++public open class Outer</*0*/ E : kotlin.Any!> {
++    public constructor Outer</*0*/ E : kotlin.Any!>()
++    public/*package*/ open fun baz(): Outer<E!>.Inner<E!>!
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public/*package*/ open fun set(/*0*/ x: Outer<kotlin.String!>.Inner<E!>!): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public open inner class Inner</*0*/ F : kotlin.Any!> {
++        public constructor Inner</*0*/ F : kotlin.Any!>()
++        public/*package*/ open fun bar(): F!
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public/*package*/ open fun foo(): E!
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public/*package*/ open fun outer(): Outer<E!>!
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/kt408.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/kt408.kt
+new file mode 100644
+index 00000000000..02585cbc7cd
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/kt408.kt
+@@ -0,0 +1,12 @@
++// !DIAGNOSTICS: -UNUSED_VARIABLE
++interface T<E> {
++    fun f() : E = null!!
++}
++open class A<X>() {
++    inner class B() : T<X> {}
++}
++
++fun test() {
++    val a = A<Int>()
++    val b : A<Int>.B = a.B()
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/kt408.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/kt408.txt
+new file mode 100644
+index 00000000000..cd9064d4c16
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/kt408.txt
+@@ -0,0 +1,25 @@
++package
++
++public fun test(): kotlin.Unit
++
++public open class A</*0*/ X> {
++    public constructor A</*0*/ X>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class B : T<X> {
++        public constructor B()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun f(): X
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
++
++public interface T</*0*/ E> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open fun f(): E
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/kt6325.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/kt6325.kt
+new file mode 100644
+index 00000000000..d1ca3a88d34
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/kt6325.kt
+@@ -0,0 +1,21 @@
++// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE
++
++class Outer<T> {
++    inner class Inner<R> {
++        fun <S> newInner(): Inner<S> = Inner()
++        //type mismatch
++        fun <U, S> newOuterInner(): Outer<U>.Inner<S> = Outer<U>().Inner<S>()
++        //^ U here is not analyzed
++        fun foo(t: T, r: R) {}
++    }
++}
++
++fun test0() {
++    val inner: Outer<Int>.Inner<String> = Outer<Int>().Inner<String>()
++    Outer<Int>().Inner<String>().foo(1, "") // type mismatch on second argument
++}
++
++
++fun test1() {
++    Outer<Int>().Inner<String>().newOuterInner<Double, Boolean>().foo(1.0, true) // type mismatch on 1.0
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/kt6325.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/kt6325.txt
+new file mode 100644
+index 00000000000..3f03f8cb12d
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/kt6325.txt
+@@ -0,0 +1,21 @@
++package
++
++public fun test0(): kotlin.Unit
++public fun test1(): kotlin.Unit
++
++public final class Outer</*0*/ T> {
++    public constructor Outer</*0*/ T>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner</*0*/ R> {
++        public constructor Inner</*0*/ R>()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final fun foo(/*0*/ t: T, /*1*/ r: R): kotlin.Unit
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final fun </*0*/ S> newInner(): Outer<T>.Inner<S>
++        public final fun </*0*/ U, /*1*/ S> newOuterInner(): Outer<U>.Inner<S>
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/parameterShadowing.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/parameterShadowing.kt
+new file mode 100644
+index 00000000000..a9ed6267adc
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/parameterShadowing.kt
+@@ -0,0 +1,18 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
++
++class Outer<E> {
++    inner class Inner<E> {
++        fun foo(): E = null!!
++        fun outerE() = baz()
++    }
++
++    fun baz(): E = null!!
++}
++
++fun main() {
++    val inner = Outer<String>().Inner<Int>()
++
++    inner.foo().checkType { _<Int>() }
++    inner.outerE().checkType { _<String>() }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/parameterShadowing.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/parameterShadowing.txt
+new file mode 100644
+index 00000000000..c1c8297373f
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/parameterShadowing.txt
+@@ -0,0 +1,20 @@
++package
++
++public fun main(): kotlin.Unit
++
++public final class Outer</*0*/ E> {
++    public constructor Outer</*0*/ E>()
++    public final fun baz(): E
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner</*0*/ E> {
++        public constructor Inner</*0*/ E>()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final fun foo(): E
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final fun outerE(): E
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/qualifiedOuter.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/qualifiedOuter.kt
+new file mode 100644
+index 00000000000..893484a9c1f
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/qualifiedOuter.kt
+@@ -0,0 +1,23 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VALUE -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE
++
++class Outer<T> {
++    inner class Inner
++    fun foo(x: Outer<String>.Inner, y: <!WRONG_NUMBER_OF_TYPE_ARGUMENTS!>Outer<!>.Inner, z: Inner) {
++        var inner = Inner()
++        x.checkType { <!TYPE_MISMATCH!>_<!><Inner>() }
++        x.checkType { _<Outer<String>.Inner>() }
++        z.checkType { _<Inner>() }
++        z.checkType { _<Outer<T>.Inner>() }
++
++        inner = <!TYPE_MISMATCH!>x<!>
++    }
++
++    class Nested
++    fun bar(x: Outer.Nested) {
++        var nested = Nested()
++        nested = x
++
++        x.checkType { _<Nested>() }
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/qualifiedOuter.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/qualifiedOuter.txt
+new file mode 100644
+index 00000000000..fa3aec5ceb1
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/qualifiedOuter.txt
+@@ -0,0 +1,24 @@
++package
++
++public final class Outer</*0*/ T> {
++    public constructor Outer</*0*/ T>()
++    public final fun bar(/*0*/ x: Outer.Nested): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public final fun foo(/*0*/ x: Outer<kotlin.String>.Inner, /*1*/ y: [ERROR : Inner], /*2*/ z: Outer<T>.Inner): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner {
++        public constructor Inner()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++
++    public final class Nested {
++        public constructor Nested()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/qualifiedTypesResolution.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/qualifiedTypesResolution.kt
+new file mode 100644
+index 00000000000..81223af0895
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/qualifiedTypesResolution.kt
+@@ -0,0 +1,51 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
++// FILE: test.kt
++
++package test
++
++class Outer<E> {
++    inner class Inner<F, G> {
++        inner class Inner2
++        inner class Inner3<H>
++    }
++
++    class Nested<I> {
++        inner class Inner4<K>
++    }
++
++    object Obj {
++        class Nested2<J> {
++            inner class Inner5<L>
++        }
++    }
++}
++
++// FILE: main.kt
++
++import test.*;
++
++class A
++class B
++class C
++class D
++
++fun ok1(): Outer<A>.Inner<B, C>.Inner2 = null!!
++fun ok2(): Outer<A>.Inner<B, C>.Inner2 = null!!
++fun ok22(): test.Outer<A>.Inner<B, C>.Inner3<D> = null!!
++fun ok3(): Outer.Nested<A>.Inner4<B> = null!!
++fun ok4(): Outer.Obj.Nested2<A>.Inner5<B> = null!!
++fun ok5(): test.Outer.Obj.Nested2<A>.Inner5<B> = null!!
++
++// All arguments are resolved
++fun errorTypeWithArguments(): <!UNRESOLVED_REFERENCE!>Q<!><A>.<!DEBUG_INFO_MISSING_UNRESOLVED!>W<!><B, C, D>.<!DEBUG_INFO_MISSING_UNRESOLVED!>R<!>.<!DEBUG_INFO_MISSING_UNRESOLVED!>M<!> = null!!
++
++fun error1(): Outer<A>.Inner<B>.Inner3<!WRONG_NUMBER_OF_TYPE_ARGUMENTS!><C, D><!> = null!!
++fun error2(): Outer<A>.Inner<!WRONG_NUMBER_OF_TYPE_ARGUMENTS!><B, C, D><!>.Inner2 = null!!
++fun error3(): <!WRONG_NUMBER_OF_TYPE_ARGUMENTS!>Outer<!>.Inner<A, B>.Inner3<C> = null!!
++
++fun error4(): Outer<!TYPE_ARGUMENTS_FOR_OUTER_CLASS_WHEN_NESTED_REFERENCED!><A><!>.Nested<B>.Inner4<C> = null!!
++fun error5(): Outer<!TYPE_ARGUMENTS_FOR_OUTER_CLASS_WHEN_NESTED_REFERENCED!><A><!>.Obj.Nested2<B>.Inner5<C> = null!!
++fun error6(): Outer.Obj<!WRONG_NUMBER_OF_TYPE_ARGUMENTS!><A><!>.Nested2<B>.Inner5<C> = null!!
++
++fun error7(): test<!WRONG_NUMBER_OF_TYPE_ARGUMENTS!><String><!>.Outer.Obj.Nested2<A>.Inner5<B> = null!!
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/qualifiedTypesResolution.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/qualifiedTypesResolution.txt
+new file mode 100644
+index 00000000000..27574eddaa3
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/qualifiedTypesResolution.txt
+@@ -0,0 +1,110 @@
++package
++
++public fun error1(): [ERROR : Inner3]<A, B, C, D>
++public fun error2(): [ERROR : Inner2]<A, B, C, D>
++public fun error3(): [ERROR : Inner3]<A, B, C>
++public fun error4(): [ERROR : Inner4]<A, B, C>
++public fun error5(): [ERROR : Inner5]<A, B, C>
++public fun error6(): [ERROR : Inner5]<A, B, C>
++public fun error7(): [ERROR : Inner5]<kotlin.String, A, B>
++public fun errorTypeWithArguments(): [ERROR : Q<A>.W<B, C, D>.R.M]<A, B, C, D>
++public fun ok1(): test.Outer<A>.Inner<B, C>.Inner2
++public fun ok2(): test.Outer<A>.Inner<B, C>.Inner2
++public fun ok22(): test.Outer<A>.Inner<B, C>.Inner3<D>
++public fun ok3(): test.Outer.Nested<A>.Inner4<B>
++public fun ok4(): test.Outer.Obj.Nested2<A>.Inner5<B>
++public fun ok5(): test.Outer.Obj.Nested2<A>.Inner5<B>
++
++public final class A {
++    public constructor A()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class B {
++    public constructor B()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class C {
++    public constructor C()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class D {
++    public constructor D()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++package test {
++
++    public final class Outer</*0*/ E> {
++        public constructor Outer</*0*/ E>()
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++        public final inner class Inner</*0*/ F, /*1*/ G> {
++            public constructor Inner</*0*/ F, /*1*/ G>()
++            public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++            public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++            public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++            public final inner class Inner2 {
++                public constructor Inner2()
++                public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++                public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++                public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++            }
++
++            public final inner class Inner3</*0*/ H> {
++                public constructor Inner3</*0*/ H>()
++                public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++                public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++                public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++            }
++        }
++
++        public final class Nested</*0*/ I> {
++            public constructor Nested</*0*/ I>()
++            public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++            public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++            public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++            public final inner class Inner4</*0*/ K> {
++                public constructor Inner4</*0*/ K>()
++                public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++                public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++                public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++            }
++        }
++
++        public object Obj {
++            private constructor Obj()
++            public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++            public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++            public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++            public final class Nested2</*0*/ J> {
++                public constructor Nested2</*0*/ J>()
++                public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++                public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++                public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++                public final inner class Inner5</*0*/ L> {
++                    public constructor Inner5</*0*/ L>()
++                    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++                    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++                    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++                }
++            }
++        }
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/simple.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/simple.kt
+new file mode 100644
+index 00000000000..a6916b61b93
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/simple.kt
+@@ -0,0 +1,36 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
++
++class Outer<E> {
++    inner class Inner {
++        fun foo() = this
++        fun baz(): Inner = this
++    }
++
++    fun bar() = Inner()
++
++    fun set(inner: Inner) {}
++}
++
++fun factoryString(): Outer<String>.Inner = null!!
++
++fun <T> infer(x: T): Outer<T>.Inner = null!!
++val infered = infer("")
++
++fun main() {
++    val outer = Outer<String>()
++
++    checkSubtype<Outer<String>.Inner>(outer.bar())
++    checkSubtype<Outer<String>.Inner>(outer.Inner())
++    checkSubtype<Outer<*>.Inner>(outer.bar())
++    checkSubtype<Outer<*>.Inner>(outer.Inner())
++
++    checkSubtype<Outer<CharSequence>.Inner>(<!TYPE_MISMATCH!>outer.bar()<!>)
++    checkSubtype<Outer<CharSequence>.Inner>(<!TYPE_MISMATCH!>outer.Inner()<!>)
++
++    outer.set(outer.bar())
++    outer.set(outer.Inner())
++
++    val x: Outer<String>.Inner = factoryString()
++    outer.set(x)
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/simple.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/simple.txt
+new file mode 100644
+index 00000000000..1a1e9723219
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/simple.txt
+@@ -0,0 +1,24 @@
++package
++
++public val infered: Outer<kotlin.String>.Inner
++public fun factoryString(): Outer<kotlin.String>.Inner
++public fun </*0*/ T> infer(/*0*/ x: T): Outer<T>.Inner
++public fun main(): kotlin.Unit
++
++public final class Outer</*0*/ E> {
++    public constructor Outer</*0*/ E>()
++    public final fun bar(): Outer<E>.Inner
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun set(/*0*/ inner: Outer<E>.Inner): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner {
++        public constructor Inner()
++        public final fun baz(): Outer<E>.Inner
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final fun foo(): Outer<E>.Inner
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/simpleIn.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/simpleIn.kt
+new file mode 100644
+index 00000000000..65e4b2bb9a9
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/simpleIn.kt
+@@ -0,0 +1,40 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
++
++class Outer<in E> {
++    inner class Inner {
++        fun foo() = this
++        fun baz(): Inner = this
++    }
++
++    fun bar() = Inner()
++
++    fun set(inner: Inner) {}
++}
++
++fun factoryString(): Outer<String>.Inner = null!!
++
++fun <T> infer(x: T): Outer<T>.Inner = null!!
++val infered = infer("")
++
++fun main() {
++    val outer = Outer<CharSequence>()
++
++    checkSubtype<Outer<CharSequence>.Inner>(outer.bar())
++    checkSubtype<Outer<CharSequence>.Inner>(outer.Inner())
++    checkSubtype<Outer<*>.Inner>(outer.bar())
++    checkSubtype<Outer<*>.Inner>(outer.Inner())
++
++    checkSubtype<Outer<String>.Inner>(outer.bar())
++    checkSubtype<Outer<String>.Inner>(outer.Inner())
++
++    outer.set(outer.bar())
++    outer.set(outer.Inner())
++
++    val x: Outer<String>.Inner = factoryString()
++    outer.set(<!TYPE_MISMATCH!>x<!>)
++    val y: Outer<CharSequence>.Inner = infer<CharSequence>("")
++    outer.set(y)
++
++    outer.set(infer<Any>(""))
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/simpleIn.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/simpleIn.txt
+new file mode 100644
+index 00000000000..9300024509d
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/simpleIn.txt
+@@ -0,0 +1,24 @@
++package
++
++public val infered: Outer<kotlin.String>.Inner
++public fun factoryString(): Outer<kotlin.String>.Inner
++public fun </*0*/ T> infer(/*0*/ x: T): Outer<T>.Inner
++public fun main(): kotlin.Unit
++
++public final class Outer</*0*/ in E> {
++    public constructor Outer</*0*/ in E>()
++    public final fun bar(): Outer<E>.Inner
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun set(/*0*/ inner: Outer<E>.Inner): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner {
++        public constructor Inner()
++        public final fun baz(): Outer<E>.Inner
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final fun foo(): Outer<E>.Inner
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/simpleOut.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/simpleOut.kt
+new file mode 100644
+index 00000000000..e7278ef8e55
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/simpleOut.kt
+@@ -0,0 +1,37 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
++
++class Outer<out E> {
++    inner class Inner {
++        fun foo() = this
++        fun baz(): Inner = this
++    }
++
++    fun bar() = Inner()
++
++    // Should be unsafe variance error here
++    fun set(inner: Inner) {}
++}
++
++fun factoryString(): Outer<String>.Inner = null!!
++
++fun <T> infer(x: T): Outer<T>.Inner = null!!
++val infered = infer("")
++
++fun main() {
++    val outer = Outer<String>()
++
++    checkSubtype<Outer<String>.Inner>(outer.bar())
++    checkSubtype<Outer<String>.Inner>(outer.Inner())
++    checkSubtype<Outer<*>.Inner>(outer.bar())
++    checkSubtype<Outer<*>.Inner>(outer.Inner())
++
++    checkSubtype<Outer<CharSequence>.Inner>(outer.bar())
++    checkSubtype<Outer<CharSequence>.Inner>(outer.Inner())
++
++    outer.set(outer.bar())
++    outer.set(outer.Inner())
++
++    val x: Outer<String>.Inner = factoryString()
++    outer.set(x)
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/simpleOut.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/simpleOut.txt
+new file mode 100644
+index 00000000000..6569e84d26a
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/simpleOut.txt
+@@ -0,0 +1,24 @@
++package
++
++public val infered: Outer<kotlin.String>.Inner
++public fun factoryString(): Outer<kotlin.String>.Inner
++public fun </*0*/ T> infer(/*0*/ x: T): Outer<T>.Inner
++public fun main(): kotlin.Unit
++
++public final class Outer</*0*/ out E> {
++    public constructor Outer</*0*/ out E>()
++    public final fun bar(): Outer<E>.Inner
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun set(/*0*/ inner: Outer<E>.Inner): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner {
++        public constructor Inner()
++        public final fun baz(): Outer<E>.Inner
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final fun foo(): Outer<E>.Inner
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/simpleOutUseSite.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/simpleOutUseSite.kt
+new file mode 100644
+index 00000000000..cd486f63f12
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/simpleOutUseSite.kt
+@@ -0,0 +1,37 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
++
++class Outer<E> {
++    inner class Inner {
++        fun foo() = this
++        fun baz(): Inner = this
++    }
++
++    fun bar() = Inner()
++
++    fun set(inner: Inner) {}
++}
++
++fun factoryString(): Outer<String>.Inner = null!!
++
++fun <T> infer(x: T): Outer<T>.Inner = null!!
++val infered = infer("")
++
++fun main() {
++    val outer: Outer<out String> = Outer<String>()
++
++    checkSubtype<Outer<out String>.Inner>(outer.bar())
++    checkSubtype<Outer<out String>.Inner>(outer.Inner())
++    checkSubtype<Outer<*>.Inner>(outer.bar())
++    checkSubtype<Outer<*>.Inner>(outer.Inner())
++
++    checkSubtype<Outer<out CharSequence>.Inner>(outer.bar())
++    checkSubtype<Outer<out CharSequence>.Inner>(outer.Inner())
++
++    // Should not actually work as in Java (captured constructor type mismatch)
++    outer.set(outer.bar())
++    outer.set(outer.Inner())
++
++    val x: Outer<String>.Inner = factoryString()
++    outer.set(x)
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/simpleOutUseSite.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/simpleOutUseSite.txt
+new file mode 100644
+index 00000000000..1a1e9723219
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/simpleOutUseSite.txt
+@@ -0,0 +1,24 @@
++package
++
++public val infered: Outer<kotlin.String>.Inner
++public fun factoryString(): Outer<kotlin.String>.Inner
++public fun </*0*/ T> infer(/*0*/ x: T): Outer<T>.Inner
++public fun main(): kotlin.Unit
++
++public final class Outer</*0*/ E> {
++    public constructor Outer</*0*/ E>()
++    public final fun bar(): Outer<E>.Inner
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun set(/*0*/ inner: Outer<E>.Inner): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner {
++        public constructor Inner()
++        public final fun baz(): Outer<E>.Inner
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final fun foo(): Outer<E>.Inner
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/substitutedMemberScope.kt b/compiler/testData/diagnostics/tests/generics/innerClasses/substitutedMemberScope.kt
+new file mode 100644
+index 00000000000..dde148c3808
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/substitutedMemberScope.kt
+@@ -0,0 +1,49 @@
++// !CHECK_TYPE
++// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
++
++class Outer<E> {
++    inner class Inner<F> {
++        fun instance() = this@Outer
++        fun foo(): E = null!!
++        fun bar(e: E, f: F) {}
++        fun baz(): F = null!!
++
++        fun act() {
++            foo().checkType { _<E>() }
++            outerE().checkType { _<E>() }
++            instance().checkType { _<Outer<E>>() }
++            instance().outerE().checkType { _<E>() }
++
++            bar(foo(), baz())
++            bar(outerE(), baz())
++            bar(instance().outerE(), baz())
++
++            bar(topLevel().Inner<E>().baz(), <!TYPE_MISMATCH!>topLevel().Inner<E>().baz()<!>)
++            bar(<!TYPE_MISMATCH!>topLevel().Inner<E>().foo()<!>, <!TYPE_MISMATCH!>topLevel().Inner<E>().baz()<!>)
++
++            setE(foo())
++        }
++    }
++
++    fun outerE(): E = null!!
++
++    fun setE(e: E) {}
++    fun setInner(inner: Inner<Int>) {}
++}
++
++fun topLevel(): Outer<String> = null!!
++
++fun foo() {
++    val strInt: Outer<String>.Inner<Int> = Outer<String>().Inner()
++
++    strInt.foo().checkType { _<String>() }
++    strInt.baz().checkType { _<Int>() }
++
++    strInt.instance().setE("")
++    strInt.instance().outerE().checkType { _<String>() }
++
++    strInt.instance().Inner<Double>().checkType { _<Outer<String>.Inner<Double>>() }
++
++    Outer<String>().setInner(strInt)
++    Outer<CharSequence>().setInner(<!TYPE_MISMATCH!>strInt<!>)
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/innerClasses/substitutedMemberScope.txt b/compiler/testData/diagnostics/tests/generics/innerClasses/substitutedMemberScope.txt
+new file mode 100644
+index 00000000000..fe3d12cb1d0
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/innerClasses/substitutedMemberScope.txt
+@@ -0,0 +1,26 @@
++package
++
++public fun foo(): kotlin.Unit
++public fun topLevel(): Outer<kotlin.String>
++
++public final class Outer</*0*/ E> {
++    public constructor Outer</*0*/ E>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun outerE(): E
++    public final fun setE(/*0*/ e: E): kotlin.Unit
++    public final fun setInner(/*0*/ inner: Outer<E>.Inner<kotlin.Int>): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++
++    public final inner class Inner</*0*/ F> {
++        public constructor Inner</*0*/ F>()
++        public final fun act(): kotlin.Unit
++        public final fun bar(/*0*/ e: E, /*1*/ f: F): kotlin.Unit
++        public final fun baz(): F
++        public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++        public final fun foo(): E
++        public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++        public final fun instance(): Outer<E>
++        public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/kt5508.txt b/compiler/testData/diagnostics/tests/generics/kt5508.txt
+index 9ae815c9587..8d17ecb8f05 100644
+--- a/compiler/testData/diagnostics/tests/generics/kt5508.txt
++++ b/compiler/testData/diagnostics/tests/generics/kt5508.txt
+@@ -7,16 +7,16 @@ public abstract class A</*0*/ T> {
+     public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
+     public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
+ 
+-    public abstract inner class B</*0*/ S> : A<A.B<S>> {
++    public abstract inner class B</*0*/ S> : A<A<T>.B<S>> {
+         public constructor B</*0*/ S>()
+-        public abstract override /*1*/ /*fake_override*/ fun Foo(/*0*/ x: A.B<S>): kotlin.Unit
++        public abstract override /*1*/ /*fake_override*/ fun Foo(/*0*/ x: A<T>.B<S>): kotlin.Unit
+         public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
+         public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
+         public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
+ 
+-        public final inner class C</*0*/ U> : A.B<A.B.C<U>> {
++        public final inner class C</*0*/ U> : A<T>.B<A<T>.B<S>.C<U>> {
+             public constructor C</*0*/ U>()
+-            public open override /*1*/ fun Foo(/*0*/ x: A.B<A.B.C<U>>): kotlin.Unit
++            public open override /*1*/ fun Foo(/*0*/ x: A<T>.B<A<T>.B<S>.C<U>>): kotlin.Unit
+             public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
+             public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
+             public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
+diff --git a/compiler/testData/loadJava/compiledKotlin/nested/deepInnerGeneric.kt b/compiler/testData/loadJava/compiledKotlin/nested/deepInnerGeneric.kt
+index 1abdf24ebfa..0b500e848bb 100644
+--- a/compiler/testData/loadJava/compiledKotlin/nested/deepInnerGeneric.kt
++++ b/compiler/testData/loadJava/compiledKotlin/nested/deepInnerGeneric.kt
+@@ -6,7 +6,7 @@ class A<TA> {
+             inner class D<TD> {
+                 fun <P1, P2, P3, P4> foo(p1: P1, p2: P2, p3: P3, p4: P4): Nothing = null!!
+ 
+-                fun bar(ta: TA, tb: TB, tc: TC, td: TD): A.B.C.D<TD> = foo<TA, TB, TC, TD>(ta, tb, tc, td)
++                fun bar(ta: TA, tb: TB, tc: TC, td: TD): A<TA>.B<TB>.C<TC>.D<TD> = foo<TA, TB, TC, TD>(ta, tb, tc, td)
+             }
+         }
+     }
+diff --git a/compiler/testData/loadJava/compiledKotlin/nested/deepInnerGeneric.txt b/compiler/testData/loadJava/compiledKotlin/nested/deepInnerGeneric.txt
+index 3b079914fdd..679a93a9d91 100644
+--- a/compiler/testData/loadJava/compiledKotlin/nested/deepInnerGeneric.txt
++++ b/compiler/testData/loadJava/compiledKotlin/nested/deepInnerGeneric.txt
+@@ -11,7 +11,7 @@ public final class A</*0*/ TA> {
+ 
+             public final inner class D</*0*/ TD> {
+                 /*primary*/ public constructor D</*0*/ TD>()
+-                public final fun bar(/*0*/ ta: TA, /*1*/ tb: TB, /*2*/ tc: TC, /*3*/ td: TD): test.A.B.C.D<TD>
++                public final fun bar(/*0*/ ta: TA, /*1*/ tb: TB, /*2*/ tc: TC, /*3*/ td: TD): test.A<TA>.B<TB>.C<TC>.D<TD>
+                 public final fun </*0*/ P1, /*1*/ P2, /*2*/ P3, /*3*/ P4> foo(/*0*/ p1: P1, /*1*/ p2: P2, /*2*/ p3: P3, /*3*/ p4: P4): kotlin.Nothing
+             }
+         }
+diff --git a/compiler/testData/renderer/KeywordsInNames.kt b/compiler/testData/renderer/KeywordsInNames.kt
+index bf24c6ec2f5..ae92a920ef9 100644
+--- a/compiler/testData/renderer/KeywordsInNames.kt
++++ b/compiler/testData/renderer/KeywordsInNames.kt
+@@ -27,7 +27,7 @@ val NOT_IS = 3
+ //value-parameter val p: `in`? defined in `class`.<init>
+ //public final inner class `class` defined in `class`
+ //public constructor `class`() defined in `class`.`class`
+-//public val `is`: `class`.`class` defined in root package
++//public val `is`: `class`<`interface`>.`class` defined in root package
+ //public val `in`: `class`<`interface`> defined in root package
+ //public fun <`in` : `interface`> `interface`.`fun`(`false`: `interface`): `interface` where `in` : kotlin.Number defined in root package
+ //<`in` : `interface` & kotlin.Number> defined in `fun`
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 8d5df5c3f73..73d55a62980 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -6651,6 +6651,123 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 }
+             }
+ 
++            @TestMetadata("compiler/testData/diagnostics/tests/generics/innerClasses")
++            @TestDataPath("$PROJECT_ROOT")
++            @RunWith(JUnit3RunnerWithInners.class)
++            public static class InnerClasses extends AbstractDiagnosticsTest {
++                public void testAllFilesPresentInInnerClasses() throws Exception {
++                    KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/diagnostics/tests/generics/innerClasses"), Pattern.compile("^(.+)\\.kt$"), true);
++                }
++
++                @TestMetadata("bareTypes.kt")
++                public void testBareTypes() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/bareTypes.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("checkBoundsOuter.kt")
++                public void testCheckBoundsOuter() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/checkBoundsOuter.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("importedInner.kt")
++                public void testImportedInner() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/importedInner.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("innerTP.kt")
++                public void testInnerTP() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/innerTP.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("innerUncheckedCast.kt")
++                public void testInnerUncheckedCast() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/innerUncheckedCast.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("innerVariance.kt")
++                public void testInnerVariance() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/innerVariance.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("iterator.kt")
++                public void testIterator() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/iterator.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("j+k.kt")
++                public void testJ_k() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/j+k.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("kt408.kt")
++                public void testKt408() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/kt408.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("kt6325.kt")
++                public void testKt6325() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/kt6325.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("parameterShadowing.kt")
++                public void testParameterShadowing() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/parameterShadowing.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("qualifiedOuter.kt")
++                public void testQualifiedOuter() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/qualifiedOuter.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("qualifiedTypesResolution.kt")
++                public void testQualifiedTypesResolution() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/qualifiedTypesResolution.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("simple.kt")
++                public void testSimple() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/simple.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("simpleIn.kt")
++                public void testSimpleIn() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/simpleIn.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("simpleOut.kt")
++                public void testSimpleOut() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/simpleOut.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("simpleOutUseSite.kt")
++                public void testSimpleOutUseSite() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/simpleOutUseSite.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("substitutedMemberScope.kt")
++                public void testSubstitutedMemberScope() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/innerClasses/substitutedMemberScope.kt");
++                    doTest(fileName);
++                }
++            }
++
+             @TestMetadata("compiler/testData/diagnostics/tests/generics/nullability")
+             @TestDataPath("$PROJECT_ROOT")
+             @RunWith(JUnit3RunnerWithInners.class)
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/generated/BlackBoxWithJavaCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/generated/BlackBoxWithJavaCodegenTestGenerated.java
+index caf32f4fb89..d0cbf926487 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/generated/BlackBoxWithJavaCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/generated/BlackBoxWithJavaCodegenTestGenerated.java
+@@ -77,6 +77,12 @@ public class BlackBoxWithJavaCodegenTestGenerated extends AbstractBlackBoxCodege
+         doTestWithJava(fileName);
+     }
+ 
++    @TestMetadata("innerGenericClass")
++    public void testInnerGenericClass() throws Exception {
++        String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/boxWithJava/innerGenericClass/");
++        doTestWithJava(fileName);
++    }
++
+     @TestMetadata("interfaceCompanion")
+     public void testInterfaceCompanion() throws Exception {
+         String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/boxWithJava/interfaceCompanion/");
+diff --git a/core/descriptors/src/org/jetbrains/kotlin/incremental/components/LookupLocation.kt b/core/descriptors/src/org/jetbrains/kotlin/incremental/components/LookupLocation.kt
+index fbf206c2743..2242c256309 100644
+--- a/core/descriptors/src/org/jetbrains/kotlin/incremental/components/LookupLocation.kt
++++ b/core/descriptors/src/org/jetbrains/kotlin/incremental/components/LookupLocation.kt
+@@ -40,6 +40,7 @@ public enum class NoLookupLocation : LookupLocation {
+     FROM_REFLECTION,
+     WHEN_RESOLVE_DECLARATION,
+     WHEN_GET_DECLARATION_SCOPE,
++    WHEN_RESOLVING_DEFAULT_TYPE_ARGUMENTS,
+     FOR_ALREADY_TRACKED,
+     // TODO replace with real location (e.g. FROM_IDE) where it possible
+     WHEN_GET_ALL_DESCRIPTORS,
+diff --git a/core/descriptors/src/org/jetbrains/kotlin/renderer/DescriptorRendererImpl.kt b/core/descriptors/src/org/jetbrains/kotlin/renderer/DescriptorRendererImpl.kt
+index 28513981207..40c239cc611 100644
+--- a/core/descriptors/src/org/jetbrains/kotlin/renderer/DescriptorRendererImpl.kt
++++ b/core/descriptors/src/org/jetbrains/kotlin/renderer/DescriptorRendererImpl.kt
+@@ -246,6 +246,15 @@ internal class DescriptorRendererImpl(
+         }.toString()
+     }
+ 
++    private fun renderTypeArgumentsForTypeConstructor(
++            type: KotlinType,
++            typeConstructor: TypeConstructor
++    ): String {
++        return type.arguments.zip(type.constructor.parameters).filter {
++            (it.second.original.containingDeclaration as? ClassifierDescriptor)?.typeConstructor == typeConstructor
++        }.map { it.first }.let { renderTypeArguments(it) }
++    }
++
+     private fun renderDefaultType(type: KotlinType): String {
+         val sb = StringBuilder()
+ 
+@@ -253,17 +262,43 @@ internal class DescriptorRendererImpl(
+ 
+         if (type.isError()) {
+             sb.append(type.getConstructor().toString()) // Debug name of an error type is more informative
++            sb.append(renderTypeArguments(type.getArguments()))
+         }
+         else {
+-            sb.append(renderTypeConstructor(type.getConstructor()))
++            sb.append(renderTypeConstructorAndArguments(type))
+         }
+-        sb.append(renderTypeArguments(type.getArguments()))
++
+         if (type.isMarkedNullable()) {
+             sb.append("?")
+         }
+         return sb.toString()
+     }
+ 
++    private fun renderTypeConstructorAndArguments(
++            type: KotlinType,
++            typeConstructor: TypeConstructor = type.constructor
++    ): String =
++        StringBuilder().apply {
++            val classDescriptor = typeConstructor.declarationDescriptor as? ClassDescriptor
++
++            if (classDescriptor is MissingDependencyErrorClass) {
++                append(renderTypeConstructor(typeConstructor))
++                append(renderTypeArguments(type.arguments))
++                return@apply
++            }
++
++            if (classDescriptor != null && classDescriptor.isInner) {
++                append(renderTypeConstructorAndArguments(type, (classDescriptor.containingDeclaration as ClassDescriptor).typeConstructor))
++                append('.')
++                append(renderName(classDescriptor.name))
++            }
++            else {
++                append(renderTypeConstructor(typeConstructor))
++            }
++
++            append(renderTypeArgumentsForTypeConstructor(type, typeConstructor))
++        }.toString()
++
+     override fun renderTypeConstructor(typeConstructor: TypeConstructor): String {
+         val cd = typeConstructor.getDeclarationDescriptor()
+         return when (cd) {
+diff --git a/idea/testData/quickfix/createFromUsage/createClass/callExpression/callWithGenericReceiver.kt b/idea/testData/quickfix/createFromUsage/createClass/callExpression/callWithGenericReceiver.kt
+index 198774ea4f5..097d588c95a 100644
+--- a/idea/testData/quickfix/createFromUsage/createClass/callExpression/callWithGenericReceiver.kt
++++ b/idea/testData/quickfix/createFromUsage/createClass/callExpression/callWithGenericReceiver.kt
+@@ -1,6 +1,4 @@
+ // "Create class 'Foo'" "true"
+-// ERROR: Type inference failed: constructor Foo<U>(u: U)<br>cannot be applied to<br>(U)<br>
+-// ERROR: Type mismatch: inferred type is U but U was expected
+ 
+ class A<T>(val n: T) {
+ 
+diff --git a/idea/testData/quickfix/createFromUsage/createClass/callExpression/callWithGenericReceiver.kt.after b/idea/testData/quickfix/createFromUsage/createClass/callExpression/callWithGenericReceiver.kt.after
+index ecd7d02b779..af2d70f686a 100644
+--- a/idea/testData/quickfix/createFromUsage/createClass/callExpression/callWithGenericReceiver.kt.after
++++ b/idea/testData/quickfix/createFromUsage/createClass/callExpression/callWithGenericReceiver.kt.after
+@@ -1,6 +1,4 @@
+ // "Create class 'Foo'" "true"
+-// ERROR: Type inference failed: constructor Foo<U>(u: U)<br>cannot be applied to<br>(U)<br>
+-// ERROR: Type mismatch: inferred type is U but U was expected
+ 
+ class A<T>(val n: T) {
+     inner class Foo<U>(u: U) {
+diff --git a/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInner.kt b/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInner.kt
+index ae55ea9616b..f2cdd0e8cf3 100644
+--- a/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInner.kt
++++ b/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInner.kt
+@@ -1,6 +1,4 @@
+ // "Create class 'Foo'" "true"
+-// ERROR: Type mismatch: inferred type is kotlin.String but V was expected
+-// ERROR: The integer literal does not conform to the expected type U
+ 
+ class B<T>(val t: T) {
+ 
+diff --git a/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInner.kt.after b/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInner.kt.after
+index 1f8d5d9752f..c4b68e340a2 100644
+--- a/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInner.kt.after
++++ b/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInner.kt.after
+@@ -1,6 +1,4 @@
+ // "Create class 'Foo'" "true"
+-// ERROR: Type mismatch: inferred type is kotlin.String but V was expected
+-// ERROR: The integer literal does not conform to the expected type U
+ 
+ class B<T>(val t: T) {
+     inner class Foo<U, V>(u: U, v: V) {
+diff --git a/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerPartialSubstitution.kt b/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerPartialSubstitution.kt
+index 9d69393bde4..3023bbfbb21 100644
+--- a/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerPartialSubstitution.kt
++++ b/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerPartialSubstitution.kt
+@@ -1,5 +1,4 @@
+ // "Create class 'Foo'" "true"
+-// ERROR: Type mismatch: inferred type is kotlin.String but U was expected
+ 
+ class B<T>(val t: T) {
+ 
+diff --git a/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerPartialSubstitution.kt.after b/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerPartialSubstitution.kt.after
+index d20624d1cea..79d0f7a9a89 100644
+--- a/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerPartialSubstitution.kt.after
++++ b/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerPartialSubstitution.kt.after
+@@ -1,5 +1,4 @@
+ // "Create class 'Foo'" "true"
+-// ERROR: Type mismatch: inferred type is kotlin.String but U was expected
+ 
+ class B<T>(val t: T) {
+     inner class Foo<U>(i: Int, u: U) {
+diff --git a/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerWithReceiverArg.kt b/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerWithReceiverArg.kt
+index 57f3b88faff..13d6a38b724 100644
+--- a/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerWithReceiverArg.kt
++++ b/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerWithReceiverArg.kt
+@@ -1,6 +1,4 @@
+ // "Create class 'Foo'" "true"
+-// ERROR: Type mismatch: inferred type is kotlin.String but W was expected
+-// ERROR: The integer literal does not conform to the expected type V
+ 
+ class B<T>(val t: T) {
+ 
+diff --git a/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerWithReceiverArg.kt.after b/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerWithReceiverArg.kt.after
+index d203d564041..edcf1df486f 100644
+--- a/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerWithReceiverArg.kt.after
++++ b/idea/testData/quickfix/createFromUsage/createClass/callExpression/typeArguments/classMemberInnerWithReceiverArg.kt.after
+@@ -1,6 +1,4 @@
+ // "Create class 'Foo'" "true"
+-// ERROR: Type mismatch: inferred type is kotlin.String but W was expected
+-// ERROR: The integer literal does not conform to the expected type V
+ 
+ class B<T>(val t: T) {
+     inner class Foo<U, V, W>(v: V, w: W) {
+diff --git a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined1.kt b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined1.kt
+index ca9b3180324..3c36bb644fd 100644
+--- a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined1.kt
++++ b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined1.kt
+@@ -1,5 +1,5 @@
+ // PARAM_TYPES: A<T>
+-// PARAM_TYPES: A.B<U>
++// PARAM_TYPES: A<T>.B<U>
+ // PARAM_TYPES: V, Data
+ // PARAM_DESCRIPTOR: public final class A<T : Data> where T : DataEx defined in root package
+ // PARAM_DESCRIPTOR: public final inner class B<U : Data> where U : DataExEx defined in A
+diff --git a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined1.kt.after b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined1.kt.after
+index 876ac3d482a..4cbe0f2f219 100644
+--- a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined1.kt.after
++++ b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined1.kt.after
+@@ -1,5 +1,5 @@
+ // PARAM_TYPES: A<T>
+-// PARAM_TYPES: A.B<U>
++// PARAM_TYPES: A<T>.B<U>
+ // PARAM_TYPES: V, Data
+ // PARAM_DESCRIPTOR: public final class A<T : Data> where T : DataEx defined in root package
+ // PARAM_DESCRIPTOR: public final inner class B<U : Data> where U : DataExEx defined in A
+@@ -17,4 +17,4 @@ class A<T: Data>(val t: T) where T: DataEx {
+     }
+ }
+ 
+-private fun <T : Data, U : Data, V : Data> i(a: A<T>, b: A.B<U>, v: V) where T : DataEx, U : DataExEx, V : DataEx = a.t.x + b.u.x + v.x
+\ No newline at end of file
++private fun <T : Data, U : Data, V : Data> i(a: A<T>, b: A<T>.B<U>, v: V) where T : DataEx, U : DataExEx, V : DataEx = a.t.x + b.u.x + v.x
+\ No newline at end of file
+diff --git a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined2.kt b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined2.kt
+index 1c5473a62ff..4a5923086df 100644
+--- a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined2.kt
++++ b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined2.kt
+@@ -1,4 +1,4 @@
+-// PARAM_TYPES: A.B<U>
++// PARAM_TYPES: A<T>.B<U>
+ // PARAM_TYPES: V, Data
+ // PARAM_DESCRIPTOR: public final inner class B<U : Data> where U : DataExEx defined in A
+ // PARAM_DESCRIPTOR: value-parameter val v: V defined in A.B.foo
+diff --git a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined2.kt.after b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined2.kt.after
+index 404a1887b59..57a6f57a147 100644
+--- a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined2.kt.after
++++ b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersAndConstraintsCombined2.kt.after
+@@ -1,4 +1,4 @@
+-// PARAM_TYPES: A.B<U>
++// PARAM_TYPES: A<T>.B<U>
+ // PARAM_TYPES: V, Data
+ // PARAM_DESCRIPTOR: public final inner class B<U : Data> where U : DataExEx defined in A
+ // PARAM_DESCRIPTOR: value-parameter val v: V defined in A.B.foo
+diff --git a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined1.kt b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined1.kt
+index f93afcfda5a..32ce5bd3004 100644
+--- a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined1.kt
++++ b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined1.kt
+@@ -1,5 +1,5 @@
+ // PARAM_TYPES: A<T>
+-// PARAM_TYPES: A.B<U>
++// PARAM_TYPES: A<T>.B<U>
+ // PARAM_TYPES: V, Data
+ // PARAM_DESCRIPTOR: public final class A<T : Data> defined in root package
+ // PARAM_DESCRIPTOR: public final inner class B<U : Data> defined in A
+diff --git a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined1.kt.after b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined1.kt.after
+index d79f910d5a7..81f0d1fc6b0 100644
+--- a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined1.kt.after
++++ b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined1.kt.after
+@@ -1,5 +1,5 @@
+ // PARAM_TYPES: A<T>
+-// PARAM_TYPES: A.B<U>
++// PARAM_TYPES: A<T>.B<U>
+ // PARAM_TYPES: V, Data
+ // PARAM_DESCRIPTOR: public final class A<T : Data> defined in root package
+ // PARAM_DESCRIPTOR: public final inner class B<U : Data> defined in A
+@@ -15,4 +15,4 @@ class A<T: Data>(val t: T) {
+     }
+ }
+ 
+-private fun <T : Data, U : Data, V : Data> i(a: A<T>, b: A.B<U>, v: V) = a.t.x + b.u.x + v.x
+\ No newline at end of file
++private fun <T : Data, U : Data, V : Data> i(a: A<T>, b: A<T>.B<U>, v: V) = a.t.x + b.u.x + v.x
+\ No newline at end of file
+diff --git a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined2.kt b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined2.kt
+index e8a0afd0b73..46f331dc2c9 100644
+--- a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined2.kt
++++ b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined2.kt
+@@ -1,4 +1,4 @@
+-// PARAM_TYPES: A.B<U>
++// PARAM_TYPES: A<T>.B<U>
+ // PARAM_TYPES: V, Data
+ // PARAM_DESCRIPTOR: public final inner class B<U : Data> defined in A
+ // PARAM_DESCRIPTOR: value-parameter val v: V defined in A.B.foo
+diff --git a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined2.kt.after b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined2.kt.after
+index 63ef70336ea..cc41b3afe35 100644
+--- a/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined2.kt.after
++++ b/idea/testData/refactoring/extractFunction/typeParameters/typeParametersCombined2.kt.after
+@@ -1,4 +1,4 @@
+-// PARAM_TYPES: A.B<U>
++// PARAM_TYPES: A<T>.B<U>
+ // PARAM_TYPES: V, Data
+ // PARAM_DESCRIPTOR: public final inner class B<U : Data> defined in A
+ // PARAM_DESCRIPTOR: value-parameter val v: V defined in A.B.foo

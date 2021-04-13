@@ -1,0 +1,38 @@
+changeset:   3851:4f348bd05341
+tag:         jdk-9+151
+user:        mcimadamore
+date:        Tue Jan 03 11:33:18 2017 +0000
+summary:     8169091: Method reference T::methodName for generic type T does not compile any more
+
+diff -r 8e69054abeeb -r 4f348bd05341 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Resolve.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Resolve.java	Wed Dec 21 15:40:08 2016 -0800
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Resolve.java	Tue Jan 03 11:33:18 2017 +0000
+@@ -3190,7 +3190,7 @@
+             if (TreeInfo.isStaticSelector(referenceTree.expr, names)) {
+                 if (argtypes.nonEmpty() &&
+                         (argtypes.head.hasTag(NONE) ||
+-                        types.isSubtypeUnchecked(inferenceContext.asUndetVar(argtypes.head), site))) {
++                        types.isSubtypeUnchecked(inferenceContext.asUndetVar(argtypes.head), originalSite))) {
+                     return new UnboundMethodReferenceLookupHelper(referenceTree, name,
+                             originalSite, argtypes, typeargtypes, maxPhase);
+                 } else {
+diff -r 8e69054abeeb -r 4f348bd05341 test/tools/javac/lambda/8169091/T8169091.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/8169091/T8169091.java	Tue Jan 03 11:33:18 2017 +0000
+@@ -0,0 +1,15 @@
++/*
++ * @test
++ * @bug 8169091
++ * @summary Method reference T::methodName for generic type T does not compile any more
++ * @compile T8169091.java
++ */
++
++import java.io.Serializable;
++import java.util.Comparator;
++
++interface T8169091 {
++    static <T extends Comparable<? super T>> Comparator<T> comparator() {
++        return (Comparator<T> & Serializable)T::compareTo;
++    }
++}
+

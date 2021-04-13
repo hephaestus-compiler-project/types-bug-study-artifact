@@ -1,0 +1,185 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+index c6c30cd29bc..b5e0641fa11 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+@@ -152,6 +152,7 @@ public interface Errors {
+     DiagnosticFactory0<KtTypeArgumentList> TYPE_ARGUMENTS_FOR_OUTER_CLASS_WHEN_NESTED_REFERENCED = DiagnosticFactory0.create(ERROR);
+ 
+     DiagnosticFactory0<KtParameter> REIFIED_TYPE_IN_CATCH_CLAUSE = DiagnosticFactory0.create(ERROR);
++    DiagnosticFactory0<KtParameter> TYPE_PARAMETER_IN_CATCH_CLAUSE = DiagnosticFactory0.create(ERROR);
+     DiagnosticFactory0<KtTypeParameterList> GENERIC_THROWABLE_SUBCLASS = DiagnosticFactory0.create(ERROR);
+ 
+     DiagnosticFactory0<KtTypeAlias> TOPLEVEL_TYPEALIASES_ONLY = DiagnosticFactory0.create(ERROR);
+@@ -527,6 +528,8 @@ public interface Errors {
+     DiagnosticFactory0<KtParameter> DATA_CLASS_VARARG_PARAMETER = DiagnosticFactory0.create(ERROR);
+     DiagnosticFactory0<KtParameter> DATA_CLASS_NOT_PROPERTY_PARAMETER = DiagnosticFactory0.create(ERROR);
+ 
++    DiagnosticFactory0<KtParameter> CATCH_PARAMETER_WITH_DEFAULT_VALUE = DiagnosticFactory0.create(ERROR);
++
+     // Multi-platform projects
+ 
+     DiagnosticFactory0<KtDeclaration> HEADER_DECLARATION_WITH_BODY = DiagnosticFactory0.create(ERROR, DECLARATION_SIGNATURE);
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+index 7d62691f23f..39bc8c3d25f 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+@@ -621,6 +621,7 @@ public class DefaultErrorMessages {
+         MAP.put(TYPE_ARGUMENTS_FOR_OUTER_CLASS_WHEN_NESTED_REFERENCED, "Type arguments for outer class are redundant when nested class is referenced");
+ 
+         MAP.put(REIFIED_TYPE_IN_CATCH_CLAUSE, "Reified type is forbidden for catch parameter");
++        MAP.put(TYPE_PARAMETER_IN_CATCH_CLAUSE, "Type parameter is forbidden for catch parameter");
+         MAP.put(GENERIC_THROWABLE_SUBCLASS, "Subclass of 'Throwable' may not have type parameters");
+ 
+         MAP.put(TYPE_MISMATCH_IN_FOR_LOOP, "The loop iterates over values of type {0} but the parameter is declared to be {1}", RENDER_TYPE,
+@@ -797,6 +798,8 @@ public class DefaultErrorMessages {
+         MAP.put(DATA_CLASS_VARARG_PARAMETER, "Primary constructor vararg parameters are forbidden for data classes");
+         MAP.put(DATA_CLASS_NOT_PROPERTY_PARAMETER, "Data class primary constructor must have only property (val / var) parameters");
+ 
++        MAP.put(CATCH_PARAMETER_WITH_DEFAULT_VALUE, "Catch clause parameter may not have a default value");
++
+         MAP.put(AMBIGUOUS_ANONYMOUS_TYPE_INFERRED, "Right-hand side has anonymous type. Please specify type explicitly", TO_STRING);
+         MAP.put(KCLASS_WITH_NULLABLE_TYPE_PARAMETER_IN_SIGNATURE,
+                 "Declaration has an inconsistent return type. Please add upper bound Any for type parameter ''{0}'' or specify return type explicitly", NAME);
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ControlStructureTypingVisitor.java b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ControlStructureTypingVisitor.java
+index 8bf5691fa5f..2bd48ac98d4 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ControlStructureTypingVisitor.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ControlStructureTypingVisitor.java
+@@ -23,6 +23,7 @@ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
+ import org.jetbrains.kotlin.descriptors.*;
++import org.jetbrains.kotlin.diagnostics.Errors;
+ import org.jetbrains.kotlin.psi.*;
+ import org.jetbrains.kotlin.resolve.BindingContext;
+ import org.jetbrains.kotlin.resolve.BindingContextUtils;
+@@ -486,17 +487,12 @@ public class ControlStructureTypingVisitor extends ExpressionTypingVisitor {
+             KtExpression catchBody = catchClause.getCatchBody();
+             boolean nothingInCatchBranch = false;
+             if (catchParameter != null) {
+-                components.identifierChecker.checkDeclaration(catchParameter, context.trace);
+-                ModifiersChecker.ModifiersCheckingProcedure modifiersChecking = components.modifiersChecker.withTrace(context.trace);
+-                modifiersChecking.checkParameterHasNoValOrVar(catchParameter, VAL_OR_VAR_ON_CATCH_PARAMETER);
+-                ModifierCheckerCore.INSTANCE.check(catchParameter, context.trace, null, components.languageVersionSettings);
++                checkCatchParameterDeclaration(catchParameter, context);
+ 
+                 VariableDescriptor variableDescriptor = components.descriptorResolver.resolveLocalVariableDescriptor(
+                         context.scope, catchParameter, context.trace);
+                 KotlinType catchParameterType = variableDescriptor.getType();
+-                if (TypeUtils.isReifiedTypeParameter(catchParameterType)) {
+-                    context.trace.report(REIFIED_TYPE_IN_CATCH_CLAUSE.on(catchParameter));
+-                }
++                checkCatchParameterType(catchParameter, catchParameterType, context);
+ 
+                 KotlinType throwableType = components.builtIns.getThrowable().getDefaultType();
+                 components.dataFlowAnalyzer.checkType(catchParameterType, catchParameter, context.replaceExpectedType(throwableType));
+@@ -539,6 +535,29 @@ public class ControlStructureTypingVisitor extends ExpressionTypingVisitor {
+         }
+     }
+ 
++    private static void checkCatchParameterType(KtParameter catchParameter, KotlinType catchParameterType, ExpressionTypingContext context) {
++        TypeParameterDescriptor typeParameterDescriptor = TypeUtils.getTypeParameterDescriptorOrNull(catchParameterType);
++        if (typeParameterDescriptor != null) {
++            if (typeParameterDescriptor.isReified()) {
++                context.trace.report(REIFIED_TYPE_IN_CATCH_CLAUSE.on(catchParameter));
++            }
++            else {
++                context.trace.report(TYPE_PARAMETER_IN_CATCH_CLAUSE.on(catchParameter));
++            }
++        }
++    }
++
++    private void checkCatchParameterDeclaration(KtParameter catchParameter, ExpressionTypingContext context) {
++        components.identifierChecker.checkDeclaration(catchParameter, context.trace);
++        ModifiersChecker.ModifiersCheckingProcedure modifiersChecking = components.modifiersChecker.withTrace(context.trace);
++        modifiersChecking.checkParameterHasNoValOrVar(catchParameter, VAL_OR_VAR_ON_CATCH_PARAMETER);
++        ModifierCheckerCore.INSTANCE.check(catchParameter, context.trace, null, components.languageVersionSettings);
++
++        if (catchParameter.hasDefaultValue()) {
++            context.trace.report(Errors.CATCH_PARAMETER_WITH_DEFAULT_VALUE.on(catchParameter));
++        }
++    }
++
+     @Override
+     public KotlinTypeInfo visitThrowExpression(@NotNull KtThrowExpression expression, ExpressionTypingContext context) {
+         KtExpression thrownExpression = expression.getThrownExpression();
+diff --git a/compiler/testData/diagnostics/tests/controlStructures/catchGenerics.kt b/compiler/testData/diagnostics/tests/controlStructures/catchGenerics.kt
+index c55ab91ea5f..31f9d012434 100644
+--- a/compiler/testData/diagnostics/tests/controlStructures/catchGenerics.kt
++++ b/compiler/testData/diagnostics/tests/controlStructures/catchGenerics.kt
+@@ -19,3 +19,7 @@ inline fun <reified E : Exception, R> tryCatch(lazy: () -> R, failure: (E) -> R)
+     } catch (<!REIFIED_TYPE_IN_CATCH_CLAUSE!>e: E<!>) {
+         failure(e)
+     }
++
++fun <T : Throwable> tryCatch() {
++    try { } catch (<!TYPE_PARAMETER_IN_CATCH_CLAUSE!>e: T<!>) { }
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/controlStructures/catchGenerics.txt b/compiler/testData/diagnostics/tests/controlStructures/catchGenerics.txt
+index 7c7c0d59380..6b0fdd9dc26 100644
+--- a/compiler/testData/diagnostics/tests/controlStructures/catchGenerics.txt
++++ b/compiler/testData/diagnostics/tests/controlStructures/catchGenerics.txt
+@@ -1,6 +1,7 @@
+ package
+ 
+ public fun bar(): kotlin.Unit
++public fun </*0*/ T : kotlin.Throwable> tryCatch(): kotlin.Unit
+ public inline fun </*0*/ reified E : kotlin.Exception /* = java.lang.Exception */, /*1*/ R> tryCatch(/*0*/ lazy: () -> R, /*1*/ failure: (E) -> R): R
+ 
+ public final class XException</*0*/ T> : kotlin.Throwable {
+diff --git a/compiler/testData/diagnostics/tests/controlStructures/catchWithDefault.kt b/compiler/testData/diagnostics/tests/controlStructures/catchWithDefault.kt
+new file mode 100644
+index 00000000000..00f3844cbbe
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/controlStructures/catchWithDefault.kt
+@@ -0,0 +1,3 @@
++fun test() {
++    try { } catch (<!CATCH_PARAMETER_WITH_DEFAULT_VALUE!>e: Exception = <!DEBUG_INFO_MISSING_UNRESOLVED!>Exception<!>()<!>) { }
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/controlStructures/catchWithDefault.txt b/compiler/testData/diagnostics/tests/controlStructures/catchWithDefault.txt
+new file mode 100644
+index 00000000000..93e27f34c8c
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/controlStructures/catchWithDefault.txt
+@@ -0,0 +1,3 @@
++package
++
++public fun test(): kotlin.Unit
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 146fd9485a7..e79f2fe5a8f 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -4390,6 +4390,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("catchWithDefault.kt")
++            public void testCatchWithDefault() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/controlStructures/catchWithDefault.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("commonSupertypeOfT.kt")
+             public void testCommonSupertypeOfT() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/controlStructures/commonSupertypeOfT.kt");
+diff --git a/js/js.translator/testData/box/regression/kt2470.kt b/js/js.translator/testData/box/regression/kt2470.kt
+index 09a867e28f4..5ef43421e93 100644
+--- a/js/js.translator/testData/box/regression/kt2470.kt
++++ b/js/js.translator/testData/box/regression/kt2470.kt
+@@ -2,12 +2,12 @@
+ 
+ package foo
+ 
+-public fun <T : Throwable> failsWith(block: () -> Any): T {
++public inline fun <reified T : Throwable> failsWith(block: () -> Any): T {
+     try {
+         block()
+     }
+-    catch (e: T) {
+-        return e
++    catch (e: Throwable) {
++        if (e is T) return e
+     }
+ 
+     throw Exception("Should have failed")

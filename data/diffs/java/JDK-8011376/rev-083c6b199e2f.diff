@@ -1,0 +1,81 @@
+changeset:   1693:083c6b199e2f
+user:        mcimadamore
+date:        Mon Apr 15 14:15:07 2013 +0100
+summary:     8011376: Spurious checked exception errors in nested method call
+
+diff -r c430f1cde21c -r 083c6b199e2f src/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Attr.java	Mon Apr 15 14:12:17 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/Attr.java	Mon Apr 15 14:15:07 2013 +0100
+@@ -2455,20 +2455,24 @@
+                                 argtypes.append(param.vartype.type) :
+                                 argtypes.append(syms.errType);
+                     }
+-                    return new MethodType(argtypes, Type.recoveryType, List.<Type>nil(), syms.methodClass);
++                    return new MethodType(argtypes, Type.recoveryType,
++                            List.of(syms.throwableType), syms.methodClass);
+                 case REFERENCE:
+-                    return new MethodType(List.<Type>nil(), Type.recoveryType, List.<Type>nil(), syms.methodClass);
++                    return new MethodType(List.<Type>nil(), Type.recoveryType,
++                            List.of(syms.throwableType), syms.methodClass);
+                 default:
+                     Assert.error("Cannot get here!");
+             }
+             return null;
+         }
+ 
+-        private void checkAccessibleTypes(final DiagnosticPosition pos, final Env<AttrContext> env, final InferenceContext inferenceContext, final Type... ts) {
++        private void checkAccessibleTypes(final DiagnosticPosition pos, final Env<AttrContext> env,
++                final InferenceContext inferenceContext, final Type... ts) {
+             checkAccessibleTypes(pos, env, inferenceContext, List.from(ts));
+         }
+ 
+-        private void checkAccessibleTypes(final DiagnosticPosition pos, final Env<AttrContext> env, final InferenceContext inferenceContext, final List<Type> ts) {
++        private void checkAccessibleTypes(final DiagnosticPosition pos, final Env<AttrContext> env,
++                final InferenceContext inferenceContext, final List<Type> ts) {
+             if (inferenceContext.free(ts)) {
+                 inferenceContext.addFreeTypeListener(ts, new FreeTypeListener() {
+                     @Override
+diff -r c430f1cde21c -r 083c6b199e2f test/tools/javac/lambda/TargetType72.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/TargetType72.java	Mon Apr 15 14:15:07 2013 +0100
+@@ -0,0 +1,39 @@
++/*
++ * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8011376
++ * @summary Spurious checked exception errors in nested method call
++ * @compile TargetType72.java
++ */
++import java.io.IOException;
++import java.util.concurrent.Callable;
++
++class TargetType72 {
++
++    Callable<Number> c = id(id(()->{ if (true) throw new java.io.IOException(); return 0; }));
++
++    <Z> Z id(Z z) { return null; }
++
++}
+

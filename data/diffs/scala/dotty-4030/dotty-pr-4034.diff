@@ -1,0 +1,42 @@
+diff --git a/compiler/src/dotty/tools/dotc/typer/Applications.scala b/compiler/src/dotty/tools/dotc/typer/Applications.scala
+index 99c54b33b3b0..313c91e1d953 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Applications.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Applications.scala
+@@ -910,8 +910,10 @@ trait Applications extends Compatibility { self: Typer with Dynamic =>
+     /** Add a `Bind` node for each `bound` symbol in a type application `unapp` */
+     def addBinders(unapp: Tree, bound: List[Symbol]) = unapp match {
+       case TypeApply(fn, args) =>
++        var remain = bound.toSet
+         def addBinder(arg: Tree) = arg.tpe.stripTypeVar match {
+-          case ref: TypeRef if bound.contains(ref.symbol) =>
++          case ref: TypeRef if remain.contains(ref.symbol) =>
++            remain -= ref.symbol
+             tpd.Bind(ref.symbol, Ident(ref))
+           case _ =>
+             arg
+diff --git a/tests/patmat/i4030.check b/tests/patmat/i4030.check
+new file mode 100644
+index 000000000000..e9b6baf83846
+--- /dev/null
++++ b/tests/patmat/i4030.check
+@@ -0,0 +1 @@
++9: Pattern Match Exhaustivity: (C4(), _), (_, C4())
+diff --git a/tests/patmat/i4030.scala b/tests/patmat/i4030.scala
+new file mode 100644
+index 000000000000..65a10f24d30d
+--- /dev/null
++++ b/tests/patmat/i4030.scala
+@@ -0,0 +1,13 @@
++sealed trait Root[T]
++case object C1 extends Root[Int]
++case object C2 extends Root[String]
++case class C3[X, Y]() extends Root[(X => X)|(Y => Y)|(X => Y)]
++case class C4[X, Y]() extends Root[(X => X)|(Y => Y)|(X => Y)]
++
++object TestGADT {
++
++  def f[A <: Seq[_], B, Foo >: A => B](v: Root[Foo], u: Root[Foo]) = (v, u) match {
++    case (C3(), C3()) =>
++  }
++  f(C3[Seq[_], Long](), C4[Seq[_], Long]())
++}

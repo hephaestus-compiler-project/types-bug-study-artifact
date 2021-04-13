@@ -1,0 +1,197 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/CommonSupertypes.java b/compiler/frontend/src/org/jetbrains/kotlin/types/CommonSupertypes.java
+index 8259a439970..4cfd5b09d13 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/CommonSupertypes.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/CommonSupertypes.java
+@@ -256,8 +256,8 @@ public class CommonSupertypes {
+ 
+         if (recursionDepth >= maxDepth) {
+             // If recursion is too deep, we cut it by taking <out Any?> as an ultimate supertype argument
+-            // Example: class A : Base<A>; class B : Base<B>, commonSuperType(A, B) = Base<out Any?>
+-            return new TypeProjectionImpl(OUT_VARIANCE, DescriptorUtilsKt.getBuiltIns(parameterDescriptor).getNullableAnyType());
++            // Example: class A : Base<A>; class B : Base<B>, commonSuperType(A, B) = Base<*>
++            return TypeUtils.makeStarProjection(parameterDescriptor);
+         }
+ 
+         Set<KotlinType> ins = new HashSet<KotlinType>();
+@@ -312,14 +312,13 @@ public class CommonSupertypes {
+             assert !ins.isEmpty() : "In projections is empty for parameter " + parameterDescriptor + ", type projections " + typeProjections;
+             KotlinType intersection = TypeIntersector.intersectTypes(KotlinTypeChecker.DEFAULT, ins);
+             if (intersection == null) {
+-                return new TypeProjectionImpl(OUT_VARIANCE, findCommonSupertype(parameterDescriptor.getUpperBounds(), recursionDepth + 1, maxDepth));
++                return TypeUtils.makeStarProjection(parameterDescriptor);
+             }
+             Variance projectionKind = variance == IN_VARIANCE ? Variance.INVARIANT : IN_VARIANCE;
+             return new TypeProjectionImpl(projectionKind, intersection);
+         }
+         else {
+-            Variance projectionKind = variance == OUT_VARIANCE ? Variance.INVARIANT : OUT_VARIANCE;
+-            return new TypeProjectionImpl(projectionKind, findCommonSupertype(parameterDescriptor.getUpperBounds(), recursionDepth + 1, maxDepth));
++            return TypeUtils.makeStarProjection(parameterDescriptor);
+         }
+     }
+ 
+diff --git a/compiler/testData/codegen/box/regressions/commonSupertypeContravariant.kt b/compiler/testData/codegen/box/regressions/commonSupertypeContravariant.kt
+new file mode 100644
+index 00000000000..8fb7e750367
+--- /dev/null
++++ b/compiler/testData/codegen/box/regressions/commonSupertypeContravariant.kt
+@@ -0,0 +1,11 @@
++interface In<in E>
++
++class En<T> : In<T>
++class A : In<A>
++fun <T> select(x: T, y: T): T = x ?: y
++
++// This test just checks that no internal error happens in backend
++// Return type should be In<*> nor In<out Any?>
++fun foobar(e: En<*>) = select(A(), e)
++
++fun box() = "OK"
+diff --git a/compiler/testData/codegen/box/regressions/commonSupertypeContravariant2.kt b/compiler/testData/codegen/box/regressions/commonSupertypeContravariant2.kt
+new file mode 100644
+index 00000000000..959eaf527aa
+--- /dev/null
++++ b/compiler/testData/codegen/box/regressions/commonSupertypeContravariant2.kt
+@@ -0,0 +1,9 @@
++interface In<in E>
++class A : In<A>
++class B : In<B>
++fun <T> select(x: T, y: T) = x ?: y
++
++// This test just checks that no internal error happens in backend
++fun foobar(a: A, b: B) = select(a, b)
++
++fun box() = "OK"
+diff --git a/compiler/testData/diagnostics/tests/generics/commonSupertypeContravariant.kt b/compiler/testData/diagnostics/tests/generics/commonSupertypeContravariant.kt
+new file mode 100644
+index 00000000000..bd96b300d41
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/commonSupertypeContravariant.kt
+@@ -0,0 +1,8 @@
++interface In<in E>
++
++class En<T> : In<T>
++class A : In<A>
++fun <T> select(x: T, y: T): T = x ?: y
++
++// Return type should be In<*> nor In<out Any?>
++fun foobar(e: En<*>) = select(A(), e)
+diff --git a/compiler/testData/diagnostics/tests/generics/commonSupertypeContravariant.txt b/compiler/testData/diagnostics/tests/generics/commonSupertypeContravariant.txt
+new file mode 100644
+index 00000000000..72f4b8c32ac
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/commonSupertypeContravariant.txt
+@@ -0,0 +1,24 @@
++package
++
++public fun foobar(/*0*/ e: En<*>): In<*>
++public fun </*0*/ T> select(/*0*/ x: T, /*1*/ y: T): T
++
++public final class A : In<A> {
++    public constructor A()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class En</*0*/ T> : In<T> {
++    public constructor En</*0*/ T>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface In</*0*/ in E> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/generics/commonSupertypeContravariant2.kt b/compiler/testData/diagnostics/tests/generics/commonSupertypeContravariant2.kt
+new file mode 100644
+index 00000000000..27abc740e87
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/commonSupertypeContravariant2.kt
+@@ -0,0 +1,7 @@
++interface In<in E>
++class A : In<A>
++class B : In<B>
++fun <T> select(x: T, y: T) = x ?: y
++
++// Return type should be In<*> nor In<out Any?>
++fun foobar(a: A, b: B) = select(a, b)
+diff --git a/compiler/testData/diagnostics/tests/generics/commonSupertypeContravariant2.txt b/compiler/testData/diagnostics/tests/generics/commonSupertypeContravariant2.txt
+new file mode 100644
+index 00000000000..6ea7febbbc0
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/generics/commonSupertypeContravariant2.txt
+@@ -0,0 +1,24 @@
++package
++
++public fun foobar(/*0*/ a: A, /*1*/ b: B): In<*>
++public fun </*0*/ T> select(/*0*/ x: T, /*1*/ y: T): T
++
++public final class A : In<A> {
++    public constructor A()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class B : In<B> {
++    public constructor B()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface In</*0*/ in E> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 2b4dd840015..413f225a279 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -6939,6 +6939,18 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("commonSupertypeContravariant.kt")
++            public void testCommonSupertypeContravariant() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/commonSupertypeContravariant.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("commonSupertypeContravariant2.kt")
++            public void testCommonSupertypeContravariant2() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/commonSupertypeContravariant2.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("genericsInType.kt")
+             public void testGenericsInType() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/generics/genericsInType.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+index 96dbcc15366..f6e80f0581f 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+@@ -11833,6 +11833,18 @@ public class BlackBoxCodegenTestGenerated extends AbstractBlackBoxCodegenTest {
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("commonSupertypeContravariant.kt")
++        public void testCommonSupertypeContravariant() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/regressions/commonSupertypeContravariant.kt");
++            doTest(fileName);
++        }
++
++        @TestMetadata("commonSupertypeContravariant2.kt")
++        public void testCommonSupertypeContravariant2() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/regressions/commonSupertypeContravariant2.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("doubleMerge.kt")
+         public void testDoubleMerge() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/regressions/doubleMerge.kt");

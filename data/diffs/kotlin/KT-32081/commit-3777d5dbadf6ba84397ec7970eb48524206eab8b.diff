@@ -1,0 +1,210 @@
+diff --git a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
+index eb08b635e17..362145fa1a8 100644
+--- a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
++++ b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
+@@ -10215,6 +10215,16 @@ public class FirDiagnosticsSmokeTestGenerated extends AbstractFirDiagnosticsSmok
+                 runTest("compiler/testData/diagnostics/tests/inference/nothingType/kt24490.kt");
+             }
+ 
++            @TestMetadata("kt32051.kt")
++            public void testKt32051() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/inference/nothingType/kt32051.kt");
++            }
++
++            @TestMetadata("kt32081.kt")
++            public void testKt32081() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/inference/nothingType/kt32081.kt");
++            }
++
+             @TestMetadata("lambdaNothingAndExpectedType.kt")
+             public void testLambdaNothingAndExpectedType() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/inference/nothingType/lambdaNothingAndExpectedType.kt");
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt
+index ae16402838e..09a04d2a59c 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/ConstraintIncorporator.kt
+@@ -158,7 +158,10 @@ class ConstraintIncorporator(
+     ) {
+         if (targetVariable in getNestedTypeVariables(newConstraint)) return
+         if (!containsConstrainingTypeWithoutProjection(newConstraint, otherConstraint)) return
+-        if (trivialConstraintTypeInferenceOracle.isGeneratedConstraintTrivial(otherConstraint, newConstraint, isSubtype)) return
++        if (trivialConstraintTypeInferenceOracle.isGeneratedConstraintTrivial(
++                baseConstraint, otherConstraint, newConstraint, isSubtype
++            )
++        ) return
+ 
+         val derivedFrom = (baseConstraint.derivedFrom + otherConstraint.derivedFrom).toMutableSet()
+         if (otherVariable in derivedFrom) return
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/TrivialConstraintTypeInferenceOracle.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/TrivialConstraintTypeInferenceOracle.kt
+index c818b10bf02..f74512ef7d7 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/TrivialConstraintTypeInferenceOracle.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/TrivialConstraintTypeInferenceOracle.kt
+@@ -35,6 +35,7 @@ class TrivialConstraintTypeInferenceOracle(context: TypeSystemInferenceExtension
+     // but can change result of the constraint system.
+     // Therefore, here we avoid adding such trivial constraints to have stable constraint system
+     fun isGeneratedConstraintTrivial(
++        baseConstraint: Constraint,
+         otherConstraint: Constraint,
+         generatedConstraintType: KotlinTypeMarker,
+         isSubtype: Boolean
+@@ -42,8 +43,9 @@ class TrivialConstraintTypeInferenceOracle(context: TypeSystemInferenceExtension
+         if (isSubtype && generatedConstraintType.isNothing()) return true
+         if (!isSubtype && generatedConstraintType.isNullableAny()) return true
+ 
+-        // If type that will be used to generate new constraint already contains `Nothing(?)`,
++        // If types from constraints that will be used to generate new constraint already contains `Nothing(?)`,
+         // then we can't decide that resulting constraint will be useless
++        if (baseConstraint.type.contains { it.isNothingOrNullableNothing() }) return false
+         if (otherConstraint.type.contains { it.isNothingOrNullableNothing() }) return false
+ 
+         // It's important to preserve constraints with nullable Nothing: `Nothing? <: T` (see implicitNothingConstraintFromReturn.kt test)
+diff --git a/compiler/testData/diagnostics/tests/inference/nothingType/kt32051.kt b/compiler/testData/diagnostics/tests/inference/nothingType/kt32051.kt
+new file mode 100644
+index 00000000000..641bc20b1d1
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/nothingType/kt32051.kt
+@@ -0,0 +1,32 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_EXPRESSION
++
++interface LevelA
++interface LevelB : LevelA
++
++class BiType<out X, out Y> {
++    fun <X> pullXb(x: X): BiType<X, LevelB> = TODO()
++    fun <Y> pullYb(y: Y): BiType<LevelB, Y> = TODO()
++    fun <X> pullXn(x: X): BiType<X, Nothing> = TODO()
++    fun <Y> pullYn(y: Y): BiType<Nothing, Y> = TODO()
++}
++
++fun <X> adjustIt(fn: () -> X): X = TODO()
++fun <X> adjustIt(f1: () -> X, f2: () -> X): X = TODO()
++
++fun <X> callAdjustIt(t: BiType<*, *>, x: X, level: LevelA) {
++    val x1 = adjustIt({ t.pullXb(x) })
++
++    <!DEBUG_INFO_EXPRESSION_TYPE("BiType<X, LevelB>")!>x1<!>
++
++    val x2 = adjustIt({ t.pullXn(x) })
++
++    <!DEBUG_INFO_EXPRESSION_TYPE("BiType<X, kotlin.Nothing>")!>x2<!>
++
++    val x3 = adjustIt({ t.pullXb(x) }, { t.pullYb(level) })
++
++    <!DEBUG_INFO_EXPRESSION_TYPE("BiType<kotlin.Any?, LevelA>")!>x3<!>
++
++    val x4 = adjustIt({ t.pullXn(x) }, { t.pullYn(level) })
++
++    <!DEBUG_INFO_EXPRESSION_TYPE("BiType<X, LevelA>")!>x4<!>
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/nothingType/kt32051.txt b/compiler/testData/diagnostics/tests/inference/nothingType/kt32051.txt
+new file mode 100644
+index 00000000000..b5b21bdcc3b
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/nothingType/kt32051.txt
+@@ -0,0 +1,28 @@
++package
++
++public fun </*0*/ X> adjustIt(/*0*/ fn: () -> X): X
++public fun </*0*/ X> adjustIt(/*0*/ f1: () -> X, /*1*/ f2: () -> X): X
++public fun </*0*/ X> callAdjustIt(/*0*/ t: BiType<*, *>, /*1*/ x: X, /*2*/ level: LevelA): kotlin.Unit
++
++public final class BiType</*0*/ out X, /*1*/ out Y> {
++    public constructor BiType</*0*/ out X, /*1*/ out Y>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public final fun </*0*/ X> pullXb(/*0*/ x: X): BiType<X, LevelB>
++    public final fun </*0*/ X> pullXn(/*0*/ x: X): BiType<X, kotlin.Nothing>
++    public final fun </*0*/ Y> pullYb(/*0*/ y: Y): BiType<LevelB, Y>
++    public final fun </*0*/ Y> pullYn(/*0*/ y: Y): BiType<kotlin.Nothing, Y>
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface LevelA {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface LevelB : LevelA {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/nothingType/kt32081.kt b/compiler/testData/diagnostics/tests/inference/nothingType/kt32081.kt
+new file mode 100644
+index 00000000000..005db4646cb
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/nothingType/kt32081.kt
+@@ -0,0 +1,10 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++
++fun <T> select(x: T, y: T): T = x
++
++fun foo(x: Int, stringNothing: Out2<String, Nothing>): Out2<String, Int> =
++    select(x.right(), stringNothing)
++
++fun <R> R.right(): Out2<Nothing, R> = TODO()
++
++class Out2<out K, out V>
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/nothingType/kt32081.txt b/compiler/testData/diagnostics/tests/inference/nothingType/kt32081.txt
+new file mode 100644
+index 00000000000..6e0b043af32
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/nothingType/kt32081.txt
+@@ -0,0 +1,12 @@
++package
++
++public fun foo(/*0*/ x: kotlin.Int, /*1*/ stringNothing: Out2<kotlin.String, kotlin.Nothing>): Out2<kotlin.String, kotlin.Int>
++public fun </*0*/ T> select(/*0*/ x: T, /*1*/ y: T): T
++public fun </*0*/ R> R.right(): Out2<kotlin.Nothing, R>
++
++public final class Out2</*0*/ out K, /*1*/ out V> {
++    public constructor Out2</*0*/ out K, /*1*/ out V>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 9ea9bf9d288..92d5625579a 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -10222,6 +10222,16 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                     runTest("compiler/testData/diagnostics/tests/inference/nothingType/kt24490.kt");
+                 }
+ 
++                @TestMetadata("kt32051.kt")
++                public void testKt32051() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/nothingType/kt32051.kt");
++                }
++
++                @TestMetadata("kt32081.kt")
++                public void testKt32081() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/nothingType/kt32081.kt");
++                }
++
+                 @TestMetadata("lambdaNothingAndExpectedType.kt")
+                 public void testLambdaNothingAndExpectedType() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/nothingType/lambdaNothingAndExpectedType.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index 8f551583fdc..09d20086ac8 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -10217,6 +10217,16 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                     runTest("compiler/testData/diagnostics/tests/inference/nothingType/kt24490.kt");
+                 }
+ 
++                @TestMetadata("kt32051.kt")
++                public void testKt32051() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/nothingType/kt32051.kt");
++                }
++
++                @TestMetadata("kt32081.kt")
++                public void testKt32081() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/nothingType/kt32081.kt");
++                }
++
+                 @TestMetadata("lambdaNothingAndExpectedType.kt")
+                 public void testLambdaNothingAndExpectedType() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/nothingType/lambdaNothingAndExpectedType.kt");

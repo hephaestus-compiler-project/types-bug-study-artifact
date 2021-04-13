@@ -1,0 +1,112 @@
+changeset:   48549:db044d7e9885
+user:        mcimadamore
+date:        Thu Jan 18 11:46:33 2018 +0000
+summary:     8195598: Reference to overloaded method is ambiguous with 3 methods but works with 2
+
+diff -r 0dec8c41170c -r db044d7e9885 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/ArgumentAttr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/ArgumentAttr.java	Wed Jan 17 20:07:50 2018 -0800
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/ArgumentAttr.java	Thu Jan 18 11:46:33 2018 +0000
+@@ -366,7 +366,9 @@
+ 
+         @Override
+         Type speculativeType(Symbol msym, MethodResolutionPhase phase) {
+-            if (pertinentToApplicability) {
++            if (notPertinentToApplicability.contains(msym)) {
++                return super.speculativeType(msym, phase);
++            } else {
+                 for (Map.Entry<ResultInfo, Type> _entry : speculativeTypes.entrySet()) {
+                     DeferredAttrContext deferredAttrContext = _entry.getKey().checkContext.deferredAttrContext();
+                     if (deferredAttrContext.phase == phase && deferredAttrContext.msym == msym) {
+@@ -374,14 +376,14 @@
+                     }
+                 }
+                 return Type.noType;
+-            } else {
+-                return super.speculativeType(msym, phase);
+             }
+         }
+ 
+         @Override
+         JCTree speculativeTree(DeferredAttrContext deferredAttrContext) {
+-            return pertinentToApplicability ? speculativeTree : super.speculativeTree(deferredAttrContext);
++            return notPertinentToApplicability.contains(deferredAttrContext.msym) ?
++                    super.speculativeTree(deferredAttrContext) :
++                    speculativeTree;
+         }
+ 
+         /**
+diff -r 0dec8c41170c -r db044d7e9885 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/DeferredAttr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/DeferredAttr.java	Wed Jan 17 20:07:50 2018 -0800
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/DeferredAttr.java	Thu Jan 18 11:46:33 2018 +0000
+@@ -200,7 +200,7 @@
+         public JCExpression tree;
+         Env<AttrContext> env;
+         AttrMode mode;
+-        boolean pertinentToApplicability = true;
++        Set<Symbol> notPertinentToApplicability = new HashSet<>();
+         SpeculativeCache speculativeCache;
+ 
+         DeferredType(JCExpression tree, Env<AttrContext> env) {
+@@ -319,7 +319,7 @@
+                     resultInfo.checkContext.deferredAttrContext();
+             Assert.check(deferredAttrContext != emptyDeferredAttrContext);
+             if (deferredStuckPolicy.isStuck()) {
+-                pertinentToApplicability = false;
++                notPertinentToApplicability.add(deferredAttrContext.msym);
+                 deferredAttrContext.addDeferredAttrNode(this, resultInfo, deferredStuckPolicy);
+                 return Type.noType;
+             } else {
+diff -r 0dec8c41170c -r db044d7e9885 test/langtools/tools/javac/lambda/T8195598.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/lambda/T8195598.java	Thu Jan 18 11:46:33 2018 +0000
+@@ -0,0 +1,49 @@
++/*
++ * Copyright (c) 2018, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8195598
++ * @summary Reference to overloaded method is ambiguous with 3 methods but works with 2
++ * @compile T8195598.java
++ */
++
++import java.util.concurrent.*;
++import java.util.function.*;
++
++class T8195598 {
++    public CompletableFuture<?> test() {
++        return ok(() -> System.out.append("aaa"));
++    }
++    public <T> CompletableFuture<T> ok(Supplier<T> action) {
++        return CompletableFuture.supplyAsync(action);
++    }
++    public <T> CompletableFuture<T> ok(T body) {
++        return CompletableFuture.completedFuture(body);
++    }
++    public CompletableFuture<Void> ok(Runnable action) {
++        return CompletableFuture.runAsync(action);
++    }
++}
+

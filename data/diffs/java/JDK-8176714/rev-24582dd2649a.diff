@@ -1,0 +1,470 @@
+changeset:   4066:24582dd2649a
+tag:         jdk-9+163
+user:        vromero
+date:        Fri Mar 24 06:40:28 2017 -0700
+summary:     8176714: javac is wrongly assuming that field JCMemberReference.overloadKind has been assigned to
+
+diff -r 6d160fbd7d2e -r 24582dd2649a src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Analyzer.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Analyzer.java	Fri Mar 24 13:04:32 2017 +0000
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Analyzer.java	Fri Mar 24 06:40:28 2017 -0700
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2014, 2015, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2014, 2017, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -362,14 +362,9 @@
+ 
+             TreeMapper treeMapper = new TreeMapper(context);
+             //TODO: to further refine the analysis, try all rewriting combinations
+-            LocalCacheContext localCacheContext = argumentAttr.withLocalCacheContext();
+-            try {
+-                deferredAttr.attribSpeculative(fakeBlock, env, attr.statInfo, treeMapper,
+-                        t -> new AnalyzeDeferredDiagHandler(context));
+-            } finally {
+-                localCacheContext.leave();
+-            }
+-
++            deferredAttr.attribSpeculative(fakeBlock, env, attr.statInfo, treeMapper,
++                    t -> new AnalyzeDeferredDiagHandler(context),
++                    argumentAttr.withLocalCacheContext());
+             context.treeMap.entrySet().forEach(e -> {
+                 context.treesToAnalyzer.get(e.getKey())
+                         .process(e.getKey(), e.getValue(), context.errors.nonEmpty());
+diff -r 6d160fbd7d2e -r 24582dd2649a src/jdk.compiler/share/classes/com/sun/tools/javac/comp/ArgumentAttr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/ArgumentAttr.java	Fri Mar 24 13:04:32 2017 +0000
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/ArgumentAttr.java	Fri Mar 24 06:40:28 2017 -0700
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2015, 2017, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -260,8 +260,10 @@
+     public void visitReference(JCMemberReference tree) {
+         //perform arity-based check
+         Env<AttrContext> localEnv = env.dup(tree);
+-        JCExpression exprTree = (JCExpression)deferredAttr.attribSpeculative(tree.getQualifierExpression(), localEnv,
+-                attr.memberReferenceQualifierResult(tree));
++        JCExpression exprTree;
++        exprTree = (JCExpression)deferredAttr.attribSpeculative(tree.getQualifierExpression(), localEnv,
++                attr.memberReferenceQualifierResult(tree),
++                withLocalCacheContext());
+         JCMemberReference mref2 = new TreeCopier<Void>(attr.make).copy(tree);
+         mref2.expr = exprTree;
+         Symbol lhsSym = TreeInfo.symbol(exprTree);
+@@ -277,9 +279,9 @@
+                 (res.flags() & Flags.VARARGS) != 0 ||
+                 (TreeInfo.isStaticSelector(exprTree, tree.name.table.names) &&
+                 exprTree.type.isRaw() && !exprTree.type.hasTag(ARRAY))) {
+-            tree.overloadKind = JCMemberReference.OverloadKind.OVERLOADED;
++            tree.setOverloadKind(JCMemberReference.OverloadKind.OVERLOADED);
+         } else {
+-            tree.overloadKind = JCMemberReference.OverloadKind.UNOVERLOADED;
++            tree.setOverloadKind(JCMemberReference.OverloadKind.UNOVERLOADED);
+         }
+         //return a plain old deferred type for this
+         setResult(tree, deferredAttr.new DeferredType(tree, env));
+diff -r 6d160fbd7d2e -r 24582dd2649a src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Fri Mar 24 13:04:32 2017 +0000
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Fri Mar 24 06:40:28 2017 -0700
+@@ -1525,7 +1525,9 @@
+                             isBooleanOrNumeric(env, condTree.falsepart);
+                 case APPLY:
+                     JCMethodInvocation speculativeMethodTree =
+-                            (JCMethodInvocation)deferredAttr.attribSpeculative(tree, env, unknownExprInfo);
++                            (JCMethodInvocation)deferredAttr.attribSpeculative(
++                                    tree, env, unknownExprInfo,
++                                    argumentAttr.withLocalCacheContext());
+                     Symbol msym = TreeInfo.symbol(speculativeMethodTree.meth);
+                     Type receiverType = speculativeMethodTree.meth.hasTag(IDENT) ?
+                             env.enclClass.type :
+@@ -1536,10 +1538,13 @@
+                     JCExpression className =
+                             removeClassParams.translate(((JCNewClass)tree).clazz);
+                     JCExpression speculativeNewClassTree =
+-                            (JCExpression)deferredAttr.attribSpeculative(className, env, unknownTypeInfo);
++                            (JCExpression)deferredAttr.attribSpeculative(
++                                    className, env, unknownTypeInfo,
++                                    argumentAttr.withLocalCacheContext());
+                     return primitiveOrBoxed(speculativeNewClassTree.type);
+                 default:
+-                    Type speculativeType = deferredAttr.attribSpeculative(tree, env, unknownExprInfo).type;
++                    Type speculativeType = deferredAttr.attribSpeculative(tree, env, unknownExprInfo,
++                            argumentAttr.withLocalCacheContext()).type;
+                     return primitiveOrBoxed(speculativeType);
+             }
+         }
+diff -r 6d160fbd7d2e -r 24582dd2649a src/jdk.compiler/share/classes/com/sun/tools/javac/comp/DeferredAttr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/DeferredAttr.java	Fri Mar 24 13:04:32 2017 +0000
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/DeferredAttr.java	Fri Mar 24 06:40:28 2017 -0700
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2012, 2015, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2012, 2017, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -56,6 +56,9 @@
+ import java.util.WeakHashMap;
+ import java.util.function.Function;
+ 
++import com.sun.source.tree.MemberReferenceTree;
++import com.sun.tools.javac.tree.JCTree.JCMemberReference.OverloadKind;
++
+ import static com.sun.tools.javac.code.TypeTag.*;
+ import static com.sun.tools.javac.tree.JCTree.Tag.*;
+ 
+@@ -148,6 +151,27 @@
+                         return super.visitNewClass(node, p);
+                     }
+                 }
++
++                @Override @DefinedBy(Api.COMPILER_TREE)
++                public JCTree visitMemberReference(MemberReferenceTree node, Void p) {
++                    JCMemberReference t = (JCMemberReference) node;
++                    JCExpression expr = copy(t.expr, p);
++                    List<JCExpression> typeargs = copy(t.typeargs, p);
++                    /** once the value for overloadKind is determined for a copy, it can be safely forwarded to
++                     *  the copied tree, we want to profit from that
++                     */
++                    JCMemberReference result = new JCMemberReference(t.mode, t.name, expr, typeargs) {
++                        @Override
++                        public void setOverloadKind(OverloadKind overloadKind) {
++                            super.setOverloadKind(overloadKind);
++                            if (t.getOverloadKind() == null) {
++                                t.setOverloadKind(overloadKind);
++                            }
++                        }
++                    };
++                    result.pos = t.pos;
++                    return result;
++                }
+             };
+         deferredCopier = new TypeMapping<Void> () {
+                 @Override
+@@ -446,11 +470,17 @@
+      */
+     JCTree attribSpeculative(JCTree tree, Env<AttrContext> env, ResultInfo resultInfo) {
+         return attribSpeculative(tree, env, resultInfo, treeCopier,
+-                (newTree)->new DeferredAttrDiagHandler(log, newTree));
++                (newTree)->new DeferredAttrDiagHandler(log, newTree), null);
++    }
++
++    JCTree attribSpeculative(JCTree tree, Env<AttrContext> env, ResultInfo resultInfo, LocalCacheContext localCache) {
++        return attribSpeculative(tree, env, resultInfo, treeCopier,
++                (newTree)->new DeferredAttrDiagHandler(log, newTree), localCache);
+     }
+ 
+     <Z> JCTree attribSpeculative(JCTree tree, Env<AttrContext> env, ResultInfo resultInfo, TreeCopier<Z> deferredCopier,
+-                                 Function<JCTree, DeferredDiagnosticHandler> diagHandlerCreator) {
++                                 Function<JCTree, DeferredDiagnosticHandler> diagHandlerCreator,
++                                 LocalCacheContext localCache) {
+         final JCTree newTree = deferredCopier.copy(tree);
+         Env<AttrContext> speculativeEnv = env.dup(newTree, env.info.dup(env.info.scope.dupUnshared(env.info.scope.owner)));
+         speculativeEnv.info.isSpeculative = true;
+@@ -461,6 +491,9 @@
+         } finally {
+             new UnenterScanner(env.toplevel.modle).scan(newTree);
+             log.popDiagnosticHandler(deferredDiagnosticHandler);
++            if (localCache != null) {
++                localCache.leave();
++            }
+         }
+     }
+     //where
+@@ -847,6 +880,7 @@
+ 
+             @Override
+             public void visitReference(JCMemberReference tree) {
++                Assert.checkNonNull(tree.getOverloadKind());
+                 Check.CheckContext checkContext = resultInfo.checkContext;
+                 Type pt = resultInfo.pt;
+                 if (!inferenceContext.inferencevars.contains(pt)) {
+@@ -856,8 +890,9 @@
+                         checkContext.report(null, ex.getDiagnostic());
+                     }
+                     Env<AttrContext> localEnv = env.dup(tree);
+-                    JCExpression exprTree = (JCExpression)attribSpeculative(tree.getQualifierExpression(), localEnv,
+-                            attr.memberReferenceQualifierResult(tree));
++                    JCExpression exprTree;
++                    exprTree = (JCExpression)attribSpeculative(tree.getQualifierExpression(), localEnv,
++                            attr.memberReferenceQualifierResult(tree), argumentAttr.withLocalCacheContext());
+                     ListBuffer<Type> argtypes = new ListBuffer<>();
+                     for (Type t : types.findDescriptorType(pt).getParameterTypes()) {
+                         argtypes.append(Type.noType);
+@@ -1125,7 +1160,7 @@
+             Type descType = types.findDescriptorType(pt);
+             List<Type> freeArgVars = inferenceContext.freeVarsIn(descType.getParameterTypes());
+             if (freeArgVars.nonEmpty() &&
+-                    tree.overloadKind == JCMemberReference.OverloadKind.OVERLOADED) {
++                    tree.getOverloadKind() == JCMemberReference.OverloadKind.OVERLOADED) {
+                 stuckVars.addAll(freeArgVars);
+                 depVars.addAll(inferenceContext.freeVarsIn(descType.getReturnType()));
+             }
+@@ -1190,7 +1225,7 @@
+         @Override
+         public void visitReference(JCMemberReference tree) {
+             super.visitReference(tree);
+-            if (tree.overloadKind == JCMemberReference.OverloadKind.OVERLOADED) {
++            if (tree.getOverloadKind() == JCMemberReference.OverloadKind.OVERLOADED) {
+                 stuck = true;
+             }
+         }
+diff -r 6d160fbd7d2e -r 24582dd2649a src/jdk.compiler/share/classes/com/sun/tools/javac/tree/JCTree.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/tree/JCTree.java	Fri Mar 24 13:04:32 2017 +0000
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/tree/JCTree.java	Fri Mar 24 06:40:28 2017 -0700
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 1999, 2016, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 1999, 2017, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -2133,7 +2133,7 @@
+         public Type varargsElement;
+         public PolyKind refPolyKind;
+         public boolean ownerAccessible;
+-        public OverloadKind overloadKind;
++        private OverloadKind overloadKind;
+         public Type referentType;
+ 
+         public enum OverloadKind {
+@@ -2174,7 +2174,7 @@
+             }
+         }
+ 
+-        protected JCMemberReference(ReferenceMode mode, Name name, JCExpression expr, List<JCExpression> typeargs) {
++        public JCMemberReference(ReferenceMode mode, Name name, JCExpression expr, List<JCExpression> typeargs) {
+             this.mode = mode;
+             this.name = name;
+             this.expr = expr;
+@@ -2205,6 +2205,20 @@
+         public boolean hasKind(ReferenceKind kind) {
+             return this.kind == kind;
+         }
++
++        /**
++         * @return the overloadKind
++         */
++        public OverloadKind getOverloadKind() {
++            return overloadKind;
++        }
++
++        /**
++         * @param overloadKind the overloadKind to set
++         */
++        public void setOverloadKind(OverloadKind overloadKind) {
++            this.overloadKind = overloadKind;
++        }
+     }
+ 
+     /**
+diff -r 6d160fbd7d2e -r 24582dd2649a test/tools/javac/T8176714/FieldOverloadKindNotAssignedTest.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/T8176714/FieldOverloadKindNotAssignedTest.java	Fri Mar 24 06:40:28 2017 -0700
+@@ -0,0 +1,104 @@
++/*
++ * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8176714
++ * @summary javac is wrongly assuming that field JCMemberReference.overloadKind has been assigned to
++ * @library /tools/javac/lib
++ * @modules jdk.compiler/com.sun.source.util
++ *          jdk.compiler/com.sun.tools.javac.api
++ *          jdk.compiler/com.sun.tools.javac.code
++ *          jdk.compiler/com.sun.tools.javac.file
++ *          jdk.compiler/com.sun.tools.javac.tree
++ *          jdk.compiler/com.sun.tools.javac.util
++ * @build DPrinter
++ * @run main FieldOverloadKindNotAssignedTest
++ */
++
++import java.net.URI;
++import java.util.Arrays;
++
++import javax.tools.JavaCompiler;
++import javax.tools.JavaFileObject;
++import javax.tools.SimpleJavaFileObject;
++import javax.tools.ToolProvider;
++
++import com.sun.source.tree.CompilationUnitTree;
++import com.sun.source.util.JavacTask;
++import com.sun.tools.javac.file.JavacFileManager;
++import com.sun.tools.javac.tree.JCTree;
++import com.sun.tools.javac.tree.JCTree.JCMemberReference;
++import com.sun.tools.javac.tree.TreeScanner;
++import com.sun.tools.javac.util.Assert;
++import com.sun.tools.javac.util.Context;
++
++public class FieldOverloadKindNotAssignedTest {
++    public static void main(String... args) throws Exception {
++        new FieldOverloadKindNotAssignedTest().run();
++    }
++
++    void run() throws Exception {
++        Context context = new Context();
++        JavacFileManager.preRegister(context);
++        final JavaCompiler tool = ToolProvider.getSystemJavaCompiler();
++        JavacTask ct = (JavacTask)tool.getTask(null, null, null, null, null, Arrays.asList(new JavaSource()));
++        Iterable<? extends CompilationUnitTree> elements = ct.parse();
++        ct.analyze();
++        Assert.check(elements.iterator().hasNext());
++        JCTree topLevel = (JCTree)elements.iterator().next();
++        new TreeScanner() {
++            @Override
++            public void visitReference(JCMemberReference tree) {
++                Assert.check(tree.getOverloadKind() != null);
++            }
++        }.scan(topLevel);
++    }
++
++    static class JavaSource extends SimpleJavaFileObject {
++
++        String source =
++                "import java.util.function.*;\n" +
++
++                "class Test {\n" +
++                "    void m(Predicate<String> psi) {}\n" +
++                "    void m(Function<String, String> fss) {}\n" +
++
++                "    void foo(boolean b) {\n" +
++                "        m(b ? s -> false : Test::g);\n" +
++                "    }\n" +
++
++                "    static boolean g(String s) { return false; }\n" +
++                "    static boolean g(Integer i) { return false; }\n" +
++                "}";
++
++        public JavaSource() {
++            super(URI.create("myfo:/Foo.java"), JavaFileObject.Kind.SOURCE);
++        }
++
++        @Override
++        public CharSequence getCharContent(boolean ignoreEncodingErrors) {
++            return source;
++        }
++    }
++}
+diff -r 6d160fbd7d2e -r 24582dd2649a test/tools/javac/T8176714/TimingOfMReferenceCheckingTest01.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/T8176714/TimingOfMReferenceCheckingTest01.java	Fri Mar 24 06:40:28 2017 -0700
+@@ -0,0 +1,42 @@
++/*
++ * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8176714
++ * @summary javac is wrongly assuming that field JCMemberReference.overloadKind has been assigned to
++ * @compile TimingOfMReferenceCheckingTest01.java
++ */
++
++import java.util.function.*;
++
++public class TimingOfMReferenceCheckingTest01 {
++    <Z> void g(Consumer<Z> fzr, Z z) {}
++
++    void test(boolean cond) {
++       g(cond ? this::m : this::m, "");
++    }
++
++    void m(String s) {}
++    void m(Integer i) {}
++}
+diff -r 6d160fbd7d2e -r 24582dd2649a test/tools/javac/T8176714/TimingOfMReferenceCheckingTest02.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/T8176714/TimingOfMReferenceCheckingTest02.java	Fri Mar 24 06:40:28 2017 -0700
+@@ -0,0 +1,47 @@
++/*
++ * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8176714
++ * @summary javac is wrongly assuming that field JCMemberReference.overloadKind has been assigned to
++ * @compile TimingOfMReferenceCheckingTest02.java
++ */
++
++import java.util.function.*;
++
++public class TimingOfMReferenceCheckingTest02 {
++    <Z> void g(Consumer<Z> fzr, Z z) {}
++   <T> T f(T t) { return null; }
++
++   void test(boolean cond) {
++        g(cond ?
++            f(cond ?
++                this::m :
++                this::m) :
++            this::m, "");
++    }
++
++    void m(String s) {}
++    void m(Integer i) {}
++}
+

@@ -1,0 +1,123 @@
+changeset:   50086:66b0f0134aad
+user:        vromero
+date:        Fri May 11 10:39:04 2018 -0700
+summary:     8194998: broken error message for subclass of interface with private method
+
+diff -r f001977641fb -r 66b0f0134aad src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Fri May 11 10:07:10 2018 -0700
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Fri May 11 10:39:04 2018 -0700
+@@ -3035,14 +3035,14 @@
+                         targetError = false;
+                 }
+ 
+-                JCDiagnostic detailsDiag = ((Resolve.ResolveError)refSym.baseSymbol()).getDiagnostic(JCDiagnostic.DiagnosticType.FRAGMENT,
++                JCDiagnostic detailsDiag = ((Resolve.ResolveError)refSym.baseSymbol())
++                        .getDiagnostic(JCDiagnostic.DiagnosticType.FRAGMENT,
+                                 that, exprType.tsym, exprType, that.name, argtypes, typeargtypes);
+ 
+-                JCDiagnostic.DiagnosticType diagKind = targetError ?
+-                        JCDiagnostic.DiagnosticType.FRAGMENT : JCDiagnostic.DiagnosticType.ERROR;
+-
+-                JCDiagnostic diag = diags.create(diagKind, log.currentSource(), that,
+-                        "invalid.mref", Kinds.kindName(that.getMode()), detailsDiag);
++                JCDiagnostic diag = diags.create(log.currentSource(), that,
++                        targetError ?
++                            Fragments.InvalidMref(Kinds.kindName(that.getMode()), detailsDiag) :
++                            Errors.InvalidMref(Kinds.kindName(that.getMode()), detailsDiag));
+ 
+                 if (targetError && currentTarget == Type.recoveryType) {
+                     //a target error doesn't make sense during recovery stage
+diff -r f001977641fb -r 66b0f0134aad src/jdk.compiler/share/classes/com/sun/tools/javac/resources/compiler.properties
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/resources/compiler.properties	Fri May 11 10:07:10 2018 -0700
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/resources/compiler.properties	Fri May 11 10:39:04 2018 -0700
+@@ -278,7 +278,7 @@
+     invalid {0} reference\n\
+     {1}
+ 
+-# 0: symbol kind, 1: message segment
++# 0: kind name, 1: message segment
+ compiler.misc.invalid.mref=\
+     invalid {0} reference\n\
+     {1}
+@@ -2469,6 +2469,11 @@
+     cannot find symbol\n\
+     symbol: {0} {1}({3})
+ 
++# 0: kind name, 1: name, 2: unused, 3: list of type
++compiler.misc.cant.resolve.args=\
++    cannot find symbol\n\
++    symbol: {0} {1}({3})
++
+ # 0: kind name, 1: name, 2: list of type, 3: list of type
+ compiler.err.cant.resolve.args.params=\
+     cannot find symbol\n\
+diff -r f001977641fb -r 66b0f0134aad test/langtools/tools/javac/T8194998/BrokenErrorMessageTest.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/T8194998/BrokenErrorMessageTest.java	Fri May 11 10:39:04 2018 -0700
+@@ -0,0 +1,19 @@
++/*
++ * @test  /nodynamiccopyright/
++ * @bug 8194998
++ * @summary broken error message for subclass of interface with private method
++ * @compile/fail/ref=BrokenErrorMessageTest.out -XDrawDiagnostics BrokenErrorMessageTest.java
++ */
++
++class BrokenErrorMessageTest {
++    void foo() {
++        // there is no error in this case but it is an interesting test, ::test is a member of I so this is acceptable
++        Runnable test1 = ((I)(new I() {}))::test;
++        // ::test is not a member of any subclass of I as it is private
++        Runnable test2 = ((new I() {}))::test;
++    }
++
++    interface I {
++        private void test() {}
++    }
++}
+diff -r f001977641fb -r 66b0f0134aad test/langtools/tools/javac/T8194998/BrokenErrorMessageTest.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/T8194998/BrokenErrorMessageTest.out	Fri May 11 10:39:04 2018 -0700
+@@ -0,0 +1,2 @@
++BrokenErrorMessageTest.java:13:26: compiler.err.invalid.mref: kindname.method, (compiler.misc.cant.resolve.args: kindname.method, test, , )
++1 error
+diff -r f001977641fb -r 66b0f0134aad test/langtools/tools/javac/diags/examples/BadReference.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/diags/examples/BadReference.java	Fri May 11 10:39:04 2018 -0700
+@@ -0,0 +1,36 @@
++/*
++ * Copyright (c) 2018, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++// key: compiler.err.invalid.mref
++// key: compiler.misc.cant.resolve.args
++
++class BadReference {
++    void foo() {
++        // ::test is not a member of any subclass of I as it is private
++        Runnable test2 = ((new I() {}))::test;
++    }
++
++    interface I {
++        private void test() {}
++    }
++}
+

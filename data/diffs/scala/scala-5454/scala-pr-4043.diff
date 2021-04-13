@@ -1,0 +1,129 @@
+diff --git a/src/compiler/scala/tools/nsc/Global.scala b/src/compiler/scala/tools/nsc/Global.scala
+index 452081cff16..76d8b7e5efc 100644
+--- a/src/compiler/scala/tools/nsc/Global.scala
++++ b/src/compiler/scala/tools/nsc/Global.scala
+@@ -1232,13 +1232,12 @@ class Global(var currentSettings: Settings, var reporter: Reporter)
+ 
+     /** does this run compile given class, module, or case factory? */
+     // NOTE: Early initialized members temporarily typechecked before the enclosing class, see typedPrimaryConstrBody!
+-    //       Here we work around that wrinkle by claiming that a top-level, early-initialized member is compiled in
++    //       Here we work around that wrinkle by claiming that a early-initialized member is compiled in
+     //       *every* run. This approximation works because this method is exclusively called with `this` == `currentRun`.
+     def compiles(sym: Symbol): Boolean =
+       if (sym == NoSymbol) false
+       else if (symSource.isDefinedAt(sym)) true
+-      else if (sym.isTopLevel && sym.isEarlyInitialized) true
+-      else if (!sym.isTopLevel) compiles(sym.enclosingTopLevelClass)
++      else if (!sym.isTopLevel) compiles(sym.enclosingTopLevelClassOrDummy)
+       else if (sym.isModuleClass) compiles(sym.sourceModule)
+       else false
+ 
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Typers.scala b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+index aae2d24b328..70acb035844 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Typers.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+@@ -1516,7 +1516,9 @@ trait Typers extends Adaptations with Tags with TypersTracking with PatternTyper
+           val cbody1 = treeCopy.Block(cbody, preSuperStats, superCall1)
+           val clazz = context.owner
+             assert(clazz != NoSymbol, templ)
+-          val cscope = context.outer.makeNewScope(ctor, context.outer.owner)
++          val dummy = context.outer.owner.newLocalDummy(templ.pos)
++          val cscope = context.outer.makeNewScope(ctor, dummy)
++          if (dummy.isTopLevel) currentRun.symSource(dummy) = currentUnit.source.file
+           val cbody2 = { // called both during completion AND typing.
+             val typer1 = newTyper(cscope)
+             // XXX: see about using the class's symbol....
+diff --git a/src/reflect/scala/reflect/internal/Symbols.scala b/src/reflect/scala/reflect/internal/Symbols.scala
+index b0c23ef45d8..f3f11076bd0 100644
+--- a/src/reflect/scala/reflect/internal/Symbols.scala
++++ b/src/reflect/scala/reflect/internal/Symbols.scala
+@@ -2157,6 +2157,12 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
+         if (isClass) this else moduleClass
+       } else owner.enclosingTopLevelClass
+ 
++    /** The top-level class or local dummy symbol containing this symbol. */
++    def enclosingTopLevelClassOrDummy: Symbol =
++      if (isTopLevel) {
++        if (isClass) this else moduleClass.orElse(this)
++      } else owner.enclosingTopLevelClassOrDummy
++
+     /** Is this symbol defined in the same scope and compilation unit as `that` symbol? */
+     def isCoDefinedWith(that: Symbol) = (
+          !rawInfoIsNoType
+@@ -3505,6 +3511,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
+     override def enclClassChain = Nil
+     override def enclClass: Symbol = this
+     override def enclosingTopLevelClass: Symbol = this
++    override def enclosingTopLevelClassOrDummy: Symbol = this
+     override def enclosingPackageClass: Symbol = this
+     override def enclMethod: Symbol = this
+     override def associatedFile = NoAbstractFile
+diff --git a/test/files/neg/t7636.check b/test/files/neg/t7636.check
+index f70d50bee3c..12391cccc8f 100644
+--- a/test/files/neg/t7636.check
++++ b/test/files/neg/t7636.check
+@@ -4,7 +4,7 @@ t7636.scala:3: error: illegal inheritance;
+                   ^
+ t7636.scala:3: error: type mismatch;
+  found   : Either[_$2,_$3(in constructor C)] where type _$3(in constructor C), type _$2
+- required: Either[_, _$3(in object Main)] where type _$3(in object Main)
++ required: Either[_, _$3(in value <local Main>)] where type _$3(in value <local Main>)
+   class C extends ResultTable(Left(5):Either[_,_])(5)
+                                      ^
+ two errors found
+diff --git a/test/files/pos/t3439.scala b/test/files/pos/t3439.scala
+new file mode 100644
+index 00000000000..ccc75cc4cf2
+--- /dev/null
++++ b/test/files/pos/t3439.scala
+@@ -0,0 +1,26 @@
++class Base[M](i: Int)
++ 
++// was "implicit modifier not allowed on top level objects"
++class D1()(implicit i: Int) extends Base({println(i); 0})
++
++// what "no implicit value of type Int found"
++class D2()(implicit i: Int) extends Base(implicitly[Int])
++
++
++abstract class ParametricMessage[M: Manifest](msg: M) { def message = msg }
++case class ParametricMessage1[M: Manifest](msg: M, p1: Class[_]) extends ParametricMessage(msg)
++
++
++class Wrap {
++  class Base[M](i: Int)
++   
++  // was "implicit modifier not allowed on top level objects"
++  class D1()(implicit i: Int) extends Base({println(i); 0})
++
++  // what "no implicit value of type Int found"
++  class D2()(implicit i: Int) extends Base(implicitly[Int])
++
++
++  abstract class ParametricMessage[M: Manifest](msg: M) { def message = msg }
++  case class ParametricMessage1[M: Manifest](msg: M, p1: Class[_]) extends ParametricMessage(msg)
++}
+diff --git a/test/files/pos/t5454.scala b/test/files/pos/t5454.scala
+new file mode 100644
+index 00000000000..4045f3b57b9
+--- /dev/null
++++ b/test/files/pos/t5454.scala
+@@ -0,0 +1,10 @@
++object IllegalInheritance {
++  trait A
++  implicit def a = new A {}            // def => val
++  //val r = implicitly[A]              // uncomment
++ 
++  class B[T](t : T)(implicit a : A)    // remove implicit param block
++ 
++  class C extends B/*[Int]*/(23)       // uncomment
++  val c = new C                        // comment
++}
+diff --git a/test/pending/pos/t3439.scala b/test/pending/pos/t3439.scala
+deleted file mode 100644
+index 425f1aeeb53..00000000000
+--- a/test/pending/pos/t3439.scala
++++ /dev/null
+@@ -1,2 +0,0 @@
+-abstract class ParametricMessage[M: Manifest](msg: M) { def message = msg }
+-case class ParametricMessage1[M: Manifest](msg: M, p1: Class[_]) extends ParametricMessage(msg)

@@ -1,0 +1,128 @@
+diff --git a/compiler/fir/analysis-tests/tests-gen/org/jetbrains/kotlin/test/runners/FirOldFrontendDiagnosticsTestGenerated.java b/compiler/fir/analysis-tests/tests-gen/org/jetbrains/kotlin/test/runners/FirOldFrontendDiagnosticsTestGenerated.java
+index a6b54dd2470..e5c111460fc 100644
+--- a/compiler/fir/analysis-tests/tests-gen/org/jetbrains/kotlin/test/runners/FirOldFrontendDiagnosticsTestGenerated.java
++++ b/compiler/fir/analysis-tests/tests-gen/org/jetbrains/kotlin/test/runners/FirOldFrontendDiagnosticsTestGenerated.java
+@@ -20852,6 +20852,12 @@ public class FirOldFrontendDiagnosticsTestGenerated extends AbstractFirDiagnosti
+                     KtTestUtil.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/diagnostics/tests/platformTypes/typeEnhancement"), Pattern.compile("^(.+)\\.kt$"), Pattern.compile("^(.+)\\.fir\\.kts?$"), true);
+                 }
+ 
++                @Test
++                @TestMetadata("buildFlexibleEnhancement.kt")
++                public void testBuildFlexibleEnhancement() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/platformTypes/typeEnhancement/buildFlexibleEnhancement.kt");
++                }
++
+                 @Test
+                 @TestMetadata("overriddenExtensions.kt")
+                 public void testOverriddenExtensions() throws Exception {
+diff --git a/compiler/testData/diagnostics/tests/platformTypes/typeEnhancement/buildFlexibleEnhancement.kt b/compiler/testData/diagnostics/tests/platformTypes/typeEnhancement/buildFlexibleEnhancement.kt
+new file mode 100644
+index 00000000000..f63626243ce
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/platformTypes/typeEnhancement/buildFlexibleEnhancement.kt
+@@ -0,0 +1,35 @@
++// FIR_IDENTICAL
++// FULL_JDK
++// WITH_RUNTIME
++// WITH_REFLECT
++
++// FILE: NonNullApi.java
++
++import java.lang.annotation.Documented;
++import java.lang.annotation.ElementType;
++import java.lang.annotation.Retention;
++import java.lang.annotation.RetentionPolicy;
++import java.lang.annotation.Target;
++
++@Target({ElementType.TYPE, ElementType.PACKAGE})
++@javax.annotation.Nonnull
++@javax.annotation.meta.TypeQualifierDefault({ElementType.METHOD, ElementType.PARAMETER})
++@Documented
++@Retention(RetentionPolicy.RUNTIME)
++public @interface NonNullApi { }
++
++// FILE: Foo.java
++
++import java.util.Collection;
++
++@NonNullApi
++public class Foo<E> {
++    public Foo(Collection<? extends E> c) {}
++}
++
++// FILE: main.kt
++
++fun test() {
++    val collection: Collection<Int> = listOf(1, 2, 3)
++    Foo(collection)
++}
+diff --git a/compiler/testData/foreignAnnotations/tests/jsr305/nullabilityWarnings/typeQualifierDefault/springNullable.kt b/compiler/testData/foreignAnnotations/tests/jsr305/nullabilityWarnings/typeQualifierDefault/springNullable.kt
+index 4d5c7f9d1f5..be45feea974 100644
+--- a/compiler/testData/foreignAnnotations/tests/jsr305/nullabilityWarnings/typeQualifierDefault/springNullable.kt
++++ b/compiler/testData/foreignAnnotations/tests/jsr305/nullabilityWarnings/typeQualifierDefault/springNullable.kt
+@@ -77,7 +77,7 @@ fun main(a: A) {
+     a.field?.length
+     a.field.length
+ 
+-    <!RECEIVER_NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS("MutableList<String!>?")!>a.baz()<!>.get(0)
++    <!RECEIVER_NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS("(Mutable)List<String!>?")!>a.baz()<!>.get(0)
+     a.baz()!!.get(0).get(0)
+     a.baz()!!.get(0)?.get(0)
+ }
+diff --git a/compiler/tests-common-new/tests-gen/org/jetbrains/kotlin/test/runners/DiagnosticTestGenerated.java b/compiler/tests-common-new/tests-gen/org/jetbrains/kotlin/test/runners/DiagnosticTestGenerated.java
+index cc0bb43c59b..06d706e40c3 100644
+--- a/compiler/tests-common-new/tests-gen/org/jetbrains/kotlin/test/runners/DiagnosticTestGenerated.java
++++ b/compiler/tests-common-new/tests-gen/org/jetbrains/kotlin/test/runners/DiagnosticTestGenerated.java
+@@ -20858,6 +20858,12 @@ public class DiagnosticTestGenerated extends AbstractDiagnosticTest {
+                     KtTestUtil.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("compiler/testData/diagnostics/tests/platformTypes/typeEnhancement"), Pattern.compile("^(.*)\\.kts?$"), Pattern.compile("^(.+)\\.fir\\.kts?$"), true);
+                 }
+ 
++                @Test
++                @TestMetadata("buildFlexibleEnhancement.kt")
++                public void testBuildFlexibleEnhancement() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/platformTypes/typeEnhancement/buildFlexibleEnhancement.kt");
++                }
++
+                 @Test
+                 @TestMetadata("overriddenExtensions.kt")
+                 public void testOverriddenExtensions() throws Exception {
+diff --git a/core/descriptors.jvm/src/org/jetbrains/kotlin/load/java/typeEnhancement/typeEnhancement.kt b/core/descriptors.jvm/src/org/jetbrains/kotlin/load/java/typeEnhancement/typeEnhancement.kt
+index 359a900e96b..5b8a942dc02 100644
+--- a/core/descriptors.jvm/src/org/jetbrains/kotlin/load/java/typeEnhancement/typeEnhancement.kt
++++ b/core/descriptors.jvm/src/org/jetbrains/kotlin/load/java/typeEnhancement/typeEnhancement.kt
+@@ -58,6 +58,15 @@ class JavaTypeEnhancement(private val javaResolverSettings: JavaResolverSettings
+     // For flexible types, both bounds are indexed in the same way: `(A<B>..C<D>)` gives `0 - (A<B>..C<D>), 1 - B and D`.
+     fun KotlinType.enhance(qualifiers: (Int) -> JavaTypeQualifiers) = unwrap().enhancePossiblyFlexible(qualifiers, 0).typeIfChanged
+ 
++    private fun buildEnhancementByFlexibleTypeBounds(lowerBound: KotlinType, upperBound: KotlinType): KotlinType? {
++        val upperEnhancement = upperBound.getEnhancement()
++        val lowerEnhancement = lowerBound.getEnhancement() ?: upperEnhancement ?: return null
++
++        if (upperEnhancement == null) return lowerEnhancement
++
++        return KotlinTypeFactory.flexibleType(lowerEnhancement.lowerIfFlexible(), upperEnhancement.upperIfFlexible())
++    }
++
+     private fun UnwrappedType.enhancePossiblyFlexible(qualifiers: (Int) -> JavaTypeQualifiers, index: Int): Result {
+         if (isError) return Result(this, 1, false)
+         return when (this) {
+@@ -72,12 +81,13 @@ class JavaTypeEnhancement(private val javaResolverSettings: JavaResolverSettings
+                 }
+ 
+                 val wereChanges = lowerResult.wereChanges || upperResult.wereChanges
+-                val enhancement = lowerResult.type.getEnhancement() ?: upperResult.type.getEnhancement()
+-                val type = if (!wereChanges) this@enhancePossiblyFlexible
+-                else when {
+-                    this is RawTypeImpl -> RawTypeImpl(lowerResult.type, upperResult.type)
+-                    else -> KotlinTypeFactory.flexibleType(lowerResult.type, upperResult.type)
+-                }.wrapEnhancement(enhancement)
++                val enhancement = buildEnhancementByFlexibleTypeBounds(lowerResult.type, upperResult.type)
++                val type = if (wereChanges) {
++                    when (this) {
++                        is RawTypeImpl -> RawTypeImpl(lowerResult.type, upperResult.type)
++                        else -> KotlinTypeFactory.flexibleType(lowerResult.type, upperResult.type)
++                    }.wrapEnhancement(enhancement)
++                } else this@enhancePossiblyFlexible
+ 
+                 Result(
+                     type,

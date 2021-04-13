@@ -1,0 +1,437 @@
+diff --git a/src/compiler/scala/reflect/macros/contexts/Parsers.scala b/src/compiler/scala/reflect/macros/contexts/Parsers.scala
+index f4584f36277a..cc3f01e53b4a 100644
+--- a/src/compiler/scala/reflect/macros/contexts/Parsers.scala
++++ b/src/compiler/scala/reflect/macros/contexts/Parsers.scala
+@@ -16,8 +16,9 @@ trait Parsers {
+       val tree = gen.mkTreeOrBlock(parser.parseStatsOrPackages())
+       sreporter.infos.foreach {
+         case sreporter.Info(pos, msg, sreporter.ERROR) => throw ParseException(pos, msg)
++        case _ =>
+       }
+       tree
+     } finally global.reporter = oldReporter
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/src/compiler/scala/tools/nsc/transform/patmat/Logic.scala b/src/compiler/scala/tools/nsc/transform/patmat/Logic.scala
+index 1a4df9973e9f..8b2e09495fe9 100644
+--- a/src/compiler/scala/tools/nsc/transform/patmat/Logic.scala
++++ b/src/compiler/scala/tools/nsc/transform/patmat/Logic.scala
+@@ -691,7 +691,7 @@ trait ScalaLogic extends Interface with Logic with TreeAndTypeAnalysis {
+           // if X is mutable.
+           freshExistentialSubtype(t.tpe)
+         }
+-        else trees find (a => a.correspondsStructure(t)(sameValue)) match {
++        else trees find (a => equivalentTree(a, t)) match {
+           case Some(orig) =>
+             debug.patmat("unique tp for tree: " + ((orig, orig.tpe)))
+             orig.tpe
+diff --git a/src/compiler/scala/tools/nsc/transform/patmat/MatchAnalysis.scala b/src/compiler/scala/tools/nsc/transform/patmat/MatchAnalysis.scala
+index affbcf9ec8da..ab3b25e76bec 100644
+--- a/src/compiler/scala/tools/nsc/transform/patmat/MatchAnalysis.scala
++++ b/src/compiler/scala/tools/nsc/transform/patmat/MatchAnalysis.scala
+@@ -84,11 +84,15 @@ trait TreeAndTypeAnalysis extends Debugging {
+     tp <:< tpImpliedNormalizedToAny
+   }
+ 
+-  // TODO: improve, e.g., for constants
+-  def sameValue(a: Tree, b: Tree): Boolean = (a eq b) || ((a, b) match {
+-    case (_ : Ident, _ : Ident) => a.symbol eq b.symbol
+-    case _                      => false
+-  })
++  def equivalentTree(a: Tree, b: Tree): Boolean = (a, b) match {
++    case (Select(qual1, _), Select(qual2, _)) => equivalentTree(qual1, qual2) && a.symbol == b.symbol
++    case (Ident(_), Ident(_)) => a.symbol == b.symbol
++    case (Literal(c1), Literal(c2)) => c1 == c2
++    case (This(_), This(_)) => a.symbol == b.symbol
++    case (Apply(fun1, args1), Apply(fun2, args2)) => equivalentTree(fun1, fun2) && args1.corresponds(args2)(equivalentTree)
++    // Those are the only cases we need to handle in the pattern matcher
++    case _ => false
++  }
+ 
+   trait CheckableTreeAndTypeAnalysis {
+     val typer: Typer
+@@ -172,6 +176,8 @@ trait TreeAndTypeAnalysis extends Debugging {
+               filterChildren(subclasses)
+             })
+           }
++        case sym if sym.isCase =>
++          List(List(tp))
+ 
+         case sym =>
+           debug.patmat("enum unsealed "+ ((tp, sym, sym.isSealed, isPrimitiveValueClass(sym))))
+@@ -276,7 +282,7 @@ trait MatchApproximation extends TreeAndTypeAnalysis with ScalaLogic with MatchT
+ 
+       // hashconsing trees (modulo value-equality)
+       def unique(t: Tree, tpOverride: Type = NoType): Tree =
+-        trees find (a => a.correspondsStructure(t)(sameValue)) match {
++        trees find (a => equivalentTree(a, t)) match {
+           case Some(orig) =>
+             // debug.patmat("unique: "+ (t eq orig, orig))
+             orig
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Typers.scala b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+index 84af9233e1f7..bf64ed9baae5 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Typers.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+@@ -1860,7 +1860,7 @@ trait Typers extends Adaptations with Tags with TypersTracking with PatternTyper
+       clazz.annotations.map(_.completeInfo())
+       if (templ.symbol == NoSymbol)
+         templ setSymbol clazz.newLocalDummy(templ.pos)
+-      val self1 = templ.self match {
++      val self1 = (templ.self: @unchecked) match {
+         case vd @ ValDef(_, _, tpt, EmptyTree) =>
+           val tpt1 = checkNoEscaping.privates(
+             clazz.thisSym,
+diff --git a/test/files/neg/t9398.check b/test/files/neg/t9398.check
+new file mode 100644
+index 000000000000..f0c464daa1c6
+--- /dev/null
++++ b/test/files/neg/t9398.check
+@@ -0,0 +1,7 @@
++match.scala:3: warning: match may not be exhaustive.
++It would fail on the following input: CC(B2)
++  def test(c: CC): Unit = c match {
++                          ^
++error: No warnings can be incurred under -Xfatal-warnings.
++one warning found
++one error found
+diff --git a/test/files/neg/t9398.flags b/test/files/neg/t9398.flags
+new file mode 100644
+index 000000000000..85d8eb2ba295
+--- /dev/null
++++ b/test/files/neg/t9398.flags
+@@ -0,0 +1 @@
++-Xfatal-warnings
+diff --git a/test/files/neg/t9398/data.scala b/test/files/neg/t9398/data.scala
+new file mode 100644
+index 000000000000..7a98c0e8e80e
+--- /dev/null
++++ b/test/files/neg/t9398/data.scala
+@@ -0,0 +1,5 @@
++sealed abstract class TB
++case object B extends TB
++case object B2 extends TB
++
++case class CC(tb: TB)
+diff --git a/test/files/neg/t9398/match.scala b/test/files/neg/t9398/match.scala
+new file mode 100644
+index 000000000000..e110c6a96aaf
+--- /dev/null
++++ b/test/files/neg/t9398/match.scala
+@@ -0,0 +1,6 @@
++class Test {
++  // Should warn that CC(B2) isn't matched
++  def test(c: CC): Unit = c match {
++    case CC(B) => ()
++  }
++}
+diff --git a/test/files/pos/t5899.scala b/test/files/pos/t5899.scala
+index b16f1f84fe27..885baca790e7 100644
+--- a/test/files/pos/t5899.scala
++++ b/test/files/pos/t5899.scala
+@@ -14,6 +14,7 @@ trait Foo {
+     Bippy(Stable) match {
+       case Bippy(nme.WILDCARD) => 1
+       case Bippy(Stable) => 2 // should not be considered unreachable
++      case Bippy(_) => 3
+     }
+   }
+ }
+\ No newline at end of file
+diff --git a/test/files/pos/t9399.flags b/test/files/pos/t9399.flags
+new file mode 100644
+index 000000000000..85d8eb2ba295
+--- /dev/null
++++ b/test/files/pos/t9399.flags
+@@ -0,0 +1 @@
++-Xfatal-warnings
+diff --git a/test/files/pos/t9399.scala b/test/files/pos/t9399.scala
+new file mode 100644
+index 000000000000..e8a8720f9408
+--- /dev/null
++++ b/test/files/pos/t9399.scala
+@@ -0,0 +1,17 @@
++sealed abstract class TA
++sealed abstract class TB extends TA
++case object A extends TA
++case object B extends TB
++
++sealed trait C
++case class CTA(id: Int, da: TA) extends C
++case class CTB(id: Int, da: TB) extends C
++
++class Test {
++  def test(c: C): Unit = c match {
++    case CTA(_, A) =>
++    case CTA(_, B) =>
++    case CTB(_, B) =>
++  }
++}
++
+diff --git a/test/files/pos/t9411a.flags b/test/files/pos/t9411a.flags
+new file mode 100644
+index 000000000000..85d8eb2ba295
+--- /dev/null
++++ b/test/files/pos/t9411a.flags
+@@ -0,0 +1 @@
++-Xfatal-warnings
+diff --git a/test/files/pos/t9411a.scala b/test/files/pos/t9411a.scala
+new file mode 100644
+index 000000000000..d5264663ece9
+--- /dev/null
++++ b/test/files/pos/t9411a.scala
+@@ -0,0 +1,27 @@
++object OhNoes {
++
++  sealed trait F
++  sealed abstract class FA extends F
++  sealed abstract class FB extends F
++
++  case object FA1 extends FA
++  case object FB1 extends FB
++  case object FB2 extends FB
++
++  sealed trait G
++  case object G1 extends G
++  case object G2 extends G
++
++  sealed trait H
++  case class H1(a: FB, b: G) extends H
++  case class H2(a: F)        extends H
++
++  val demo: H => Unit = {
++    case H1(FB1, G1) =>
++    case H1(FB2, G2) =>
++    case H2(_: FB) =>
++    case H2(_: FA) =>
++    case H1(FB1, G2) =>
++    case H1(FB2, G1) =>
++  }
++}
+diff --git a/test/files/pos/t9411b.flags b/test/files/pos/t9411b.flags
+new file mode 100644
+index 000000000000..85d8eb2ba295
+--- /dev/null
++++ b/test/files/pos/t9411b.flags
+@@ -0,0 +1 @@
++-Xfatal-warnings
+diff --git a/test/files/pos/t9411b.scala b/test/files/pos/t9411b.scala
+new file mode 100644
+index 000000000000..6888ba9382c8
+--- /dev/null
++++ b/test/files/pos/t9411b.scala
+@@ -0,0 +1,36 @@
++object OhNoes {
++
++  sealed trait F
++  sealed abstract class FA extends F
++  sealed abstract class FB extends F
++
++  case object FA1 extends FA
++  case object FB1 extends FB
++  case object FB2 extends FB
++
++  sealed trait G
++  case object G1 extends G
++  case object G2 extends G
++
++  sealed trait H
++  case class H1(a: FB, b: G) extends H
++  case class H2(b: F)        extends H
++
++  val demo: H => Unit = {
++    case H1(FB1, G1) =>
++    case H1(FB2, G2) =>
++    case H2(_: FB) =>
++    case H2(_: FA) =>
++    case H1(FB1, G2) =>
++    case H1(FB2, G1) =>
++  }
++
++  val demo2: H => Unit = {
++    case H2(_: FA) =>
++    case H2(_: FB) =>
++    case H1(FB1, G1) =>
++    case H1(FB2, G1) =>
++    case H1(FB1, G2) =>
++    case H1(FB2, G2) =>
++  }
++}
+diff --git a/test/files/pos/t9630.flags b/test/files/pos/t9630.flags
+new file mode 100644
+index 000000000000..85d8eb2ba295
+--- /dev/null
++++ b/test/files/pos/t9630.flags
+@@ -0,0 +1 @@
++-Xfatal-warnings
+diff --git a/test/files/pos/t9630/t9630a.scala b/test/files/pos/t9630/t9630a.scala
+new file mode 100644
+index 000000000000..c76ecd2ff217
+--- /dev/null
++++ b/test/files/pos/t9630/t9630a.scala
+@@ -0,0 +1,9 @@
++
++sealed trait Base
++final case class Base_1(sameName: Some[Any]) extends Base
++final case class Base_2(sameName: Nested) extends Base
++
++sealed trait Nested
++final case class Nested_1(x: Any) extends Nested
++final case class Nested_2(y: Any) extends Nested
++
+diff --git a/test/files/pos/t9630/t9630b.scala b/test/files/pos/t9630/t9630b.scala
+new file mode 100644
+index 000000000000..3e1787ec5207
+--- /dev/null
++++ b/test/files/pos/t9630/t9630b.scala
+@@ -0,0 +1,8 @@
++
++class Test {
++  def test(b: Base): Unit = b match {
++    case Base_1(Some(_)) =>
++    case Base_2(Nested_1(_)) =>
++    case Base_2(Nested_2(_)) =>
++  }
++}
+diff --git a/test/files/run/Course-2002-07.scala b/test/files/run/Course-2002-07.scala
+index 2d9457653f00..db6e1d8e0449 100644
+--- a/test/files/run/Course-2002-07.scala
++++ b/test/files/run/Course-2002-07.scala
+@@ -485,7 +485,7 @@ object MB {
+   import Utils._;
+ 
+ 
+-  trait Expr {
++  sealed trait Expr {
+ 
+     private def count: Int = this match {
+       case Lit(n)        => n
+diff --git a/test/files/run/caseclasses.scala b/test/files/run/caseclasses.scala
+index 668c984f3de9..10c0916dc061 100644
+--- a/test/files/run/caseclasses.scala
++++ b/test/files/run/caseclasses.scala
+@@ -18,7 +18,7 @@ object M {
+ object Test extends App {
+ 
+   def Abs(x: Int) = new Abs(x * 2){}
+-  Abs(2) match {
++  (Abs(2): @unchecked) match {
+     case Abs(4) => ;
+   }
+ 
+diff --git a/test/files/run/infix.scala b/test/files/run/infix.scala
+index a867d03ce8dd..1d39003644fe 100644
+--- a/test/files/run/infix.scala
++++ b/test/files/run/infix.scala
+@@ -7,5 +7,6 @@ object Test extends App {
+   Console.println(xs)
+   xs match {
+     case null op (0, 0) op (1, 1) op (2, 2) => Console.println("OK")
++    case _ =>
+   }
+ }
+diff --git a/test/files/run/patmatnew.scala b/test/files/run/patmatnew.scala
+index 3c0d00dc6c42..2647d97836af 100644
+--- a/test/files/run/patmatnew.scala
++++ b/test/files/run/patmatnew.scala
+@@ -539,7 +539,7 @@ object Test {
+     case class Operator(x: Int);
+     val EQ = new Operator(2);
+ 
+-    def analyze(x: Tuple2[Operator, Int]) = x match {
++    def analyze(x: Tuple2[Operator, Int]) = (x: @unchecked) match {
+       case (EQ, 0) => "0"
+       case (EQ, 1) => "1"
+       case (EQ, 2) => "2"
+@@ -603,7 +603,7 @@ object Test {
+ 
+   object Bug1093 {
+     def run() {
+-      assert(Some(3) match {
++      assert((Some(3): @unchecked) match {
+         case Some(1 | 2) => false
+         case Some(3) => true
+       })
+diff --git a/test/files/run/t3126.scala b/test/files/run/t3126.scala
+index 36322bf89696..865047ce4f43 100644
+--- a/test/files/run/t3126.scala
++++ b/test/files/run/t3126.scala
+@@ -4,6 +4,6 @@ object Test {
+ 
+   def main(args: Array[String]): Unit = {
+     try C.unapply(null) catch { case _: MatchError => }
+-    try v match { case Some(1) => } catch { case _: MatchError => }
++    try ((v: @unchecked) match { case Some(1) => }) catch { case _: MatchError => }
+   }
+ }
+diff --git a/test/files/run/t4124.scala b/test/files/run/t4124.scala
+index 9f35b57ce367..db4e382634f2 100644
+--- a/test/files/run/t4124.scala
++++ b/test/files/run/t4124.scala
+@@ -2,22 +2,22 @@ import xml.Node
+ 
+ object Test extends App {
+   val body: Node = <elem>hi</elem>	
+-  println ((body: AnyRef, "foo") match {
++  println (((body: AnyRef, "foo"): @unchecked) match {
+     case (node: Node, "bar")        => "bye"
+     case (ser: Serializable, "foo") => "hi"
+   })
+ 
+-  println ((body, "foo") match {
++  println (((body, "foo"): @unchecked) match {
+     case (node: Node, "bar")        => "bye"
+     case (ser: Serializable, "foo") => "hi"
+   })
+ 
+-  println ((body: AnyRef, "foo") match {
++  println (((body: AnyRef, "foo"): @unchecked) match {
+     case (node: Node, "foo")        => "bye"
+     case (ser: Serializable, "foo") => "hi"
+   })
+ 
+-  println ((body: AnyRef, "foo") match {
++  println (((body: AnyRef, "foo"): @unchecked) match {
+     case (node: Node, "foo")        => "bye"
+     case (ser: Serializable, "foo") => "hi"
+   })
+diff --git a/test/files/run/t6089.scala b/test/files/run/t6089.scala
+index c72d7ba7927d..c42a9f68c67d 100644
+--- a/test/files/run/t6089.scala
++++ b/test/files/run/t6089.scala
+@@ -3,7 +3,7 @@ case class Foo(x: Int)
+ object Test {
+   def bippo(result: Boolean): Boolean = result
+   def bungus(m: Foo): Boolean         =
+-    bippo(m match { case Foo(2) => bungus(m) })
++    bippo((m: @unchecked) match { case Foo(2) => bungus(m) })
+ 
+   def main(args: Array[String]): Unit = try {
+     bungus(Foo(0))
+diff --git a/test/files/run/t7459f.scala b/test/files/run/t7459f.scala
+index 63e2109560a3..5cd972129aa6 100644
+--- a/test/files/run/t7459f.scala
++++ b/test/files/run/t7459f.scala
+@@ -3,7 +3,7 @@ object Test extends App {
+ 
+   case class FooSeq(x: Int, y: String, z: C*)
+ 
+-  FooSeq(1, "a", new C()) match {
++  (FooSeq(1, "a", new C()): @unchecked) match {
+     case FooSeq(1, "a", x@_* ) =>
+       //println(x.toList)
+       x.asInstanceOf[x.type]
+diff --git a/test/junit/scala/tools/nsc/transform/patmat/PatmatBytecodeTest.scala b/test/junit/scala/tools/nsc/transform/patmat/PatmatBytecodeTest.scala
+index cef27b4d8758..ec4621b23073 100644
+--- a/test/junit/scala/tools/nsc/transform/patmat/PatmatBytecodeTest.scala
++++ b/test/junit/scala/tools/nsc/transform/patmat/PatmatBytecodeTest.scala
+@@ -121,7 +121,7 @@ class PatmatBytecodeTest extends ClearAfterClass {
+     val code =
+       """case class Foo(x: Any, y: String)
+         |class C {
+-        |  def a = Foo(1, "a") match {
++        |  def a = (Foo(1, "a"): @unchecked) match {
+         |    case Foo(_: String, y) => y
+         |  }
+         |}

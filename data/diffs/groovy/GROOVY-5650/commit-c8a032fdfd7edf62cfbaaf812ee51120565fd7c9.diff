@@ -1,0 +1,54 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index c075ec2372..8de05be349 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -2604,7 +2604,11 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         if (!isUsingGenericsOrIsArrayUsingGenerics(returnType)) return returnType;
+         GenericsType[] returnTypeGenerics = returnType.isArray() ? returnType.getComponentType().getGenericsTypes() : returnType.getGenericsTypes();
+         Map<String, GenericsType> resolvedPlaceholders = new HashMap<String, GenericsType>();
+-        GenericsUtils.extractPlaceholders(receiver, resolvedPlaceholders);
++        if (method.isStatic() && CLASS_Type.equals(receiver) && receiver.isUsingGenerics() && receiver.getGenericsTypes().length>0) {
++            GenericsUtils.extractPlaceholders(receiver.getGenericsTypes()[0].getType(), resolvedPlaceholders);
++        } else {
++            GenericsUtils.extractPlaceholders(receiver, resolvedPlaceholders);
++        }
+         GenericsUtils.extractPlaceholders(method.getReturnType(), resolvedPlaceholders);
+         if (resolvedPlaceholders.isEmpty()) return returnType;
+         // then resolve receivers from method arguments
+diff --git a/src/test/groovy/transform/stc/GenericsSTCTest.groovy b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+index 3523cf2490..eb58ac6d37 100644
+--- a/src/test/groovy/transform/stc/GenericsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+@@ -812,6 +812,15 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
++    // GROOVY-5650
++    void testRegressionInGenericsTypeInference() {
++        assertScript '''import groovy.transform.stc.GenericsSTCTest.JavaClassSupport as JavaClass
++        List<JavaClass.StringContainer> containers = new ArrayList<>();
++        containers.add(new JavaClass.StringContainer());
++        List<String> strings = JavaClass.unwrap(containers);
++        '''
++    }
++
+     static class MyList extends LinkedList<String> {}
+ 
+     public static class ClassA<T> {
+@@ -824,5 +833,16 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+         }
+     }
+ 
++    public static class JavaClassSupport {
++        public static class Container<T> {
++        }
++
++        public static class StringContainer extends Container<String> {
++        }
++
++        public static <T> List<T> unwrap(Collection<? extends Container<T>> list) {
++        }
++    }
++
+ }
+ 

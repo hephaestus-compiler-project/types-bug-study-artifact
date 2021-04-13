@@ -1,0 +1,54 @@
+diff --git a/compiler/src/dotty/tools/dotc/core/TypeComparer.scala b/compiler/src/dotty/tools/dotc/core/TypeComparer.scala
+index 7ce696d5412c..7df64bab906a 100644
+--- a/compiler/src/dotty/tools/dotc/core/TypeComparer.scala
++++ b/compiler/src/dotty/tools/dotc/core/TypeComparer.scala
+@@ -369,14 +369,18 @@ class TypeComparer(initctx: Context) extends DotClass with ConstraintHandling {
+     case _ =>
+       val cls2 = tp2.symbol
+       if (cls2.isClass) {
+-        val base = tp1.baseType(cls2)
+-        if (base.exists) {
+-          if (cls2.is(JavaDefined))
+-            // If `cls2` is parameterized, we are seeing a raw type, so we need to compare only the symbol
+-            return base.typeSymbol == cls2
+-          if (base ne tp1) return isSubType(base, tp2)
++        if (cls2.typeParams.nonEmpty && tp1.isHK)
++          isSubType(tp1, EtaExpansion(cls2.typeRef))
++        else {
++          val base = tp1.baseType(cls2)
++          if (base.exists) {
++            if (cls2.is(JavaDefined))
++              // If `cls2` is parameterized, we are seeing a raw type, so we need to compare only the symbol
++              return base.typeSymbol == cls2
++            if (base ne tp1) return isSubType(base, tp2)
++          }
++          if (cls2 == defn.SingletonClass && tp1.isStable) return true
+         }
+-        if (cls2 == defn.SingletonClass && tp1.isStable) return true
+       }
+       fourthTry(tp1, tp2)
+   }
+diff --git a/tests/pos/i3422/a_1.scala b/tests/pos/i3422/a_1.scala
+new file mode 100644
+index 000000000000..6d3de22b2fee
+--- /dev/null
++++ b/tests/pos/i3422/a_1.scala
+@@ -0,0 +1,9 @@
++trait Fun[L[_]]
++
++object O1 {
++  trait N[X]
++}
++
++object O2 {
++  def bar: Fun[O1.N] = ???
++}
+diff --git a/tests/pos/i3422/b_2.scala b/tests/pos/i3422/b_2.scala
+new file mode 100644
+index 000000000000..9123a643121a
+--- /dev/null
++++ b/tests/pos/i3422/b_2.scala
+@@ -0,0 +1,3 @@
++object Test {
++  def c: Fun[O1.N] = O2.bar
++}

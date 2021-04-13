@@ -1,0 +1,300 @@
+diff --git a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
+index dfc8a8f4acb..3dbaaf4616c 100644
+--- a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
++++ b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
+@@ -9795,6 +9795,11 @@ public class FirDiagnosticsSmokeTestGenerated extends AbstractFirDiagnosticsSmok
+                 runTest("compiler/testData/diagnostics/tests/inference/capturedTypes/expectedTypeMismatchWithInVariance.kt");
+             }
+ 
++            @TestMetadata("kt25302.kt")
++            public void testKt25302() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/inference/capturedTypes/kt25302.kt");
++            }
++
+             @TestMetadata("kt2570.kt")
+             public void testKt2570() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/inference/capturedTypes/kt2570.kt");
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tower/NewCallArguments.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tower/NewCallArguments.kt
+index 7ef632caf9f..5d0d440ad2f 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tower/NewCallArguments.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tower/NewCallArguments.kt
+@@ -307,9 +307,7 @@ internal fun createSimplePSICallArgument(
+         ExpressionReceiver.create(ktExpression, baseType, bindingContext),
+         languageVersionSettings,
+         dataFlowValueFactory
+-    ).let {
+-        if (onlyResolvedCall == null) it.prepareReceiverRegardingCaptureTypes() else it
+-    }
++    ).prepareReceiverRegardingCaptureTypes()
+ 
+     return if (onlyResolvedCall == null) {
+         ExpressionKotlinCallArgumentImpl(valueArgument, dataFlowInfoBeforeThisArgument, typeInfoForArgument.dataFlowInfo, receiverToCast)
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/NewConstraintSystemImpl.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/NewConstraintSystemImpl.kt
+index f48ff39e73d..8136c2536d4 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/NewConstraintSystemImpl.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/NewConstraintSystemImpl.kt
+@@ -5,28 +5,21 @@
+ 
+ package org.jetbrains.kotlin.resolve.calls.inference.model
+ 
+-import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+-import org.jetbrains.kotlin.resolve.calls.components.BuiltInsProvider
+ import org.jetbrains.kotlin.resolve.calls.components.PostponedArgumentsAnalyzer
+ import org.jetbrains.kotlin.resolve.calls.inference.*
+-import org.jetbrains.kotlin.resolve.calls.inference.components.*
++import org.jetbrains.kotlin.resolve.calls.inference.components.ConstraintInjector
++import org.jetbrains.kotlin.resolve.calls.inference.components.KotlinConstraintSystemCompleter
++import org.jetbrains.kotlin.resolve.calls.inference.components.NewTypeSubstitutor
++import org.jetbrains.kotlin.resolve.calls.inference.components.ResultTypeResolver
+ import org.jetbrains.kotlin.resolve.calls.model.KotlinCallDiagnostic
+-import org.jetbrains.kotlin.types.StubType
+-import org.jetbrains.kotlin.types.TypeConstructor
+-import org.jetbrains.kotlin.types.TypeProjectionImpl
+-import org.jetbrains.kotlin.types.UnwrappedType
+-import org.jetbrains.kotlin.types.checker.ClassicTypeSystemContext
+ import org.jetbrains.kotlin.types.checker.NewCapturedType
+-import org.jetbrains.kotlin.types.checker.NewCapturedTypeConstructor
+ import org.jetbrains.kotlin.types.model.*
+ import org.jetbrains.kotlin.utils.SmartList
+-import org.jetbrains.kotlin.utils.addToStdlib.cast
+ import kotlin.math.max
+ 
+ class NewConstraintSystemImpl(
+     private val constraintInjector: ConstraintInjector,
+-    val typeSystemContext: TypeSystemInferenceExtensionContext//,
+-    //override val builtIns: KotlinBuiltIns
++    val typeSystemContext: TypeSystemInferenceExtensionContext
+ ) :
+     TypeSystemInferenceExtensionContext by typeSystemContext,
+     NewConstraintSystem,
+@@ -184,7 +177,14 @@ class NewConstraintSystemImpl(
+     override fun isProperType(type: KotlinTypeMarker): Boolean {
+         checkState(State.BUILDING, State.COMPLETION, State.TRANSACTION)
+         return !type.contains {
+-            storage.allTypeVariables.containsKey(it.typeConstructor())
++            val capturedType = it.asSimpleType()?.asCapturedType()
++            // TODO: change NewCapturedType to markered one for FE-IR
++            val typeToCheck = if (capturedType is NewCapturedType && capturedType.captureStatus() == CaptureStatus.FROM_EXPRESSION)
++                capturedType.constructor.projection.type
++            else
++                it
++
++            storage.allTypeVariables.containsKey(typeToCheck.typeConstructor())
+         }
+     }
+ 
+diff --git a/compiler/testData/diagnostics/tests/generics/kt9203.kt b/compiler/testData/diagnostics/tests/generics/kt9203.kt
+index 59e7036beaf..83f420d2152 100644
+--- a/compiler/testData/diagnostics/tests/generics/kt9203.kt
++++ b/compiler/testData/diagnostics/tests/generics/kt9203.kt
+@@ -6,6 +6,6 @@ import java.util.stream.IntStream
+ 
+ fun main() {
+     val xs = IntStream.<!INTERFACE_STATIC_METHOD_CALL_FROM_JAVA6_TARGET_ERROR!>range<!>(0, 10).mapToObj { it.toString() }
+-            .collect(<!NI;NEW_INFERENCE_ERROR!>Collectors.toList()<!>)
++            .collect(Collectors.toList())
+     xs[0]
+ }
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/capturedTypes/kt25302.kt b/compiler/testData/diagnostics/tests/inference/capturedTypes/kt25302.kt
+new file mode 100644
+index 00000000000..3096c1eefca
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/capturedTypes/kt25302.kt
+@@ -0,0 +1,18 @@
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++
++interface CollectorMock<A, R>
++
++interface StreamMock {
++    fun <R, A> collect(collector: CollectorMock<A, R>): R
++}
++
++fun <T> accept(s: T) {}
++fun ofK(t: String): StreamMock = TODO()
++fun <T> toSetK(): CollectorMock<*, T> = TODO()
++
++class KotlinCollectionUser1 {
++    fun use() {
++        accept(ofK("").collect(toSetK<String>()))
++    }
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/capturedTypes/kt25302.txt b/compiler/testData/diagnostics/tests/inference/capturedTypes/kt25302.txt
+new file mode 100644
+index 00000000000..977359130de
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/capturedTypes/kt25302.txt
+@@ -0,0 +1,26 @@
++package
++
++public fun </*0*/ T> accept(/*0*/ s: T): kotlin.Unit
++public fun ofK(/*0*/ t: kotlin.String): StreamMock
++public fun </*0*/ T> toSetK(): CollectorMock<*, T>
++
++public interface CollectorMock</*0*/ A, /*1*/ R> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class KotlinCollectionUser1 {
++    public constructor KotlinCollectionUser1()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++    public final fun use(): kotlin.Unit
++}
++
++public interface StreamMock {
++    public abstract fun </*0*/ R, /*1*/ A> collect(/*0*/ collector: CollectorMock<A, R>): R
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/capturedTypes/topLevelCapturingInsideReturnType.kt b/compiler/testData/diagnostics/tests/inference/capturedTypes/topLevelCapturingInsideReturnType.kt
+index 9253751e31a..215df989c84 100644
+--- a/compiler/testData/diagnostics/tests/inference/capturedTypes/topLevelCapturingInsideReturnType.kt
++++ b/compiler/testData/diagnostics/tests/inference/capturedTypes/topLevelCapturingInsideReturnType.kt
+@@ -1,12 +1,11 @@
+-// !LANGUAGE: +NewInference
+ // !DIAGNOSTICS: -UNUSED_PARAMETER
+ 
+-class Inv<T, K>
++class Inv2<T, K>
+ 
+-fun <K> createInv(): Inv<*, K> = TODO()
++fun <K> createInv(): Inv2<*, K> = TODO()
+ 
+-fun <T> foo(i: Inv<T, String>) {}
++fun <T> foo(i: Inv2<T, String>) {}
+ 
+ fun foo() {
+-    foo(<!NEW_INFERENCE_ERROR!>createInv()<!>)
++    foo(createInv())
+ }
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/capturedTypes/topLevelCapturingInsideReturnType.txt b/compiler/testData/diagnostics/tests/inference/capturedTypes/topLevelCapturingInsideReturnType.txt
+index a730b906a3c..1e2933f2487 100644
+--- a/compiler/testData/diagnostics/tests/inference/capturedTypes/topLevelCapturingInsideReturnType.txt
++++ b/compiler/testData/diagnostics/tests/inference/capturedTypes/topLevelCapturingInsideReturnType.txt
+@@ -1,11 +1,11 @@
+ package
+ 
+-public fun </*0*/ K> createInv(): Inv<*, K>
++public fun </*0*/ K> createInv(): Inv2<*, K>
+ public fun foo(): kotlin.Unit
+-public fun </*0*/ T> foo(/*0*/ i: Inv<T, kotlin.String>): kotlin.Unit
++public fun </*0*/ T> foo(/*0*/ i: Inv2<T, kotlin.String>): kotlin.Unit
+ 
+-public final class Inv</*0*/ T, /*1*/ K> {
+-    public constructor Inv</*0*/ T, /*1*/ K>()
++public final class Inv2</*0*/ T, /*1*/ K> {
++    public constructor Inv2</*0*/ T, /*1*/ K>()
+     public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
+     public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
+     public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
+diff --git a/compiler/testData/diagnostics/tests/inference/dependantOnVariance.kt b/compiler/testData/diagnostics/tests/inference/dependantOnVariance.kt
+index d5ecf15c639..6ac4cc9409d 100644
+--- a/compiler/testData/diagnostics/tests/inference/dependantOnVariance.kt
++++ b/compiler/testData/diagnostics/tests/inference/dependantOnVariance.kt
+@@ -59,9 +59,9 @@ fun test1(int: Int, any: Any) {
+     writeToMyList(getMyListToWriteTo(any), int)
+     <!OI;TYPE_INFERENCE_CONFLICTING_SUBSTITUTIONS!>writeToMyList<!>(getMyListToWriteTo(int), any)
+ 
+-    readFromMyList(<!NI;NEW_INFERENCE_ERROR!>getMyListToWriteTo(any)<!>, any)
++    readFromMyList(getMyListToWriteTo(any), any)
+ 
+-    <!OI;TYPE_INFERENCE_CONFLICTING_SUBSTITUTIONS!>writeToMyList<!>(<!NI;NEW_INFERENCE_ERROR!>getMyListToReadFrom(any)<!>, any)
++    <!OI;TYPE_INFERENCE_CONFLICTING_SUBSTITUTIONS!>writeToMyList<!>(getMyListToReadFrom(any), <!NI;TYPE_MISMATCH!>any<!>)
+ 
+     use(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)
+ }
+diff --git a/compiler/testData/diagnostics/tests/j+k/collectorInference.kt b/compiler/testData/diagnostics/tests/j+k/collectorInference.kt
+index 4a1f9d84032..75e51dc97ec 100644
+--- a/compiler/testData/diagnostics/tests/j+k/collectorInference.kt
++++ b/compiler/testData/diagnostics/tests/j+k/collectorInference.kt
+@@ -7,8 +7,8 @@ import java.util.stream.Collectors
+ import java.util.stream.Stream
+ 
+ fun test(a: Stream<String>) {
+-    a.collect(<!NI;NEW_INFERENCE_ERROR!>Collectors.toList()<!>) checkType { _<MutableList<String>>() }
++    a.collect(Collectors.toList()) checkType { _<MutableList<String>>() }
+     // actually the inferred type is platform
+-    a.collect(<!NI;NEW_INFERENCE_ERROR!>Collectors.toList()<!>) checkType { _<List<String?>>() }
++    a.collect(Collectors.toList()) checkType { _<List<String?>>() }
+ }
+ 
+diff --git a/compiler/testData/diagnostics/tests/targetedBuiltIns/stream.kt b/compiler/testData/diagnostics/tests/targetedBuiltIns/stream.kt
+index 54fec7231f7..678abf38109 100644
+--- a/compiler/testData/diagnostics/tests/targetedBuiltIns/stream.kt
++++ b/compiler/testData/diagnostics/tests/targetedBuiltIns/stream.kt
+@@ -8,6 +8,6 @@ interface A : Collection<String> {
+ }
+ 
+ fun foo(x: List<String>, y: A) {
+-    x.stream().filter { it.length > 0 }.collect(<!NI;NEW_INFERENCE_ERROR!>Collectors.toList()<!>)
++    x.stream().filter { it.length > 0 }.collect(Collectors.toList())
+     y.stream().filter { it.length > 0 }
+ }
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 474daf8ae0f..4affeee8588 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -9802,6 +9802,11 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                     runTest("compiler/testData/diagnostics/tests/inference/capturedTypes/expectedTypeMismatchWithInVariance.kt");
+                 }
+ 
++                @TestMetadata("kt25302.kt")
++                public void testKt25302() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/capturedTypes/kt25302.kt");
++                }
++
+                 @TestMetadata("kt2570.kt")
+                 public void testKt2570() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/capturedTypes/kt2570.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index cf2b8542350..181ca28ef76 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -9797,6 +9797,11 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                     runTest("compiler/testData/diagnostics/tests/inference/capturedTypes/expectedTypeMismatchWithInVariance.kt");
+                 }
+ 
++                @TestMetadata("kt25302.kt")
++                public void testKt25302() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/capturedTypes/kt25302.kt");
++                }
++
+                 @TestMetadata("kt2570.kt")
+                 public void testKt2570() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/capturedTypes/kt2570.kt");
+diff --git a/core/descriptors/src/org/jetbrains/kotlin/types/checker/ClassicTypeSystemContext.kt b/core/descriptors/src/org/jetbrains/kotlin/types/checker/ClassicTypeSystemContext.kt
+index e77e9951c25..dd116b37f55 100644
+--- a/core/descriptors/src/org/jetbrains/kotlin/types/checker/ClassicTypeSystemContext.kt
++++ b/core/descriptors/src/org/jetbrains/kotlin/types/checker/ClassicTypeSystemContext.kt
+@@ -370,6 +370,11 @@ interface ClassicTypeSystemContext : TypeSystemInferenceExtensionContext {
+         return this.constructor.projection
+     }
+ 
++    override fun CapturedTypeMarker.captureStatus(): CaptureStatus {
++        require(this is NewCapturedType, this::errorMessage)
++        return this.captureStatus
++    }
++
+     override fun KotlinTypeMarker.isNullableType(): Boolean {
+         require(this is KotlinType, this::errorMessage)
+         return TypeUtils.isNullableType(this)
+diff --git a/core/type-system/src/org/jetbrains/kotlin/types/model/TypeSystemContext.kt b/core/type-system/src/org/jetbrains/kotlin/types/model/TypeSystemContext.kt
+index 27943fc9cb1..32a83190c21 100644
+--- a/core/type-system/src/org/jetbrains/kotlin/types/model/TypeSystemContext.kt
++++ b/core/type-system/src/org/jetbrains/kotlin/types/model/TypeSystemContext.kt
+@@ -118,6 +118,7 @@ interface TypeSystemInferenceExtensionContext : TypeSystemContext, TypeSystemBui
+ 
+ 
+     fun CapturedTypeMarker.typeConstructorProjection(): TypeArgumentMarker
++    fun CapturedTypeMarker.captureStatus(): CaptureStatus
+ 
+     fun KotlinTypeMarker.isNullableType(): Boolean
+ 

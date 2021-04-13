@@ -1,0 +1,344 @@
+changeset:   2830:414b82835861
+parent:      2828:ee20efe0255d
+user:        dlsmith
+date:        Fri Feb 20 17:05:13 2015 -0700
+summary:     8039214: Inference should not map capture variables to their upper bounds
+
+diff -r ee20efe0255d -r 414b82835861 src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java	Thu Feb 19 16:38:54 2015 -0800
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Types.java	Fri Feb 20 17:05:13 2015 -0700
+@@ -1402,8 +1402,7 @@
+                     return isSameWildcard(t, s)
+                         || isCaptureOf(s, t)
+                         || ((t.isExtendsBound() || isSubtypeNoCapture(wildLowerBound(t), wildLowerBound(s))) &&
+-                            // TODO: JDK-8039214, cvarUpperBound call here is incorrect
+-                            (t.isSuperBound() || isSubtypeNoCapture(cvarUpperBound(wildUpperBound(s)), wildUpperBound(t))));
++                            (t.isSuperBound() || isSubtypeNoCapture(wildUpperBound(s), wildUpperBound(t))));
+                 }
+             }
+ 
+diff -r ee20efe0255d -r 414b82835861 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Resolve.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Resolve.java	Thu Feb 19 16:38:54 2015 -0800
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Resolve.java	Fri Feb 20 17:05:13 2015 -0700
+@@ -1098,10 +1098,17 @@
+                     DeferredType.SpeculativeCache.Entry e =
+                             dt.speculativeCache.get(deferredAttrContext.msym, deferredAttrContext.phase);
+                     if (e != null && e.speculativeTree != deferredAttr.stuckTree) {
+-                        return functionalInterfaceMostSpecific(found, req, e.speculativeTree, warn);
++                        return functionalInterfaceMostSpecific(found, req, e.speculativeTree);
+                     }
+                 }
+-                return super.compatible(found, req, warn);
++                return compatibleBySubtyping(found, req);
++            }
++
++            private boolean compatibleBySubtyping(Type found, Type req) {
++                if (!strict && found.isPrimitive() != req.isPrimitive()) {
++                    found = found.isPrimitive() ? types.boxedClass(found).type : types.unboxedType(found);
++                }
++                return types.isSubtypeNoCapture(found, deferredAttrContext.inferenceContext.asUndetVar(req));
+             }
+ 
+             /** Whether {@code t} and {@code s} are unrelated functional interface types. */
+@@ -1113,8 +1120,8 @@
+             }
+ 
+             /** Parameters {@code t} and {@code s} are unrelated functional interface types. */
+-            private boolean functionalInterfaceMostSpecific(Type t, Type s, JCTree tree, Warner warn) {
+-                FunctionalInterfaceMostSpecificChecker msc = new FunctionalInterfaceMostSpecificChecker(t, s, warn);
++            private boolean functionalInterfaceMostSpecific(Type t, Type s, JCTree tree) {
++                FunctionalInterfaceMostSpecificChecker msc = new FunctionalInterfaceMostSpecificChecker(t, s);
+                 msc.scan(tree);
+                 return msc.result;
+             }
+@@ -1127,14 +1134,12 @@
+ 
+                 final Type t;
+                 final Type s;
+-                final Warner warn;
+                 boolean result;
+ 
+                 /** Parameters {@code t} and {@code s} are unrelated functional interface types. */
+-                FunctionalInterfaceMostSpecificChecker(Type t, Type s, Warner warn) {
++                FunctionalInterfaceMostSpecificChecker(Type t, Type s) {
+                     this.t = t;
+                     this.s = s;
+-                    this.warn = warn;
+                     result = true;
+                 }
+ 
+@@ -1172,7 +1177,7 @@
+                             result &= (retValIsPrimitive == ret_t.isPrimitive()) &&
+                                       (retValIsPrimitive != ret_s.isPrimitive());
+                         } else {
+-                            result &= MostSpecificCheckContext.super.compatible(ret_t, ret_s, warn);
++                            result &= compatibleBySubtyping(ret_t, ret_s);
+                         }
+                     }
+                 }
+@@ -1195,7 +1200,7 @@
+                             result &= false;
+                         } else if (unrelatedFunctionalInterfaces(ret_t, ret_s)) {
+                             for (JCExpression expr : lambdaResults(tree)) {
+-                                result &= functionalInterfaceMostSpecific(ret_t, ret_s, expr, warn);
++                                result &= functionalInterfaceMostSpecific(ret_t, ret_s, expr);
+                             }
+                         } else if (ret_t.isPrimitive() != ret_s.isPrimitive()) {
+                             for (JCExpression expr : lambdaResults(tree)) {
+@@ -1204,7 +1209,7 @@
+                                           (retValIsPrimitive != ret_s.isPrimitive());
+                             }
+                         } else {
+-                            result &= MostSpecificCheckContext.super.compatible(ret_t, ret_s, warn);
++                            result &= compatibleBySubtyping(ret_t, ret_s);
+                         }
+                     }
+                 }
+diff -r ee20efe0255d -r 414b82835861 test/tools/javac/generics/inference/CaptureLowerBound.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/CaptureLowerBound.java	Fri Feb 20 17:05:13 2015 -0700
+@@ -0,0 +1,42 @@
++/*
++ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8039214
++ * @summary Capture variable as an inference variable's lower bound
++ * @compile CaptureLowerBound.java
++ */
++
++public class CaptureLowerBound {
++
++    interface I<X1,X2> {}
++    static class C<T> implements I<T,T> {}
++
++    <X> void m(I<? extends X, X> arg) {}
++
++    void test(C<?> arg) {
++      m(arg);
++    }
++
++}
+diff -r ee20efe0255d -r 414b82835861 test/tools/javac/generics/inference/CaptureLowerBoundNeg.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/CaptureLowerBoundNeg.java	Fri Feb 20 17:05:13 2015 -0700
+@@ -0,0 +1,19 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8039214
++ * @summary Capture variable as an inference variable's lower bound
++ * @compile/fail/ref=CaptureLowerBoundNeg.out -XDrawDiagnostics CaptureLowerBoundNeg.java
++ */
++
++public class CaptureLowerBoundNeg {
++
++    static class D<T> {
++        void take(T arg) {}
++        static <T> D<T> make(Class<? extends T> c) { return new D<T>(); }
++    }
++
++    void test(Object o) {
++        D.make(o.getClass()).take(o);
++    }
++
++}
+diff -r ee20efe0255d -r 414b82835861 test/tools/javac/generics/inference/CaptureLowerBoundNeg.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/CaptureLowerBoundNeg.out	Fri Feb 20 17:05:13 2015 -0700
+@@ -0,0 +1,2 @@
++CaptureLowerBoundNeg.java:16:29: compiler.err.cant.apply.symbol: kindname.method, take, compiler.misc.type.captureof: 1, ? extends java.lang.Object, java.lang.Object, kindname.class, CaptureLowerBoundNeg.D<T>, (compiler.misc.no.conforming.assignment.exists: (compiler.misc.inconvertible.types: java.lang.Object, compiler.misc.type.captureof: 1, ? extends java.lang.Object))
++1 error
+diff -r ee20efe0255d -r 414b82835861 test/tools/javac/generics/inference/NestedCapture.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/NestedCapture.java	Fri Feb 20 17:05:13 2015 -0700
+@@ -0,0 +1,44 @@
++/*
++ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8039214
++ * @summary Capture variable passed through multiple levels of nested inference
++ * @compile NestedCapture.java
++ */
++
++abstract class NestedCapture {
++  interface List<T> {}
++  abstract <T> List<T> copyOf(List<? extends T> lx);
++  abstract <E> List<E> filter(List<E> lx);
++
++  <U> void test1(List<U> lx) {
++    copyOf(filter(lx));
++  }
++
++  void test2(List<?> lx) {
++    copyOf(filter(lx));
++  }
++
++}
+diff -r ee20efe0255d -r 414b82835861 test/tools/javac/generics/inference/NestedWildcards.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/NestedWildcards.java	Fri Feb 20 17:05:13 2015 -0700
+@@ -0,0 +1,44 @@
++/*
++ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8039214
++ * @summary Nested generic methods that work on wildcard-parameterized types
++ * @compile NestedWildcards.java
++ */
++
++public class NestedWildcards {
++
++    public static void test(Box<String> b) {
++        foo(bar(b));
++    }
++    private static <X> Box<? extends X> foo(Box<? extends X> ts) {
++        return null;
++    }
++    public static <Y> Box<? extends Y> bar(Box<? extends Y> language) {
++        return null;
++    }
++
++    interface Box<T> {}
++}
+diff -r ee20efe0255d -r 414b82835861 test/tools/javac/generics/wildcards/SubtypeCaptureLeak.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/wildcards/SubtypeCaptureLeak.java	Fri Feb 20 17:05:13 2015 -0700
+@@ -0,0 +1,72 @@
++/*
++ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8039214
++ * @summary Capture variables used for subtyping should not leak out of inference
++ * @compile SubtypeCaptureLeak.java
++ */
++
++public class SubtypeCaptureLeak {
++
++    interface Parent<T> {}
++    interface Child<T> extends Parent<T> {}
++    interface Box<T> {}
++    interface SubBox<T> extends Box<T> {}
++
++    // applicability inference
++
++    <T> void m1(Parent<? extends T> arg) {}
++
++    void testApplicable(Child<?> arg) {
++        m1(arg);
++    }
++
++    // applicability inference, nested
++
++    <T> void m2(Box<? extends Parent<? extends T>> arg) {}
++
++    void testApplicable(Box<Child<?>> arg) {
++        m2(arg);
++    }
++
++    // most specific inference
++
++    <T> void m3(Parent<? extends T> arg) {}
++    void m3(Child<?> arg) {}
++
++    void testMostSpecific(Child<?> arg) {
++        m3(arg);
++    }
++
++    // most specific inference, nested
++
++    <T> void m4(Box<? extends Parent<? extends T>> arg) {}
++    void m4(SubBox<Child<?>> arg) {}
++
++    void testMostSpecificNested(SubBox<Child<?>> arg) {
++        m4(arg);
++    }
++
++}
+

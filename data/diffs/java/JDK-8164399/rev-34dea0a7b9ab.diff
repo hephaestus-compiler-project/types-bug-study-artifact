@@ -1,0 +1,123 @@
+changeset:   3613:34dea0a7b9ab
+user:        mcimadamore
+date:        Thu Aug 25 11:51:19 2016 +0100
+summary:     8164399: inference of thrown variable does not work correctly
+
+diff -r e666d0f958f6 -r 34dea0a7b9ab src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Infer.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Infer.java	Wed Aug 24 17:41:52 2016 -0700
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Infer.java	Thu Aug 25 11:51:19 2016 +0100
+@@ -61,6 +61,7 @@
+ import java.util.Set;
+ import java.util.function.BiFunction;
+ import java.util.function.BiPredicate;
++import java.util.stream.Collectors;
+ 
+ import com.sun.tools.javac.main.Option;
+ 
+@@ -1475,16 +1476,11 @@
+                     //not a throws undet var
+                     return false;
+                 }
+-                Infer infer = inferenceContext.infer;
+-                for (Type db : t.getBounds(InferenceBound.UPPER)) {
+-                    if (t.isInterface()) continue;
+-                    if (infer.types.asSuper(infer.syms.runtimeExceptionType, db.tsym) == null) {
+-                        //upper bound is not a supertype of RuntimeException - give up
+-                        return false;
+-                    }
+-                }
+-
+-                return true;
++                Types types = inferenceContext.types;
++                Symtab syms = inferenceContext.infer.syms;
++                return t.getBounds(InferenceBound.UPPER).stream()
++                        .filter(b -> !inferenceContext.free(b))
++                        .allMatch(u -> types.isSubtype(syms.runtimeExceptionType, u));
+             }
+ 
+             @Override
+diff -r e666d0f958f6 -r 34dea0a7b9ab test/tools/javac/generics/inference/8164399/T8164399.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/8164399/T8164399.java	Thu Aug 25 11:51:19 2016 +0100
+@@ -0,0 +1,49 @@
++/*
++ * Copyright (c) 2016, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.  Oracle designates this
++ * particular file as subject to the "Classpath" exception as provided
++ * by Oracle in the LICENSE file that accompanied this code.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8164399
++ * @summary inference of thrown variable does not work correctly
++ * @compile T8164399.java
++ */
++
++abstract class T8164399 {
++
++    interface ThrowableRunnable<E extends Throwable> {
++       void compute() throws E;
++    }
++
++    public abstract < E extends Exception> void computeException(ThrowableRunnable<E> process) throws E;
++
++
++    public static <T, E extends Throwable> T compute(ThrowableRunnable<E> action) throws E {
++        return null;
++    }
++
++    {
++        computeException(() -> compute(() -> {}));
++    }
++}
+diff -r e666d0f958f6 -r 34dea0a7b9ab test/tools/javac/generics/inference/8164399/T8164399b.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/8164399/T8164399b.java	Thu Aug 25 11:51:19 2016 +0100
+@@ -0,0 +1,21 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8164399
++ * @summary inference of thrown variable does not work correctly
++ * @compile/fail/ref=T8164399b.out -XDrawDiagnostics T8164399b.java
++ */
++class T8164399b<X extends Throwable> {
++    <T extends Throwable> void m(Class<? super T> arg) throws T {}
++    <T extends X> void g() throws T {}
++
++    void test() {
++        m(RuntimeException.class); // ok
++        m(Exception.class); // error
++        m(Throwable.class); // ok
++        m(java.io.Serializable.class); // error
++        m(Object.class); // error
++        m(Runnable.class); // error
++        T8164399b<? super Exception> x = null;
++        x.g(); // expected: ok; actual: error
++    }
++}
+diff -r e666d0f958f6 -r 34dea0a7b9ab test/tools/javac/generics/inference/8164399/T8164399b.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/generics/inference/8164399/T8164399b.out	Thu Aug 25 11:51:19 2016 +0100
+@@ -0,0 +1,2 @@
++T8164399b.java:17:10: compiler.err.unreported.exception.need.to.catch.or.throw: java.lang.Throwable&java.lang.Runnable
++1 error
+

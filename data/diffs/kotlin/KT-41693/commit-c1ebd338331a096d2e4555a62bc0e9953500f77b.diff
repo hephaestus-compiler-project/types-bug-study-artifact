@@ -1,0 +1,215 @@
+diff --git a/compiler/fir/fir2ir/tests/org/jetbrains/kotlin/codegen/ir/FirBlackBoxCodegenTestGenerated.java b/compiler/fir/fir2ir/tests/org/jetbrains/kotlin/codegen/ir/FirBlackBoxCodegenTestGenerated.java
+index db345e7f85b..e424b46313a 100644
+--- a/compiler/fir/fir2ir/tests/org/jetbrains/kotlin/codegen/ir/FirBlackBoxCodegenTestGenerated.java
++++ b/compiler/fir/fir2ir/tests/org/jetbrains/kotlin/codegen/ir/FirBlackBoxCodegenTestGenerated.java
+@@ -12692,6 +12692,11 @@ public class FirBlackBoxCodegenTestGenerated extends AbstractFirBlackBoxCodegenT
+             runTest("compiler/testData/codegen/box/inference/referenceToCatchParameterFromLambdaExpression.kt");
+         }
+ 
++        @TestMetadata("subtypingOfIntersectionIltInsideFlexible.kt")
++        public void testSubtypingOfIntersectionIltInsideFlexible() throws Exception {
++            runTest("compiler/testData/codegen/box/inference/subtypingOfIntersectionIltInsideFlexible.kt");
++        }
++
+         @TestMetadata("unsafeVarianceCodegen.kt")
+         public void testUnsafeVarianceCodegen() throws Exception {
+             runTest("compiler/testData/codegen/box/inference/unsafeVarianceCodegen.kt");
+diff --git a/compiler/testData/codegen/box/inference/subtypingOfIntersectionIltInsideFlexible.kt b/compiler/testData/codegen/box/inference/subtypingOfIntersectionIltInsideFlexible.kt
+new file mode 100644
+index 00000000000..e27220e3351
+--- /dev/null
++++ b/compiler/testData/codegen/box/inference/subtypingOfIntersectionIltInsideFlexible.kt
+@@ -0,0 +1,27 @@
++// IGNORE_BACKEND: JS
++// IGNORE_BACKEND: JS_IR
++
++// FILE: Bar.java
++public class Bar {
++    public static String bar() {
++        return null;
++    }
++}
++
++// FILE: main.kt
++fun foo(): Any? {
++    return if (true) {
++        if (true) {
++            Bar.bar()
++        } else {
++            1
++        }
++    } else {
++        1
++    }
++}
++
++fun box(): String? {
++    foo()
++    return "OK"
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+index 469ad6aa402..229a682e729 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+@@ -13917,6 +13917,11 @@ public class BlackBoxCodegenTestGenerated extends AbstractBlackBoxCodegenTest {
+             runTest("compiler/testData/codegen/box/inference/referenceToCatchParameterFromLambdaExpression.kt");
+         }
+ 
++        @TestMetadata("subtypingOfIntersectionIltInsideFlexible.kt")
++        public void testSubtypingOfIntersectionIltInsideFlexible() throws Exception {
++            runTest("compiler/testData/codegen/box/inference/subtypingOfIntersectionIltInsideFlexible.kt");
++        }
++
+         @TestMetadata("unsafeVarianceCodegen.kt")
+         public void testUnsafeVarianceCodegen() throws Exception {
+             runTest("compiler/testData/codegen/box/inference/unsafeVarianceCodegen.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
+index 456f5675927..0554a6187b3 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
+@@ -13917,6 +13917,11 @@ public class LightAnalysisModeTestGenerated extends AbstractLightAnalysisModeTes
+             runTest("compiler/testData/codegen/box/inference/referenceToCatchParameterFromLambdaExpression.kt");
+         }
+ 
++        @TestMetadata("subtypingOfIntersectionIltInsideFlexible.kt")
++        public void testSubtypingOfIntersectionIltInsideFlexible() throws Exception {
++            runTest("compiler/testData/codegen/box/inference/subtypingOfIntersectionIltInsideFlexible.kt");
++        }
++
+         @TestMetadata("unsafeVarianceCodegen.kt")
+         public void testUnsafeVarianceCodegen() throws Exception {
+             runTest("compiler/testData/codegen/box/inference/unsafeVarianceCodegen.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
+index 8b665281b09..dff2793dc9d 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
+@@ -12692,6 +12692,11 @@ public class IrBlackBoxCodegenTestGenerated extends AbstractIrBlackBoxCodegenTes
+             runTest("compiler/testData/codegen/box/inference/referenceToCatchParameterFromLambdaExpression.kt");
+         }
+ 
++        @TestMetadata("subtypingOfIntersectionIltInsideFlexible.kt")
++        public void testSubtypingOfIntersectionIltInsideFlexible() throws Exception {
++            runTest("compiler/testData/codegen/box/inference/subtypingOfIntersectionIltInsideFlexible.kt");
++        }
++
+         @TestMetadata("unsafeVarianceCodegen.kt")
+         public void testUnsafeVarianceCodegen() throws Exception {
+             runTest("compiler/testData/codegen/box/inference/unsafeVarianceCodegen.kt");
+diff --git a/core/descriptors/src/org/jetbrains/kotlin/types/checker/NewCapturedType.kt b/core/descriptors/src/org/jetbrains/kotlin/types/checker/NewCapturedType.kt
+index 67e44049e65..ec3b1d1572a 100644
+--- a/core/descriptors/src/org/jetbrains/kotlin/types/checker/NewCapturedType.kt
++++ b/core/descriptors/src/org/jetbrains/kotlin/types/checker/NewCapturedType.kt
+@@ -36,24 +36,57 @@ fun prepareArgumentTypeRegardingCaptureTypes(argumentType: UnwrappedType): Unwra
+ 
+ fun captureFromExpression(type: UnwrappedType): UnwrappedType? {
+     val typeConstructor = type.constructor
+-    if (typeConstructor is IntersectionTypeConstructor) {
+-        var changed = false
+-        val capturedSupertypes = typeConstructor.supertypes.map { supertype ->
+-            val unwrapped = supertype.unwrap()
+-            captureFromExpression(unwrapped)?.apply { changed = true } ?: unwrapped
++
++    if (typeConstructor !is IntersectionTypeConstructor) {
++        return captureFromArguments(type, CaptureStatus.FROM_EXPRESSION)
++    }
++
++    /*
++     * We capture intersection types in two stages:
++     * capture type arguments for each component and replace it in the original type after that.
++     * This is to substitute captured types into flexible types properly:
++     * we should have the same captured types both for lower bound and for upper one.
++     *
++     * Example:
++     *  The original type: ({Comparable<*> & java.io.Serializable}..{Comparable<*>? & java.io.Serializable?})
++     *  Result of capturing arguments by components: [[CapturedType(*)], null]
++     *  The resulting type: ({Comparable<CapturedType(*)> & java.io.Serializable}..{Comparable<CapturedType(*)>? & java.io.Serializable?})
++     */
++    val capturedArgumentsByComponents = captureArgumentsForIntersectionType(typeConstructor) ?: return null
++
++    fun replaceArgumentsByComponents(typeToReplace: UnwrappedType) =
++        typeToReplace.constructor.supertypes.mapIndexed { i, componentType ->
++            val capturedArguments = capturedArgumentsByComponents[i] ?: return@mapIndexed componentType.asSimpleType()
++            componentType.unwrap().replaceArguments(capturedArguments)
+         }
+ 
+-        if (!changed) return null
++    return if (type is FlexibleType) {
++        val lowerIntersectedType =
++            intersectTypes(replaceArgumentsByComponents(type.lowerBound)).makeNullableAsSpecified(type.lowerBound.isMarkedNullable)
++        val upperIntersectedType =
++            intersectTypes(replaceArgumentsByComponents(type.upperBound)).makeNullableAsSpecified(type.upperBound.isMarkedNullable)
+ 
+-        return intersectTypes(capturedSupertypes).makeNullableAsSpecified(type.isMarkedNullable)
++        KotlinTypeFactory.flexibleType(lowerIntersectedType, upperIntersectedType)
++    } else {
++        intersectTypes(replaceArgumentsByComponents(type)).makeNullableAsSpecified(type.isMarkedNullable)
+     }
+-    return captureFromArguments(type, CaptureStatus.FROM_EXPRESSION)
+ }
+ 
+ // this function suppose that input type is simple classifier type
+ internal fun captureFromArguments(type: SimpleType, status: CaptureStatus) =
+     captureArguments(type, status)?.let { type.replaceArguments(it) }
+ 
++private fun captureArgumentsForIntersectionType(typeConstructor: TypeConstructor): List<List<TypeProjection>?>? {
++    var changed = false
++    val capturedArgumentsByComponents = typeConstructor.supertypes.map { supertype ->
++        captureArguments(supertype.unwrap(), CaptureStatus.FROM_EXPRESSION)?.apply { changed = true }
++    }
++
++    if (!changed) return null
++
++    return capturedArgumentsByComponents
++}
++
+ private fun captureFromArguments(type: UnwrappedType, status: CaptureStatus): UnwrappedType? {
+     val capturedArguments = captureArguments(type, status) ?: return null
+ 
+diff --git a/js/js.tests/test/org/jetbrains/kotlin/js/test/es6/semantics/IrJsCodegenBoxES6TestGenerated.java b/js/js.tests/test/org/jetbrains/kotlin/js/test/es6/semantics/IrJsCodegenBoxES6TestGenerated.java
+index 3ec9d8e69b0..18ef87ae09a 100644
+--- a/js/js.tests/test/org/jetbrains/kotlin/js/test/es6/semantics/IrJsCodegenBoxES6TestGenerated.java
++++ b/js/js.tests/test/org/jetbrains/kotlin/js/test/es6/semantics/IrJsCodegenBoxES6TestGenerated.java
+@@ -10862,6 +10862,11 @@ public class IrJsCodegenBoxES6TestGenerated extends AbstractIrJsCodegenBoxES6Tes
+             runTest("compiler/testData/codegen/box/inference/referenceToCatchParameterFromLambdaExpression.kt");
+         }
+ 
++        @TestMetadata("subtypingOfIntersectionIltInsideFlexible.kt")
++        public void testSubtypingOfIntersectionIltInsideFlexible() throws Exception {
++            runTest("compiler/testData/codegen/box/inference/subtypingOfIntersectionIltInsideFlexible.kt");
++        }
++
+         @TestMetadata("unsafeVarianceCodegen.kt")
+         public void testUnsafeVarianceCodegen() throws Exception {
+             runTest("compiler/testData/codegen/box/inference/unsafeVarianceCodegen.kt");
+diff --git a/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java b/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java
+index c2a600dd21f..4bff4a33943 100644
+--- a/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java
++++ b/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java
+@@ -10862,6 +10862,11 @@ public class IrJsCodegenBoxTestGenerated extends AbstractIrJsCodegenBoxTest {
+             runTest("compiler/testData/codegen/box/inference/referenceToCatchParameterFromLambdaExpression.kt");
+         }
+ 
++        @TestMetadata("subtypingOfIntersectionIltInsideFlexible.kt")
++        public void testSubtypingOfIntersectionIltInsideFlexible() throws Exception {
++            runTest("compiler/testData/codegen/box/inference/subtypingOfIntersectionIltInsideFlexible.kt");
++        }
++
+         @TestMetadata("unsafeVarianceCodegen.kt")
+         public void testUnsafeVarianceCodegen() throws Exception {
+             runTest("compiler/testData/codegen/box/inference/unsafeVarianceCodegen.kt");
+diff --git a/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java b/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
+index 3d5cd82e26a..45503efbd1b 100644
+--- a/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
++++ b/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
+@@ -10927,6 +10927,11 @@ public class JsCodegenBoxTestGenerated extends AbstractJsCodegenBoxTest {
+             runTest("compiler/testData/codegen/box/inference/referenceToCatchParameterFromLambdaExpression.kt");
+         }
+ 
++        @TestMetadata("subtypingOfIntersectionIltInsideFlexible.kt")
++        public void testSubtypingOfIntersectionIltInsideFlexible() throws Exception {
++            runTest("compiler/testData/codegen/box/inference/subtypingOfIntersectionIltInsideFlexible.kt");
++        }
++
+         @TestMetadata("unsafeVarianceCodegen.kt")
+         public void testUnsafeVarianceCodegen() throws Exception {
+             runTest("compiler/testData/codegen/box/inference/unsafeVarianceCodegen.kt");

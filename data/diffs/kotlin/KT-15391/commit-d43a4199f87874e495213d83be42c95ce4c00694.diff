@@ -1,0 +1,79 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+index 8219aa5badc..f7bd4932fd1 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+@@ -237,6 +237,7 @@ public interface Errors {
+     DiagnosticFactory2<KtDeclaration, CallableMemberDescriptor, List<CallableMemberDescriptor>> DELEGATED_MEMBER_HIDES_SUPERTYPE_OVERRIDE = DiagnosticFactory2.create(ERROR);
+     DiagnosticFactory0<KtTypeReference> SUPERTYPE_NOT_A_CLASS_OR_INTERFACE = DiagnosticFactory0.create(ERROR);
+     DiagnosticFactory0<KtTypeReference> SUPERTYPE_IS_EXTENSION_FUNCTION_TYPE = DiagnosticFactory0.create(ERROR);
++    DiagnosticFactory0<KtTypeReference> SUPERTYPE_IS_SUSPEND_FUNCTION_TYPE = DiagnosticFactory0.create(ERROR);
+ 
+     DiagnosticFactory0<PsiElement> NO_GENERICS_IN_SUPERTYPE_SPECIFIER = DiagnosticFactory0.create(ERROR);
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+index bdf7861ef5a..16059fa705a 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+@@ -544,6 +544,7 @@ public class DefaultErrorMessages {
+         MAP.put(MANY_CLASSES_IN_SUPERTYPE_LIST, "Only one class may appear in a supertype list");
+         MAP.put(SUPERTYPE_NOT_A_CLASS_OR_INTERFACE, "Only classes and interfaces may serve as supertypes");
+         MAP.put(SUPERTYPE_IS_EXTENSION_FUNCTION_TYPE, "Extension function type is not allowed as supertypes");
++        MAP.put(SUPERTYPE_IS_SUSPEND_FUNCTION_TYPE, "Suspend function type is not allowed as supertypes");
+         MAP.put(SUPERTYPE_INITIALIZED_IN_INTERFACE, "Interfaces cannot initialize supertypes");
+         MAP.put(CLASS_IN_SUPERTYPE_FOR_ENUM, "Enum class cannot inherit from classes");
+         MAP.put(CONSTRUCTOR_IN_INTERFACE, "An interface may not have a constructor");
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/BodyResolver.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/BodyResolver.java
+index 414bf8e9c12..f26edc4c1c8 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/BodyResolver.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/BodyResolver.java
+@@ -471,6 +471,9 @@ public class BodyResolver {
+                 if (FunctionTypesKt.isExtensionFunctionType(supertype)) {
+                     trace.report(SUPERTYPE_IS_EXTENSION_FUNCTION_TYPE.on(typeReference));
+                 }
++                else if (FunctionTypesKt.isSuspendFunctionType(supertype)) {
++                    trace.report(SUPERTYPE_IS_SUSPEND_FUNCTION_TYPE.on(typeReference));
++                }
+ 
+                 if (classDescriptor.getKind() != ClassKind.INTERFACE) {
+                     if (supertypeOwner.getKind() == ClassKind.ENUM_CLASS) {
+diff --git a/compiler/testData/diagnostics/tests/coroutines/suspendFunctionType/modifierApplicability.kt b/compiler/testData/diagnostics/tests/coroutines/suspendFunctionType/modifierApplicability.kt
+index e7b453b6567..c2c11605814 100644
+--- a/compiler/testData/diagnostics/tests/coroutines/suspendFunctionType/modifierApplicability.kt
++++ b/compiler/testData/diagnostics/tests/coroutines/suspendFunctionType/modifierApplicability.kt
+@@ -16,3 +16,11 @@ typealias Test9 = suspend (() -> Unit) -> Unit
+ typealias Test10 = suspend (suspend () -> Unit) -> Unit
+ typealias Test11 = suspend () -> (suspend () -> Unit)
+ typealias Test12 = suspend (suspend (() -> Unit)) -> Unit
++
++interface Supertype1 : <!SUPERTYPE_IS_SUSPEND_FUNCTION_TYPE!>suspend () -> Unit<!> {
++
++}
++
++interface Supertype2 : <!SUPERTYPE_IS_SUSPEND_FUNCTION_TYPE!>suspend String.() -> Unit<!> {
++
++}
+diff --git a/compiler/testData/diagnostics/tests/coroutines/suspendFunctionType/modifierApplicability.txt b/compiler/testData/diagnostics/tests/coroutines/suspendFunctionType/modifierApplicability.txt
+index 22cd55f87a0..ec4abc4f4ca 100644
+--- a/compiler/testData/diagnostics/tests/coroutines/suspendFunctionType/modifierApplicability.txt
++++ b/compiler/testData/diagnostics/tests/coroutines/suspendFunctionType/modifierApplicability.txt
+@@ -6,6 +6,20 @@ public interface SAM {
+     public abstract fun run(): kotlin.Unit
+     public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
+ }
++
++public interface Supertype1 : suspend () -> kotlin.Unit {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract suspend override /*1*/ /*fake_override*/ fun invoke(): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface Supertype2 : suspend kotlin.String.() -> kotlin.Unit {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract suspend override /*1*/ /*fake_override*/ fun invoke(/*0*/ p1: kotlin.String): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+ public typealias Action = () -> kotlin.Unit
+ public typealias Test1 = suspend () -> kotlin.Unit
+ public typealias Test10 = suspend (suspend () -> kotlin.Unit) -> kotlin.Unit

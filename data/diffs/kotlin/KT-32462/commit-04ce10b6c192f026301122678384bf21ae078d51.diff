@@ -1,0 +1,500 @@
+diff --git a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
+index 440c9a09fe8..690875a4a50 100644
+--- a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
++++ b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirOldFrontendDiagnosticsTestGenerated.java
+@@ -9978,6 +9978,11 @@ public class FirOldFrontendDiagnosticsTestGenerated extends AbstractFirOldFronte
+             runTest("compiler/testData/diagnostics/tests/inference/kt32434.kt");
+         }
+ 
++        @TestMetadata("kt32462.kt")
++        public void testKt32462() throws Exception {
++            runTest("compiler/testData/diagnostics/tests/inference/kt32462.kt");
++        }
++
+         @TestMetadata("kt33263.kt")
+         public void testKt33263() throws Exception {
+             runTest("compiler/testData/diagnostics/tests/inference/kt33263.kt");
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/KotlinConstraintSystemCompleter.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/KotlinConstraintSystemCompleter.kt
+index b376615e772..5e7dd8f3b77 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/KotlinConstraintSystemCompleter.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/components/KotlinConstraintSystemCompleter.kt
+@@ -6,6 +6,7 @@
+ package org.jetbrains.kotlin.resolve.calls.inference.components
+ 
+ import org.jetbrains.kotlin.builtins.isBuiltinFunctionalType
++import org.jetbrains.kotlin.builtins.isBuiltinFunctionalTypeOrSubtype
+ import org.jetbrains.kotlin.resolve.calls.components.KotlinResolutionStatelessCallbacks
+ import org.jetbrains.kotlin.resolve.calls.components.transformToResolvedLambda
+ import org.jetbrains.kotlin.resolve.calls.inference.ConstraintSystemBuilder
+@@ -121,51 +122,83 @@ class KotlinConstraintSystemCompleter(
+     ): Boolean {
+         val variable = variableForFixation.variable as TypeConstructor
+         val postponedArguments = getOrderedNotAnalyzedPostponedArguments(topLevelAtoms)
++        val hasProperAtom = postponedArguments.any {
++            when (it) {
++                is LambdaWithTypeVariableAsExpectedTypeAtom,
++                is PostponedCallableReferenceAtom -> it.expectedType?.constructor == variable
++                else -> false
++            }
++        }
++
+         if (
+-            !postponedArguments.any { (it as? LambdaWithTypeVariableAsExpectedTypeAtom)?.expectedType?.constructor == variable } &&
++            !hasProperAtom &&
+             variableForFixation.hasProperConstraint &&
+             !variableForFixation.hasOnlyTrivialProperConstraint
+         ) return false
+ 
+         val postponedAtom = postponedArguments.firstOrNull() ?: return false
+-        when (postponedAtom) {
+-            is PostponedCallableReferenceAtom -> {
+-                analyze(postponedAtom)
+-            }
+-            is LambdaWithTypeVariableAsExpectedTypeAtom -> {
+-                var atomToAnalyze = postponedAtom
+-                if (postponedAtom.atom.parametersTypes?.all { it != null } != true) {
+-                    val functionalType = resultTypeResolver.findResultType(
+-                        c,
+-                        c.notFixedTypeVariables.getValue(variable),
+-                        TypeVariableDirectionCalculator.ResolveDirection.TO_SUPERTYPE
+-                    ) as KotlinType
+-                    if (functionalType.isBuiltinFunctionalType) {
+-                        val csBuilder = c as ConstraintSystemBuilder
+-                        val builtIns = (variable as TypeVariableTypeConstructor).builtIns
+-                        val returnVariable = TypeVariableForLambdaReturnType(postponedAtom.atom, builtIns, "_R")
+-                        csBuilder.registerVariable(returnVariable)
+-                        val expectedType = KotlinTypeFactory.simpleType(
+-                            functionalType.annotations,
+-                            functionalType.constructor,
+-                            functionalType.arguments.dropLast(1) + returnVariable.defaultType.asTypeProjection(),
+-                            functionalType.isMarkedNullable
+-                        )
+-                        csBuilder.addSubtypeConstraint(
+-                            expectedType,
+-                            variable.typeForTypeVariable(),
+-                            ArgumentConstraintPosition(postponedAtom.atom)
+-                        )
+-                        atomToAnalyze = postponedAtom.transformToResolvedLambda(csBuilder, expectedType, returnVariable)
++
++        val builtIns = (variable as TypeVariableTypeConstructor).builtIns
++        val csBuilder = (c as NewConstraintSystemImpl).getBuilder()
++        val atomToAnalyze = when (postponedAtom) {
++            is PostponedCallableReferenceAtom -> postponedAtom.preparePostponedAtomWithTypeVariableAsExpectedType(
++                c, csBuilder, variable,
++                condition = { true },
++                isSuitable = KotlinType::isBuiltinFunctionalTypeOrSubtype,
++                typeVariableCreator = { TypeVariableForCallableReferenceReturnType(builtIns, "_Q") },
++                newAtomCreator = { returnVariable, expectedType ->
++                    CallableReferenceWithTypeVariableAsExpectedTypeAtom(postponedAtom.atom, expectedType, returnVariable).also {
++                        postponedAtom.setAnalyzedResults(null, listOf(it))
+                     }
+                 }
+-                analyze(atomToAnalyze)
+-            }
++            )
++            is LambdaWithTypeVariableAsExpectedTypeAtom -> postponedAtom.preparePostponedAtomWithTypeVariableAsExpectedType(
++                c, csBuilder, variable,
++                condition = { it.atom.parametersTypes?.all { type -> type != null } != true },
++                isSuitable = KotlinType::isBuiltinFunctionalType,
++                typeVariableCreator = { TypeVariableForLambdaReturnType(postponedAtom.atom, builtIns, "_R") },
++                newAtomCreator = { returnVariable, expectedType ->
++                    postponedAtom.transformToResolvedLambda(csBuilder, expectedType, returnVariable)
++                }
++            )
+             else -> return false
+         }
++        analyze(atomToAnalyze)
+         return true
+     }
+ 
++    private inline fun <T : PostponedResolvedAtom, V : NewTypeVariable> T.preparePostponedAtomWithTypeVariableAsExpectedType(
++        c: Context,
++        csBuilder: ConstraintSystemBuilder,
++        variable: TypeConstructor,
++        condition: (T) -> Boolean,
++        isSuitable: KotlinType.() -> Boolean,
++        typeVariableCreator: () -> V,
++        newAtomCreator: (V, SimpleType) -> PostponedResolvedAtom
++    ): PostponedResolvedAtom {
++        if (!condition(this)) return this
++        val functionalType = resultTypeResolver.findResultType(
++            c,
++            c.notFixedTypeVariables.getValue(variable),
++            TypeVariableDirectionCalculator.ResolveDirection.TO_SUPERTYPE
++        ) as KotlinType
++        if (!functionalType.isSuitable()) return this
++        val returnVariable = typeVariableCreator()
++        csBuilder.registerVariable(returnVariable)
++        val expectedType = KotlinTypeFactory.simpleType(
++            functionalType.annotations,
++            functionalType.constructor,
++            functionalType.arguments.dropLast(1) + returnVariable.defaultType.asTypeProjection(),
++            functionalType.isMarkedNullable
++        )
++        csBuilder.addSubtypeConstraint(
++            expectedType,
++            variable.typeForTypeVariable(),
++            ArgumentConstraintPosition(atom as KotlinCallArgument)
++        )
++        return newAtomCreator(returnVariable, expectedType)
++    }
++
+     // true if we do analyze
+     private fun analyzePostponeArgumentIfPossible(
+         c: Context,
+@@ -208,6 +241,7 @@ class KotlinConstraintSystemCompleter(
+         fun ResolvedAtom.process(to: LinkedHashSet<TypeConstructor>) {
+             val typeVariables = when (this) {
+                 is ResolvedCallAtom -> freshVariablesSubstitutor.freshVariables
++                is CallableReferenceWithTypeVariableAsExpectedTypeAtom -> listOfNotNull(typeVariableForReturnType)
+                 is ResolvedCallableReferenceAtom -> candidate?.freshSubstitutor?.freshVariables.orEmpty()
+                 is ResolvedLambdaAtom -> listOfNotNull(typeVariableForLambdaReturnType)
+                 else -> emptyList()
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/TypeVariable.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/TypeVariable.kt
+index 555e1158713..eb37f855740 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/TypeVariable.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/TypeVariable.kt
+@@ -20,6 +20,7 @@ import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+ import org.jetbrains.kotlin.descriptors.ClassifierDescriptor
+ import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
+ import org.jetbrains.kotlin.descriptors.annotations.Annotations
++import org.jetbrains.kotlin.resolve.calls.model.CallableReferenceKotlinCallArgument
+ import org.jetbrains.kotlin.resolve.calls.model.LambdaKotlinCallArgument
+ import org.jetbrains.kotlin.resolve.descriptorUtil.builtIns
+ import org.jetbrains.kotlin.resolve.descriptorUtil.hasOnlyInputTypesAnnotation
+@@ -82,3 +83,10 @@ class TypeVariableForLambdaReturnType(
+ ) : NewTypeVariable(builtIns, name) {
+     override fun hasOnlyInputTypesAnnotation(): Boolean = false
+ }
++
++class TypeVariableForCallableReferenceReturnType(
++    builtIns: KotlinBuiltIns,
++    name: String
++) : NewTypeVariable(builtIns, name) {
++    override fun hasOnlyInputTypesAnnotation(): Boolean = false
++}
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/model/ResolutionAtoms.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/model/ResolutionAtoms.kt
+index 18f2c3f668b..354892f318e 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/model/ResolutionAtoms.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/model/ResolutionAtoms.kt
+@@ -14,7 +14,7 @@ import org.jetbrains.kotlin.resolve.calls.inference.components.FreshVariableNewT
+ import org.jetbrains.kotlin.resolve.calls.inference.components.NewTypeSubstitutor
+ import org.jetbrains.kotlin.resolve.calls.inference.model.ConstraintStorage
+ import org.jetbrains.kotlin.resolve.calls.inference.model.NewConstraintError
+-import org.jetbrains.kotlin.resolve.calls.inference.model.NewTypeVariable
++import org.jetbrains.kotlin.resolve.calls.inference.model.TypeVariableForCallableReferenceReturnType
+ import org.jetbrains.kotlin.resolve.calls.inference.model.TypeVariableForLambdaReturnType
+ import org.jetbrains.kotlin.resolve.calls.tasks.ExplicitReceiverKind
+ import org.jetbrains.kotlin.types.KotlinType
+@@ -91,11 +91,12 @@ interface PostponedResolvedAtomMarker {
+ sealed class PostponedResolvedAtom : ResolvedAtom(), PostponedResolvedAtomMarker {
+     abstract override val inputTypes: Collection<UnwrappedType>
+     abstract override val outputType: UnwrappedType?
++    abstract val expectedType: UnwrappedType?
+ }
+ 
+ class LambdaWithTypeVariableAsExpectedTypeAtom(
+     override val atom: LambdaKotlinCallArgument,
+-    val expectedType: UnwrappedType
++    override val expectedType: UnwrappedType
+ ) : PostponedResolvedAtom() {
+     override val inputTypes: Collection<UnwrappedType> get() = listOf(expectedType)
+     override val outputType: UnwrappedType? get() = null
+@@ -112,7 +113,7 @@ class ResolvedLambdaAtom(
+     val parameters: List<UnwrappedType>,
+     val returnType: UnwrappedType,
+     val typeVariableForLambdaReturnType: TypeVariableForLambdaReturnType?,
+-    val expectedType: UnwrappedType?
++    override val expectedType: UnwrappedType?
+ ) : PostponedResolvedAtom() {
+     lateinit var resultArguments: List<KotlinCallArgument>
+         private set
+@@ -131,7 +132,7 @@ class ResolvedLambdaAtom(
+ 
+ abstract class ResolvedCallableReferenceAtom(
+     override val atom: CallableReferenceKotlinCallArgument,
+-    val expectedType: UnwrappedType?
++    override val expectedType: UnwrappedType?
+ ) : PostponedResolvedAtom() {
+     var candidate: CallableReferenceCandidate? = null
+         private set
+@@ -157,10 +158,10 @@ class EagerCallableReferenceAtom(
+     fun transformToPostponed(): PostponedCallableReferenceAtom = PostponedCallableReferenceAtom(this)
+ }
+ 
+-class PostponedCallableReferenceAtom(
+-    eagerCallableReferenceAtom: EagerCallableReferenceAtom
+-) : ResolvedCallableReferenceAtom(eagerCallableReferenceAtom.atom, eagerCallableReferenceAtom.expectedType) {
+-
++sealed class AbstractPostponedCallableReferenceAtom(
++    atom: CallableReferenceKotlinCallArgument,
++    expectedType: UnwrappedType?
++) : ResolvedCallableReferenceAtom(atom, expectedType) {
+     override val inputTypes: Collection<UnwrappedType>
+         get() = extractInputOutputTypesFromCallableReferenceExpectedType(expectedType)?.inputTypes ?: listOfNotNull(expectedType)
+ 
+@@ -168,6 +169,16 @@ class PostponedCallableReferenceAtom(
+         get() = extractInputOutputTypesFromCallableReferenceExpectedType(expectedType)?.outputType
+ }
+ 
++class CallableReferenceWithTypeVariableAsExpectedTypeAtom(
++    atom: CallableReferenceKotlinCallArgument,
++    expectedType: UnwrappedType?,
++    val typeVariableForReturnType: TypeVariableForCallableReferenceReturnType?
++) : AbstractPostponedCallableReferenceAtom(atom, expectedType)
++
++class PostponedCallableReferenceAtom(
++    eagerCallableReferenceAtom: EagerCallableReferenceAtom
++) : AbstractPostponedCallableReferenceAtom(eagerCallableReferenceAtom.atom, eagerCallableReferenceAtom.expectedType)
++
+ class ResolvedCollectionLiteralAtom(
+     override val atom: CollectionLiteralKotlinCallArgument,
+     val expectedType: UnwrappedType?
+diff --git a/compiler/testData/codegen/box/callableReference/function/kt32462.kt b/compiler/testData/codegen/box/callableReference/function/kt32462.kt
+new file mode 100644
+index 00000000000..5a89f56cd65
+--- /dev/null
++++ b/compiler/testData/codegen/box/callableReference/function/kt32462.kt
+@@ -0,0 +1,15 @@
++// !LANGUAGE: +NewInference
++// IGNORE_BACKEND_FIR: JVM_IR
++// WITH_RUNTIME
++// ISSUE: KT-32462
++
++fun decodeValue(value: String): Any {
++    return when (value[0]) {
++        'F' -> String::toFloat
++        'B' -> String::toBoolean
++        'I' -> String::toInt
++        else -> throw IllegalArgumentException("Unexpected value prefix: ${value[0]}")
++    }(value.substring(2))
++}
++
++fun box(): String = "OK"
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/kt32462.fir.kt b/compiler/testData/diagnostics/tests/inference/kt32462.fir.kt
+new file mode 100644
+index 00000000000..4ffa2eeff8a
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/kt32462.fir.kt
+@@ -0,0 +1,27 @@
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++// ISSUE: KT-32462
++
++fun <K> select(x: K, y: K): K = x
++
++interface A {
++    fun toB(): B
++    fun toC(): C
++    fun toC(x: Int): C
++}
++interface B
++interface C
++
++fun test_1() {
++    select(
++        { a: A -> a.toB() },
++        { a: A -> a.toC() }
++    )
++}
++
++fun test_2() {
++    select(
++        A::toB,
++        <!UNRESOLVED_REFERENCE!>A::toC<!>
++    )
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/kt32462.kt b/compiler/testData/diagnostics/tests/inference/kt32462.kt
+new file mode 100644
+index 00000000000..52f9f9a5a4d
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/kt32462.kt
+@@ -0,0 +1,27 @@
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++// ISSUE: KT-32462
++
++fun <K> select(x: K, y: K): K = x
++
++interface A {
++    fun toB(): B
++    fun toC(): C
++    fun toC(x: Int): C
++}
++interface B
++interface C
++
++fun test_1() {
++    <!DEBUG_INFO_EXPRESSION_TYPE("(A) -> kotlin.Any")!>select(
++        { a: A -> a.toB() },
++        { a: A -> a.toC() }
++    )<!>
++}
++
++fun test_2() {
++    <!DEBUG_INFO_EXPRESSION_TYPE("kotlin.reflect.KFunction1<A, kotlin.Any>")!>select(
++        A::toB,
++        A::toC
++    )<!>
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/kt32462.txt b/compiler/testData/diagnostics/tests/inference/kt32462.txt
+new file mode 100644
+index 00000000000..70f75fca5d3
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/kt32462.txt
+@@ -0,0 +1,26 @@
++package
++
++public fun </*0*/ K> select(/*0*/ x: K, /*1*/ y: K): K
++public fun test_1(): kotlin.Unit
++public fun test_2(): kotlin.Unit
++
++public interface A {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract fun toB(): B
++    public abstract fun toC(): C
++    public abstract fun toC(/*0*/ x: kotlin.Int): C
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface B {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface C {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index f49b20c2068..75488700f17 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -9985,6 +9985,11 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 runTest("compiler/testData/diagnostics/tests/inference/kt32434.kt");
+             }
+ 
++            @TestMetadata("kt32462.kt")
++            public void testKt32462() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/inference/kt32462.kt");
++            }
++
+             @TestMetadata("kt33263.kt")
+             public void testKt33263() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/inference/kt33263.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index 43eaa5f2636..f99e18f50a0 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -9980,6 +9980,11 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                 runTest("compiler/testData/diagnostics/tests/inference/kt32434.kt");
+             }
+ 
++            @TestMetadata("kt32462.kt")
++            public void testKt32462() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/inference/kt32462.kt");
++            }
++
+             @TestMetadata("kt33263.kt")
+             public void testKt33263() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/inference/kt33263.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+index 54312c15332..2eaa72c16ce 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+@@ -2253,6 +2253,11 @@ public class BlackBoxCodegenTestGenerated extends AbstractBlackBoxCodegenTest {
+                 runTest("compiler/testData/codegen/box/callableReference/function/kt21787.kt");
+             }
+ 
++            @TestMetadata("kt32462.kt")
++            public void testKt32462() throws Exception {
++                runTest("compiler/testData/codegen/box/callableReference/function/kt32462.kt");
++            }
++
+             @TestMetadata("nestedConstructorFromClass.kt")
+             public void testNestedConstructorFromClass() throws Exception {
+                 runTest("compiler/testData/codegen/box/callableReference/function/nestedConstructorFromClass.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
+index 2c1805314db..c2d538be39f 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeTestGenerated.java
+@@ -2253,6 +2253,11 @@ public class LightAnalysisModeTestGenerated extends AbstractLightAnalysisModeTes
+                 runTest("compiler/testData/codegen/box/callableReference/function/kt21787.kt");
+             }
+ 
++            @TestMetadata("kt32462.kt")
++            public void testKt32462() throws Exception {
++                runTest("compiler/testData/codegen/box/callableReference/function/kt32462.kt");
++            }
++
+             @TestMetadata("nestedConstructorFromClass.kt")
+             public void testNestedConstructorFromClass() throws Exception {
+                 runTest("compiler/testData/codegen/box/callableReference/function/nestedConstructorFromClass.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/ir/FirBlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/ir/FirBlackBoxCodegenTestGenerated.java
+index 362758dc61e..bcef67cca27 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/ir/FirBlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/ir/FirBlackBoxCodegenTestGenerated.java
+@@ -2233,6 +2233,11 @@ public class FirBlackBoxCodegenTestGenerated extends AbstractFirBlackBoxCodegenT
+                 runTest("compiler/testData/codegen/box/callableReference/function/kt21787.kt");
+             }
+ 
++            @TestMetadata("kt32462.kt")
++            public void testKt32462() throws Exception {
++                runTest("compiler/testData/codegen/box/callableReference/function/kt32462.kt");
++            }
++
+             @TestMetadata("nestedConstructorFromClass.kt")
+             public void testNestedConstructorFromClass() throws Exception {
+                 runTest("compiler/testData/codegen/box/callableReference/function/nestedConstructorFromClass.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
+index 029ce75627d..fa497313943 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
+@@ -2233,6 +2233,11 @@ public class IrBlackBoxCodegenTestGenerated extends AbstractIrBlackBoxCodegenTes
+                 runTest("compiler/testData/codegen/box/callableReference/function/kt21787.kt");
+             }
+ 
++            @TestMetadata("kt32462.kt")
++            public void testKt32462() throws Exception {
++                runTest("compiler/testData/codegen/box/callableReference/function/kt32462.kt");
++            }
++
+             @TestMetadata("nestedConstructorFromClass.kt")
+             public void testNestedConstructorFromClass() throws Exception {
+                 runTest("compiler/testData/codegen/box/callableReference/function/nestedConstructorFromClass.kt");
+diff --git a/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java b/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java
+index b4e48ecb32e..e10f6c05ecf 100644
+--- a/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java
++++ b/js/js.tests/test/org/jetbrains/kotlin/js/test/ir/semantics/IrJsCodegenBoxTestGenerated.java
+@@ -1683,6 +1683,11 @@ public class IrJsCodegenBoxTestGenerated extends AbstractIrJsCodegenBoxTest {
+                 runTest("compiler/testData/codegen/box/callableReference/function/kt21787.kt");
+             }
+ 
++            @TestMetadata("kt32462.kt")
++            public void testKt32462() throws Exception {
++                runTest("compiler/testData/codegen/box/callableReference/function/kt32462.kt");
++            }
++
+             @TestMetadata("nestedConstructorFromClass.kt")
+             public void testNestedConstructorFromClass() throws Exception {
+                 runTest("compiler/testData/codegen/box/callableReference/function/nestedConstructorFromClass.kt");
+diff --git a/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java b/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
+index b033cca244f..c9a82f680ca 100644
+--- a/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
++++ b/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
+@@ -1683,6 +1683,11 @@ public class JsCodegenBoxTestGenerated extends AbstractJsCodegenBoxTest {
+                 runTest("compiler/testData/codegen/box/callableReference/function/kt21787.kt");
+             }
+ 
++            @TestMetadata("kt32462.kt")
++            public void testKt32462() throws Exception {
++                runTest("compiler/testData/codegen/box/callableReference/function/kt32462.kt");
++            }
++
+             @TestMetadata("nestedConstructorFromClass.kt")
+             public void testNestedConstructorFromClass() throws Exception {
+                 runTest("compiler/testData/codegen/box/callableReference/function/nestedConstructorFromClass.kt");

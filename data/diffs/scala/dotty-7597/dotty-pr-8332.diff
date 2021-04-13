@@ -1,0 +1,200 @@
+diff --git a/compiler/src/dotty/tools/dotc/core/SymDenotations.scala b/compiler/src/dotty/tools/dotc/core/SymDenotations.scala
+index fe4fd0aed96c..9334aba928c1 100644
+--- a/compiler/src/dotty/tools/dotc/core/SymDenotations.scala
++++ b/compiler/src/dotty/tools/dotc/core/SymDenotations.scala
+@@ -2377,7 +2377,7 @@ object SymDenotations {
+     /** is the cache valid in current run at given phase? */
+     def isValidAt(phase: Phase)(implicit ctx: Context): Boolean
+ 
+-    /** Render invalid this cache and all cache that depend on it */
++    /** Render invalid this cache and all caches that depend on it */
+     def invalidate(): Unit
+   }
+ 
+diff --git a/compiler/src/dotty/tools/dotc/typer/ImportSuggestions.scala b/compiler/src/dotty/tools/dotc/typer/ImportSuggestions.scala
+index 7dc92b170e2f..5059b7e474ed 100644
+--- a/compiler/src/dotty/tools/dotc/typer/ImportSuggestions.scala
++++ b/compiler/src/dotty/tools/dotc/typer/ImportSuggestions.scala
+@@ -6,7 +6,7 @@ import core._
+ import Contexts._, Types._, Symbols._, Names._, Decorators._, ProtoTypes._
+ import Flags._
+ import NameKinds.FlatName
+-import config.Printers.implicits
++import config.Printers.{implicits, implicitsDetailed}
+ import util.Spans.Span
+ import ast.{untpd, tpd}
+ import Implicits.{hasExtMethod, Candidate}
+@@ -94,7 +94,7 @@ trait ImportSuggestions:
+     def rootsIn(ref: TermRef)(using Context): List[TermRef] =
+       if seen.contains(ref) then Nil
+       else
+-        implicits.println(i"search for suggestions in ${ref.symbol.fullName}")
++        implicitsDetailed.println(i"search for suggestions in ${ref.symbol.fullName}")
+         seen += ref
+         ref :: rootsStrictlyIn(ref)
+ 
+diff --git a/compiler/src/dotty/tools/dotc/typer/RefChecks.scala b/compiler/src/dotty/tools/dotc/typer/RefChecks.scala
+index a5315400efb1..fde38930f66b 100644
+--- a/compiler/src/dotty/tools/dotc/typer/RefChecks.scala
++++ b/compiler/src/dotty/tools/dotc/typer/RefChecks.scala
+@@ -169,7 +169,7 @@ object RefChecks {
+    *  TODO This still needs to be cleaned up; the current version is a straight port of what was there
+    *       before, but it looks too complicated and method bodies are far too large.
+    */
+-  private def checkAllOverrides(clazz: Symbol)(implicit ctx: Context): Unit = {
++  private def checkAllOverrides(clazz: ClassSymbol)(implicit ctx: Context): Unit = {
+     val self = clazz.thisType
+     val upwardsSelf = upwardsThisType(clazz)
+     var hasErrors = false
+@@ -470,33 +470,52 @@ object RefChecks {
+             }
+         }
+ 
+-      def ignoreDeferred(member: SingleDenotation) =
+-        member.isType || {
+-          val mbr = member.symbol
+-          mbr.isSuperAccessor || // not yet synthesized
+-          ShortcutImplicits.isImplicitShortcut(mbr) || // only synthesized when referenced, see Note in ShortcutImplicits
+-          mbr.is(JavaDefined) && hasJavaErasedOverriding(mbr)
+-        }
++       def ignoreDeferred(mbr: Symbol) =
++        mbr.isType
++        || mbr.isSuperAccessor // not yet synthesized
++        || ShortcutImplicits.isImplicitShortcut(mbr) // only synthesized when referenced, see Note in ShortcutImplicits
++        || mbr.is(JavaDefined) && hasJavaErasedOverriding(mbr)
++
++      def isImplemented(mbr: Symbol) =
++        val mbrType = clazz.thisType.memberInfo(mbr)
++        def (sym: Symbol).isConcrete = sym.exists && !sym.is(Deferred)
++        clazz.nonPrivateMembersNamed(mbr.name)
++          .filterWithPredicate(
++            impl => impl.symbol.isConcrete && mbrType.matchesLoosely(impl.info))
++          .exists
++
++      /** The term symbols in this class and its baseclasses that are
++       *  abstract in this class. We can't use memberNames for that since
++       *  a concrete member might have the same signature as an abstract
++       *  member in a base class, yet might not override it.
++       */
++      def missingTermSymbols: List[Symbol] =
++        val buf = new mutable.ListBuffer[Symbol]
++        for bc <- clazz.baseClasses
++            sym <- bc.info.decls.toList
++            if sym.is(DeferredTerm) && !isImplemented(sym) && !ignoreDeferred(sym)
++        do buf += sym
++        buf.toList
+ 
+       // 2. Check that only abstract classes have deferred members
+       def checkNoAbstractMembers(): Unit = {
+         // Avoid spurious duplicates: first gather any missing members.
+-        val missing = clazz.thisType.abstractTermMembers.filterNot(ignoreDeferred)
++        val missing = missingTermSymbols
+         // Group missing members by the name of the underlying symbol,
+         // to consolidate getters and setters.
+-        val grouped = missing.groupBy(_.symbol.underlyingSymbol.name)
++        val grouped = missing.groupBy(_.underlyingSymbol.name)
+ 
+         val missingMethods = grouped.toList flatMap {
+           case (name, syms) =>
+-            val withoutSetters = syms filterNot (_.symbol.isSetter)
++            val withoutSetters = syms filterNot (_.isSetter)
+             if (withoutSetters.nonEmpty) withoutSetters else syms
+         }
+ 
+         def stubImplementations: List[String] = {
+           // Grouping missing methods by the declaring class
+-          val regrouped = missingMethods.groupBy(_.symbol.owner).toList
+-          def membersStrings(members: List[SingleDenotation]) =
+-            members.sortBy(_.symbol.name.toString).map(_.showDcl + " = ???")
++          val regrouped = missingMethods.groupBy(_.owner).toList
++          def membersStrings(members: List[Symbol]) =
++            members.sortBy(_.name.toString).map(_.showDcl + " = ???")
+ 
+           if (regrouped.tail.isEmpty)
+             membersStrings(regrouped.head._2)
+@@ -520,10 +539,9 @@ object RefChecks {
+         }
+ 
+         for (member <- missing) {
+-          val memberSym = member.symbol
+           def undefined(msg: String) =
+             abstractClassError(false, s"${member.showDcl} is not defined $msg")
+-          val underlying = memberSym.underlyingSymbol
++          val underlying = member.underlyingSymbol
+ 
+           // Give a specific error message for abstract vars based on why it fails:
+           // It could be unimplemented, have only one accessor, or be uninitialized.
+@@ -531,11 +549,11 @@ object RefChecks {
+             val isMultiple = grouped.getOrElse(underlying.name(ctx), Nil).size > 1
+ 
+             // If both getter and setter are missing, squelch the setter error.
+-            if (memberSym.isSetter && isMultiple) ()
++            if (member.isSetter && isMultiple) ()
+             else undefined(
+-              if (memberSym.isSetter) "\n(Note that an abstract var requires a setter in addition to the getter)"
+-              else if (memberSym.isGetter && !isMultiple) "\n(Note that an abstract var requires a getter in addition to the setter)"
+-              else err.abstractVarMessage(memberSym))
++              if (member.isSetter) "\n(Note that an abstract var requires a setter in addition to the getter)"
++              else if (member.isGetter && !isMultiple) "\n(Note that an abstract var requires a getter in addition to the setter)"
++              else err.abstractVarMessage(member))
+           }
+           else if (underlying.is(Method)) {
+             // If there is a concrete method whose name matches the unimplemented
+@@ -961,7 +979,7 @@ class RefChecks extends MiniPhase { thisPhase =>
+   }
+ 
+   override def transformTemplate(tree: Template)(implicit ctx: Context): Tree = try {
+-    val cls = ctx.owner
++    val cls = ctx.owner.asClass
+     checkOverloadedRestrictions(cls)
+     checkParents(cls)
+     if (cls.is(Trait)) tree.parents.foreach(checkParentPrefix(cls, _))
+diff --git a/tests/explicit-nulls/neg/override-java-object-arg.scala b/tests/explicit-nulls/neg/override-java-object-arg.scala
+index 7a45cb1d6199..ccce4af660c7 100644
+--- a/tests/explicit-nulls/neg/override-java-object-arg.scala
++++ b/tests/explicit-nulls/neg/override-java-object-arg.scala
+@@ -7,7 +7,7 @@ import javax.management.{Notification, NotificationEmitter, NotificationListener
+ class Foo {
+ 
+   def bar(): Unit = {
+-    val listener = new NotificationListener() {
++    val listener = new NotificationListener() { // error: object creation impossible
+       override def handleNotification(n: Notification|Null, emitter: Object): Unit = { // error: method handleNotification overrides nothing
+       }
+     }
+@@ -17,7 +17,7 @@ class Foo {
+       }
+     }
+ 
+-    val listener3 = new NotificationListener() {
++    val listener3 = new NotificationListener() { // error: object creation impossible
+       override def handleNotification(n: Notification, emitter: Object|Null): Unit = { // error: method handleNotification overrides nothing
+       }
+     }
+diff --git a/tests/neg-custom-args/erased/erased-case-class.scala b/tests/neg-custom-args/erased/erased-case-class.scala
+index 692534d772b6..d23a09ba24f0 100644
+--- a/tests/neg-custom-args/erased/erased-case-class.scala
++++ b/tests/neg-custom-args/erased/erased-case-class.scala
+@@ -1 +1 @@
+-case class Foo1(erased x: Int) // error // error
++case class Foo1(erased x: Int) // error
+diff --git a/tests/neg/i7597.scala b/tests/neg/i7597.scala
+new file mode 100644
+index 000000000000..c4c8f189fcfc
+--- /dev/null
++++ b/tests/neg/i7597.scala
+@@ -0,0 +1,14 @@
++object Test extends App {
++  def foo[S <: String]: String => Int =
++    new (String => Int) { def apply(s: S): Int = 0 } // error
++
++  trait Fn[A, B] {
++    def apply(x: A): B
++  }
++
++  class C[S <: String] extends Fn[String, Int] {  // error
++    def apply(s: S): Int = 0
++  }
++
++  foo("")
++}

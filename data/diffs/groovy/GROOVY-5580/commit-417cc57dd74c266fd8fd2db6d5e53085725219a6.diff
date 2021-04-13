@@ -1,0 +1,175 @@
+diff --git a/src/main/org/codehaus/groovy/classgen/asm/sc/StaticTypesCallSiteWriter.java b/src/main/org/codehaus/groovy/classgen/asm/sc/StaticTypesCallSiteWriter.java
+index 9e3891fa39..0b60b389fe 100644
+--- a/src/main/org/codehaus/groovy/classgen/asm/sc/StaticTypesCallSiteWriter.java
++++ b/src/main/org/codehaus/groovy/classgen/asm/sc/StaticTypesCallSiteWriter.java
+@@ -31,10 +31,7 @@ import org.objectweb.asm.MethodVisitor;
+ import org.objectweb.asm.Opcodes;
+ 
+ import java.lang.reflect.Modifier;
+-import java.util.ArrayList;
+-import java.util.Collection;
+-import java.util.List;
+-import java.util.Map;
++import java.util.*;
+ 
+ import static org.codehaus.groovy.transform.stc.StaticTypeCheckingSupport.chooseBestMethod;
+ import static org.codehaus.groovy.transform.stc.StaticTypeCheckingSupport.findDGMMethodsByNameAndArguments;
+@@ -143,6 +140,26 @@ public class StaticTypesCallSiteWriter extends CallSiteWriter implements Opcodes
+         }
+         if (makeGetPrivateFieldWithBridgeMethod(receiver, receiverType, methodName, safe, implicitThis)) return;
+ 
++        // GROOVY-5580, it is still possible that we're calling a superinterface property
++        if (receiverType.isInterface()) {
++            Set<ClassNode> allInterfaces = receiverType.getAllInterfaces();
++            for (ClassNode anInterface : allInterfaces) {
++                MethodNode getterMethod = anInterface.getGetterMethod("get" + MetaClassHelper.capitalize(methodName));
++                if (getterMethod!=null) {
++                    MethodCallExpression call = new MethodCallExpression(
++                            receiver,
++                            "get"+MetaClassHelper.capitalize(methodName),
++                            ArgumentListExpression.EMPTY_ARGUMENTS
++                    );
++                    call.setMethodTarget(getterMethod);
++                    call.setImplicitThis(false);
++                    call.setSourcePosition(receiver);
++                    call.visit(controller.getAcg());
++                    return;
++                }
++            }
++        }
++
+         // GROOVY-5568, we would be facing a DGM call, but instead of foo.getText(), have foo.text
+         List<MethodNode> methods = findDGMMethodsByNameAndArguments(receiverType, "get"+MetaClassHelper.capitalize(methodName), ClassNode.EMPTY_ARRAY);
+         if (!methods.isEmpty()) {
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 7f9fe54e52..822a20ede2 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -769,8 +769,13 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+             boolean isStaticProperty = pexp.getObjectExpression() instanceof ClassExpression && implementsInterfaceOrIsSubclassOf(testClass, pexp.getObjectExpression().getType());
+             // maps and lists have special handling for property expressions
+             if (isStaticProperty || (!implementsInterfaceOrIsSubclassOf(testClass, MAP_TYPE) && !implementsInterfaceOrIsSubclassOf(testClass, LIST_TYPE))) {
+-                ClassNode current = testClass;
+-                while (current != null) {
++                LinkedList<ClassNode> queue = new LinkedList<ClassNode>();
++                queue.add(testClass);
++                if (testClass.isInterface()) {
++                    queue.addAll(testClass.getAllInterfaces());
++                }
++                while (!queue.isEmpty()) {
++                    ClassNode current = queue.removeFirst();
+                     current = current.redirect();
+                     PropertyNode propertyNode = current.getProperty(propertyName);
+                     if (propertyNode != null) {
+@@ -799,11 +804,18 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                     }
+                     // if the property expression is an attribute expression (o.@attr), then
+                     // we stop now, otherwise we must check the parent class
+-                    current = isAttributeExpression ? null : current.getSuperClass();
++                    if (!isAttributeExpression && current.getSuperClass()!=null) {
++                        queue.add(current.getSuperClass());
++                    }
+                 }
+                 if (checkForReadOnly) {
+-                    current = testClass;
+-                    while (current != null) {
++                    queue = new LinkedList<ClassNode>();
++                    queue.add(testClass);
++                    if (testClass.isInterface()) {
++                        queue.addAll(testClass.getAllInterfaces());
++                    }
++                    while (!queue.isEmpty()) {
++                        ClassNode current = queue.removeFirst();
+                         current = current.redirect();
+ 
+                         MethodNode getter = current.getGetterMethod("get" + capName);
+@@ -827,7 +839,9 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                         }
+                         // if the property expression is an attribute expression (o.@attr), then
+                         // we stop now, otherwise we must check the parent class
+-                        current = isAttributeExpression ? null : current.getSuperClass();
++                        if (!isAttributeExpression && current.getSuperClass()!=null) {
++                            queue.add(current.getSuperClass());
++                        }
+                     }
+                 }
+                 // GROOVY-5568, the property may be defined by DGM
+diff --git a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+index 1d8a2fd3f4..bb79b937dc 100644
+--- a/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/MethodCallsSTCTest.groovy
+@@ -652,6 +652,74 @@ class MethodCallsSTCTest extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
++    // GROOVY-5580
++    void testGetNameAsPropertyFromSuperInterface() {
++        assertScript '''interface Upper { String getName() }
++        interface Lower extends Upper {}
++        String foo(Lower impl) {
++            impl.name // getName() called with the property notation
++        }
++        assert foo({ 'bar' } as Lower) == 'bar'
++        '''
++    }
++
++    void testGetNameAsPropertyFromSuperInterfaceUsingConcreteImpl() {
++        assertScript '''interface Upper { String getName() }
++        interface Lower extends Upper {}
++        class Foo implements Lower { String getName() { 'bar' } }
++        String foo(Foo impl) {
++            impl.name // getName() called with the property notation
++        }
++        assert foo(new Foo()) == 'bar'
++        '''
++    }
++
++    void testGetNameAsPropertyFromSuperInterfaceUsingConcreteImplSubclass() {
++        assertScript '''interface Upper { String getName() }
++        interface Lower extends Upper {}
++        class Foo implements Lower { String getName() { 'bar' } }
++        class Bar extends Foo {}
++        String foo(Bar impl) {
++            impl.name // getName() called with the property notation
++        }
++        assert foo(new Bar()) == 'bar'
++        '''
++    }
++
++    // GROOVY-5580: getName variant
++    void testGetNameFromSuperInterface() {
++        assertScript '''interface Upper { String getName() }
++        interface Lower extends Upper {}
++        String foo(Lower impl) {
++            impl.getName()
++        }
++        assert foo({ 'bar' } as Lower) == 'bar'
++        '''
++    }
++
++    void testGetNameFromSuperInterfaceUsingConcreteImpl() {
++        assertScript '''interface Upper { String getName() }
++        interface Lower extends Upper {}
++        class Foo implements Lower { String getName() { 'bar' } }
++        String foo(Foo impl) {
++             impl.getName()
++        }
++        assert foo(new Foo()) == 'bar'
++        '''
++    }
++
++    void testGetNameFromSuperInterfaceUsingConcreteImplSubclass() {
++        assertScript '''interface Upper { String getName() }
++        interface Lower extends Upper {}
++        class Foo implements Lower { String getName() { 'bar' } }
++        class Bar extends Foo {}
++        String foo(Bar impl) {
++             impl.getName()
++        }
++        assert foo(new Bar()) == 'bar'
++        '''
++    }
++
+     static class MyMethodCallTestClass {
+ 
+         static int mul(int... args) { args.toList().inject(1) { x,y -> x*y } }

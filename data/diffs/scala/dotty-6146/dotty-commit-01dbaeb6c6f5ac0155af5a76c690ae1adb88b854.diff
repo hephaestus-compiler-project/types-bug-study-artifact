@@ -1,0 +1,36 @@
+diff --git a/compiler/src/dotty/tools/dotc/core/TypeOps.scala b/compiler/src/dotty/tools/dotc/core/TypeOps.scala
+index 6ba033df4b..c7983eb8a2 100644
+--- a/compiler/src/dotty/tools/dotc/core/TypeOps.scala
++++ b/compiler/src/dotty/tools/dotc/core/TypeOps.scala
+@@ -265,10 +265,8 @@ trait TypeOps { this: Context => // TODO: Make standalone object.
+       def checkOverlapsBounds(lo: Type, hi: Type): Unit = {
+         //println(i"instantiating ${bounds.hi} with $argTypes")
+         //println(i" = ${instantiate(bounds.hi, argTypes)}")
+-        val hiBound = instantiate(bounds.hi, argTypes.mapConserve(_.bounds.hi))
+-        val loBound = instantiate(bounds.lo, argTypes.mapConserve(_.bounds.lo))
+-          // Note that argTypes can contain a TypeBounds type for arguments that are
+-          // not fully determined. In that case we need to check against the hi bound of the argument.
++        val hiBound = instantiate(bounds.hi, argTypes)
++        val loBound = instantiate(bounds.lo, argTypes)
+         if (!(lo <:< hiBound)) violations += ((arg, "upper", hiBound))
+         if (!(loBound <:< hi)) violations += ((arg, "lower", bounds.lo))
+       }
+diff --git a/tests/pos/i6146.scala b/tests/pos/i6146.scala
+new file mode 100644
+index 0000000000..c0a98c9100
+--- /dev/null
++++ b/tests/pos/i6146.scala
+@@ -0,0 +1,13 @@
++trait BS[T, S <: BS[T, S]]
++ trait IS extends BS[Int, IS]
++
++sealed trait BSElem[T, S <: BS[_, S]]
++  // old error: Type argument S does not conform to upper bound BS[Any, LazyRef(S)]
++
++object BSElem {
++  implicit val intStreamShape: BSElem[Int, IS] = ???
++}
++class Ops[A] {
++  def asJavaSeqStream[S <: BS[_, S]](implicit s: BSElem[A, S]): S = ???
++    // old error: Type argument S does not conform to upper bound BS[Any, LazyRef(S)]
++}

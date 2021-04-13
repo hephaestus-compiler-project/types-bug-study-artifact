@@ -1,0 +1,155 @@
+diff --git a/src/compiler/scala/tools/nsc/transform/ExtensionMethods.scala b/src/compiler/scala/tools/nsc/transform/ExtensionMethods.scala
+index d83cf68b3859..9d02228ab543 100644
+--- a/src/compiler/scala/tools/nsc/transform/ExtensionMethods.scala
++++ b/src/compiler/scala/tools/nsc/transform/ExtensionMethods.scala
+@@ -244,7 +244,10 @@ abstract class ExtensionMethods extends Transform with TypingTransformers {
+ 
+           // These three lines are assembling Foo.bar$extension[T1, T2, ...]($this)
+           // which leaves the actual argument application for extensionCall.
+-          val sel        = Select(gen.mkAttributedRef(companion), extensionMeth)
++          // SI-9542 We form the selection here from the thisType of the companion's owner. This is motivated
++          //         by the test case, and is a valid way to construct the reference because we know that this
++          //         method is also enclosed by that owner.
++          val sel        = Select(gen.mkAttributedRef(companion.owner.thisType, companion), extensionMeth)
+           val targs      = origTpeParams map (_.tpeHK)
+           val callPrefix = gen.mkMethodCall(sel, targs, This(origThis) :: Nil)
+ 
+diff --git a/src/reflect/scala/reflect/internal/Types.scala b/src/reflect/scala/reflect/internal/Types.scala
+index 2e6cd819b45c..e53b47e80873 100644
+--- a/src/reflect/scala/reflect/internal/Types.scala
++++ b/src/reflect/scala/reflect/internal/Types.scala
+@@ -3970,14 +3970,15 @@ trait Types
+     }
+   }
+ 
+-  def normalizePlus(tp: Type) = (
++  def normalizePlus(tp: Type): Type = {
+     if (isRawType(tp)) rawToExistential(tp)
+     else tp.normalize match {
+-      // Unify the two representations of module classes
+-      case st @ SingleType(_, sym) if sym.isModule => st.underlying.normalize
+-      case _                                       => tp.normalize
++      // Unify the representations of module classes
++      case st@SingleType(_, sym) if sym.isModule => st.underlying.normalize
++      case st@ThisType(sym) if sym.isModuleClass => normalizePlus(st.underlying)
++      case _ => tp.normalize
+     }
+-  )
++  }
+ 
+   /*
+   todo: change to:
+diff --git a/src/reflect/scala/reflect/internal/tpe/TypeComparers.scala b/src/reflect/scala/reflect/internal/tpe/TypeComparers.scala
+index f9b10c90beb5..e6d7b11cadd7 100644
+--- a/src/reflect/scala/reflect/internal/tpe/TypeComparers.scala
++++ b/src/reflect/scala/reflect/internal/tpe/TypeComparers.scala
+@@ -463,7 +463,7 @@ trait TypeComparers {
+         case SingletonClass                   => tp1.isStable || fourthTry
+         case _: ClassSymbol                   => classOnRight
+         case _: TypeSymbol if sym2.isDeferred => abstractTypeOnRight(tp2.bounds.lo) || fourthTry
+-        case _: TypeSymbol                    => retry(tp1.normalize, tp2.normalize)
++        case _: TypeSymbol                    => retry(normalizePlus(tp1), normalizePlus(tp2))
+         case _                                => fourthTry
+       }
+     }
+@@ -517,7 +517,7 @@ trait TypeComparers {
+      *   - handle typerefs, refined types, and singleton types.
+      */
+     def fourthTry = {
+-      def retry(lhs: Type, rhs: Type)  = isSubType(lhs, rhs, depth)
++      def retry(lhs: Type, rhs: Type)  = ((tp1 ne lhs) || (tp2 ne rhs)) && isSubType(lhs, rhs, depth)
+       def abstractTypeOnLeft(hi: Type) = isDifferentTypeConstructor(tp1, hi) && retry(hi, tp2)
+ 
+       tp1 match {
+@@ -526,22 +526,16 @@ trait TypeComparers {
+             case TypeRef(_, sym2, _) => sym1 isBottomSubClass sym2
+             case _                   => isSingleType(tp2) && retry(tp1, tp2.widen)
+           }
+-          def moduleOnLeft = tp2 match {
+-            case SingleType(pre2, sym2) => equalSymsAndPrefixes(sym1.sourceModule, pre1, sym2, pre2)
+-            case _                      => false
+-          }
+-          def classOnLeft = (
+-            if (isRawType(tp1)) retry(rawToExistential(tp1), tp2)
+-            else if (sym1.isModuleClass) moduleOnLeft
+-            else sym1.isRefinementClass && retry(sym1.info, tp2)
+-          )
++
+           sym1 match {
+-            case NothingClass                     => true
+-            case NullClass                        => nullOnLeft
+-            case _: ClassSymbol                   => classOnLeft
+-            case _: TypeSymbol if sym1.isDeferred => abstractTypeOnLeft(tp1.bounds.hi)
+-            case _: TypeSymbol                    => retry(tp1.normalize, tp2.normalize)
+-            case _                                => false
++            case NothingClass                             => true
++            case NullClass                                => nullOnLeft
++            case _: ClassSymbol if isRawType(tp1)         => retry(normalizePlus(tp1), normalizePlus(tp2))
++            case _: ClassSymbol if sym1.isModuleClass     => retry(normalizePlus(tp1), normalizePlus(tp2))
++            case _: ClassSymbol if sym1.isRefinementClass => retry(sym1.info, tp2)
++            case _: TypeSymbol if sym1.isDeferred         => abstractTypeOnLeft(tp1.bounds.hi)
++            case _: TypeSymbol                            => retry(normalizePlus(tp1), normalizePlus(tp2))
++            case _                                        => false
+           }
+         case RefinedType(parents, _) => parents exists (retry(_, tp2))
+         case _: SingletonType        => retry(tp1.underlying, tp2)
+diff --git a/test/files/pos/t9542.scala b/test/files/pos/t9542.scala
+new file mode 100644
+index 000000000000..d65f7ac4c6bd
+--- /dev/null
++++ b/test/files/pos/t9542.scala
+@@ -0,0 +1,8 @@
++object O {
++  trait T
++
++  class VC(val self: Any) extends AnyVal {
++    def extMethod(f: F1[T, Any]) = ()
++  }
++}
++trait F1[A, B]
+diff --git a/test/junit/scala/reflect/internal/TypesTest.scala b/test/junit/scala/reflect/internal/TypesTest.scala
+index 95194ef0a453..05a77cfb4763 100644
+--- a/test/junit/scala/reflect/internal/TypesTest.scala
++++ b/test/junit/scala/reflect/internal/TypesTest.scala
+@@ -1,9 +1,10 @@
+ package scala.reflect.internal
+ 
+ import org.junit.Assert._
+-import org.junit.Test
++import org.junit.{Assert, Test}
+ import org.junit.runner.RunWith
+ import org.junit.runners.JUnit4
++import scala.collection.mutable
+ import scala.tools.nsc.symtab.SymbolTableForUnitTesting
+ 
+ @RunWith(classOf[JUnit4])
+@@ -32,4 +33,29 @@ class TypesTest {
+     val uniquelyNarrowed2 = refinedType(boolWithString1narrow2 :: Nil, NoSymbol)
+     assert(uniquelyNarrowed1 =:= uniquelyNarrowed2)
+   }
++
++  @Test
++  def testTransitivityWithModuleTypeRef(): Unit = {
++    import rootMirror.EmptyPackageClass
++    val (module, moduleClass) = EmptyPackageClass.newModuleAndClassSymbol(TermName("O"), NoPosition, 0L)
++    val minfo = ClassInfoType(List(ObjectTpe), newScope, moduleClass)
++    module.moduleClass setInfo minfo
++    module setInfo module.moduleClass.tpe
++    val tp1 = TypeRef(ThisType(EmptyPackageClass), moduleClass, Nil)
++    val tp2 = SingleType(ThisType(EmptyPackageClass), module)
++    val tp3 = ThisType(moduleClass)
++    val tps = List(tp1, tp2, tp3)
++    val results = mutable.Buffer[String]()
++    tps.permutations.foreach {
++      case ts @ List(a, b, c) =>
++        def tsShownRaw = ts.map(t => showRaw(t)).mkString(", ")
++        if (a <:< b && b <:< c && !(a <:< c)) results += s"<:< intransitive: $tsShownRaw"
++        if (a =:= b && b =:= c && !(a =:= c)) results += s"=:= intransitive: $tsShownRaw"
++    }
++    results.toList match {
++      case Nil => // okay
++      case xs =>
++        Assert.fail(xs.mkString("\n"))
++    }
++  }
+ }

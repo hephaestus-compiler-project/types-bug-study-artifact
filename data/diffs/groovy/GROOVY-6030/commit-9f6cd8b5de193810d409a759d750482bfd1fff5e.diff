@@ -1,0 +1,59 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index f56627d91c..6f9b0511f5 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -798,7 +798,8 @@ public abstract class StaticTypeCheckingSupport {
+                 break;
+             }
+             ref = ref.getSuperClass();
+-            if (ref == null) dist += 2;
++            dist++;
++            if (ref == null) dist++ ;
+             dist = (dist+1)<<1;
+         }
+         return dist;
+diff --git a/src/test/groovy/transform/stc/BugsSTCTest.groovy b/src/test/groovy/transform/stc/BugsSTCTest.groovy
+index b1a4a97c60..5d9dfaded1 100644
+--- a/src/test/groovy/transform/stc/BugsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/BugsSTCTest.groovy
+@@ -333,4 +333,40 @@ class BugsSTCTest extends StaticTypeCheckingTestCase {
+         assert test([type:'default']) == 3
+         '''
+     }
++
++    void testShouldChooseFindMethodFromList() {
++        assertScript '''
++        class Mylist implements List<Object> {
++
++            int size() { }
++            boolean isEmpty() {}
++            boolean contains(final Object o) {}
++            Iterator iterator() {[].iterator()}
++            Object[] toArray() {}
++            Object[] toArray(final Object[] a) {}
++            boolean add(final Object e) {}
++            boolean remove(final Object o) {}
++            boolean containsAll(final Collection<?> c) {}
++            boolean addAll(final Collection c) {}
++            boolean addAll(final int index, final Collection c) {}
++            boolean removeAll(final Collection<?> c) {}
++            boolean retainAll(final Collection<?> c) {}
++            void clear() {}
++            Object get(final int index) {}
++            Object set(final int index, final Object element) {}
++            void add(final int index, final Object element) {}
++            Object remove(final int index) {}
++            int indexOf(final Object o) {}
++            int lastIndexOf(final Object o) {}
++            ListIterator listIterator() {}
++            ListIterator listIterator(final int index) {}
++            List subList(final int fromIndex, final int toIndex) {}
++        }
++
++           def whatthe(Mylist a) {
++               a.find { true }
++           }
++        whatthe(new Mylist())
++        '''
++    }
+ }

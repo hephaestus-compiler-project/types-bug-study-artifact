@@ -1,0 +1,64 @@
+diff --git a/src/main/java/org/codehaus/groovy/ast/ClassHelper.java b/src/main/java/org/codehaus/groovy/ast/ClassHelper.java
+index 60eaa47f40..98a1ba2263 100644
+--- a/src/main/java/org/codehaus/groovy/ast/ClassHelper.java
++++ b/src/main/java/org/codehaus/groovy/ast/ClassHelper.java
+@@ -399,7 +399,14 @@ public class ClassHelper {
+     public static MethodNode findSAM(ClassNode type) {
+         if (!Modifier.isAbstract(type.getModifiers())) return null;
+         if (type.isInterface()) {
+-            List<MethodNode> methods = type.getMethods();
++            List<MethodNode> methods;
++            if (type.isInterface()) {
++                // e.g. BinaryOperator extends BiFunction, BinaryOperator contains no abstract method, but it is really a SAM
++                methods = type.redirect().getAllDeclaredMethods();
++            } else {
++                methods = type.getMethods();
++            }
++
+             MethodNode found = null;
+             for (MethodNode mi : methods) {
+                 // ignore methods, that are not abstract and from Object
+diff --git a/src/main/java/org/codehaus/groovy/ast/tools/GenericsUtils.java b/src/main/java/org/codehaus/groovy/ast/tools/GenericsUtils.java
+index 653f3270cc..a7cf7c045d 100644
+--- a/src/main/java/org/codehaus/groovy/ast/tools/GenericsUtils.java
++++ b/src/main/java/org/codehaus/groovy/ast/tools/GenericsUtils.java
+@@ -444,6 +444,13 @@ public class GenericsUtils {
+             // have first to find matching super class or interface
+             Map <String,ClassNode> genSpec = createGenericsSpec(type);
+             ClassNode superClass = ClassHelper.getNextSuperClass(type,target);
++
++            if (superClass == null) {
++                if (ClassHelper.isPrimitiveType(type)) {
++                    superClass = ClassHelper.getNextSuperClass(ClassHelper.getWrapper(type), target);
++                }
++            }
++
+             if (superClass!=null){
+                 ClassNode corrected = GenericsUtils.correctToGenericsSpecRecurse(genSpec, superClass);
+                 extractSuperClassGenerics(corrected, target, spec);
+diff --git a/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index f83e32c97c..126cc41970 100644
+--- a/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/java/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -20,6 +20,7 @@
+ package org.codehaus.groovy.transform.stc;
+ 
+ import org.codehaus.groovy.GroovyBugError;
++import org.codehaus.groovy.ast.ClassHelper;
+ import org.codehaus.groovy.ast.ClassNode;
+ import org.codehaus.groovy.ast.GenericsType;
+ import org.codehaus.groovy.ast.MethodNode;
+@@ -1768,6 +1769,13 @@ public abstract class StaticTypeCheckingSupport {
+             // have first to find matching super class or interface
+             Map <String,ClassNode> genSpec = GenericsUtils.createGenericsSpec(type);
+             ClassNode superClass = getNextSuperClass(type,target);
++
++            if (superClass == null) {
++                if (ClassHelper.isPrimitiveType(type)) {
++                    superClass = ClassHelper.getNextSuperClass(ClassHelper.getWrapper(type), target);
++                }
++            }
++
+             if (superClass!=null){
+                 ClassNode corrected;
+                 if (missesGenericsTypes(type)) {

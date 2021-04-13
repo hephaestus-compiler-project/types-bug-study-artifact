@@ -1,0 +1,68 @@
+diff --git a/src/main/org/codehaus/groovy/ast/GenericsType.java b/src/main/org/codehaus/groovy/ast/GenericsType.java
+index 3a7424d339..df55f6db4c 100644
+--- a/src/main/org/codehaus/groovy/ast/GenericsType.java
++++ b/src/main/org/codehaus/groovy/ast/GenericsType.java
+@@ -287,12 +287,14 @@ public class GenericsType extends ASTNode {
+             for (int i = 0; i < redirectBoundGenericTypes.length && match; i++) {
+                 GenericsType redirectBoundType = redirectBoundGenericTypes[i];
+                 GenericsType classNodeType = cnTypes[i];
+-                if (classNodeType.isWildcard()) {
++                // The following code has been commented out because it causes GROOVY-5415
++                // However, commenting doesn't make any test fail, which is curious...
++ /*               if (classNodeType.isWildcard()) {
+                     for (ClassNode node : classNodeType.getUpperBounds()) {
+                         match = compareGenericsWithBound(node, bound);
+                         if (!match) return false;
+                     }
+-                } else if (classNodeType.isPlaceholder()) {
++                } else */if (classNodeType.isPlaceholder()) {
+                     if (redirectBoundType.isPlaceholder()) {
+                         match = classNodeType.getName().equals(redirectBoundType.getName());
+                     } else {
+diff --git a/src/test/groovy/transform/stc/GenericsSTCTest.groovy b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+index db58d9ea56..d2962b6c4e 100644
+--- a/src/test/groovy/transform/stc/GenericsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+@@ -445,6 +445,42 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
++    // GROOVY-5415
++    void testShouldUseMethodGenericType1() {
++        assertScript '''import groovy.transform.stc.GenericsSTCTest.ClassA
++        class ClassB {
++            void bar() {
++                def ClassA<Long> a = new ClassA<Long>();
++                a.foo(this.getClass());
++            }
++        }
++        new ClassB()
++        '''
++    }
++    // GROOVY-5415
++    void testShouldUseMethodGenericType2() {
++        shouldFailWithMessages '''import groovy.transform.stc.GenericsSTCTest.ClassA
++        class ClassB {
++            void bar() {
++                def ClassA<Long> a = new ClassA<Long>();
++                a.bar(this.getClass());
++            }
++        }
++        new ClassB()
++        ''', 'Cannot find matching method groovy.transform.stc.GenericsSTCTest$ClassA#bar'
++    }
++
+     static class MyList extends LinkedList<String> {}
++
++    public static class ClassA<T> {
++        public <X> Class<X> foo(Class<X> classType){
++            return classType;
++        }
++
++        public <X> Class<X> bar(Class<T> classType){
++            return null;
++        }
++    }
++
+ }
+ 

@@ -1,0 +1,72 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index 85d918bcc0..4fc46e3e6d 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -635,6 +635,15 @@ public abstract class StaticTypeCheckingSupport {
+             return true;
+         }
+ 
++        if (left.isGenericsPlaceHolder()) {
++            // GROOVY-7307
++            GenericsType[] genericsTypes = left.getGenericsTypes();
++            if (genericsTypes!=null && genericsTypes.length==1) {
++                // should always be the case, but safe guard is better
++                return genericsTypes[0].isCompatibleWith(right);
++            }
++        }
++
+         return false;
+     }
+ 
+diff --git a/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy7307Bug.groovy b/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy7307Bug.groovy
+new file mode 100644
+index 0000000000..22040e24b0
+--- /dev/null
++++ b/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy7307Bug.groovy
+@@ -0,0 +1,46 @@
++/*
++ * Copyright 2003-2015 the original author or authors.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++
++
++
++
++
++
++package org.codehaus.groovy.classgen.asm.sc.bugs
++
++import groovy.transform.stc.StaticTypeCheckingTestCase
++import org.codehaus.groovy.classgen.asm.sc.StaticCompilationTestSupport
++
++class Groovy7307Bug extends StaticTypeCheckingTestCase implements StaticCompilationTestSupport {
++    void testIncorrectInstanceOfInference() {
++        assertScript '''
++            static <T extends Number> T id(T value) {
++                value
++            }
++
++            // Narrower generic type: doesn't compile
++            static <U extends Integer> U id2(U value) {
++                id(value)
++            }
++
++            // Fixed type: compiles
++            static Integer id4(Integer value) {
++                id(value)
++            }
++        '''
++    }
++}

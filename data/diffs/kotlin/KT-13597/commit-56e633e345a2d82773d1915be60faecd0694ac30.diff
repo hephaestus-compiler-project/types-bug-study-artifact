@@ -1,0 +1,311 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/cfg/ControlFlowInformationProvider.kt b/compiler/frontend/src/org/jetbrains/kotlin/cfg/ControlFlowInformationProvider.kt
+index 53d01e0c346..1589b4502cc 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/cfg/ControlFlowInformationProvider.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/cfg/ControlFlowInformationProvider.kt
+@@ -16,7 +16,7 @@
+ 
+ package org.jetbrains.kotlin.cfg
+ 
+-import com.intellij.psi.util.PsiTreeUtil
++import com.intellij.psi.util.PsiTreeUtil.getParentOfType
+ import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+ import org.jetbrains.kotlin.cfg.TailRecursionKind.*
+ import org.jetbrains.kotlin.cfg.VariableUseState.*
+@@ -359,37 +359,34 @@ class ControlFlowInformationProvider private constructor(
+         }
+     }
+ 
+-    private fun getDeclarationDescriptor(declaration: KtDeclaration?): DeclarationDescriptor? {
+-        val descriptor = trace.get(BindingContext.DECLARATION_TO_DESCRIPTOR, declaration)
+-        return if (descriptor is ClassDescriptor) {
+-            // For a class primary constructor, we cannot directly get ConstructorDescriptor by KtClassInitializer,
+-            // so we have to do additional conversion: KtClassInitializer -> KtClassOrObject -> ClassDescriptor -> ConstructorDescriptor
+-            descriptor.unsubstitutedPrimaryConstructor
+-        }
+-        else {
+-            descriptor
+-        }
+-    }
+-
+     private fun isCapturedWrite(
+             variableDescriptor: VariableDescriptor,
+             writeValueInstruction: WriteValueInstruction
+     ): Boolean {
+         val containingDeclarationDescriptor = variableDescriptor.containingDeclaration
+-        // Do not consider member / top-level properties
+-        if (containingDeclarationDescriptor is ClassOrPackageFragmentDescriptor) return false
++        // Do not consider top-level properties
++        if (containingDeclarationDescriptor is PackageFragmentDescriptor) return false
+         var parentDeclaration = getElementParentDeclaration(writeValueInstruction.element)
+         while (true) {
+-            val parentDescriptor = getDeclarationDescriptor(parentDeclaration)
+-            if (containingDeclarationDescriptor == parentDescriptor) {
++            val context = trace.bindingContext
++            val parentDescriptor = getDeclarationDescriptorIncludingConstructors(context, parentDeclaration)
++            if (parentDescriptor == containingDeclarationDescriptor) {
+                 return false
+             }
+-            else if (parentDeclaration is KtObjectDeclaration) {
+-                // anonymous object counts here the same as its owner
+-                parentDeclaration = getElementParentDeclaration(parentDeclaration)
+-            }
+-            else {
+-                return true
++            when (parentDeclaration) {
++                is KtObjectDeclaration, is KtClassInitializer -> {
++                    // anonymous objects / initializers count here the same as its owner
++                    parentDeclaration = getElementParentDeclaration(parentDeclaration)
++                }
++                is KtDeclarationWithBody -> {
++                    if (parentDeclaration is KtFunction && parentDeclaration.isLocal) return true
++                    // miss non-local function or accessor just once
++                    parentDeclaration = getElementParentDeclaration(parentDeclaration)
++                    return getDeclarationDescriptorIncludingConstructors(context, parentDeclaration) != containingDeclarationDescriptor
++                }
++                else -> {
++                    return true
++                }
+             }
+         }
+     }
+@@ -403,7 +400,7 @@ class ControlFlowInformationProvider private constructor(
+         val variableDescriptor = ctxt.variableDescriptor
+         val propertyDescriptor = variableDescriptor?.referencedProperty
+         if (KtPsiUtil.isBackingFieldReference(variableDescriptor) && propertyDescriptor != null) {
+-            val accessor = PsiTreeUtil.getParentOfType(expression, KtPropertyAccessor::class.java)
++            val accessor = getParentOfType(expression, KtPropertyAccessor::class.java)
+             if (accessor != null) {
+                 val accessorDescriptor = trace.get(BindingContext.DECLARATION_TO_DESCRIPTOR, accessor)
+                 if (propertyDescriptor.getter === accessorDescriptor) {
+@@ -936,7 +933,7 @@ class ControlFlowInformationProvider private constructor(
+     }
+ 
+     private fun isInsideTry(element: KtElement) =
+-            PsiTreeUtil.getParentOfType(
++            getParentOfType(
+                     element,
+                     KtTryExpression::class.java, KtFunction::class.java, KtAnonymousInitializer::class.java
+             ) is KtTryExpression
+@@ -1043,9 +1040,23 @@ class ControlFlowInformationProvider private constructor(
+ 
+     companion object {
+ 
+-        // Should return KtDeclarationWithBody or KtClassOrObject
++        // Should return KtDeclarationWithBody, KtClassOrObject, or KtClassInitializer
+         fun getElementParentDeclaration(element: KtElement) =
+-                PsiTreeUtil.getParentOfType(element, KtDeclarationWithBody::class.java, KtClassOrObject::class.java)
++                getParentOfType(element, KtDeclarationWithBody::class.java, KtClassOrObject::class.java, KtClassInitializer::class.java)
++
++        fun getDeclarationDescriptorIncludingConstructors(context: BindingContext, declaration: KtDeclaration?): DeclarationDescriptor? {
++            val descriptor = context.get(DECLARATION_TO_DESCRIPTOR,
++                                       (declaration as? KtClassInitializer)?.containingDeclaration ?: declaration)
++            return if (descriptor is ClassDescriptor && declaration is KtClassInitializer) {
++                // For a class primary constructor, we cannot directly get ConstructorDescriptor by KtClassInitializer,
++                // so we have to do additional conversion: KtClassInitializer -> KtClassOrObject -> ClassDescriptor -> ConstructorDescriptor
++                descriptor.unsubstitutedPrimaryConstructor
++                ?: (descriptor as? ClassDescriptorWithResolutionScopes)?.scopeForInitializerResolution?.ownerDescriptor
++            }
++            else {
++                descriptor
++            }
++        }
+ 
+         private fun isUsedAsResultOfLambda(usages: List<Instruction>): Boolean {
+             for (usage in usages) {
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValueFactory.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValueFactory.kt
+index 08c3bbdacbf..fd85c3c0def 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValueFactory.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/DataFlowValueFactory.kt
+@@ -269,19 +269,6 @@ object DataFlowValueFactory {
+         else -> IdentifierInfo.NO
+     }
+ 
+-    private fun getVariableContainingDeclaration(variableDescriptor: VariableDescriptor): DeclarationDescriptor {
+-        val containingDeclarationDescriptor = variableDescriptor.containingDeclaration
+-        return if (containingDeclarationDescriptor is ConstructorDescriptor && containingDeclarationDescriptor.isPrimary) {
+-            // This code is necessary just because JetClassInitializer has no associated descriptor in trace
+-            // Because of it we have to use class itself instead of initializer,
+-            // otherwise we could not find this descriptor inside isAccessedInsideClosure below
+-            containingDeclarationDescriptor.containingDeclaration
+-        }
+-        else {
+-            containingDeclarationDescriptor
+-        }
+-    }
+-
+     private fun isAccessedInsideClosure(
+             variableContainingDeclaration: DeclarationDescriptor,
+             bindingContext: BindingContext,
+@@ -290,7 +277,8 @@ object DataFlowValueFactory {
+         val parent = ControlFlowInformationProvider.getElementParentDeclaration(accessElement)
+         return if (parent != null)
+             // Access is at the same declaration: not in closure, lower: in closure
+-            variableContainingDeclaration != bindingContext.get(DECLARATION_TO_DESCRIPTOR, parent)
++            ControlFlowInformationProvider.getDeclarationDescriptorIncludingConstructors(bindingContext, parent) !=
++                    variableContainingDeclaration
+         else
+             false
+     }
+@@ -304,7 +292,7 @@ object DataFlowValueFactory {
+         // All writers should be before access element, with the exception:
+         // writer which is the same with declaration site does not count
+         writers.filterNotNull().forEach { writer ->
+-            val writerDescriptor = bindingContext.get(DECLARATION_TO_DESCRIPTOR, writer)
++            val writerDescriptor = ControlFlowInformationProvider.getDeclarationDescriptorIncludingConstructors(bindingContext, writer)
+             // Access is after some writer
+             if (variableContainingDeclaration != writerDescriptor && !accessElement.before(writer)) {
+                 return false
+@@ -351,7 +339,7 @@ object DataFlowValueFactory {
+         if (writers.isEmpty()) return STABLE_VARIABLE
+ 
+         // If access element is inside closure: captured
+-        val variableContainingDeclaration = getVariableContainingDeclaration(variableDescriptor)
++        val variableContainingDeclaration = variableDescriptor.containingDeclaration
+         if (isAccessedInsideClosure(variableContainingDeclaration, bindingContext, accessElement)) return CAPTURED_VARIABLE
+ 
+         // Otherwise, stable iff considered position is BEFORE all writers except declarer itself
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/AssignedVariablesSearcher.kt b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/AssignedVariablesSearcher.kt
+index 6e70e5786d6..caf034738eb 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/AssignedVariablesSearcher.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/AssignedVariablesSearcher.kt
+@@ -35,13 +35,9 @@ abstract class AssignedVariablesSearcher: KtTreeVisitorVoid() {
+ 
+     override fun visitDeclaration(declaration: KtDeclaration) {
+         val previous = currentDeclaration
+-        if (declaration is KtDeclarationWithBody || declaration is KtClassOrObject) {
++        if (declaration is KtDeclarationWithBody || declaration is KtClassOrObject || declaration is KtAnonymousInitializer) {
+             currentDeclaration = declaration
+         }
+-        else if (declaration is KtAnonymousInitializer) {
+-            // Go to class declaration: init -> body -> class
+-            currentDeclaration = declaration.parent.parent as KtDeclaration
+-        }
+         super.visitDeclaration(declaration)
+         currentDeclaration = previous
+     }
+diff --git a/compiler/testData/diagnostics/tests/controlFlowAnalysis/assignmentInLocalsInConstructor.kt b/compiler/testData/diagnostics/tests/controlFlowAnalysis/assignmentInLocalsInConstructor.kt
+index 029570b0ff6..79d545aa3b8 100644
+--- a/compiler/testData/diagnostics/tests/controlFlowAnalysis/assignmentInLocalsInConstructor.kt
++++ b/compiler/testData/diagnostics/tests/controlFlowAnalysis/assignmentInLocalsInConstructor.kt
+@@ -7,7 +7,7 @@ class Test {
+         val t = object {
+             fun some() {
+                 // See KT-13597
+-                a = "12"
++                <!CAPTURED_VAL_INITIALIZATION!>a<!> = "12"
+             }
+         }
+ 
+@@ -41,8 +41,27 @@ class Test4 {
+     init {
+         exec {
+             // See KT-14381
+-            a = "12"
++            <!CAPTURED_VAL_INITIALIZATION!>a<!> = "12"
+         }
+         a = "34"
+     }
+ }
++
++// Additional tests to prevent something broken
++
++class Test5 {
++
++    val y: Int
++
++    val z: String
++
++    init {
++        val x: String
++        x = ""
++        z = x
++    }
++
++    constructor(y: Int) {
++        this.y = y
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/controlFlowAnalysis/assignmentInLocalsInConstructor.txt b/compiler/testData/diagnostics/tests/controlFlowAnalysis/assignmentInLocalsInConstructor.txt
+index 52fe0a0df9a..cd4a2b09c30 100644
+--- a/compiler/testData/diagnostics/tests/controlFlowAnalysis/assignmentInLocalsInConstructor.txt
++++ b/compiler/testData/diagnostics/tests/controlFlowAnalysis/assignmentInLocalsInConstructor.txt
+@@ -25,3 +25,12 @@ public final class Test4 {
+     public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
+     public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
+ }
++
++public final class Test5 {
++    public constructor Test5(/*0*/ y: kotlin.Int)
++    public final val y: kotlin.Int
++    public final val z: kotlin.String
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/varInInitNoPrimary.kt b/compiler/testData/diagnostics/tests/smartCasts/varInInitNoPrimary.kt
+new file mode 100644
+index 00000000000..4f7e1c2cad4
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/smartCasts/varInInitNoPrimary.kt
+@@ -0,0 +1,22 @@
++class Your {
++    init {
++        var y: String? = "xyz"
++        if (y != null) {
++            // Bug that should be fixed
++            // Problem: descriptorToDeclaration cannot get here init block by its descriptor
++            // See PreliminaryDeclarationVisitor.getVisitorByVariable
++            <!SMARTCAST_IMPOSSIBLE!>y<!>.hashCode()
++        }
++    }
++
++    constructor()
++}
++
++class Normal {
++    init {
++        var y: String? = "xyz"
++        if (y != null) {
++            <!DEBUG_INFO_SMARTCAST!>y<!>.hashCode()
++        }
++    }
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/varInInitNoPrimary.txt b/compiler/testData/diagnostics/tests/smartCasts/varInInitNoPrimary.txt
+new file mode 100644
+index 00000000000..ad151601f2c
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/smartCasts/varInInitNoPrimary.txt
+@@ -0,0 +1,15 @@
++package
++
++public final class Normal {
++    public constructor Normal()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Your {
++    public constructor Your()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 0e0f5855289..c611b14f3ba 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -19867,6 +19867,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("varInInitNoPrimary.kt")
++            public void testVarInInitNoPrimary() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/smartCasts/varInInitNoPrimary.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("varInInitializer.kt")
+             public void testVarInInitializer() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/smartCasts/varInInitializer.kt");

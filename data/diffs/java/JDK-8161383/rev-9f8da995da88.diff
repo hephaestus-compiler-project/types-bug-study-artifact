@@ -1,0 +1,73 @@
+changeset:   3541:9f8da995da88
+parent:      3539:2764986661b6
+user:        vromero
+date:        Tue Jul 19 11:27:56 2016 -0700
+summary:     8161383: javac is looking for operator symbols at the wrong place
+
+diff -r 2764986661b6 -r 9f8da995da88 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Lower.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Lower.java	Thu Jul 14 13:30:56 2016 -0700
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Lower.java	Tue Jul 19 11:27:56 2016 -0700
+@@ -902,13 +902,7 @@
+     /** Return binary operator that corresponds to given access code.
+      */
+     private OperatorSymbol binaryAccessOperator(int acode) {
+-        for (Symbol sym : syms.predefClass.members().getSymbols(NON_RECURSIVE)) {
+-            if (sym instanceof OperatorSymbol) {
+-                OperatorSymbol op = (OperatorSymbol)sym;
+-                if (accessCode(op.opcode) == acode) return op;
+-            }
+-        }
+-        return null;
++        return (OperatorSymbol)operators.lookupBinaryOp(sym -> accessCode(((OperatorSymbol)sym).opcode) == acode);
+     }
+ 
+     /** Return tree tag for assignment operation corresponding
+diff -r 2764986661b6 -r 9f8da995da88 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Operators.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Operators.java	Thu Jul 14 13:30:56 2016 -0700
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Operators.java	Tue Jul 19 11:27:56 2016 -0700
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
++ * Copyright (c) 2015, 2016, Oracle and/or its affiliates. All rights reserved.
+  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+  *
+  * This code is free software; you can redistribute it and/or modify it
+@@ -798,6 +798,15 @@
+                     .addBinaryOperator(BOOLEAN, BOOLEAN, BOOLEAN, bool_or));
+     }
+ 
++    Symbol lookupBinaryOp(Predicate<Symbol> applicabilityTest) {
++        return binaryOperators.values().stream()
++                .flatMap(List::stream)
++                .map(helper -> helper.doLookup(applicabilityTest))
++                .distinct()
++                .filter(sym -> sym != syms.noSymbol)
++                .findFirst().get();
++    }
++
+     /**
+      * Complete the initialization of an operator helper by storing it into the corresponding operator map.
+      */
+diff -r 2764986661b6 -r 9f8da995da88 test/tools/javac/T8161383/LookingForOperatorSymbolsAtWrongPlaceTest.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/T8161383/LookingForOperatorSymbolsAtWrongPlaceTest.java	Tue Jul 19 11:27:56 2016 -0700
+@@ -0,0 +1,18 @@
++/**
++ * @test /nodynamiccopyright/
++ * @bug 8161383
++ * @summary javac is looking for operator symbols at the wrong place
++ * @compile LookingForOperatorSymbolsAtWrongPlaceTest.java
++ */
++
++public class LookingForOperatorSymbolsAtWrongPlaceTest {
++    class Base {
++        protected int i = 1;
++    }
++
++    class Sub extends Base {
++        void func(){
++            Sub.super.i += 10;
++        }
++    }
++}
+

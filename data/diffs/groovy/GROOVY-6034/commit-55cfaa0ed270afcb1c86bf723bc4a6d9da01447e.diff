@@ -1,0 +1,34 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index 6f9b0511f5..490e082c4a 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -564,9 +564,10 @@ public abstract class StaticTypeCheckingSupport {
+ 
+         // on an assignment everything that can be done by a GroovyCast is allowed
+ 
+-        // anything can be assigned to an Object, String, boolean, Boolean
++        // anything can be assigned to an Object, String, Boolean
+         // or Class typed variable
+-        if (isWildcardLeftHandSide(leftRedirect)) return true;
++        if (isWildcardLeftHandSide(leftRedirect)
++                && !(boolean_TYPE.equals(left) && rightExpressionIsNull)) return true;
+ 
+         // char as left expression
+         if (leftRedirect == char_TYPE && rightRedirect==STRING_TYPE) {
+diff --git a/src/test/groovy/transform/stc/STCAssignmentTest.groovy b/src/test/groovy/transform/stc/STCAssignmentTest.groovy
+index a7b65e9f4b..05c27df018 100644
+--- a/src/test/groovy/transform/stc/STCAssignmentTest.groovy
++++ b/src/test/groovy/transform/stc/STCAssignmentTest.groovy
+@@ -334,6 +334,12 @@ class STCAssignmentTest extends StaticTypeCheckingTestCase {
+         ''', 'Cannot assign value of type java.lang.Object to variable of type char'
+     }
+ 
++    void testCastNullToBoolean() {
++        shouldFailWithMessages '''
++            boolean c = null
++        ''', 'Cannot assign value of type java.lang.Object to variable of type boolean'
++    }
++
+     void testCastStringToCharacter() {
+         assertScript '''
+             Character c = 'a'

@@ -1,0 +1,742 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolver.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolver.java
+index b5c9698077a..9b6fb2758ff 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolver.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolver.java
+@@ -44,6 +44,7 @@ import org.jetbrains.kotlin.resolve.scopes.JetScope;
+ import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver;
+ import org.jetbrains.kotlin.resolve.scopes.receivers.ReceiverValue;
+ import org.jetbrains.kotlin.types.JetType;
++import org.jetbrains.kotlin.types.TypeSubstitutor;
+ import org.jetbrains.kotlin.types.expressions.ExpressionTypingContext;
+ import org.jetbrains.kotlin.types.expressions.ExpressionTypingServices;
+ 
+@@ -296,12 +297,10 @@ public class CallResolver {
+         // when super call should be conventional enum constructor and super call should be empty
+         if (call == null) return null;
+ 
+-        JetType superClassType = DescriptorUtils.getSuperClassType(constructorDescriptor.getContainingDeclaration());
+-
+         BasicCallResolutionContext context = BasicCallResolutionContext.create(
+                 trace, scope,
+                 CallMaker.makeCall(ReceiverValue.NO_RECEIVER, null, call),
+-                superClassType != null ? superClassType : NO_EXPECTED_TYPE,
++                NO_EXPECTED_TYPE,
+                 dataFlowInfo, ContextDependency.INDEPENDENT, CheckValueArgumentsMode.ENABLED,
+                 expressionTypingServices.getCallChecker(), expressionTypingServices.getAdditionalTypeChecker(), false);
+ 
+@@ -353,11 +352,16 @@ public class CallResolver {
+                                                     ((ClassDescriptor) delegateClassDescriptor.getContainingDeclaration()).
+                                                             getThisAsReceiverParameter().getValue();
+ 
++        JetType expectedType = isThisCall ?
++                               calleeConstructor.getContainingDeclaration().getDefaultType() :
++                               DescriptorUtils.getSuperClassType(currentClassDescriptor);
++
++        TypeSubstitutor knownTypeParametersSubstitutor = TypeSubstitutor.create(expectedType);
+         for (CallableDescriptor descriptor : constructors) {
+             candidates.add(ResolutionCandidate.create(
+                     context.call, descriptor, constructorDispatchReceiver, ReceiverValue.NO_RECEIVER,
+-                    ExplicitReceiverKind.NO_EXPLICIT_RECEIVER
+-            ));
++                    ExplicitReceiverKind.NO_EXPLICIT_RECEIVER,
++                    knownTypeParametersSubstitutor));
+         }
+ 
+         return computeTasksFromCandidatesAndResolvedCall(context, calleeExpression, candidates, CallTransformer.FUNCTION_CALL_TRANSFORMER);
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallTransformer.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallTransformer.java
+index 88effae1222..095d489fec7 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallTransformer.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallTransformer.java
+@@ -114,8 +114,8 @@ public class CallTransformer<D extends CallableDescriptor, F extends D> {
+                     candidate.getDescriptor(),
+                     candidate.getDispatchReceiver(),
+                     candidate.getExtensionReceiver(),
+-                    candidate.getExplicitReceiverKind()
+-            );
++                    candidate.getExplicitReceiverKind(),
++                    null);
+             if (!hasReceiver) {
+                 CallCandidateResolutionContext<CallableDescriptor> context = CallCandidateResolutionContext.create(
+                         ResolvedCallImpl.create(variableCandidate, candidateTrace, task.tracing, task.dataFlowInfoForArguments),
+@@ -131,7 +131,7 @@ public class CallTransformer<D extends CallableDescriptor, F extends D> {
+                     candidate.getDescriptor(),
+                     candidate.getDispatchReceiver(),
+                     ReceiverValue.NO_RECEIVER,
+-                    ExplicitReceiverKind.NO_EXPLICIT_RECEIVER);
++                    ExplicitReceiverKind.NO_EXPLICIT_RECEIVER, null);
+ 
+             CallCandidateResolutionContext<CallableDescriptor> contextWithoutReceiver = createContextWithChainedTrace(
+                     candidateWithoutReceiver, variableCallWithoutReceiver, candidateTrace, task, variableCall.getExplicitReceiver());
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.java
+index fcb160acda3..dcd2dcada04 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CandidateResolver.java
+@@ -153,8 +153,13 @@ public class CandidateResolver {
+ 
+             candidateCall.setResultingSubstitutor(substitutor);
+         }
++        else if (candidateCall.getKnownTypeParametersSubstitutor() != null) {
++            candidateCall.setResultingSubstitutor(candidateCall.getKnownTypeParametersSubstitutor());
++        }
+ 
+-        if (jetTypeArguments.isEmpty() && !candidate.getTypeParameters().isEmpty()) {
++        if (jetTypeArguments.isEmpty() &&
++            !candidate.getTypeParameters().isEmpty() &&
++            candidateCall.getKnownTypeParametersSubstitutor() == null) {
+             candidateCall.addStatus(inferTypeArguments(context));
+         }
+         else {
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/model/MutableResolvedCall.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/model/MutableResolvedCall.java
+index 2e19257e70f..e1a5ec11048 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/model/MutableResolvedCall.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/model/MutableResolvedCall.java
+@@ -56,6 +56,9 @@ public interface MutableResolvedCall<D extends CallableDescriptor> extends Resol
+ 
+     void setResultingSubstitutor(@NotNull TypeSubstitutor substitutor);
+ 
++    @Nullable
++    TypeSubstitutor getKnownTypeParametersSubstitutor();
++
+     //todo remove: use value to parameter map status
+     boolean hasInferredReturnType();
+ }
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/model/ResolvedCallImpl.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/model/ResolvedCallImpl.java
+index e968f31783d..8bd4d35b948 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/model/ResolvedCallImpl.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/model/ResolvedCallImpl.java
+@@ -77,6 +77,7 @@ public class ResolvedCallImpl<D extends CallableDescriptor> implements MutableRe
+     private final ReceiverValue dispatchReceiver; // receiver object of a method
+     private final ReceiverValue extensionReceiver; // receiver of an extension function
+     private final ExplicitReceiverKind explicitReceiverKind;
++    private final TypeSubstitutor knownTypeParametersSubstitutor;
+ 
+     private final Map<TypeParameterDescriptor, JetType> typeArguments = Maps.newLinkedHashMap();
+     private final Map<ValueParameterDescriptor, ResolvedValueArgument> valueArguments = Maps.newLinkedHashMap();
+@@ -101,6 +102,7 @@ public class ResolvedCallImpl<D extends CallableDescriptor> implements MutableRe
+         this.dispatchReceiver = candidate.getDispatchReceiver();
+         this.extensionReceiver = candidate.getExtensionReceiver();
+         this.explicitReceiverKind = candidate.getExplicitReceiverKind();
++        this.knownTypeParametersSubstitutor = candidate.getKnownTypeParametersResultingSubstitutor();
+         this.trace = trace;
+         this.tracing = tracing;
+         this.dataFlowInfoForArguments = dataFlowInfoForArguments;
+@@ -323,4 +325,10 @@ public class ResolvedCallImpl<D extends CallableDescriptor> implements MutableRe
+     private void assertNotCompleted(String elementName) {
+         assert !completed: elementName + " is erased after resolution completion.";
+     }
++
++    @Override
++    @Nullable
++    public TypeSubstitutor getKnownTypeParametersSubstitutor() {
++        return knownTypeParametersSubstitutor;
++    }
+ }
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tasks/ResolutionCandidate.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tasks/ResolutionCandidate.java
+index bb2ab33c1cf..f3b91778283 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tasks/ResolutionCandidate.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tasks/ResolutionCandidate.java
+@@ -16,46 +16,49 @@
+ 
+ package org.jetbrains.kotlin.resolve.calls.tasks;
+ 
+-import com.google.common.collect.Lists;
+ import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
+ import org.jetbrains.kotlin.descriptors.CallableDescriptor;
+ import org.jetbrains.kotlin.psi.Call;
+ import org.jetbrains.kotlin.resolve.scopes.receivers.ReceiverValue;
+-
+-import java.util.Collection;
+-import java.util.List;
++import org.jetbrains.kotlin.types.TypeSubstitutor;
+ 
+ import static org.jetbrains.kotlin.resolve.scopes.receivers.ReceiverValue.NO_RECEIVER;
+ 
+ public class ResolutionCandidate<D extends CallableDescriptor> {
+     private final Call call;
+     private final D candidateDescriptor;
++    private final TypeSubstitutor knownTypeParametersResultingSubstitutor;
+     private ReceiverValue dispatchReceiver; // receiver object of a method
+     private ReceiverValue extensionReceiver; // receiver of an extension function
+     private ExplicitReceiverKind explicitReceiverKind;
+ 
+     private ResolutionCandidate(
+             @NotNull Call call, @NotNull D descriptor, @NotNull ReceiverValue dispatchReceiver,
+-            @NotNull ReceiverValue extensionReceiver, @NotNull ExplicitReceiverKind explicitReceiverKind
++            @NotNull ReceiverValue extensionReceiver, @NotNull ExplicitReceiverKind explicitReceiverKind,
++            @Nullable TypeSubstitutor knownTypeParametersResultingSubstitutor
+     ) {
+         this.call = call;
+         this.candidateDescriptor = descriptor;
+         this.dispatchReceiver = dispatchReceiver;
+         this.extensionReceiver = extensionReceiver;
+         this.explicitReceiverKind = explicitReceiverKind;
++        this.knownTypeParametersResultingSubstitutor = knownTypeParametersResultingSubstitutor;
+     }
+ 
+     public static <D extends CallableDescriptor> ResolutionCandidate<D> create(
+             @NotNull Call call, @NotNull D descriptor
+     ) {
+-        return new ResolutionCandidate<D>(call, descriptor, NO_RECEIVER, NO_RECEIVER, ExplicitReceiverKind.NO_EXPLICIT_RECEIVER);
++        return new ResolutionCandidate<D>(call, descriptor, NO_RECEIVER, NO_RECEIVER, ExplicitReceiverKind.NO_EXPLICIT_RECEIVER, null);
+     }
+ 
+     public static <D extends CallableDescriptor> ResolutionCandidate<D> create(
+             @NotNull Call call, @NotNull D descriptor, @NotNull ReceiverValue dispatchReceiver,
+-            @NotNull ReceiverValue receiverArgument, @NotNull ExplicitReceiverKind explicitReceiverKind
++            @NotNull ReceiverValue receiverArgument, @NotNull ExplicitReceiverKind explicitReceiverKind,
++            @Nullable TypeSubstitutor knownTypeParametersResultingSubstitutor
+     ) {
+-        return new ResolutionCandidate<D>(call, descriptor, dispatchReceiver, receiverArgument, explicitReceiverKind);
++        return new ResolutionCandidate<D>(call, descriptor, dispatchReceiver, receiverArgument, explicitReceiverKind,
++                                          knownTypeParametersResultingSubstitutor);
+     }
+ 
+     public void setDispatchReceiver(@NotNull ReceiverValue dispatchReceiver) {
+@@ -95,6 +98,11 @@ public class ResolutionCandidate<D extends CallableDescriptor> {
+         return explicitReceiverKind;
+     }
+ 
++    @Nullable
++    public TypeSubstitutor getKnownTypeParametersResultingSubstitutor() {
++        return knownTypeParametersResultingSubstitutor;
++    }
++
+     @Override
+     public String toString() {
+         return candidateDescriptor.toString();
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java
+index a88559c8358..9dead9d0906 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/BasicExpressionTypingVisitor.java
+@@ -424,7 +424,7 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
+         Call call = CallMaker.makeCall(expression, NO_RECEIVER, null, expression, Collections.<ValueArgument>emptyList());
+         ResolutionCandidate<ReceiverParameterDescriptor> resolutionCandidate =
+                 ResolutionCandidate.create(
+-                        call, descriptor, NO_RECEIVER, NO_RECEIVER, ExplicitReceiverKind.NO_EXPLICIT_RECEIVER);
++                        call, descriptor, NO_RECEIVER, NO_RECEIVER, ExplicitReceiverKind.NO_EXPLICIT_RECEIVER, null);
+ 
+         ResolvedCallImpl<ReceiverParameterDescriptor> resolvedCall =
+                 ResolvedCallImpl.create(resolutionCandidate,
+diff --git a/compiler/testData/diagnostics/tests/secondaryConstructors/generics.kt b/compiler/testData/diagnostics/tests/secondaryConstructors/generics.kt
+index 2fe8ef6fbb1..9995a37a28d 100644
+--- a/compiler/testData/diagnostics/tests/secondaryConstructors/generics.kt
++++ b/compiler/testData/diagnostics/tests/secondaryConstructors/generics.kt
+@@ -1,7 +1,7 @@
+-// !DIAGNOSTICS: -UNUSED_PARAMETER
++// !DIAGNOSTICS: -UNUSED_PARAMETER -UNREACHABLE_CODE
+ open class B<T>(x: T, y: T) {
+     constructor(x: T): this(x, x) {}
+-    constructor(): this(null) {}
++    constructor(): this(null!!, null!!) {}
+ }
+ 
+ class A0 : B<String?> {
+@@ -16,3 +16,6 @@ class A1<R> : B<R> {
+     constructor(x: R, y: R): super(x, y) {}
+ }
+ 
++class A2<R> {
++    constructor(t: R, i: Int) : <!CYCLIC_CONSTRUCTOR_DELEGATION_CALL!>this<!>(<!TYPE_MISMATCH!>i<!>, 1) {}
++}
+diff --git a/compiler/testData/diagnostics/tests/secondaryConstructors/generics.txt b/compiler/testData/diagnostics/tests/secondaryConstructors/generics.txt
+index 8540d30585e..f4f62d60bfe 100644
+--- a/compiler/testData/diagnostics/tests/secondaryConstructors/generics.txt
++++ b/compiler/testData/diagnostics/tests/secondaryConstructors/generics.txt
+@@ -18,6 +18,13 @@ internal final class A1</*0*/ R> : B<R> {
+     public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
+ }
+ 
++internal final class A2</*0*/ R> {
++    public constructor A2</*0*/ R>(/*0*/ t: R, /*1*/ i: kotlin.Int)
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
+ internal open class B</*0*/ T> {
+     public constructor B</*0*/ T>()
+     public constructor B</*0*/ T>(/*0*/ x: T)
+diff --git a/compiler/testData/diagnostics/tests/secondaryConstructors/generics2.kt b/compiler/testData/diagnostics/tests/secondaryConstructors/generics2.kt
+new file mode 100644
+index 00000000000..4a4c28f65e6
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/secondaryConstructors/generics2.kt
+@@ -0,0 +1,26 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++open class B<R1, R2>(x: R1, y: R2)
++
++class A0<T1, T2> {
++    constructor(x: T1, y: T2): <!CYCLIC_CONSTRUCTOR_DELEGATION_CALL!>this<!>(x, y) {}
++
++    constructor(x: T1, y: T2, z: T2): this(x, 1) {} // ok, delegates to constructor(x: T1, y: Int)
++
++    constructor(x: T1, y: Int): <!NONE_APPLICABLE!>this<!>(x, "") {}
++    constructor(x: T1): this(x, 1) {}
++    constructor(x: T1, y: T2, z: String): <!NONE_APPLICABLE!>this<!>(y, x) {}
++}
++
++class A1<T1, T2> : B<T1, T2> {
++    constructor(x: T1, y: T2): super(x, y) {}
++    constructor(x: T1, y: Int): super(x, <!TYPE_MISMATCH(T2; kotlin.Int)!>y<!>) {}
++    constructor(x: T1, y: T1, z: T1): super(x, <!TYPE_MISMATCH(T2; T1)!>y<!>) {}
++}
++
++class A2<T1, T2> : B<T1, Int> {
++    constructor(x: T1, y: T2): super(x, <!TYPE_MISMATCH(kotlin.Int; T2)!>y<!>) {}
++    constructor(x: T1, y: Int): super(x, y) {}
++    constructor(x: T1, y: T1, z: T1): super(x, <!TYPE_MISMATCH(kotlin.Int; T1)!>y<!>) {}
++    constructor(x: T1, y: T2, z: String): super(<!TYPE_MISMATCH(T1; T2)!>y<!>, 1) {}
++}
++
+diff --git a/compiler/testData/diagnostics/tests/secondaryConstructors/generics2.txt b/compiler/testData/diagnostics/tests/secondaryConstructors/generics2.txt
+new file mode 100644
+index 00000000000..13192e18fc3
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/secondaryConstructors/generics2.txt
+@@ -0,0 +1,38 @@
++package
++
++internal final class A0</*0*/ T1, /*1*/ T2> {
++    public constructor A0</*0*/ T1, /*1*/ T2>(/*0*/ x: T1)
++    public constructor A0</*0*/ T1, /*1*/ T2>(/*0*/ x: T1, /*1*/ y: T2)
++    public constructor A0</*0*/ T1, /*1*/ T2>(/*0*/ x: T1, /*1*/ y: T2, /*2*/ z: T2)
++    public constructor A0</*0*/ T1, /*1*/ T2>(/*0*/ x: T1, /*1*/ y: T2, /*2*/ z: kotlin.String)
++    public constructor A0</*0*/ T1, /*1*/ T2>(/*0*/ x: T1, /*1*/ y: kotlin.Int)
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++internal final class A1</*0*/ T1, /*1*/ T2> : B<T1, T2> {
++    public constructor A1</*0*/ T1, /*1*/ T2>(/*0*/ x: T1, /*1*/ y: T1, /*2*/ z: T1)
++    public constructor A1</*0*/ T1, /*1*/ T2>(/*0*/ x: T1, /*1*/ y: T2)
++    public constructor A1</*0*/ T1, /*1*/ T2>(/*0*/ x: T1, /*1*/ y: kotlin.Int)
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++internal final class A2</*0*/ T1, /*1*/ T2> : B<T1, kotlin.Int> {
++    public constructor A2</*0*/ T1, /*1*/ T2>(/*0*/ x: T1, /*1*/ y: T1, /*2*/ z: T1)
++    public constructor A2</*0*/ T1, /*1*/ T2>(/*0*/ x: T1, /*1*/ y: T2)
++    public constructor A2</*0*/ T1, /*1*/ T2>(/*0*/ x: T1, /*1*/ y: T2, /*2*/ z: kotlin.String)
++    public constructor A2</*0*/ T1, /*1*/ T2>(/*0*/ x: T1, /*1*/ y: kotlin.Int)
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++internal open class B</*0*/ R1, /*1*/ R2> {
++    public constructor B</*0*/ R1, /*1*/ R2>(/*0*/ x: R1, /*1*/ y: R2)
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/secondaryConstructors/generics3.kt b/compiler/testData/diagnostics/tests/secondaryConstructors/generics3.kt
+new file mode 100644
+index 00000000000..2df7806d789
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/secondaryConstructors/generics3.kt
+@@ -0,0 +1,16 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++open class B<X, Y : X> {
++    constructor(x: X, y: Y) {}
++    constructor(x: X, s: String) {}
++    constructor(y: Y, i: Int) : this(y, "") {}
++}
++
++class A<T1, T2 : T1> : B<T1, T2> {
++    constructor(x: T1, y: T2): super(x, y) {}
++    constructor(x: T2, y: T2, z: String): super(x, y) {}
++
++    constructor(x: T2, z: String, z1: String): super(x, "") {}
++    constructor(x: T2, z: String, z1: String, z2: String): super(x, 1) {}
++    constructor(x: T1, z: String, z1: String, z2: String, z3: String): super(x, "") {}
++    constructor(x: T1, z: String, z1: String, z2: String, z3: String, z4: String): <!NONE_APPLICABLE!>super<!>(x, 1) {}
++}
+diff --git a/compiler/testData/diagnostics/tests/secondaryConstructors/generics3.txt b/compiler/testData/diagnostics/tests/secondaryConstructors/generics3.txt
+new file mode 100644
+index 00000000000..83bdc12dd17
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/secondaryConstructors/generics3.txt
+@@ -0,0 +1,22 @@
++package
++
++internal final class A</*0*/ T1, /*1*/ T2 : T1> : B<T1, T2> {
++    public constructor A</*0*/ T1, /*1*/ T2 : T1>(/*0*/ x: T1, /*1*/ y: T2)
++    public constructor A</*0*/ T1, /*1*/ T2 : T1>(/*0*/ x: T1, /*1*/ z: kotlin.String, /*2*/ z1: kotlin.String, /*3*/ z2: kotlin.String, /*4*/ z3: kotlin.String)
++    public constructor A</*0*/ T1, /*1*/ T2 : T1>(/*0*/ x: T1, /*1*/ z: kotlin.String, /*2*/ z1: kotlin.String, /*3*/ z2: kotlin.String, /*4*/ z3: kotlin.String, /*5*/ z4: kotlin.String)
++    public constructor A</*0*/ T1, /*1*/ T2 : T1>(/*0*/ x: T2, /*1*/ y: T2, /*2*/ z: kotlin.String)
++    public constructor A</*0*/ T1, /*1*/ T2 : T1>(/*0*/ x: T2, /*1*/ z: kotlin.String, /*2*/ z1: kotlin.String)
++    public constructor A</*0*/ T1, /*1*/ T2 : T1>(/*0*/ x: T2, /*1*/ z: kotlin.String, /*2*/ z1: kotlin.String, /*3*/ z2: kotlin.String)
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++internal open class B</*0*/ X, /*1*/ Y : X> {
++    public constructor B</*0*/ X, /*1*/ Y : X>(/*0*/ x: X, /*1*/ y: Y)
++    public constructor B</*0*/ X, /*1*/ Y : X>(/*0*/ x: X, /*1*/ s: kotlin.String)
++    public constructor B</*0*/ X, /*1*/ Y : X>(/*0*/ y: Y, /*1*/ i: kotlin.Int)
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/secondaryConstructors/kt6992.kt b/compiler/testData/diagnostics/tests/secondaryConstructors/kt6992.kt
+new file mode 100644
+index 00000000000..6e5da24f3f2
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/secondaryConstructors/kt6992.kt
+@@ -0,0 +1,3 @@
++class X<T>(val t: T) {
++    constructor(t: String): <!CYCLIC_CONSTRUCTOR_DELEGATION_CALL!>this<!>(t) {}
++}
+diff --git a/compiler/testData/diagnostics/tests/secondaryConstructors/kt6992.txt b/compiler/testData/diagnostics/tests/secondaryConstructors/kt6992.txt
+new file mode 100644
+index 00000000000..82a150b8f24
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/secondaryConstructors/kt6992.txt
+@@ -0,0 +1,10 @@
++package
++
++internal final class X</*0*/ T> {
++    public constructor X</*0*/ T>(/*0*/ t: T)
++    public constructor X</*0*/ T>(/*0*/ t: kotlin.String)
++    internal final val t: T
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/secondaryConstructors/kt6993.kt b/compiler/testData/diagnostics/tests/secondaryConstructors/kt6993.kt
+new file mode 100644
+index 00000000000..43ce6347784
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/secondaryConstructors/kt6993.kt
+@@ -0,0 +1,5 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++class X<T>(val t: T) {
++    constructor(t: T, i: Int) : <!NONE_APPLICABLE!>this<!>(i) {
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/secondaryConstructors/kt6993.txt b/compiler/testData/diagnostics/tests/secondaryConstructors/kt6993.txt
+new file mode 100644
+index 00000000000..c847326f905
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/secondaryConstructors/kt6993.txt
+@@ -0,0 +1,10 @@
++package
++
++internal final class X</*0*/ T> {
++    public constructor X</*0*/ T>(/*0*/ t: T)
++    public constructor X</*0*/ T>(/*0*/ t: T, /*1*/ i: kotlin.Int)
++    internal final val t: T
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/secondaryConstructors/kt6994.kt b/compiler/testData/diagnostics/tests/secondaryConstructors/kt6994.kt
+new file mode 100644
+index 00000000000..71a89ed93fc
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/secondaryConstructors/kt6994.kt
+@@ -0,0 +1,5 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++class X<T> {
++    constructor(t: T, i: Int): <!CYCLIC_CONSTRUCTOR_DELEGATION_CALL!>this<!>(<!TYPE_MISMATCH!>i<!>, 1) { // no error
++    }
++}
+diff --git a/compiler/testData/diagnostics/tests/secondaryConstructors/kt6994.txt b/compiler/testData/diagnostics/tests/secondaryConstructors/kt6994.txt
+new file mode 100644
+index 00000000000..73a8124df50
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/secondaryConstructors/kt6994.txt
+@@ -0,0 +1,8 @@
++package
++
++internal final class X</*0*/ T> {
++    public constructor X</*0*/ T>(/*0*/ t: T, /*1*/ i: kotlin.Int)
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/secondaryConstructors/lambdaInDelegation.kt b/compiler/testData/diagnostics/tests/secondaryConstructors/lambdaInDelegation.kt
+new file mode 100644
+index 00000000000..287c9a3a531
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/secondaryConstructors/lambdaInDelegation.kt
+@@ -0,0 +1,5 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++class A<T1, T2> {
++    constructor(block: (T1) -> T2) {}
++    constructor(x: T2): this({ x }) {}
++}
+diff --git a/compiler/testData/diagnostics/tests/secondaryConstructors/lambdaInDelegation.txt b/compiler/testData/diagnostics/tests/secondaryConstructors/lambdaInDelegation.txt
+new file mode 100644
+index 00000000000..8797d2b197d
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/secondaryConstructors/lambdaInDelegation.txt
+@@ -0,0 +1,9 @@
++package
++
++internal final class A</*0*/ T1, /*1*/ T2> {
++    public constructor A</*0*/ T1, /*1*/ T2>(/*0*/ block: (T1) -> T2)
++    public constructor A</*0*/ T1, /*1*/ T2>(/*0*/ x: T2)
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/resolveConstructorDelegationCalls/generics2.kt b/compiler/testData/resolveConstructorDelegationCalls/generics2.kt
+new file mode 100644
+index 00000000000..3be56b4564b
+--- /dev/null
++++ b/compiler/testData/resolveConstructorDelegationCalls/generics2.kt
+@@ -0,0 +1,5 @@
++class A<T1, T2> {
++    constructor(x: T1, y: T2) {}
++    constructor(x: T1, y: Int) {}
++    <caret>constructor(x: T1): this(x, 1) {}
++}
+diff --git a/compiler/testData/resolveConstructorDelegationCalls/generics2.txt b/compiler/testData/resolveConstructorDelegationCalls/generics2.txt
+new file mode 100644
+index 00000000000..bd26e196909
+--- /dev/null
++++ b/compiler/testData/resolveConstructorDelegationCalls/generics2.txt
+@@ -0,0 +1,20 @@
++class A<T1, T2> {
++    constructor(x: T1, y: T2) {}
++    constructor(x: T1, y: Int) {}
++    <caret>constructor(x: T1): this(x, 1) {}
++}
++
++
++Resolved call:
++
++Candidate descriptor: constructor A<T1, T2>(x: T1, y: Int) defined in A
++Resulting descriptor: constructor A<T1, T2>(x: T1, y: Int) defined in A
++
++Explicit receiver kind = NO_EXPLICIT_RECEIVER
++Dispatch receiver = NO_RECEIVER
++Extension receiver = NO_RECEIVER
++
++Value arguments mapping:
++
++SUCCESS  x : T1 = x
++SUCCESS  y : Int = 1
+diff --git a/compiler/testData/resolveConstructorDelegationCalls/generics3.kt b/compiler/testData/resolveConstructorDelegationCalls/generics3.kt
+new file mode 100644
+index 00000000000..8f55effa83b
+--- /dev/null
++++ b/compiler/testData/resolveConstructorDelegationCalls/generics3.kt
+@@ -0,0 +1,6 @@
++open class B<R1, R2>(x: R1, y: R2)
++
++class A<T1, T2> : B<T1, Int> {
++    <caret>constructor(x: T1, y: Int): super(x, y) {}
++}
++
+diff --git a/compiler/testData/resolveConstructorDelegationCalls/generics3.txt b/compiler/testData/resolveConstructorDelegationCalls/generics3.txt
+new file mode 100644
+index 00000000000..37a05dd794e
+--- /dev/null
++++ b/compiler/testData/resolveConstructorDelegationCalls/generics3.txt
+@@ -0,0 +1,20 @@
++open class B<R1, R2>(x: R1, y: R2)
++
++class A<T1, T2> : B<T1, Int> {
++    <caret>constructor(x: T1, y: Int): super(x, y) {}
++}
++
++
++Resolved call:
++
++Candidate descriptor: constructor B<R1, R2>(x: R1, y: R2) defined in B
++Resulting descriptor: constructor B<R1, R2>(x: T1, y: Int) defined in B
++
++Explicit receiver kind = NO_EXPLICIT_RECEIVER
++Dispatch receiver = NO_RECEIVER
++Extension receiver = NO_RECEIVER
++
++Value arguments mapping:
++
++SUCCESS  x : T1 = x
++SUCCESS  y : Int = y
+diff --git a/compiler/testData/resolveConstructorDelegationCalls/generics4.kt b/compiler/testData/resolveConstructorDelegationCalls/generics4.kt
+new file mode 100644
+index 00000000000..6f87d0d02f8
+--- /dev/null
++++ b/compiler/testData/resolveConstructorDelegationCalls/generics4.kt
+@@ -0,0 +1,9 @@
++open class B<X, Y : X> {
++    constructor(x: X, y: Y) {}
++    constructor(x: X, s: String) {}
++    constructor(y: Y, i: Int) : this(y, "") {}
++}
++
++class A<T1, T2 : T1> : B<T1, T2> {
++    <caret>constructor(x: T1, y: T2): super(x, y) {}
++}
+diff --git a/compiler/testData/resolveConstructorDelegationCalls/generics4.txt b/compiler/testData/resolveConstructorDelegationCalls/generics4.txt
+new file mode 100644
+index 00000000000..2876d081ba6
+--- /dev/null
++++ b/compiler/testData/resolveConstructorDelegationCalls/generics4.txt
+@@ -0,0 +1,24 @@
++open class B<X, Y : X> {
++    constructor(x: X, y: Y) {}
++    constructor(x: X, s: String) {}
++    constructor(y: Y, i: Int) : this(y, "") {}
++}
++
++class A<T1, T2 : T1> : B<T1, T2> {
++    <caret>constructor(x: T1, y: T2): super(x, y) {}
++}
++
++
++Resolved call:
++
++Candidate descriptor: constructor B<X, Y : X>(x: X, y: Y) defined in B
++Resulting descriptor: constructor B<X, Y : X>(x: T1, y: T2) defined in B
++
++Explicit receiver kind = NO_EXPLICIT_RECEIVER
++Dispatch receiver = NO_RECEIVER
++Extension receiver = NO_RECEIVER
++
++Value arguments mapping:
++
++SUCCESS  x : T1 = x
++SUCCESS  y : T2 = y
+diff --git a/compiler/testData/resolveConstructorDelegationCalls/generics5.kt b/compiler/testData/resolveConstructorDelegationCalls/generics5.kt
+new file mode 100644
+index 00000000000..5b4cc7127ec
+--- /dev/null
++++ b/compiler/testData/resolveConstructorDelegationCalls/generics5.kt
+@@ -0,0 +1,9 @@
++open class B<X, Y : X> {
++    constructor(x: X, y: Y) {}
++    constructor(x: X, s: String) {}
++    constructor(y: Y, i: Int) : this(y, "") {}
++}
++
++class A<T1, T2 : T1> : B<T1, T2> {
++    <caret>constructor(x: T2): super(x, "") {}
++}
+diff --git a/compiler/testData/resolveConstructorDelegationCalls/generics5.txt b/compiler/testData/resolveConstructorDelegationCalls/generics5.txt
+new file mode 100644
+index 00000000000..5fd1ed1d7ec
+--- /dev/null
++++ b/compiler/testData/resolveConstructorDelegationCalls/generics5.txt
+@@ -0,0 +1,24 @@
++open class B<X, Y : X> {
++    constructor(x: X, y: Y) {}
++    constructor(x: X, s: String) {}
++    constructor(y: Y, i: Int) : this(y, "") {}
++}
++
++class A<T1, T2 : T1> : B<T1, T2> {
++    <caret>constructor(x: T2): super(x, "") {}
++}
++
++
++Resolved call:
++
++Candidate descriptor: constructor B<X, Y : X>(x: X, s: String) defined in B
++Resulting descriptor: constructor B<X, Y : X>(x: T1, s: String) defined in B
++
++Explicit receiver kind = NO_EXPLICIT_RECEIVER
++Dispatch receiver = NO_RECEIVER
++Extension receiver = NO_RECEIVER
++
++Value arguments mapping:
++
++SUCCESS  x : T1 = x
++SUCCESS  s : String = ""
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
+index 60e86934aea..4091d078792 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
+@@ -10647,6 +10647,18 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("generics2.kt")
++            public void testGenerics2() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/secondaryConstructors/generics2.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("generics3.kt")
++            public void testGenerics3() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/secondaryConstructors/generics3.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("headerSupertypeInitialization.kt")
+             public void testHeaderSupertypeInitialization() throws Exception {
+                 String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/secondaryConstructors/headerSupertypeInitialization.kt");
+@@ -10659,6 +10671,30 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("kt6992.kt")
++            public void testKt6992() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/secondaryConstructors/kt6992.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("kt6993.kt")
++            public void testKt6993() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/secondaryConstructors/kt6993.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("kt6994.kt")
++            public void testKt6994() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/secondaryConstructors/kt6994.kt");
++                doTest(fileName);
++            }
++
++            @TestMetadata("lambdaInDelegation.kt")
++            public void testLambdaInDelegation() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/secondaryConstructors/lambdaInDelegation.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("memberAccessBeforeSuperCall.kt")
+             public void testMemberAccessBeforeSuperCall() throws Exception {
+                 String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/secondaryConstructors/memberAccessBeforeSuperCall.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/resolve/calls/ResolvedConstructorDelegationCallsTestsGenerated.java b/compiler/tests/org/jetbrains/kotlin/resolve/calls/ResolvedConstructorDelegationCallsTestsGenerated.java
+index 7b0c002cf6a..757770b6f1c 100644
+--- a/compiler/tests/org/jetbrains/kotlin/resolve/calls/ResolvedConstructorDelegationCallsTestsGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/resolve/calls/ResolvedConstructorDelegationCallsTestsGenerated.java
+@@ -42,6 +42,30 @@ public class ResolvedConstructorDelegationCallsTestsGenerated extends AbstractRe
+         doTest(fileName);
+     }
+ 
++    @TestMetadata("generics2.kt")
++    public void testGenerics2() throws Exception {
++        String fileName = JetTestUtils.navigationMetadata("compiler/testData/resolveConstructorDelegationCalls/generics2.kt");
++        doTest(fileName);
++    }
++
++    @TestMetadata("generics3.kt")
++    public void testGenerics3() throws Exception {
++        String fileName = JetTestUtils.navigationMetadata("compiler/testData/resolveConstructorDelegationCalls/generics3.kt");
++        doTest(fileName);
++    }
++
++    @TestMetadata("generics4.kt")
++    public void testGenerics4() throws Exception {
++        String fileName = JetTestUtils.navigationMetadata("compiler/testData/resolveConstructorDelegationCalls/generics4.kt");
++        doTest(fileName);
++    }
++
++    @TestMetadata("generics5.kt")
++    public void testGenerics5() throws Exception {
++        String fileName = JetTestUtils.navigationMetadata("compiler/testData/resolveConstructorDelegationCalls/generics5.kt");
++        doTest(fileName);
++    }
++
+     @TestMetadata("inheritanceWithGeneric.kt")
+     public void testInheritanceWithGeneric() throws Exception {
+         String fileName = JetTestUtils.navigationMetadata("compiler/testData/resolveConstructorDelegationCalls/inheritanceWithGeneric.kt");

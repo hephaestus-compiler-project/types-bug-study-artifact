@@ -1,0 +1,784 @@
+diff --git a/src/compiler/scala/tools/nsc/settings/ScalaSettings.scala b/src/compiler/scala/tools/nsc/settings/ScalaSettings.scala
+index 12adcd62b76..5a4b5984e5e 100644
+--- a/src/compiler/scala/tools/nsc/settings/ScalaSettings.scala
++++ b/src/compiler/scala/tools/nsc/settings/ScalaSettings.scala
+@@ -98,6 +98,9 @@ trait ScalaSettings extends AbsScalaSettings
+   def isScala213: Boolean = source.value >= version213
+   private[this] val version214 = ScalaVersion("2.14.0")
+   def isScala214: Boolean = source.value >= version214
++  private[this] val version300 = ScalaVersion("3.0.0")
++  def isScala300: Boolean = source.value >= version300
++
+ 
+   /**
+    * -X "Advanced" settings
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Infer.scala b/src/compiler/scala/tools/nsc/typechecker/Infer.scala
+index 809c010a27b..50cf286a676 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Infer.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Infer.scala
+@@ -806,13 +806,36 @@ trait Infer extends Checkable {
+         case _                                                              => onRight
+       }
+     }
++
+     private def isAsSpecificValueType(tpe1: Type, tpe2: Type, undef1: List[Symbol], undef2: List[Symbol]): Boolean = tpe1 match {
+       case PolyType(tparams1, rtpe1) =>
+         isAsSpecificValueType(rtpe1, tpe2, undef1 ::: tparams1, undef2)
+       case _                         =>
+         tpe2 match {
+           case PolyType(tparams2, rtpe2) => isAsSpecificValueType(tpe1, rtpe2, undef1, undef2 ::: tparams2)
+-          case _                         => existentialAbstraction(undef1, tpe1) <:< existentialAbstraction(undef2, tpe2)
++          case _ if !settings.isScala300 => existentialAbstraction(undef1, tpe1) <:< existentialAbstraction(undef2, tpe2)
++          case _                         =>
++            // Backport of fix for https://github.com/scala/bug/issues/2509
++            // from Dotty https://github.com/lampepfl/dotty/commit/89540268e6c49fb92b9ca61249e46bb59981bf5a
++            //
++            // Note that as of https://github.com/lampepfl/dotty/commit/b9f3084205bc9fcbd2a5181d3f0e539e2a20253a
++            // Dotty flips variances throughout, not just at the top level. We follow that behaviour here.
++
++            val e1 = existentialAbstraction(undef1, tpe1)
++            val e2 = existentialAbstraction(undef2, tpe2)
++
++            val flip = new TypeMap(trackVariance = true) {
++              def apply(tp: Type): Type = tp match {
++                case TypeRef(pre, sym, args) if variance > 0 && sym.typeParams.exists(_.isContravariant) =>
++                  mapOver(TypeRef(pre, sym.flipped, args))
++                case _ =>
++                  mapOver(tp)
++              }
++            }
++
++            val bt = e1.baseType(e2.typeSymbol)
++            val lhs = if(bt != NoType) bt else e1
++            flip(lhs) <:< flip(e2)
+         }
+     }
+ 
+diff --git a/src/reflect/scala/reflect/internal/Symbols.scala b/src/reflect/scala/reflect/internal/Symbols.scala
+index ba8ecad3144..40a2dbaffe9 100644
+--- a/src/reflect/scala/reflect/internal/Symbols.scala
++++ b/src/reflect/scala/reflect/internal/Symbols.scala
+@@ -2017,6 +2017,8 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
+     /** Internal method to clone a symbol's implementation with the given flags and no info. */
+     def cloneSymbolImpl(owner: Symbol, newFlags: Long): TypeOfClonedSymbol
+ 
++    def flipped: Symbol = this
++
+ // ------ access to related symbols --------------------------------------------------
+ 
+     /** The next enclosing class. */
+@@ -3386,6 +3388,14 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
+       clone
+     }
+ 
++    override lazy val flipped: ClassSymbol = {
++      val clone = cloneSymbol(owner)
++      clone.rawInfo.typeParams.foreach { sym =>
++        if (sym.isContravariant) sym.resetFlag(Flag.CONTRAVARIANT).setFlag(Flag.COVARIANT)
++      }
++      clone
++    }
++
+     override def derivedValueClassUnbox =
+       // (info.decl(nme.unbox)) orElse      uncomment once we accept unbox methods
+       (info.decls.find(_ hasAllFlags PARAMACCESSOR | METHOD) getOrElse
+diff --git a/test/files/neg/t2509-2.check b/test/files/neg/t2509-2.check
+new file mode 100644
+index 00000000000..f87a7e6bb52
+--- /dev/null
++++ b/test/files/neg/t2509-2.check
+@@ -0,0 +1,7 @@
++t2509-2.scala:26: error: ambiguous implicit values:
++ both value xb in object Test of type => X[B,Int]
++ and value xa in object Test of type => X[A,Boolean]
++ match expected type X[B,U]
++  val fb = f(new B)
++            ^
++one error found
+diff --git a/test/files/neg/t2509-2.flags b/test/files/neg/t2509-2.flags
+new file mode 100644
+index 00000000000..cab9e99af3a
+--- /dev/null
++++ b/test/files/neg/t2509-2.flags
+@@ -0,0 +1 @@
++-Xsource:3.0
+diff --git a/test/files/neg/t2509-2.scala b/test/files/neg/t2509-2.scala
+new file mode 100644
+index 00000000000..609bd8785f8
+--- /dev/null
++++ b/test/files/neg/t2509-2.scala
+@@ -0,0 +1,28 @@
++class A
++class B extends A
++class C extends B
++
++trait X[-T, U] {
++  val u: U
++}
++
++object XA extends X[A, Boolean] {
++  val u = true
++}
++
++object XB extends X[B, Int] {
++  val u = 23
++}
++
++object Test {
++  implicit def f[T, U](t: T)(implicit x: X[T, U]): U = x.u
++  implicit val xa: X[A, Boolean] = XA
++  implicit val xb: X[B, Int] = XB
++
++  val fa = f(new A)
++  val ffa: Boolean = fa
++
++  // Should be ambiguous
++  val fb = f(new B)
++  val ffb: Int = fb
++}
+diff --git a/test/files/neg/t2509-3.check b/test/files/neg/t2509-3.check
+new file mode 100644
+index 00000000000..68d20ddd229
+--- /dev/null
++++ b/test/files/neg/t2509-3.check
+@@ -0,0 +1,4 @@
++t2509-3.scala:31: error: value value is not a member of B
++    println("B: " + b.value)
++                      ^
++one error found
+diff --git a/test/files/neg/t2509-3.flags b/test/files/neg/t2509-3.flags
+new file mode 100644
+index 00000000000..cab9e99af3a
+--- /dev/null
++++ b/test/files/neg/t2509-3.flags
+@@ -0,0 +1 @@
++-Xsource:3.0
+diff --git a/test/files/neg/t2509-3.scala b/test/files/neg/t2509-3.scala
+new file mode 100644
+index 00000000000..5606765d099
+--- /dev/null
++++ b/test/files/neg/t2509-3.scala
+@@ -0,0 +1,33 @@
++class A
++class B extends A
++
++trait Y {
++  def value: String
++}
++
++trait X[-T] {
++  def y(t: T): Y
++}
++
++trait Z[-T] extends X[T]
++
++object ZA extends Z[A] {
++  def y(a: A) = new Y { def value = s"${a.getClass}: AValue" }
++}
++
++object XB extends X[B] {
++  def y(b: B) = new Y { def value = s"S{b.getClass}: BValue" }
++}
++
++object Test {
++  implicit def f[T](t: T)(implicit x: X[T]): Y = x.y(t)
++  implicit val za: Z[A] = ZA
++  implicit val xb: X[B] = XB
++
++  def main(argv: Array[String]): Unit = {
++    val a = new A
++    val b = new B
++    println("A: " + a.value)
++    println("B: " + b.value)
++  }
++}
+diff --git a/test/files/neg/t2509-7b.check b/test/files/neg/t2509-7b.check
+new file mode 100644
+index 00000000000..12436339f81
+--- /dev/null
++++ b/test/files/neg/t2509-7b.check
+@@ -0,0 +1,7 @@
++t2509-7b.scala:30: error: ambiguous implicit values:
++ both method make in object X of type => Both[X,X]
++ and method make in trait Factory of type => Both[Y,Y]
++ match expected type Both[Y,X]
++  get
++  ^
++one error found
+diff --git a/test/files/neg/t2509-7b.flags b/test/files/neg/t2509-7b.flags
+new file mode 100644
+index 00000000000..cab9e99af3a
+--- /dev/null
++++ b/test/files/neg/t2509-7b.flags
+@@ -0,0 +1 @@
++-Xsource:3.0
+diff --git a/test/files/neg/t2509-7b.scala b/test/files/neg/t2509-7b.scala
+new file mode 100644
+index 00000000000..ebffe3c6751
+--- /dev/null
++++ b/test/files/neg/t2509-7b.scala
+@@ -0,0 +1,31 @@
++class Both[-A, +B]
++
++trait Factory[A] {
++  implicit def make: Both[A, A] = new Both[A, A]
++}
++
++trait X
++object X extends Factory[X] {
++  override implicit def make: Both[X, X] = super.make
++}
++
++class Y extends X
++object Y extends Factory[Y] {
++  // See test/files/pos/t2509-7a.scala ... discussion below
++  // override implicit def make: Both[Y, Y] = super.make
++}
++
++object Test {
++  def get(implicit ev: Both[Y, X]) = ev
++
++  // There are two possible implicits here: X.make and Y.make, neither are
++  // subtype of each other, so who wins?
++  // - Under the old scheme it's X.make because `isAsGood` sees that X.make is defined
++  // in X whereas Y.make is defined in Factory
++  // - Under the new scheme it's ambiguous because we replace contravariance by covariance
++  // in top-level type parameters so Y.make is treated as a subtype of X.make
++  // In both schemes we can get Y.make to win by uncommenting the override for make in Y
++  // (Y wins against X because `isDerived` also considers the subtyping relationships
++  // of companion classes)
++  get
++}
+diff --git a/test/files/pos/t2030.flags b/test/files/pos/t2030.flags
+new file mode 100644
+index 00000000000..cab9e99af3a
+--- /dev/null
++++ b/test/files/pos/t2030.flags
+@@ -0,0 +1 @@
++-Xsource:3.0
+diff --git a/test/files/pos/t2030.scala b/test/files/pos/t2030.scala
+new file mode 100644
+index 00000000000..2333c3981b9
+--- /dev/null
++++ b/test/files/pos/t2030.scala
+@@ -0,0 +1,8 @@
++import scala.collection.immutable._
++
++object Test extends App {
++  val res0 = TreeSet(1, 2, 3, 4, 5, 6)
++  val res1 = res0.map(x => x)
++  println(res0.toList == res1.toList)
++  println(res1.getClass)
++}
+diff --git a/test/files/pos/t2509-5.flags b/test/files/pos/t2509-5.flags
+new file mode 100644
+index 00000000000..cab9e99af3a
+--- /dev/null
++++ b/test/files/pos/t2509-5.flags
+@@ -0,0 +1 @@
++-Xsource:3.0
+diff --git a/test/files/pos/t2509-5.scala b/test/files/pos/t2509-5.scala
+new file mode 100644
+index 00000000000..c8ebd04d388
+--- /dev/null
++++ b/test/files/pos/t2509-5.scala
+@@ -0,0 +1,13 @@
++// See https://github.com/lampepfl/dotty/issues/2974
++trait Foo[-T]
++
++trait Bar[-T] extends Foo[T]
++
++object Test {
++  implicit val fa: Foo[Any] = ???
++  implicit val ba: Bar[Int] = ???
++
++  def test: Unit = {
++    implicitly[Foo[Int]]
++  }
++}
+diff --git a/test/files/pos/t2509-6.flags b/test/files/pos/t2509-6.flags
+new file mode 100644
+index 00000000000..cab9e99af3a
+--- /dev/null
++++ b/test/files/pos/t2509-6.flags
+@@ -0,0 +1 @@
++-Xsource:3.0
+diff --git a/test/files/pos/t2509-6.scala b/test/files/pos/t2509-6.scala
+new file mode 100644
+index 00000000000..2c2ef2e821e
+--- /dev/null
++++ b/test/files/pos/t2509-6.scala
+@@ -0,0 +1,33 @@
++class A
++class B extends A
++
++trait Y {
++  def value: String
++}
++
++trait X[-T] {
++  def y(t: T): Y
++}
++
++trait Z[-T] extends X[T]
++
++object XA extends X[A] {
++  def y(a: A) = new Y { def value = s"${a.getClass}: AValue" }
++}
++
++object ZB extends Z[B] {
++  def y(b: B) = new Y { def value = s"${b.getClass}: BValue" }
++}
++
++object Test {
++  implicit def f[T](t: T)(implicit x: X[T]): Y = x.y(t)
++  implicit val za: X[A] = XA
++  implicit val xb: Z[B] = ZB
++
++  def main(argv: Array[String]): Unit = {
++    val a = new A
++    val b = new B
++    println("A: " + a.value)
++    println("B: " + b.value)
++  }
++}
+diff --git a/test/files/pos/t2509-7a.flags b/test/files/pos/t2509-7a.flags
+new file mode 100644
+index 00000000000..cab9e99af3a
+--- /dev/null
++++ b/test/files/pos/t2509-7a.flags
+@@ -0,0 +1 @@
++-Xsource:3.0
+diff --git a/test/files/pos/t2509-7a.scala b/test/files/pos/t2509-7a.scala
+new file mode 100644
+index 00000000000..a6a7241d186
+--- /dev/null
++++ b/test/files/pos/t2509-7a.scala
+@@ -0,0 +1,31 @@
++class Both[-A, +B]
++
++trait Factory[A] {
++  implicit def make: Both[A, A] = new Both[A, A]
++}
++
++trait X
++object X extends Factory[X] {
++  override implicit def make: Both[X, X] = super.make
++}
++
++class Y extends X
++object Y extends Factory[Y] {
++  // See test/files/neg/t2509-7b.scala ... discussion below
++  override implicit def make: Both[Y, Y] = super.make
++}
++
++object Test {
++  def get(implicit ev: Both[Y, X]) = ev
++
++  // There are two possible implicits here: X.make and Y.make, neither are
++  // subtype of each other, so who wins?
++  // - Under the old scheme it's X.make because `isAsGood` sees that X.make is defined
++  // in X whereas Y.make is defined in Factory
++  // - Under the new scheme it's ambiguous because we replace contravariance by covariance
++  // in top-level type parameters so Y.make is treated as a subtype of X.make
++  // In both schemes we can get Y.make to win by uncommenting the override for make in Y
++  // (Y wins against X because `isDerived` also considers the subtyping relationships
++  // of companion classes)
++  get
++}
+diff --git a/test/files/run/t2509-1.check b/test/files/run/t2509-1.check
+new file mode 100644
+index 00000000000..f219e05cd02
+--- /dev/null
++++ b/test/files/run/t2509-1.check
+@@ -0,0 +1,2 @@
++A: class A: AValue
++B: class B: BValue
+diff --git a/test/files/run/t2509-1.flags b/test/files/run/t2509-1.flags
+new file mode 100644
+index 00000000000..cab9e99af3a
+--- /dev/null
++++ b/test/files/run/t2509-1.flags
+@@ -0,0 +1 @@
++-Xsource:3.0
+diff --git a/test/files/run/t2509-1.scala b/test/files/run/t2509-1.scala
+new file mode 100644
+index 00000000000..e408209530e
+--- /dev/null
++++ b/test/files/run/t2509-1.scala
+@@ -0,0 +1,33 @@
++import scala.language.implicitConversions
++
++class A
++class B extends A
++
++trait Y {
++  def value: String
++}
++
++trait X[-T] {
++  def y(t: T): Y
++}
++
++object XA extends X[A] {
++  def y(a: A) = new Y { def value = s"${a.getClass}: AValue" }
++}
++
++object XB extends X[B] {
++  def y(b: B) = new Y { def value = s"${b.getClass}: BValue" }
++}
++
++object Test {
++  implicit def f[T](t: T)(implicit x: X[T]): Y = x.y(t)
++  implicit val xa: X[A] = XA
++  implicit val xb: X[B] = XB
++
++  def main(argv: Array[String]): Unit = {
++    val a = new A
++    val b = new B
++    println(s"A: ${a.value}")
++    println(s"B: ${b.value}")
++  }
++}
+diff --git a/test/files/run/t2509-4.check b/test/files/run/t2509-4.check
+new file mode 100644
+index 00000000000..f219e05cd02
+--- /dev/null
++++ b/test/files/run/t2509-4.check
+@@ -0,0 +1,2 @@
++A: class A: AValue
++B: class B: BValue
+diff --git a/test/files/run/t2509-4.flags b/test/files/run/t2509-4.flags
+new file mode 100644
+index 00000000000..cab9e99af3a
+--- /dev/null
++++ b/test/files/run/t2509-4.flags
+@@ -0,0 +1 @@
++-Xsource:3.0
+diff --git a/test/files/run/t2509-4.scala b/test/files/run/t2509-4.scala
+new file mode 100644
+index 00000000000..b511b10d48a
+--- /dev/null
++++ b/test/files/run/t2509-4.scala
+@@ -0,0 +1,35 @@
++import scala.language.implicitConversions
++
++class A
++class B extends A
++
++trait Y {
++  def value: String
++}
++
++trait X[-T] {
++  def y(t: T): Y
++}
++
++trait Z[-T] extends X[T]
++
++object XA extends Z[A] {
++  def y(a: A) = new Y { def value = s"${a.getClass}: AValue" }
++}
++
++object ZB extends Z[B] {
++  def y(b: B) = new Y { def value = s"${b.getClass}: BValue" }
++}
++
++object Test {
++  implicit def f[T](t: T)(implicit x: X[T]): Y = x.y(t)
++  implicit val za: X[A] = XA
++  implicit val xb: Z[B] = ZB
++
++  def main(argv: Array[String]): Unit = {
++    val a = new A
++    val b = new B
++    println(s"A: ${a.value}")
++    println(s"B: ${b.value}")
++  }
++}
+diff --git a/test/files/run/t7768.check b/test/files/run/t7768.check
+new file mode 100644
+index 00000000000..d7b53d035df
+--- /dev/null
++++ b/test/files/run/t7768.check
+@@ -0,0 +1,3 @@
++Inv[A] Inv[B] Inv[C] Inv[D] Inv[E]
++Con[A] Con[A] Con[C] Con[C] Con[E]
++Cov[E] Cov[E] Cov[E] Cov[E] Cov[E]
+diff --git a/test/files/run/t7768.flags b/test/files/run/t7768.flags
+new file mode 100644
+index 00000000000..cab9e99af3a
+--- /dev/null
++++ b/test/files/run/t7768.flags
+@@ -0,0 +1 @@
++-Xsource:3.0
+diff --git a/test/files/run/t7768.scala b/test/files/run/t7768.scala
+new file mode 100644
+index 00000000000..23c1d6e2b41
+--- /dev/null
++++ b/test/files/run/t7768.scala
+@@ -0,0 +1,89 @@
++class A
++class B extends A
++class C extends B
++class D extends C
++class E extends D
++
++class Inv[T](override val toString: String)
++class Con[-T](override val toString: String)
++class Cov[+T](override val toString: String)
++
++object InvTest {
++  implicit val a : Inv[A] = new Inv[A]("Inv[A]")
++  implicit val b : Inv[B] = new Inv[B]("Inv[B]")
++  implicit val c : Inv[C] = new Inv[C]("Inv[C]")
++  implicit val d : Inv[D] = new Inv[D]("Inv[D]")
++  implicit val e : Inv[E] = new Inv[E]("Inv[E]")
++}
++object ConTest {
++  implicit val a : Con[A] = new Con[A]("Con[A]")
++  implicit val c : Con[C] = new Con[C]("Con[C]")
++  implicit val e : Con[E] = new Con[E]("Con[E]")
++}
++object CovTest {
++  implicit val a : Cov[A] = new Cov[A]("Cov[A]")
++  implicit val c : Cov[C] = new Cov[C]("Cov[C]")
++  implicit val e : Cov[E] = new Cov[E]("Cov[E]")
++}
++
++object Test {
++  def f0(): Unit = {
++    import InvTest._
++    println(List(
++      implicitly[Inv[A]],
++      implicitly[Inv[B]],
++      implicitly[Inv[C]],
++      implicitly[Inv[D]],
++      implicitly[Inv[E]]
++    ) mkString " ")
++  }
++  def f1(): Unit = {
++    import ConTest._
++    println(List(
++      implicitly[Con[A]],
++      implicitly[Con[B]],
++      implicitly[Con[C]],
++      implicitly[Con[D]],
++      implicitly[Con[E]]
++    ) mkString " ")
++  }
++  def f2(): Unit = {
++    import CovTest._
++    println(List(
++      implicitly[Cov[A]],
++      implicitly[Cov[B]],
++      implicitly[Cov[C]],
++      implicitly[Cov[D]],
++      implicitly[Cov[E]]
++    ) mkString " ")
++  }
++
++  def main(args: Array[String]): Unit = {
++    f0()
++    f1()
++    f2()
++  }
++}
++
++/***
++
++Previously:
++
++Inv[A] Inv[B] Inv[C] Inv[D] Inv[E]
++Con[A] Con[A] Con[A] Con[A] Con[A]
++Cov[E] Cov[E] Cov[E] Cov[E] Cov[E]
++
++Currently (and in Dotty):
++
++Inv[A] Inv[B] Inv[C] Inv[D] Inv[E]
++Con[A] Con[A] Con[C] Con[C] Con[E]
++Cov[E] Cov[E] Cov[E] Cov[E] Cov[E]
++
++Note that @paulp thinks that f2 should produce,
++
++Cov[A] Cov[C] Cov[C] Cov[E] Cov[E]
++
++I don't think that behaviour would be desirable: in the covariant case the
++expectation that the most derived should be selected as the most specific
++seems reasonable.
++***/
+diff --git a/test/junit/scala/tools/nsc/typechecker/Infer.scala b/test/junit/scala/tools/nsc/typechecker/Infer.scala
+new file mode 100644
+index 00000000000..3362086d157
+--- /dev/null
++++ b/test/junit/scala/tools/nsc/typechecker/Infer.scala
+@@ -0,0 +1,169 @@
++package scala.tools.nsc
++package typechecker
++
++import org.junit.{ After, Before, Test }
++import org.junit.runner.RunWith
++import org.junit.runners.JUnit4
++
++import scala.tools.nsc.settings.ScalaVersion
++import scala.tools.testing.BytecodeTesting
++
++class A
++class B extends A
++
++trait C
++
++trait X[+T]
++trait Y[T]
++trait Z[-T]
++trait Quux[-T] extends Z[T]
++
++trait SubZB extends Z[B]
++trait ZwC[-T] extends Z[T] with C
++
++@RunWith(classOf[JUnit4])
++class InferencerTests extends BytecodeTesting {
++  import compiler.global._, analyzer._
++
++  var storedXsource: ScalaVersion = null
++  @Before
++  def storeXsource: Unit = {
++    storedXsource = settings.source.value
++  }
++  @After
++  def restoreXsource: Unit = {
++    settings.source.value = storedXsource
++  }
++
++  @Test
++  def isAsSpecificScala2(): Unit = {
++    val run = new global.Run
++
++    enteringPhase(run.typerPhase) {
++      val XA = typeOf[X[A]]
++      val XB = typeOf[X[B]]
++
++      val YA = typeOf[Y[A]]
++      val YB = typeOf[Y[B]]
++
++      val ZA = typeOf[Z[A]]
++      val ZB = typeOf[Z[B]]
++
++      val LZA = typeOf[List[Z[A]]]
++      val LZB = typeOf[List[Z[B]]]
++
++      val QuuxA = typeOf[Quux[A]]
++      val QuuxB = typeOf[Quux[B]]
++
++      val SubZB = typeOf[SubZB]
++      val ZBwC = typeOf[ZwC[B]]
++
++      // https://github.com/scala/bug/issues/2509
++      // See discussion at https://github.com/lampepfl/dotty/blob/89540268e6c49fb92b9ca61249e46bb59981bf5a/src/dotty/tools/dotc/typer/Applications.scala#L925-L951
++
++      // Covariant
++      assert(!typer.infer.isAsSpecific(XA, XB))
++      assert(typer.infer.isAsSpecific(XB, XA))
++
++      // Invariant
++      assert(!typer.infer.isAsSpecific(YA, YB))
++      assert(!typer.infer.isAsSpecific(YB, YA))
++
++      // Contravariant: Scala 2 treats subtype/least derived as most specific
++      assert(typer.infer.isAsSpecific(ZA, ZB))
++      assert(!typer.infer.isAsSpecific(ZB, ZA))
++
++      // Inner contravariant: Scala 2 treats subtype/least derived as most specific
++      assert(typer.infer.isAsSpecific(LZA, LZB))
++      assert(!typer.infer.isAsSpecific(LZB, LZA))
++
++      // Subtypes of contravaraint effectively unrelated
++      assert(!typer.infer.isAsSpecific(ZA, SubZB))
++      assert(!typer.infer.isAsSpecific(SubZB, ZA))
++
++      // Subtypes of contravaraint effectively unrelated
++      assert(!typer.infer.isAsSpecific(ZA, ZBwC))
++      assert(!typer.infer.isAsSpecific(ZBwC, ZA))
++
++      // Contravariant outer subtypes
++      assert(!typer.infer.isAsSpecific(ZA, QuuxA))
++      assert(typer.infer.isAsSpecific(QuuxA, ZA))
++
++      assert(!typer.infer.isAsSpecific(ZA, QuuxB))
++      assert(!typer.infer.isAsSpecific(QuuxB, ZA))
++
++      assert(!typer.infer.isAsSpecific(ZB, QuuxA))
++      assert(typer.infer.isAsSpecific(QuuxA, ZB))
++
++      assert(!typer.infer.isAsSpecific(ZB, QuuxB))
++      assert(typer.infer.isAsSpecific(QuuxB, ZB))
++    }
++  }
++
++  @Test
++  def isAsSpecificScala3(): Unit = {
++    settings.source.value = ScalaVersion("3.0")
++
++    val run = new global.Run
++
++    enteringPhase(run.typerPhase) {
++      val XA = typeOf[X[A]]
++      val XB = typeOf[X[B]]
++
++      val YA = typeOf[Y[A]]
++      val YB = typeOf[Y[B]]
++
++      val ZA = typeOf[Z[A]]
++      val ZB = typeOf[Z[B]]
++
++      val LZA = typeOf[List[Z[A]]]
++      val LZB = typeOf[List[Z[B]]]
++
++      val QuuxA = typeOf[Quux[A]]
++      val QuuxB = typeOf[Quux[B]]
++
++      val SubZB = typeOf[SubZB]
++      val ZBwC = typeOf[ZwC[B]]
++
++      // https://github.com/scala/bug/issues/2509
++      // See discussion at https://github.com/lampepfl/dotty/blob/89540268e6c49fb92b9ca61249e46bb59981bf5a/src/dotty/tools/dotc/typer/Applications.scala#L925-L951
++
++      // Covariant
++      assert(!typer.infer.isAsSpecific(XA, XB))
++      assert(typer.infer.isAsSpecific(XB, XA))
++
++      // Invariant
++      assert(!typer.infer.isAsSpecific(YA, YB))
++      assert(!typer.infer.isAsSpecific(YB, YA))
++
++      // Contravariant: treat top level as covariant
++      assert(!typer.infer.isAsSpecific(ZA, ZB))
++      assert(typer.infer.isAsSpecific(ZB, ZA))
++
++      // Inner contravariant: also changed
++      assert(!typer.infer.isAsSpecific(LZA, LZB))
++      assert(typer.infer.isAsSpecific(LZB, LZA))
++
++      // Subtypes of contravaraint effectively unrelated
++      assert(!typer.infer.isAsSpecific(ZA, SubZB))
++      assert(typer.infer.isAsSpecific(SubZB, ZA))
++
++      // Subtypes of contravaraint effectively unrelated
++      assert(!typer.infer.isAsSpecific(ZA, ZBwC))
++      assert(typer.infer.isAsSpecific(ZBwC, ZA))
++
++      // Contravariant outer subtypes
++      assert(!typer.infer.isAsSpecific(ZA, QuuxA))
++      assert(typer.infer.isAsSpecific(QuuxA, ZA))
++
++      assert(!typer.infer.isAsSpecific(ZA, QuuxB))
++      assert(typer.infer.isAsSpecific(QuuxB, ZA))
++
++      assert(!typer.infer.isAsSpecific(ZB, QuuxA))
++      assert(!typer.infer.isAsSpecific(QuuxA, ZB))
++
++      assert(!typer.infer.isAsSpecific(ZB, QuuxB))
++      assert(typer.infer.isAsSpecific(QuuxB, ZB))
++    }
++  }
++}

@@ -1,0 +1,675 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/BodyResolver.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/BodyResolver.java
+index 8a232895900..294e7ee72f1 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/BodyResolver.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/BodyResolver.java
+@@ -36,6 +36,7 @@ import org.jetbrains.kotlin.lexer.KtTokens;
+ import org.jetbrains.kotlin.psi.*;
+ import org.jetbrains.kotlin.psi.psiUtil.PsiUtilsKt;
+ import org.jetbrains.kotlin.resolve.calls.CallResolver;
++import org.jetbrains.kotlin.resolve.calls.components.InferenceSession;
+ import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall;
+ import org.jetbrains.kotlin.resolve.calls.results.OverloadResolutionResults;
+ import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo;
+@@ -303,7 +304,9 @@ public class BodyResolver {
+                 if (delegateExpression != null) {
+                     LexicalScope scope = scopeForConstructor == null ? scopeForMemberResolution : scopeForConstructor;
+                     KotlinType expectedType = supertype != null ? supertype : NO_EXPECTED_TYPE;
+-                    typeInferrer.getType(scope, delegateExpression, expectedType, outerDataFlowInfo, trace);
++                    typeInferrer.getType(
++                            scope, delegateExpression, expectedType, outerDataFlowInfo, InferenceSession.Companion.getDefault(), trace
++                    );
+                 }
+ 
+                 if (descriptor.isExpect()) {
+@@ -660,7 +663,8 @@ public class BodyResolver {
+             PreliminaryDeclarationVisitor.Companion.createForDeclaration(
+                     (KtDeclaration) anonymousInitializer.getParent().getParent(), trace, languageVersionSettings);
+             expressionTypingServices.getTypeInfo(
+-                    scopeForInitializers, body, NO_EXPECTED_TYPE, outerDataFlowInfo, trace, /*isStatement = */true
++                    scopeForInitializers, body, NO_EXPECTED_TYPE, outerDataFlowInfo,
++                    InferenceSession.Companion.getDefault(), trace, /*isStatement = */true
+             );
+         }
+         processModifiersOnInitializer(anonymousInitializer, scopeForInitializers);
+@@ -864,6 +868,7 @@ public class BodyResolver {
+                                                           propertyDescriptor,
+                                                           delegateExpression,
+                                                           propertyHeaderScope,
++                                                          InferenceSession.Companion.getDefault(),
+                                                           trace);
+     }
+ 
+@@ -878,7 +883,7 @@ public class BodyResolver {
+         KotlinType expectedTypeForInitializer = property.getTypeReference() != null ? propertyDescriptor.getType() : NO_EXPECTED_TYPE;
+         if (propertyDescriptor.getCompileTimeInitializer() == null) {
+             expressionTypingServices.getType(propertyDeclarationInnerScope, initializer, expectedTypeForInitializer,
+-                                             outerDataFlowInfo, trace);
++                                             outerDataFlowInfo, InferenceSession.Companion.getDefault(), trace);
+         }
+     }
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/DelegatedPropertyResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/DelegatedPropertyResolver.kt
+index 87dae5c5dd0..583310d89ef 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/DelegatedPropertyResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/DelegatedPropertyResolver.kt
+@@ -72,6 +72,7 @@ class DelegatedPropertyResolver(
+         variableDescriptor: VariableDescriptorWithAccessors,
+         delegateExpression: KtExpression,
+         propertyHeaderScope: LexicalScope,
++        inferenceSession: InferenceSession,
+         trace: BindingTrace
+     ) {
+         property.getter?.let { getter ->
+@@ -86,8 +87,9 @@ class DelegatedPropertyResolver(
+                 ScopeUtils.makeScopeForPropertyInitializer(propertyHeaderScope, variableDescriptor)
+             else propertyHeaderScope
+ 
+-        val byExpressionType =
+-            resolveDelegateExpression(delegateExpression, property, variableDescriptor, initializerScope, trace, outerDataFlowInfo)
++        val byExpressionType =resolveDelegateExpression(
++            delegateExpression, property, variableDescriptor, initializerScope, trace, outerDataFlowInfo, inferenceSession
++        )
+ 
+         resolveProvideDelegateMethod(variableDescriptor, delegateExpression, byExpressionType, trace, initializerScope, outerDataFlowInfo)
+         val delegateType = getResolvedDelegateType(variableDescriptor, delegateExpression, byExpressionType, trace)
+@@ -455,7 +457,8 @@ class DelegatedPropertyResolver(
+         variableDescriptor: VariableDescriptorWithAccessors,
+         scopeForDelegate: LexicalScope,
+         trace: BindingTrace,
+-        dataFlowInfo: DataFlowInfo
++        dataFlowInfo: DataFlowInfo,
++        inferenceSession: InferenceSession
+     ): KotlinType {
+         val traceToResolveDelegatedProperty = TemporaryBindingTrace.create(trace, "Trace to resolve delegated property")
+ 
+@@ -475,12 +478,13 @@ class DelegatedPropertyResolver(
+         }
+ 
+         val delegatedPropertyTypeFromNI =
+-            resolveWithNewInference(delegateExpression, variableDescriptor, scopeForDelegate, trace, dataFlowInfo)
++            resolveWithNewInference(delegateExpression, variableDescriptor, scopeForDelegate, trace, dataFlowInfo, inferenceSession)
+         val delegateType = expressionTypingServices.safeGetType(
+             scopeForDelegate,
+             delegateExpression,
+             delegatedPropertyTypeFromNI ?: NO_EXPECTED_TYPE,
+             dataFlowInfo,
++            inferenceSession,
+             traceToResolveDelegatedProperty
+         )
+ 
+@@ -494,7 +498,8 @@ class DelegatedPropertyResolver(
+         variableDescriptor: VariableDescriptorWithAccessors,
+         scopeForDelegate: LexicalScope,
+         trace: BindingTrace,
+-        dataFlowInfo: DataFlowInfo
++        dataFlowInfo: DataFlowInfo,
++        inferenceSession: InferenceSession
+     ): KotlinType? {
+         if (!languageVersionSettings.supportsFeature(LanguageFeature.NewInference)) return null
+ 
+@@ -503,7 +508,7 @@ class DelegatedPropertyResolver(
+         val traceToResolveDelegatedProperty = TemporaryBindingTrace.create(trace, "Trace to resolve delegated property")
+ 
+         val delegateTypeInfo = expressionTypingServices.getTypeInfo(
+-            scopeForDelegate, delegateExpression, NO_EXPECTED_TYPE, dataFlowInfo,
++            scopeForDelegate, delegateExpression, NO_EXPECTED_TYPE, dataFlowInfo, inferenceSession,
+             traceToResolveDelegatedProperty, false, delegateExpression, ContextDependency.DEPENDENT
+         )
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/DescriptorResolver.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/DescriptorResolver.java
+index 26b756057ff..1ceb21ad25c 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/DescriptorResolver.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/DescriptorResolver.java
+@@ -42,6 +42,7 @@ import org.jetbrains.kotlin.lexer.KtTokens;
+ import org.jetbrains.kotlin.name.Name;
+ import org.jetbrains.kotlin.psi.*;
+ import org.jetbrains.kotlin.psi.psiUtil.PsiUtilsKt;
++import org.jetbrains.kotlin.resolve.calls.components.InferenceSession;
+ import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo;
+ import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfoFactory;
+ import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowValueFactory;
+@@ -798,7 +799,8 @@ public class DescriptorResolver {
+             @NotNull LexicalScope scopeForInitializerResolution,
+             @NotNull KtDestructuringDeclarationEntry entry,
+             @NotNull BindingTrace trace,
+-            @NotNull DataFlowInfo dataFlowInfo
++            @NotNull DataFlowInfo dataFlowInfo,
++            @NotNull InferenceSession inferenceSession
+     ) {
+         KtDestructuringDeclaration destructuringDeclaration = (KtDestructuringDeclaration) entry.getParent();
+         KtExpression initializer = destructuringDeclaration.getInitializer();
+@@ -819,6 +821,7 @@ public class DescriptorResolver {
+                 entry,
+                 trace,
+                 dataFlowInfo,
++                inferenceSession,
+                 VariableAsPropertyInfo.Companion.createFromDestructuringDeclarationEntry(componentType));
+     }
+ 
+@@ -842,7 +845,8 @@ public class DescriptorResolver {
+             @NotNull LexicalScope scopeForInitializerResolution,
+             @NotNull KtProperty property,
+             @NotNull BindingTrace trace,
+-            @NotNull DataFlowInfo dataFlowInfo
++            @NotNull DataFlowInfo dataFlowInfo,
++            @NotNull InferenceSession inferenceSession
+     ) {
+         return resolveAsPropertyDescriptor(
+                 containingDeclaration,
+@@ -851,6 +855,7 @@ public class DescriptorResolver {
+                 property,
+                 trace,
+                 dataFlowInfo,
++                inferenceSession,
+                 VariableAsPropertyInfo.Companion.createFromProperty(property));
+     }
+ 
+@@ -862,6 +867,7 @@ public class DescriptorResolver {
+             @NotNull KtVariableDeclaration variableDeclaration,
+             @NotNull BindingTrace trace,
+             @NotNull DataFlowInfo dataFlowInfo,
++            @NotNull InferenceSession inferenceSession,
+             @NotNull VariableAsPropertyInfo propertyInfo
+     ) {
+         KtModifierList modifierList = variableDeclaration.getModifierList();
+@@ -962,7 +968,8 @@ public class DescriptorResolver {
+         KotlinType propertyType = propertyInfo.getVariableType();
+         KotlinType typeIfKnown = propertyType != null ? propertyType : variableTypeAndInitializerResolver.resolveTypeNullable(
+                 propertyDescriptor, scopeForInitializer,
+-                variableDeclaration, dataFlowInfo, /* local = */ trace, false
++                variableDeclaration, dataFlowInfo, inferenceSession,
++                trace, /* local = */ false
+         );
+ 
+         PropertyGetterDescriptorImpl getter = resolvePropertyGetterDescriptor(
+@@ -980,7 +987,7 @@ public class DescriptorResolver {
+         assert type != null : "At least getter type must be initialized via resolvePropertyGetterDescriptor";
+ 
+         variableTypeAndInitializerResolver.setConstantForVariableIfNeeded(
+-                propertyDescriptor, scopeForInitializer, variableDeclaration, dataFlowInfo, type, trace
++                propertyDescriptor, scopeForInitializer, variableDeclaration, dataFlowInfo, type, inferenceSession, trace
+         );
+ 
+         propertyDescriptor.setType(type, typeParameterDescriptors, getDispatchReceiverParameterIfNeeded(container), receiverDescriptor);
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/LocalVariableResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/LocalVariableResolver.kt
+index 438875ad487..2847e494dce 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/LocalVariableResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/LocalVariableResolver.kt
+@@ -30,6 +30,7 @@ import org.jetbrains.kotlin.name.Name
+ import org.jetbrains.kotlin.psi.KtProperty
+ import org.jetbrains.kotlin.psi.KtPsiUtil
+ import org.jetbrains.kotlin.psi.KtVariableDeclaration
++import org.jetbrains.kotlin.resolve.calls.components.InferenceSession
+ import org.jetbrains.kotlin.resolve.calls.context.ContextDependency
+ import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo
+ import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowValueFactory
+@@ -74,7 +75,8 @@ class LocalVariableResolver(
+             context.trace.report(LOCAL_VARIABLE_WITH_SETTER.on(setter))
+         }
+ 
+-        val propertyDescriptor = resolveLocalVariableDescriptor(scope, property, context.dataFlowInfo, context.trace)
++        val propertyDescriptor =
++            resolveLocalVariableDescriptor(scope, property, context.dataFlowInfo, context.inferenceSession, context.trace)
+ 
+         val delegateExpression = property.delegateExpression
+         if (delegateExpression != null) {
+@@ -94,6 +96,7 @@ class LocalVariableResolver(
+                     propertyDescriptor,
+                     delegateExpression,
+                     typingContext.scope,
++                    typingContext.inferenceSession,
+                     typingContext.trace
+                 )
+                 propertyDescriptor.getter?.updateAccessorFlagsFromResolvedCallForDelegatedProperty(typingContext.trace)
+@@ -153,6 +156,7 @@ class LocalVariableResolver(
+         scope: LexicalScope,
+         variable: KtVariableDeclaration,
+         dataFlowInfo: DataFlowInfo,
++        inferenceSession: InferenceSession,
+         trace: BindingTrace
+     ): VariableDescriptor {
+         val containingDeclaration = scope.ownerDescriptor
+@@ -176,7 +180,9 @@ class LocalVariableResolver(
+                 variable is KtProperty && variable.hasDelegate()
+             )
+             // For a local variable the type must not be deferred
+-            type = variableTypeAndInitializerResolver.resolveType(propertyDescriptor, scope, variable, dataFlowInfo, trace, local = true)
++            type = variableTypeAndInitializerResolver.resolveType(
++                propertyDescriptor, scope, variable, dataFlowInfo, inferenceSession, trace, local = true
++            )
+ 
+             val receiverParameter = (containingDeclaration as ScriptDescriptor).thisAsReceiverParameter
+             propertyDescriptor.setType(type, emptyList<TypeParameterDescriptor>(), receiverParameter, null)
+@@ -186,11 +192,14 @@ class LocalVariableResolver(
+         } else {
+             val variableDescriptor = resolveLocalVariableDescriptorWithType(scope, variable, null, trace)
+             // For a local variable the type must not be deferred
+-            type = variableTypeAndInitializerResolver.resolveType(variableDescriptor, scope, variable, dataFlowInfo, trace, local = true)
++            type = variableTypeAndInitializerResolver.resolveType(
++                variableDescriptor, scope, variable, dataFlowInfo, inferenceSession, trace, local = true
++            )
+             variableDescriptor.setOutType(type)
+             result = variableDescriptor
+         }
+-        variableTypeAndInitializerResolver.setConstantForVariableIfNeeded(result, scope, variable, dataFlowInfo, type, trace)
++        variableTypeAndInitializerResolver
++            .setConstantForVariableIfNeeded(result, scope, variable, dataFlowInfo, type, inferenceSession, trace)
+         // Type annotations also should be resolved
+         ForceResolveUtil.forceResolveAllContents(type.annotations)
+         return result
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/VariableTypeAndInitializerResolver.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/VariableTypeAndInitializerResolver.kt
+index b1d837c2022..7d715c66848 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/VariableTypeAndInitializerResolver.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/VariableTypeAndInitializerResolver.kt
+@@ -14,6 +14,7 @@ import org.jetbrains.kotlin.psi.KtExpression
+ import org.jetbrains.kotlin.psi.KtProperty
+ import org.jetbrains.kotlin.psi.KtVariableDeclaration
+ import org.jetbrains.kotlin.resolve.DescriptorResolver.transformAnonymousTypeIfNeeded
++import org.jetbrains.kotlin.resolve.calls.components.InferenceSession
+ import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo
+ import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluator
+ import org.jetbrains.kotlin.resolve.scopes.LexicalScope
+@@ -44,10 +45,13 @@ class VariableTypeAndInitializerResolver(
+         scopeForInitializer: LexicalScope,
+         variable: KtVariableDeclaration,
+         dataFlowInfo: DataFlowInfo,
++        inferenceSession: InferenceSession,
+         trace: BindingTrace,
+         local: Boolean
+     ): KotlinType {
+-        resolveTypeNullable(variableDescriptor, scopeForInitializer, variable, dataFlowInfo, trace, local)?.let { return it }
++        resolveTypeNullable(
++            variableDescriptor, scopeForInitializer, variable, dataFlowInfo, inferenceSession, trace, local
++        )?.let { return it }
+ 
+         if (local) {
+             trace.report(VARIABLE_WITH_NO_TYPE_NO_INITIALIZER.on(variable))
+@@ -61,6 +65,7 @@ class VariableTypeAndInitializerResolver(
+         scopeForInitializer: LexicalScope,
+         variable: KtVariableDeclaration,
+         dataFlowInfo: DataFlowInfo,
++        inferenceSession: InferenceSession,
+         trace: BindingTrace,
+         local: Boolean
+     ): KotlinType? {
+@@ -70,7 +75,9 @@ class VariableTypeAndInitializerResolver(
+ 
+             !variable.hasInitializer() && variable is KtProperty && variableDescriptor is VariableDescriptorWithAccessors &&
+                     variable.hasDelegateExpression() ->
+-                resolveDelegatedPropertyType(variable, variableDescriptor, scopeForInitializer, dataFlowInfo, trace, local)
++                resolveDelegatedPropertyType(
++                    variable, variableDescriptor, scopeForInitializer, dataFlowInfo, inferenceSession, trace, local
++                )
+ 
+             variable.hasInitializer() -> when {
+                 !local ->
+@@ -81,12 +88,13 @@ class VariableTypeAndInitializerResolver(
+                             variable, trace,
+                             expressionTypingServices.languageVersionSettings
+                         )
+-                        val initializerType =
+-                            resolveInitializerType(scopeForInitializer, variable.initializer!!, dataFlowInfo, trace, local)
++                        val initializerType = resolveInitializerType(
++                            scopeForInitializer, variable.initializer!!, dataFlowInfo, inferenceSession, trace, local
++                        )
+                         transformAnonymousTypeIfNeeded(variableDescriptor, variable, initializerType, trace, anonymousTypeTransformers)
+                     }
+ 
+-                else -> resolveInitializerType(scopeForInitializer, variable.initializer!!, dataFlowInfo, trace, local)
++                else -> resolveInitializerType(scopeForInitializer, variable.initializer!!, dataFlowInfo, inferenceSession, trace, local)
+             }
+ 
+             else -> null
+@@ -99,6 +107,7 @@ class VariableTypeAndInitializerResolver(
+         variable: KtVariableDeclaration,
+         dataFlowInfo: DataFlowInfo,
+         variableType: KotlinType,
++        inferenceSession: InferenceSession,
+         trace: BindingTrace
+     ) {
+         if (!variable.hasInitializer() || variable.isVar) return
+@@ -111,7 +120,8 @@ class VariableTypeAndInitializerResolver(
+                         )) return@computeInitializer null
+ 
+                     val initializer = variable.initializer
+-                    val initializerType = expressionTypingServices.safeGetType(scope, initializer!!, variableType, dataFlowInfo, trace)
++                    val initializerType =
++                        expressionTypingServices.safeGetType(scope, initializer!!, variableType, dataFlowInfo, inferenceSession, trace)
+                     val constant = constantExpressionEvaluator.evaluateExpression(initializer, trace, initializerType)
+                             ?: return@computeInitializer null
+ 
+@@ -131,12 +141,13 @@ class VariableTypeAndInitializerResolver(
+         variableDescriptor: VariableDescriptorWithAccessors,
+         scopeForInitializer: LexicalScope,
+         dataFlowInfo: DataFlowInfo,
++        inferenceSession: InferenceSession,
+         trace: BindingTrace,
+         local: Boolean
+     ) = wrappedTypeFactory.createRecursionIntolerantDeferredType(trace) {
+         val delegateExpression = property.delegateExpression!!
+         val type = delegatedPropertyResolver.resolveDelegateExpression(
+-            delegateExpression, property, variableDescriptor, scopeForInitializer, trace, dataFlowInfo
++            delegateExpression, property, variableDescriptor, scopeForInitializer, trace, dataFlowInfo, inferenceSession
+         )
+ 
+         val getterReturnType = delegatedPropertyResolver.getGetValueMethodReturnType(
+@@ -153,10 +164,13 @@ class VariableTypeAndInitializerResolver(
+         scope: LexicalScope,
+         initializer: KtExpression,
+         dataFlowInfo: DataFlowInfo,
++        inferenceSession: InferenceSession,
+         trace: BindingTrace,
+         local: Boolean
+     ): KotlinType {
+-        val inferredType = expressionTypingServices.safeGetType(scope, initializer, TypeUtils.NO_EXPECTED_TYPE, dataFlowInfo, trace)
++        val inferredType = expressionTypingServices.safeGetType(
++            scope, initializer, TypeUtils.NO_EXPECTED_TYPE, dataFlowInfo, inferenceSession, trace
++        )
+         val approximatedType = approximateType(inferredType, local)
+         return declarationReturnTypeSanitizer.sanitizeReturnType(approximatedType, wrappedTypeFactory, trace, languageVersionSettings)
+     }
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolver.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolver.java
+index 52ad7335147..b85613e911b 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolver.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolver.java
+@@ -350,7 +350,7 @@ public class CallResolver {
+             );
+         }
+         KotlinType calleeType = expressionTypingServices.safeGetType(
+-                context.scope, calleeExpression, expectedType, context.dataFlowInfo, context.trace);
++                context.scope, calleeExpression, expectedType, context.dataFlowInfo, context.inferenceSession, context.trace);
+         ExpressionReceiver expressionReceiver = ExpressionReceiver.Companion.create(calleeExpression, calleeType, context.trace.getBindingContext());
+ 
+         Call call = new CallTransformer.CallForImplicitInvoke(context.call.getExplicitReceiver(), expressionReceiver, context.call,
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/descriptors/AbstractLazyMemberScope.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/descriptors/AbstractLazyMemberScope.kt
+index b10816026ae..13d1bbd6ed8 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/descriptors/AbstractLazyMemberScope.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/lazy/descriptors/AbstractLazyMemberScope.kt
+@@ -22,6 +22,7 @@ import org.jetbrains.kotlin.lexer.KtTokens
+ import org.jetbrains.kotlin.name.Name
+ import org.jetbrains.kotlin.psi.*
+ import org.jetbrains.kotlin.resolve.BindingTrace
++import org.jetbrains.kotlin.resolve.calls.components.InferenceSession
+ import org.jetbrains.kotlin.resolve.lazy.LazyClassContext
+ import org.jetbrains.kotlin.resolve.lazy.declarations.AbstractPsiBasedDeclarationProvider
+ import org.jetbrains.kotlin.resolve.lazy.declarations.DeclarationProvider
+@@ -129,7 +130,8 @@ protected constructor(
+                 getScopeForInitializerResolution(propertyDeclaration),
+                 propertyDeclaration,
+                 trace,
+-                c.declarationScopeProvider.getOuterDataFlowInfoForDeclaration(propertyDeclaration)
++                c.declarationScopeProvider.getOuterDataFlowInfoForDeclaration(propertyDeclaration),
++                InferenceSession.default
+             )
+             result.add(propertyDescriptor)
+         }
+@@ -141,7 +143,8 @@ protected constructor(
+                 getScopeForInitializerResolution(entry),
+                 entry,
+                 trace,
+-                c.declarationScopeProvider.getOuterDataFlowInfoForDeclaration(entry)
++                c.declarationScopeProvider.getOuterDataFlowInfoForDeclaration(entry),
++                InferenceSession.default
+             )
+             result.add(propertyDescriptor)
+         }
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingServices.java b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingServices.java
+index 5b7b3550ea2..db3baa8aec3 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingServices.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/types/expressions/ExpressionTypingServices.java
+@@ -19,6 +19,7 @@ import org.jetbrains.kotlin.lexer.KtTokens;
+ import org.jetbrains.kotlin.psi.*;
+ import org.jetbrains.kotlin.psi.psiUtil.PsiUtilsKt;
+ import org.jetbrains.kotlin.resolve.*;
++import org.jetbrains.kotlin.resolve.calls.components.InferenceSession;
+ import org.jetbrains.kotlin.resolve.calls.context.ContextDependency;
+ import org.jetbrains.kotlin.resolve.calls.context.ResolutionContext;
+ import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo;
+@@ -71,9 +72,10 @@ public class ExpressionTypingServices {
+             @NotNull KtExpression expression,
+             @NotNull KotlinType expectedType,
+             @NotNull DataFlowInfo dataFlowInfo,
++            @NotNull InferenceSession inferenceSession,
+             @NotNull BindingTrace trace
+     ) {
+-        KotlinType type = getType(scope, expression, expectedType, dataFlowInfo, trace);
++        KotlinType type = getType(scope, expression, expectedType, dataFlowInfo, inferenceSession, trace);
+ 
+         return type != null ? type : ErrorUtils.createErrorType("Type for " + expression.getText());
+     }
+@@ -84,10 +86,14 @@ public class ExpressionTypingServices {
+             @NotNull KtExpression expression,
+             @NotNull KotlinType expectedType,
+             @NotNull DataFlowInfo dataFlowInfo,
++            @NotNull InferenceSession inferenceSession,
+             @NotNull BindingTrace trace,
+             boolean isStatement
+     ) {
+-        return getTypeInfo(scope, expression, expectedType, dataFlowInfo, trace, isStatement, expression, ContextDependency.INDEPENDENT);
++        return getTypeInfo(
++                scope, expression, expectedType, dataFlowInfo, inferenceSession,
++                trace, isStatement, expression, ContextDependency.INDEPENDENT
++        );
+     }
+ 
+     @NotNull
+@@ -96,6 +102,7 @@ public class ExpressionTypingServices {
+             @NotNull KtExpression expression,
+             @NotNull KotlinType expectedType,
+             @NotNull DataFlowInfo dataFlowInfo,
++            @NotNull InferenceSession inferenceSession,
+             @NotNull BindingTrace trace,
+             boolean isStatement,
+             @NotNull KtExpression contextExpression,
+@@ -103,7 +110,7 @@ public class ExpressionTypingServices {
+     ) {
+         ExpressionTypingContext context = ExpressionTypingContext.newContext(
+                 trace, scope, dataFlowInfo, expectedType, contextDependency, statementFilter, getLanguageVersionSettings(),
+-                expressionTypingComponents.dataFlowValueFactory
++                expressionTypingComponents.dataFlowValueFactory, inferenceSession
+         );
+         if (contextExpression != expression) {
+             context = context.replaceExpressionContextProvider(arg -> arg == expression ? contextExpression : null);
+@@ -122,9 +129,10 @@ public class ExpressionTypingServices {
+             @NotNull KtExpression expression,
+             @NotNull KotlinType expectedType,
+             @NotNull DataFlowInfo dataFlowInfo,
++            @NotNull InferenceSession inferenceSession,
+             @NotNull BindingTrace trace
+     ) {
+-        return getTypeInfo(scope, expression, expectedType, dataFlowInfo, trace, false).getType();
++        return getTypeInfo(scope, expression, expectedType, dataFlowInfo, inferenceSession, trace, false).getType();
+     }
+ 
+     /////////////////////////////////////////////////////////
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/inferenceFromMethodInsideLocalVariable.kt b/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/inferenceFromMethodInsideLocalVariable.kt
+new file mode 100644
+index 00000000000..809f121ef91
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/inferenceFromMethodInsideLocalVariable.kt
+@@ -0,0 +1,17 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
++// !USE_EXPERIMENTAL: kotlin.Experimental
++
++import kotlin.experimental.ExperimentalTypeInference
++
++interface Inv<T> {
++    fun send(e: T)
++}
++
++@UseExperimental(ExperimentalTypeInference::class)
++fun <K> foo(@BuilderInference block: Inv<K>.() -> Unit) {}
++
++fun test(i: Int) {
++    foo {
++        val p = send(i)
++    }
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/inferenceFromMethodInsideLocalVariable.txt b/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/inferenceFromMethodInsideLocalVariable.txt
+new file mode 100644
+index 00000000000..7bfb5b55085
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/inferenceFromMethodInsideLocalVariable.txt
+@@ -0,0 +1,11 @@
++package
++
++@kotlin.UseExperimental(markerClass = {kotlin.experimental.ExperimentalTypeInference::class}) public fun </*0*/ K> foo(/*0*/ @kotlin.BuilderInference block: Inv<K>.() -> kotlin.Unit): kotlin.Unit
++public fun test(/*0*/ i: kotlin.Int): kotlin.Unit
++
++public interface Inv</*0*/ T> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract fun send(/*0*/ e: T): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
+index dfaf73f8dbe..a697810aa60 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
+@@ -1867,6 +1867,11 @@ public class DiagnosticsTestWithStdLibGenerated extends AbstractDiagnosticsTestW
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/inferCoroutineTypeInOldVersion.kt");
+             }
+ 
++            @TestMetadata("inferenceFromMethodInsideLocalVariable.kt")
++            public void testInferenceFromMethodInsideLocalVariable() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/inferenceFromMethodInsideLocalVariable.kt");
++            }
++
+             @TestMetadata("kt15516.kt")
+             public void testKt15516() throws Exception {
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt15516.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
+index 5a698f2f4aa..31c2a026b24 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
+@@ -1867,6 +1867,11 @@ public class DiagnosticsTestWithStdLibUsingJavacGenerated extends AbstractDiagno
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/inferCoroutineTypeInOldVersion.kt");
+             }
+ 
++            @TestMetadata("inferenceFromMethodInsideLocalVariable.kt")
++            public void testInferenceFromMethodInsideLocalVariable() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/inferenceFromMethodInsideLocalVariable.kt");
++            }
++
+             @TestMetadata("kt15516.kt")
+             public void testKt15516() throws Exception {
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt15516.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/types/DefaultModalityModifiersTest.java b/compiler/tests/org/jetbrains/kotlin/types/DefaultModalityModifiersTest.java
+index 16bf714ac9f..972f3f03b98 100644
+--- a/compiler/tests/org/jetbrains/kotlin/types/DefaultModalityModifiersTest.java
++++ b/compiler/tests/org/jetbrains/kotlin/types/DefaultModalityModifiersTest.java
+@@ -28,6 +28,7 @@ import org.jetbrains.kotlin.psi.*;
+ import org.jetbrains.kotlin.resolve.BindingContext;
+ import org.jetbrains.kotlin.resolve.DescriptorResolver;
+ import org.jetbrains.kotlin.resolve.FunctionDescriptorResolver;
++import org.jetbrains.kotlin.resolve.calls.components.InferenceSession;
+ import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfoFactory;
+ import org.jetbrains.kotlin.resolve.lazy.JvmResolveUtil;
+ import org.jetbrains.kotlin.resolve.lazy.ResolveSession;
+@@ -138,7 +139,10 @@ public class DefaultModalityModifiersTest extends KotlinTestWithEnvironment {
+             List<KtDeclaration> declarations = aClass.getDeclarations();
+             KtProperty property = (KtProperty) declarations.get(0);
+             PropertyDescriptor propertyDescriptor = descriptorResolver.resolvePropertyDescriptor(
+-                    classDescriptor, scope, scope, property, KotlinTestUtils.DUMMY_TRACE, DataFlowInfoFactory.EMPTY);
++                    classDescriptor, scope, scope, property,
++                    KotlinTestUtils.DUMMY_TRACE, DataFlowInfoFactory.EMPTY,
++                    InferenceSession.Companion.getDefault()
++            );
+ 
+             assertEquals(expectedPropertyModality, propertyDescriptor.getModality());
+         }
+@@ -151,7 +155,10 @@ public class DefaultModalityModifiersTest extends KotlinTestWithEnvironment {
+             List<KtDeclaration> declarations = aClass.getDeclarations();
+             KtProperty property = (KtProperty) declarations.get(0);
+             PropertyDescriptor propertyDescriptor = descriptorResolver.resolvePropertyDescriptor(
+-                    classDescriptor, scope, scope, property, KotlinTestUtils.DUMMY_TRACE, DataFlowInfoFactory.EMPTY);
++                    classDescriptor, scope, scope, property,
++                    KotlinTestUtils.DUMMY_TRACE, DataFlowInfoFactory.EMPTY,
++                    InferenceSession.Companion.getDefault()
++            );
+             PropertyAccessorDescriptor propertyAccessor = isGetter
+                                                           ? propertyDescriptor.getGetter()
+                                                           : propertyDescriptor.getSetter();
+diff --git a/compiler/tests/org/jetbrains/kotlin/types/KotlinTypeCheckerTest.java b/compiler/tests/org/jetbrains/kotlin/types/KotlinTypeCheckerTest.java
+index d0465dd7d22..050e961ac71 100644
+--- a/compiler/tests/org/jetbrains/kotlin/types/KotlinTypeCheckerTest.java
++++ b/compiler/tests/org/jetbrains/kotlin/types/KotlinTypeCheckerTest.java
+@@ -31,6 +31,7 @@ import org.jetbrains.kotlin.psi.KtPsiFactoryKt;
+ import org.jetbrains.kotlin.resolve.BindingContext;
+ import org.jetbrains.kotlin.resolve.BindingTraceContext;
+ import org.jetbrains.kotlin.resolve.TypeResolver;
++import org.jetbrains.kotlin.resolve.calls.components.InferenceSession;
+ import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfoFactory;
+ import org.jetbrains.kotlin.resolve.lazy.JvmResolveUtil;
+ import org.jetbrains.kotlin.resolve.scopes.LexicalScope;
+@@ -530,7 +531,11 @@ public class KotlinTypeCheckerTest extends KotlinTestWithEnvironment {
+     private void assertType(String expression, KotlinType expectedType) {
+         Project project = getProject();
+         KtExpression ktExpression = KtPsiFactoryKt.KtPsiFactory(project).createExpression(expression);
+-        KotlinType type = expressionTypingServices.getType(scopeWithImports, ktExpression, TypeUtils.NO_EXPECTED_TYPE, DataFlowInfoFactory.EMPTY, KotlinTestUtils.DUMMY_TRACE);
++        KotlinType type = expressionTypingServices.getType(
++                scopeWithImports, ktExpression, TypeUtils.NO_EXPECTED_TYPE,
++                DataFlowInfoFactory.EMPTY, InferenceSession.Companion.getDefault(),
++                KotlinTestUtils.DUMMY_TRACE
++        );
+         assertNotNull(type);
+         assertEquals(type + " != " + expectedType, expectedType, type);
+     }
+@@ -556,7 +561,11 @@ public class KotlinTypeCheckerTest extends KotlinTestWithEnvironment {
+     private void assertType(LexicalScope scope, String expression, String expectedTypeStr) {
+         Project project = getProject();
+         KtExpression ktExpression = KtPsiFactoryKt.KtPsiFactory(project).createExpression(expression);
+-        KotlinType type = expressionTypingServices.getType(scope, ktExpression, TypeUtils.NO_EXPECTED_TYPE, DataFlowInfoFactory.EMPTY, new BindingTraceContext());
++        KotlinType type = expressionTypingServices.getType(
++                scope, ktExpression, TypeUtils.NO_EXPECTED_TYPE,
++                DataFlowInfoFactory.EMPTY, InferenceSession.Companion.getDefault(),
++                new BindingTraceContext()
++        );
+         KotlinType expectedType = expectedTypeStr == null ? null : makeType(expectedTypeStr);
+         assertEquals(expectedType, type);
+     }
+diff --git a/idea/ide-common/src/org/jetbrains/kotlin/idea/analysis/AnalyzerUtil.kt b/idea/ide-common/src/org/jetbrains/kotlin/idea/analysis/AnalyzerUtil.kt
+index 60601151c4d..330ce3da4e6 100644
+--- a/idea/ide-common/src/org/jetbrains/kotlin/idea/analysis/AnalyzerUtil.kt
++++ b/idea/ide-common/src/org/jetbrains/kotlin/idea/analysis/AnalyzerUtil.kt
+@@ -27,6 +27,7 @@ import org.jetbrains.kotlin.resolve.BindingTraceContext
+ import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
+ import org.jetbrains.kotlin.resolve.bindingContextUtil.getDataFlowInfoBefore
+ import org.jetbrains.kotlin.resolve.bindingContextUtil.isUsedAsStatement
++import org.jetbrains.kotlin.resolve.calls.components.InferenceSession
+ import org.jetbrains.kotlin.resolve.calls.context.ContextDependency
+ import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo
+ import org.jetbrains.kotlin.resolve.scopes.LexicalScope
+@@ -47,7 +48,9 @@ import org.jetbrains.kotlin.types.expressions.PreliminaryDeclarationVisitor
+         expressionTypingServices: ExpressionTypingServices = contextExpression.getResolutionFacade().frontendService<ExpressionTypingServices>()
+ ): KotlinTypeInfo {
+     PreliminaryDeclarationVisitor.createForExpression(this, trace, expressionTypingServices.languageVersionSettings)
+-    return  expressionTypingServices.getTypeInfo(scope, this, expectedType, dataFlowInfo, trace, isStatement, contextExpression, contextDependency)
++    return expressionTypingServices.getTypeInfo(
++        scope, this, expectedType, dataFlowInfo, InferenceSession.default, trace, isStatement, contextExpression, contextDependency
++    )
+ }
+ 
+ @JvmOverloads fun KtExpression.analyzeInContext(
+diff --git a/idea/idea-analysis/src/org/jetbrains/kotlin/idea/caches/resolve/CodeFragmentAnalyzer.kt b/idea/idea-analysis/src/org/jetbrains/kotlin/idea/caches/resolve/CodeFragmentAnalyzer.kt
+index 72eb2c3b4c9..ed277c3d913 100644
+--- a/idea/idea-analysis/src/org/jetbrains/kotlin/idea/caches/resolve/CodeFragmentAnalyzer.kt
++++ b/idea/idea-analysis/src/org/jetbrains/kotlin/idea/caches/resolve/CodeFragmentAnalyzer.kt
+@@ -27,6 +27,7 @@ import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
+ import org.jetbrains.kotlin.psi.psiUtil.getParentOfTypes2
+ import org.jetbrains.kotlin.resolve.*
+ import org.jetbrains.kotlin.resolve.bindingContextUtil.getDataFlowInfoAfter
++import org.jetbrains.kotlin.resolve.calls.components.InferenceSession
+ import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo
+ import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
+ import org.jetbrains.kotlin.resolve.lazy.ResolveSession
+@@ -64,7 +65,7 @@ class CodeFragmentAnalyzer(
+ 
+                 expressionTypingServices.getTypeInfo(
+                     scope, contentElement, TypeUtils.NO_EXPECTED_TYPE,
+-                    dataFlowInfo, bindingTrace, false
++                    dataFlowInfo, InferenceSession.default, bindingTrace, false
+                 )
+             }
+ 

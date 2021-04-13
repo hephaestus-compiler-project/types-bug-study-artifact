@@ -1,0 +1,133 @@
+changeset:   1578:0baaae675b19
+parent:      1576:88286a36bb34
+user:        mcimadamore
+date:        Fri Feb 15 16:28:07 2013 +0000
+summary:     8006749: compiler does not allow Object protected methods to be used in lambda
+
+diff -r 88286a36bb34 -r 0baaae675b19 src/share/classes/com/sun/tools/javac/code/Types.java
+--- a/src/share/classes/com/sun/tools/javac/code/Types.java	Thu Feb 14 09:43:00 2013 -0800
++++ b/src/share/classes/com/sun/tools/javac/code/Types.java	Fri Feb 15 16:28:07 2013 +0000
+@@ -356,26 +356,11 @@
+             }
+ 
+             public Type getType(Type site) {
+-                if (capture(site) != site) {
+-                    Type formalInterface = site.tsym.type;
+-                    ListBuffer<Type> typeargs = ListBuffer.lb();
+-                    List<Type> actualTypeargs = site.getTypeArguments();
+-                    //simply replace the wildcards with its bound
+-                    for (Type t : formalInterface.getTypeArguments()) {
+-                        if (actualTypeargs.head.hasTag(WILDCARD)) {
+-                            WildcardType wt = (WildcardType)actualTypeargs.head;
+-                            typeargs.append(wt.type);
+-                        } else {
+-                            typeargs.append(actualTypeargs.head);
+-                        }
+-                        actualTypeargs = actualTypeargs.tail;
+-                    }
+-                    site = subst(formalInterface, formalInterface.getTypeArguments(), typeargs.toList());
+-                    if (!chk.checkValidGenericType(site)) {
+-                        //if the inferred functional interface type is not well-formed,
+-                        //or if it's not a subtype of the original target, issue an error
+-                        throw failure(diags.fragment("no.suitable.functional.intf.inst", site));
+-                    }
++                site = removeWildcards(site);
++                if (!chk.checkValidGenericType(site)) {
++                    //if the inferred functional interface type is not well-formed,
++                    //or if it's not a subtype of the original target, issue an error
++                    throw failure(diags.fragment("no.suitable.functional.intf.inst", site));
+                 }
+                 return memberType(site, descSym);
+             }
+@@ -584,6 +569,27 @@
+             return false;
+         }
+     }
++
++    public Type removeWildcards(Type site) {
++        if (capture(site) != site) {
++            Type formalInterface = site.tsym.type;
++            ListBuffer<Type> typeargs = ListBuffer.lb();
++            List<Type> actualTypeargs = site.getTypeArguments();
++            //simply replace the wildcards with its bound
++            for (Type t : formalInterface.getTypeArguments()) {
++                if (actualTypeargs.head.hasTag(WILDCARD)) {
++                    WildcardType wt = (WildcardType)actualTypeargs.head;
++                    typeargs.append(wt.type);
++                } else {
++                    typeargs.append(actualTypeargs.head);
++                }
++                actualTypeargs = actualTypeargs.tail;
++            }
++            return subst(formalInterface, formalInterface.getTypeArguments(), typeargs.toList());
++        } else {
++            return site;
++        }
++    }
+     // </editor-fold>
+ 
+    /**
+diff -r 88286a36bb34 -r 0baaae675b19 src/share/classes/com/sun/tools/javac/comp/Check.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Check.java	Thu Feb 14 09:43:00 2013 -0800
++++ b/src/share/classes/com/sun/tools/javac/comp/Check.java	Fri Feb 15 16:28:07 2013 +0000
+@@ -2232,10 +2232,13 @@
+     void checkFunctionalInterface(JCTree tree, Type funcInterface) {
+         ClassType c = new ClassType(Type.noType, List.<Type>nil(), null);
+         ClassSymbol csym = new ClassSymbol(0, names.empty, c, syms.noSymbol);
+-        c.interfaces_field = List.of(funcInterface);
++        c.interfaces_field = List.of(types.removeWildcards(funcInterface));
+         c.supertype_field = syms.objectType;
+         c.tsym = csym;
+         csym.members_field = new Scope(csym);
++        Symbol descSym = types.findDescriptorSymbol(funcInterface.tsym);
++        Type descType = types.findDescriptorType(funcInterface);
++        csym.members_field.enter(new MethodSymbol(PUBLIC, descSym.name, descType, csym));
+         csym.completer = null;
+         checkImplementations(tree, csym, csym);
+     }
+diff -r 88286a36bb34 -r 0baaae675b19 test/tools/javac/lambda/LambdaConv26.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/LambdaConv26.java	Fri Feb 15 16:28:07 2013 +0000
+@@ -0,0 +1,41 @@
++/*
++ * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8006749
++ * @summary compiler does not allow Object protected methods to be used in lambda
++ * @compile LambdaConv26.java
++ */
++public class LambdaConv26 {
++    interface I {
++        Object clone();
++    }
++
++    Object m() { return null; }
++
++    void test() {
++        I i1 = ()->null;
++        I i2 = this::m;
++    }
++}
+

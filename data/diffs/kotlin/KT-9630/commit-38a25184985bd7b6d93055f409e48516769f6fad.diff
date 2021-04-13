@@ -1,0 +1,348 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolverUtil.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolverUtil.kt
+index 05e39d45841..d24c77e8806 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolverUtil.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/CallResolverUtil.kt
+@@ -106,7 +106,19 @@ fun getErasedReceiverType(receiverParameterDescriptor: ReceiverParameterDescript
+     for (typeProjection in receiverType.arguments) {
+         fakeTypeArguments.add(TypeProjectionImpl(typeProjection.projectionKind, DONT_CARE))
+     }
+-    return KotlinTypeFactory.simpleType(receiverType.annotations, receiverType.constructor, fakeTypeArguments,
++
++    val receiverTypeConstructor = if (receiverType.constructor is IntersectionTypeConstructor) {
++        val superTypesWithFakeArguments = receiverType.constructor.supertypes.map { supertype ->
++            val fakeArguments = supertype.arguments.map { TypeProjectionImpl(it.projectionKind, DONT_CARE) }
++            supertype.replace(fakeArguments)
++        }
++
++        IntersectionTypeConstructor(superTypesWithFakeArguments)
++    } else {
++        receiverType.constructor
++    }
++
++    return KotlinTypeFactory.simpleType(receiverType.annotations, receiverTypeConstructor, fakeTypeArguments,
+                                         receiverType.isMarkedNullable, ErrorUtils.createErrorScope("Error scope for erased receiver type", /*throwExceptions=*/true))
+ }
+ 
+diff --git a/compiler/testData/codegen/box/casts/intersectionTypeMultipleBoundsImplicitReceiver.kt b/compiler/testData/codegen/box/casts/intersectionTypeMultipleBoundsImplicitReceiver.kt
+new file mode 100644
+index 00000000000..de3adc56939
+--- /dev/null
++++ b/compiler/testData/codegen/box/casts/intersectionTypeMultipleBoundsImplicitReceiver.kt
+@@ -0,0 +1,16 @@
++interface FirstTrait
++interface SecondTrait
++
++fun <T> T.doSomething(): String where T : FirstTrait, T : SecondTrait {
++    return "OK"
++}
++
++class Foo : FirstTrait, SecondTrait {
++    fun bar(): String {
++        return doSomething()
++    }
++}
++
++fun box(): String {
++    return Foo().bar()
++}
+\ No newline at end of file
+diff --git a/compiler/testData/codegen/box/casts/intersectionTypeWithMultipleBoundsAsReceiver.kt b/compiler/testData/codegen/box/casts/intersectionTypeWithMultipleBoundsAsReceiver.kt
+new file mode 100644
+index 00000000000..8c58629b05c
+--- /dev/null
++++ b/compiler/testData/codegen/box/casts/intersectionTypeWithMultipleBoundsAsReceiver.kt
+@@ -0,0 +1,13 @@
++interface Foo<T>
++interface Bar<T>
++
++class Baz<T> : Foo<T>, Bar<T>
++
++fun <T, S> S.bip(): String where S : Foo<T>, S: Bar<T> {
++    return "OK"
++}
++
++fun box(): String {
++    val baz = Baz<String>()
++    return baz.bip()
++}
+\ No newline at end of file
+diff --git a/compiler/testData/codegen/box/casts/intersectionTypeWithoutGenericsAsReceiver.kt b/compiler/testData/codegen/box/casts/intersectionTypeWithoutGenericsAsReceiver.kt
+new file mode 100644
+index 00000000000..52c1ef7e498
+--- /dev/null
++++ b/compiler/testData/codegen/box/casts/intersectionTypeWithoutGenericsAsReceiver.kt
+@@ -0,0 +1,12 @@
++interface A
++interface B
++
++class C : A, B
++
++fun <T> T.foo(): String where T : A, T : B {
++    return "OK"
++}
++
++fun box(): String {
++    return C().foo()
++}
+\ No newline at end of file
+diff --git a/compiler/testData/codegen/light-analysis/casts/intersectionTypeMultipleBoundsImplicitReceiver.txt b/compiler/testData/codegen/light-analysis/casts/intersectionTypeMultipleBoundsImplicitReceiver.txt
+new file mode 100644
+index 00000000000..04c9350156f
+--- /dev/null
++++ b/compiler/testData/codegen/light-analysis/casts/intersectionTypeMultipleBoundsImplicitReceiver.txt
+@@ -0,0 +1,13 @@
++public interface FirstTrait
++
++public final class Foo {
++    public method <init>(): void
++    public final @org.jetbrains.annotations.NotNull method bar(): java.lang.String
++}
++
++public final class IntersectionTypeMultipleBoundsImplicitReceiverKt {
++    public final static @org.jetbrains.annotations.NotNull method box(): java.lang.String
++    public final static @org.jetbrains.annotations.NotNull method doSomething(@org.jetbrains.annotations.NotNull p0: FirstTrait): java.lang.String
++}
++
++public interface SecondTrait
+diff --git a/compiler/testData/codegen/light-analysis/casts/intersectionTypeWithMultipleBoundsAsReceiver.txt b/compiler/testData/codegen/light-analysis/casts/intersectionTypeWithMultipleBoundsAsReceiver.txt
+new file mode 100644
+index 00000000000..2163c5734bc
+--- /dev/null
++++ b/compiler/testData/codegen/light-analysis/casts/intersectionTypeWithMultipleBoundsAsReceiver.txt
+@@ -0,0 +1,12 @@
++public interface Bar
++
++public final class Baz {
++    public method <init>(): void
++}
++
++public interface Foo
++
++public final class IntersectionTypeWithMultipleBoundsAsReceiverKt {
++    public final static @org.jetbrains.annotations.NotNull method bip(@org.jetbrains.annotations.NotNull p0: Foo): java.lang.String
++    public final static @org.jetbrains.annotations.NotNull method box(): java.lang.String
++}
+diff --git a/compiler/testData/codegen/light-analysis/casts/intersectionTypeWithoutGenericsAsReceiver.txt b/compiler/testData/codegen/light-analysis/casts/intersectionTypeWithoutGenericsAsReceiver.txt
+new file mode 100644
+index 00000000000..62f3de8d8c3
+--- /dev/null
++++ b/compiler/testData/codegen/light-analysis/casts/intersectionTypeWithoutGenericsAsReceiver.txt
+@@ -0,0 +1,12 @@
++public interface A
++
++public interface B
++
++public final class C {
++    public method <init>(): void
++}
++
++public final class IntersectionTypeWithoutGenericsAsReceiverKt {
++    public final static @org.jetbrains.annotations.NotNull method box(): java.lang.String
++    public final static @org.jetbrains.annotations.NotNull method foo(@org.jetbrains.annotations.NotNull p0: A): java.lang.String
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/intersectionTypeMultipleBoundsAsReceiver.kt b/compiler/testData/diagnostics/tests/inference/intersectionTypeMultipleBoundsAsReceiver.kt
+new file mode 100644
+index 00000000000..8c58629b05c
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/intersectionTypeMultipleBoundsAsReceiver.kt
+@@ -0,0 +1,13 @@
++interface Foo<T>
++interface Bar<T>
++
++class Baz<T> : Foo<T>, Bar<T>
++
++fun <T, S> S.bip(): String where S : Foo<T>, S: Bar<T> {
++    return "OK"
++}
++
++fun box(): String {
++    val baz = Baz<String>()
++    return baz.bip()
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/intersectionTypeMultipleBoundsAsReceiver.txt b/compiler/testData/diagnostics/tests/inference/intersectionTypeMultipleBoundsAsReceiver.txt
+new file mode 100644
+index 00000000000..9659fc094f9
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/intersectionTypeMultipleBoundsAsReceiver.txt
+@@ -0,0 +1,23 @@
++package
++
++public fun box(): kotlin.String
++public fun </*0*/ T, /*1*/ S : Foo<T>> S.bip(): kotlin.String where S : Bar<T>
++
++public interface Bar</*0*/ T> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Baz</*0*/ T> : Foo<T>, Bar<T> {
++    public constructor Baz</*0*/ T>()
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface Foo</*0*/ T> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests-ir-jvm/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java b/compiler/tests-ir-jvm/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
+index 19ab23da518..ec18b7a637e 100644
+--- a/compiler/tests-ir-jvm/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
++++ b/compiler/tests-ir-jvm/tests/org/jetbrains/kotlin/codegen/ir/IrBlackBoxCodegenTestGenerated.java
+@@ -2216,12 +2216,30 @@ public class IrBlackBoxCodegenTestGenerated extends AbstractIrBlackBoxCodegenTes
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("intersectionTypeMultipleBoundsImplicitReceiver.kt")
++        public void testIntersectionTypeMultipleBoundsImplicitReceiver() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeMultipleBoundsImplicitReceiver.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("intersectionTypeSmartcast.kt")
+         public void testIntersectionTypeSmartcast() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeSmartcast.kt");
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("intersectionTypeWithMultipleBoundsAsReceiver.kt")
++        public void testIntersectionTypeWithMultipleBoundsAsReceiver() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeWithMultipleBoundsAsReceiver.kt");
++            doTest(fileName);
++        }
++
++        @TestMetadata("intersectionTypeWithoutGenericsAsReceiver.kt")
++        public void testIntersectionTypeWithoutGenericsAsReceiver() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeWithoutGenericsAsReceiver.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("is.kt")
+         public void testIs() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/is.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 59d7b639565..7825aec6406 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -9928,6 +9928,12 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("intersectionTypeMultipleBoundsAsReceiver.kt")
++            public void testIntersectionTypeMultipleBoundsAsReceiver() throws Exception {
++                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/inference/intersectionTypeMultipleBoundsAsReceiver.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("kt1293.kt")
+             public void testKt1293() throws Exception {
+                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/inference/kt1293.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+index 47b55ea75c2..ceeca8c3f2b 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/BlackBoxCodegenTestGenerated.java
+@@ -2216,12 +2216,30 @@ public class BlackBoxCodegenTestGenerated extends AbstractBlackBoxCodegenTest {
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("intersectionTypeMultipleBoundsImplicitReceiver.kt")
++        public void testIntersectionTypeMultipleBoundsImplicitReceiver() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeMultipleBoundsImplicitReceiver.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("intersectionTypeSmartcast.kt")
+         public void testIntersectionTypeSmartcast() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeSmartcast.kt");
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("intersectionTypeWithMultipleBoundsAsReceiver.kt")
++        public void testIntersectionTypeWithMultipleBoundsAsReceiver() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeWithMultipleBoundsAsReceiver.kt");
++            doTest(fileName);
++        }
++
++        @TestMetadata("intersectionTypeWithoutGenericsAsReceiver.kt")
++        public void testIntersectionTypeWithoutGenericsAsReceiver() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeWithoutGenericsAsReceiver.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("is.kt")
+         public void testIs() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/is.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeCodegenTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeCodegenTestGenerated.java
+index 9e3fdc79605..52fa03a9ced 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeCodegenTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/LightAnalysisModeCodegenTestGenerated.java
+@@ -2216,12 +2216,30 @@ public class LightAnalysisModeCodegenTestGenerated extends AbstractLightAnalysis
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("intersectionTypeMultipleBoundsImplicitReceiver.kt")
++        public void testIntersectionTypeMultipleBoundsImplicitReceiver() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeMultipleBoundsImplicitReceiver.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("intersectionTypeSmartcast.kt")
+         public void testIntersectionTypeSmartcast() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeSmartcast.kt");
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("intersectionTypeWithMultipleBoundsAsReceiver.kt")
++        public void testIntersectionTypeWithMultipleBoundsAsReceiver() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeWithMultipleBoundsAsReceiver.kt");
++            doTest(fileName);
++        }
++
++        @TestMetadata("intersectionTypeWithoutGenericsAsReceiver.kt")
++        public void testIntersectionTypeWithoutGenericsAsReceiver() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeWithoutGenericsAsReceiver.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("is.kt")
+         public void testIs() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/is.kt");
+diff --git a/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java b/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
+index eda49950260..26711664faa 100644
+--- a/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
++++ b/js/js.tests/test/org/jetbrains/kotlin/js/test/semantics/JsCodegenBoxTestGenerated.java
+@@ -2727,12 +2727,30 @@ public class JsCodegenBoxTestGenerated extends AbstractJsCodegenBoxTest {
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("intersectionTypeMultipleBoundsImplicitReceiver.kt")
++        public void testIntersectionTypeMultipleBoundsImplicitReceiver() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeMultipleBoundsImplicitReceiver.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("intersectionTypeSmartcast.kt")
+         public void testIntersectionTypeSmartcast() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeSmartcast.kt");
+             doTest(fileName);
+         }
+ 
++        @TestMetadata("intersectionTypeWithMultipleBoundsAsReceiver.kt")
++        public void testIntersectionTypeWithMultipleBoundsAsReceiver() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeWithMultipleBoundsAsReceiver.kt");
++            doTest(fileName);
++        }
++
++        @TestMetadata("intersectionTypeWithoutGenericsAsReceiver.kt")
++        public void testIntersectionTypeWithoutGenericsAsReceiver() throws Exception {
++            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/intersectionTypeWithoutGenericsAsReceiver.kt");
++            doTest(fileName);
++        }
++
+         @TestMetadata("is.kt")
+         public void testIs() throws Exception {
+             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/casts/is.kt");

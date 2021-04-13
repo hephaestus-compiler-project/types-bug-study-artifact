@@ -1,0 +1,454 @@
+changeset:   3002:7eef740c1482
+parent:      3000:80ab772222fb
+user:        jlahoda
+date:        Mon Aug 03 13:28:39 2015 +0200
+summary:     8131915: CompletionFailure during import listing crashes javac
+
+diff -r 80ab772222fb -r 7eef740c1482 src/jdk.compiler/share/classes/com/sun/tools/javac/code/Scope.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Scope.java	Fri Jul 31 01:36:56 2015 +0300
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/code/Scope.java	Mon Aug 03 13:28:39 2015 +0200
+@@ -27,7 +27,11 @@
+ 
+ import com.sun.tools.javac.code.Kinds.Kind;
+ import java.util.*;
++import java.util.function.BiConsumer;
++import java.util.stream.Stream;
++import java.util.stream.StreamSupport;
+ 
++import com.sun.tools.javac.code.Symbol.CompletionFailure;
+ import com.sun.tools.javac.code.Symbol.TypeSymbol;
+ import com.sun.tools.javac.tree.JCTree.JCImport;
+ import com.sun.tools.javac.util.*;
+@@ -35,8 +39,6 @@
+ 
+ import static com.sun.tools.javac.code.Scope.LookupKind.NON_RECURSIVE;
+ import static com.sun.tools.javac.code.Scope.LookupKind.RECURSIVE;
+-import java.util.stream.Stream;
+-import java.util.stream.StreamSupport;
+ 
+ /** A scope represents an area of visibility in a Java program. The
+  *  Scope class is a container for symbols which provides
+@@ -721,8 +723,8 @@
+             prependSubScope(currentFileScope);
+         }
+ 
+-        public Scope importByName(Types types, Scope origin, Name name, ImportFilter filter) {
+-            return appendScope(new FilterImportScope(types, origin, name, filter, true));
++        public Scope importByName(Types types, Scope origin, Name name, ImportFilter filter, JCImport imp, BiConsumer<JCImport, CompletionFailure> cfHandler) {
++            return appendScope(new FilterImportScope(types, origin, name, filter, imp, cfHandler));
+         }
+ 
+         public Scope importType(Scope delegate, Scope origin, Symbol sym) {
+@@ -786,15 +788,16 @@
+ 
+         public void importAll(Types types, Scope origin,
+                               ImportFilter filter,
+-                              boolean staticImport) {
++                              JCImport imp,
++                              BiConsumer<JCImport, CompletionFailure> cfHandler) {
+             for (Scope existing : subScopes) {
+                 Assert.check(existing instanceof FilterImportScope);
+                 FilterImportScope fis = (FilterImportScope) existing;
+                 if (fis.origin == origin && fis.filter == filter &&
+-                    fis.staticImport == staticImport)
++                    fis.imp.staticImport == imp.staticImport)
+                     return ; //avoid entering the same scope twice
+             }
+-            prependSubScope(new FilterImportScope(types, origin, null, filter, staticImport));
++            prependSubScope(new FilterImportScope(types, origin, null, filter, imp, cfHandler));
+         }
+ 
+         public boolean isFilled() {
+@@ -813,32 +816,40 @@
+         private final Scope origin;
+         private final Name  filterName;
+         private final ImportFilter filter;
+-        private final boolean staticImport;
++        private final JCImport imp;
++        private final BiConsumer<JCImport, CompletionFailure> cfHandler;
+ 
+         public FilterImportScope(Types types,
+                                  Scope origin,
+                                  Name  filterName,
+                                  ImportFilter filter,
+-                                 boolean staticImport) {
++                                 JCImport imp,
++                                 BiConsumer<JCImport, CompletionFailure> cfHandler) {
+             super(origin.owner);
+             this.types = types;
+             this.origin = origin;
+             this.filterName = filterName;
+             this.filter = filter;
+-            this.staticImport = staticImport;
++            this.imp = imp;
++            this.cfHandler = cfHandler;
+         }
+ 
+         @Override
+         public Iterable<Symbol> getSymbols(final Filter<Symbol> sf, final LookupKind lookupKind) {
+             if (filterName != null)
+                 return getSymbolsByName(filterName, sf, lookupKind);
+-            SymbolImporter si = new SymbolImporter(staticImport) {
+-                @Override
+-                Iterable<Symbol> doLookup(TypeSymbol tsym) {
+-                    return tsym.members().getSymbols(sf, lookupKind);
+-                }
+-            };
+-            return si.importFrom((TypeSymbol) origin.owner) :: iterator;
++            try {
++                SymbolImporter si = new SymbolImporter(imp.staticImport) {
++                    @Override
++                    Iterable<Symbol> doLookup(TypeSymbol tsym) {
++                        return tsym.members().getSymbols(sf, lookupKind);
++                    }
++                };
++                return si.importFrom((TypeSymbol) origin.owner) :: iterator;
++            } catch (CompletionFailure cf) {
++                cfHandler.accept(imp, cf);
++                return Collections.emptyList();
++            }
+         }
+ 
+         @Override
+@@ -847,13 +858,18 @@
+                                                  final LookupKind lookupKind) {
+             if (filterName != null && filterName != name)
+                 return Collections.emptyList();
+-            SymbolImporter si = new SymbolImporter(staticImport) {
+-                @Override
+-                Iterable<Symbol> doLookup(TypeSymbol tsym) {
+-                    return tsym.members().getSymbolsByName(name, sf, lookupKind);
+-                }
+-            };
+-            return si.importFrom((TypeSymbol) origin.owner) :: iterator;
++            try {
++                SymbolImporter si = new SymbolImporter(imp.staticImport) {
++                    @Override
++                    Iterable<Symbol> doLookup(TypeSymbol tsym) {
++                        return tsym.members().getSymbolsByName(name, sf, lookupKind);
++                    }
++                };
++                return si.importFrom((TypeSymbol) origin.owner) :: iterator;
++            } catch (CompletionFailure cf) {
++                cfHandler.accept(imp, cf);
++                return Collections.emptyList();
++            }
+         }
+ 
+         @Override
+@@ -863,7 +879,7 @@
+ 
+         @Override
+         public boolean isStaticallyImported(Symbol byName) {
+-            return staticImport;
++            return imp.staticImport;
+         }
+ 
+         abstract class SymbolImporter {
+diff -r 80ab772222fb -r 7eef740c1482 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/TypeEnter.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/TypeEnter.java	Fri Jul 31 01:36:56 2015 +0300
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/TypeEnter.java	Mon Aug 03 13:28:39 2015 +0200
+@@ -27,6 +27,7 @@
+ 
+ import java.util.HashSet;
+ import java.util.Set;
++import java.util.function.BiConsumer;
+ 
+ import javax.tools.JavaFileObject;
+ 
+@@ -284,6 +285,8 @@
+         Env<AttrContext> env;
+         ImportFilter staticImportFilter;
+         ImportFilter typeImportFilter;
++        BiConsumer<JCImport, CompletionFailure> cfHandler =
++                (imp, cf) -> chk.completionError(imp.pos(), cf);
+ 
+         @Override
+         protected void doRunPhase(Env<AttrContext> env) {
+@@ -327,7 +330,7 @@
+                 PackageSymbol javaLang = syms.enterPackage(names.java_lang);
+                 if (javaLang.members().isEmpty() && !javaLang.exists())
+                     throw new FatalError(diags.fragment("fatal.err.no.java.lang"));
+-                importAll(tree.pos, javaLang, env);
++                importAll(make.at(tree.pos()).Import(make.QualIdent(javaLang), false), javaLang, env);
+ 
+                 // Process the package def and all import clauses.
+                 if (tree.getPackage() != null)
+@@ -378,13 +381,13 @@
+                 // Import on demand.
+                 chk.checkCanonical(imp.selected);
+                 if (tree.staticImport)
+-                    importStaticAll(tree.pos, p, env);
++                    importStaticAll(tree, p, env);
+                 else
+-                    importAll(tree.pos, p, env);
++                    importAll(tree, p, env);
+             } else {
+                 // Named type import.
+                 if (tree.staticImport) {
+-                    importNamedStatic(tree.pos(), p, name, localEnv, tree);
++                    importNamedStatic(tree, p, name, localEnv);
+                     chk.checkCanonical(imp.selected);
+                 } else {
+                     TypeSymbol c = attribImportType(imp, localEnv).tsym;
+@@ -411,51 +414,50 @@
+         }
+ 
+         /** Import all classes of a class or package on demand.
+-         *  @param pos           Position to be used for error reporting.
++         *  @param imp           The import that is being handled.
+          *  @param tsym          The class or package the members of which are imported.
+          *  @param env           The env in which the imported classes will be entered.
+          */
+-        private void importAll(int pos,
++        private void importAll(JCImport imp,
+                                final TypeSymbol tsym,
+                                Env<AttrContext> env) {
+-            env.toplevel.starImportScope.importAll(types, tsym.members(), typeImportFilter, false);
++            env.toplevel.starImportScope.importAll(types, tsym.members(), typeImportFilter, imp, cfHandler);
+         }
+ 
+         /** Import all static members of a class or package on demand.
+-         *  @param pos           Position to be used for error reporting.
++         *  @param imp           The import that is being handled.
+          *  @param tsym          The class or package the members of which are imported.
+          *  @param env           The env in which the imported classes will be entered.
+          */
+-        private void importStaticAll(int pos,
++        private void importStaticAll(JCImport imp,
+                                      final TypeSymbol tsym,
+                                      Env<AttrContext> env) {
+             final StarImportScope toScope = env.toplevel.starImportScope;
+             final TypeSymbol origin = tsym;
+ 
+-            toScope.importAll(types, origin.members(), staticImportFilter, true);
++            toScope.importAll(types, origin.members(), staticImportFilter, imp, cfHandler);
+         }
+ 
+         /** Import statics types of a given name.  Non-types are handled in Attr.
+-         *  @param pos           Position to be used for error reporting.
++         *  @param imp           The import that is being handled.
+          *  @param tsym          The class from which the name is imported.
+          *  @param name          The (simple) name being imported.
+          *  @param env           The environment containing the named import
+          *                  scope to add to.
+          */
+-        private void importNamedStatic(final DiagnosticPosition pos,
++        private void importNamedStatic(final JCImport imp,
+                                        final TypeSymbol tsym,
+                                        final Name name,
+-                                       final Env<AttrContext> env,
+-                                       final JCImport imp) {
++                                       final Env<AttrContext> env) {
+             if (tsym.kind != TYP) {
+-                log.error(DiagnosticFlag.RECOVERABLE, pos, "static.imp.only.classes.and.interfaces");
++                log.error(DiagnosticFlag.RECOVERABLE, imp.pos(), "static.imp.only.classes.and.interfaces");
+                 return;
+             }
+ 
+             final NamedImportScope toScope = env.toplevel.namedImportScope;
+             final Scope originMembers = tsym.members();
+ 
+-            imp.importScope = toScope.importByName(types, originMembers, name, staticImportFilter);
++            imp.importScope = toScope.importByName(types, originMembers, name, staticImportFilter, imp, cfHandler);
+         }
+ 
+         /** Import given class.
+diff -r 80ab772222fb -r 7eef740c1482 test/tools/javac/importscope/CompletionFailureDuringImport.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/importscope/CompletionFailureDuringImport.java	Mon Aug 03 13:28:39 2015 +0200
+@@ -0,0 +1,86 @@
++/*
++ * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/**
++ * @test
++ * @bug 8131915
++ * @summary Verify that CompletionFailure thrown during listing of import content is handled properly.
++ * @library /tools/lib
++ */
++
++import java.nio.file.Files;
++import java.nio.file.Paths;
++import java.util.Arrays;
++import java.util.List;
++
++public class CompletionFailureDuringImport {
++    public static void main(String... args) throws Exception {
++        new CompletionFailureDuringImport().run();
++    }
++
++    ToolBox tb = new ToolBox();
++
++    void run() throws Exception {
++        tb.new JavacTask()
++          .outdir(".")
++          .sources("package p; public class Super { public static final int I = 0; }",
++                   "package p; public class Sub extends Super { }")
++          .run()
++          .writeAll();
++
++        Files.delete(Paths.get(".", "p", "Super.class"));
++
++        doTest("import static p.Sub.*;",
++               "",
++               "Test.java:1:1: compiler.err.cant.access: p.Super, (compiler.misc.class.file.not.found: p.Super)",
++               "1 error");
++        doTest("import static p.Sub.I;",
++               "",
++               "Test.java:1:1: compiler.err.cant.access: p.Super, (compiler.misc.class.file.not.found: p.Super)",
++               "1 error");
++        doTest("import static p.Sub.*;",
++               "int i = I;",
++               "Test.java:1:1: compiler.err.cant.access: p.Super, (compiler.misc.class.file.not.found: p.Super)",
++               "Test.java:1:52: compiler.err.cant.resolve.location: kindname.variable, I, , , (compiler.misc.location: kindname.class, Test, null)",
++               "2 errors");
++        doTest("import static p.Sub.I;",
++               "int i = I;",
++               "Test.java:1:1: compiler.err.cant.access: p.Super, (compiler.misc.class.file.not.found: p.Super)",
++               "Test.java:1:52: compiler.err.cant.resolve.location: kindname.variable, I, , , (compiler.misc.location: kindname.class, Test, null)",
++               "2 errors");
++    }
++
++    void doTest(String importText, String useText, String... expectedOutput) {
++        List<String> log = tb.new JavacTask()
++                .classpath(".")
++                .sources(importText + " public class Test { " + useText + " }")
++                .options("-XDrawDiagnostics")
++                .run(ToolBox.Expect.FAIL)
++                .writeAll()
++                .getOutputLines(ToolBox.OutputKind.DIRECT);
++
++        if (!log.equals(Arrays.asList(expectedOutput))) {
++            throw new AssertionError("Unexpected output: " + log);
++        }
++    }
++}
+diff -r 80ab772222fb -r 7eef740c1482 test/tools/javac/scope/HashCollisionTest.java
+--- a/test/tools/javac/scope/HashCollisionTest.java	Fri Jul 31 01:36:56 2015 +0300
++++ b/test/tools/javac/scope/HashCollisionTest.java	Mon Aug 03 13:28:39 2015 +0200
+@@ -23,7 +23,7 @@
+ 
+ /*
+  * @test
+- * @bug 7004029
++ * @bug 7004029 8131915
+  * @summary Ensure Scope impl can cope with hash collisions
+  * @library /tools/javac/lib
+  * @modules jdk.compiler/com.sun.tools.javac.api
+@@ -37,6 +37,7 @@
+ 
+ import java.lang.reflect.*;
+ import java.io.*;
++import java.util.function.BiConsumer;
+ 
+ import com.sun.source.util.Trees;
+ import com.sun.tools.javac.api.JavacTrees;
+@@ -45,6 +46,8 @@
+ import com.sun.tools.javac.code.Scope.*;
+ import com.sun.tools.javac.code.Symbol.*;
+ import com.sun.tools.javac.file.JavacFileManager;
++import com.sun.tools.javac.tree.JCTree.JCImport;
++import com.sun.tools.javac.tree.TreeMaker;
+ 
+ import static com.sun.tools.javac.code.Kinds.Kind.*;
+ 
+@@ -57,6 +60,7 @@
+         // set up basic environment for test
+         Context context = new Context();
+         JavacFileManager.preRegister(context); // required by ClassReader which is required by Symtab
++        make = TreeMaker.instance(context);
+         names = Names.instance(context);       // Name.Table impls tied to an instance of Names
+         symtab = Symtab.instance(context);
+         trees = JavacTrees.instance(context);
+@@ -127,12 +131,14 @@
+                 return sym.kind == TYP;
+             }
+         };
+-        starImportScope.importAll(types, fromScope, typeFilter, false);
++        BiConsumer<JCImport, CompletionFailure> noCompletionFailure =
++                (imp, cf) -> { throw new IllegalStateException(); };
++        starImportScope.importAll(types, fromScope, typeFilter, make.Import(null, false), noCompletionFailure);
+ 
+         dump("imported p", starImportScope);
+ 
+         // 7. Insert the class from 3.
+-        starImportScope.importAll(types, cc.members_field, typeFilter, false);
++        starImportScope.importAll(types, cc.members_field, typeFilter, make.Import(null, false), noCompletionFailure);
+         dump("imported ce", starImportScope);
+ 
+         /*
+@@ -199,6 +205,7 @@
+     int MAX_TRIES = 100; // max tries to find a hash clash before giving up.
+     int scopeHashMask;
+ 
++    TreeMaker make;
+     Names names;
+     Symtab symtab;
+     Trees trees;
+diff -r 80ab772222fb -r 7eef740c1482 test/tools/javac/scope/StarImportTest.java
+--- a/test/tools/javac/scope/StarImportTest.java	Fri Jul 31 01:36:56 2015 +0300
++++ b/test/tools/javac/scope/StarImportTest.java	Mon Aug 03 13:28:39 2015 +0200
+@@ -23,7 +23,7 @@
+ 
+ /*
+  * @test
+- * @bug 7004029
++ * @bug 7004029 8131915
+  * @summary Basher for star-import scopes
+  * @modules jdk.compiler/com.sun.tools.javac.code
+  *          jdk.compiler/com.sun.tools.javac.file
+@@ -39,6 +39,7 @@
+ import com.sun.tools.javac.code.Scope.WriteableScope;
+ import com.sun.tools.javac.code.Symbol.*;
+ import com.sun.tools.javac.file.JavacFileManager;
++import com.sun.tools.javac.tree.TreeMaker;
+ import com.sun.tools.javac.util.*;
+ 
+ import static com.sun.tools.javac.code.Kinds.Kind.*;
+@@ -136,6 +137,7 @@
+             log ("setup");
+             context = new Context();
+             JavacFileManager.preRegister(context); // required by ClassReader which is required by Symtab
++            make = TreeMaker.instance(context);
+             names = Names.instance(context);       // Name.Table impls tied to an instance of Names
+             symtab = Symtab.instance(context);
+             types = Types.instance(context);
+@@ -227,7 +229,7 @@
+                     public boolean accepts(Scope origin, Symbol t) {
+                         return t.kind == TYP;
+                     }
+-                }, false);
++                }, make.Import(null, false), (i, cf) -> { throw new IllegalStateException(); });
+ 
+                 for (Symbol sym : members.getSymbols()) {
+                     starImportModel.enter(sym);
+@@ -295,6 +297,7 @@
+ 
+         Context context;
+         Symtab symtab;
++        TreeMaker make;
+         Names names;
+         Types types;
+         int nextNameSerial;
+

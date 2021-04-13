@@ -1,0 +1,84 @@
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Typers.scala b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+index c8404236b57a..3f90ee9afcfd 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Typers.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+@@ -4393,8 +4393,8 @@ trait Typers extends Adaptations with Tags with TypersTracking with PatternTyper
+ 
+         if (treeInfo.mayBeVarGetter(varsym)) {
+           lhs1 match {
+-            case treeInfo.Applied(Select(qual, name), _, _) =>
+-              val sel = Select(qual, name.setterName) setPos lhs.pos
++            case treeInfo.Applied(Select(qual, _), _, _) =>
++              val sel = Select(qual, varsym.name.setterName) setPos lhs.pos
+               val app = Apply(sel, List(rhs)) setPos tree.pos
+               return typed(app, mode, pt)
+ 
+@@ -4845,7 +4845,7 @@ trait Typers extends Adaptations with Tags with TypersTracking with PatternTyper
+           case Select(qualqual, vname) =>
+             gen.evalOnce(qualqual, context.owner, context.unit) { qq =>
+               val qq1 = qq()
+-              mkAssign(Select(qq1, vname) setPos qual.pos)
++              mkAssign(Select(qq1, qual.symbol) setPos qual.pos)
+             }
+ 
+           case Apply(fn, extra) if qual.isInstanceOf[ApplyToImplicitArgs] =>
+diff --git a/test/files/neg/t10886.check b/test/files/neg/t10886.check
+new file mode 100644
+index 000000000000..824f80b8713d
+--- /dev/null
++++ b/test/files/neg/t10886.check
+@@ -0,0 +1,15 @@
++t10886.scala:9: error: reassignment to val
++  y = 1
++    ^
++t10886.scala:10: error: value ~~_= is not a member of object Test.A
++  !! = 2
++  ^
++t10886.scala:11: error: value += is not a member of Int
++  Expression does not convert to assignment because receiver is not assignable.
++  y += 3
++    ^
++t10886.scala:12: error: value -= is not a member of Int
++  Expression does not convert to assignment because receiver is not assignable.
++  !! -= 4
++     ^
++four errors found
+diff --git a/test/files/neg/t10886.scala b/test/files/neg/t10886.scala
+new file mode 100644
+index 000000000000..fc660adf6af6
+--- /dev/null
++++ b/test/files/neg/t10886.scala
+@@ -0,0 +1,13 @@
++object Test {
++  object A {
++    val x: Int = 0
++    def ~~ : Int = 0
++  }
++
++  import A.{x => y, ~~ => !!}
++
++  y = 1
++  !! = 2
++  y += 3
++  !! -= 4
++}
+diff --git a/test/files/pos/t10886.scala b/test/files/pos/t10886.scala
+new file mode 100644
+index 000000000000..554714e0a3d8
+--- /dev/null
++++ b/test/files/pos/t10886.scala
+@@ -0,0 +1,14 @@
++object Test {
++  object A {
++    var x: Int = 0
++    var ~~ : Int = 0
++  }
++
++  import A.{x => y, ~~ => !!}
++
++  y = 1
++  !! = 2
++  y += 3
++  !! -= 4
++}
++

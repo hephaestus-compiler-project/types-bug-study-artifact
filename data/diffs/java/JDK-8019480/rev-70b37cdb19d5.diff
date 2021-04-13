@@ -1,0 +1,54 @@
+changeset:   1887:70b37cdb19d5
+user:        mcimadamore
+date:        Fri Jul 05 11:02:17 2013 +0100
+summary:     8019480: Javac crashes when method is called on a type-variable receiver from lambda expression
+
+diff -r 7b756b307e12 -r 70b37cdb19d5 src/share/classes/com/sun/tools/javac/comp/DeferredAttr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/DeferredAttr.java	Fri Jul 05 11:00:19 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/DeferredAttr.java	Fri Jul 05 11:02:17 2013 +0100
+@@ -941,6 +941,10 @@
+                     attribSpeculative(rec, env, attr.unknownTypeExprInfo).type :
+                     env.enclClass.sym.type;
+ 
++            while (site.hasTag(TYPEVAR)) {
++                site = site.getUpperBound();
++            }
++
+             ListBuffer<Type> args = ListBuffer.lb();
+             for (int i = 0; i < tree.args.length(); i ++) {
+                 args.append(Type.noType);
+diff -r 7b756b307e12 -r 70b37cdb19d5 test/tools/javac/lambda/8019480/T8019480.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/8019480/T8019480.java	Fri Jul 05 11:02:17 2013 +0100
+@@ -0,0 +1,23 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8019480
++ * @summary Javac crashes when method is called on a type-variable receiver from lambda expression
++ * @author  Maurizio Cimadamore
++ * @compile/fail/ref=T8019480.out -XDrawDiagnostics T8019480.java
++ */
++import java.util.*;
++
++class T8019480<U> {
++    interface Predicate<T> {
++       void m(T t);
++    }
++
++    interface Stream<T> {
++       void forEach(Predicate<T> pt);
++    }
++
++    void test(U current, Stream<U> stream) {
++        List<U> list3 = new ArrayList<>();
++        stream.forEach(i -> list3.add(current.clone()));
++    }
++}
+diff -r 7b756b307e12 -r 70b37cdb19d5 test/tools/javac/lambda/8019480/T8019480.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/8019480/T8019480.out	Fri Jul 05 11:02:17 2013 +0100
+@@ -0,0 +1,3 @@
++T8019480.java:21:46: compiler.err.report.access: clone(), protected, java.lang.Object
++T8019480.java:21:34: compiler.err.cant.apply.symbols: kindname.method, add, java.lang.Object,{(compiler.misc.inapplicable.method: kindname.method, java.util.Collection, add(U), (compiler.misc.no.conforming.assignment.exists: (compiler.misc.inconvertible.types: java.lang.Object, U))),(compiler.misc.inapplicable.method: kindname.method, java.util.List, add(U), (compiler.misc.no.conforming.assignment.exists: (compiler.misc.inconvertible.types: java.lang.Object, U))),(compiler.misc.inapplicable.method: kindname.method, java.util.List, add(int,U), (compiler.misc.arg.length.mismatch))}
++2 errors
+

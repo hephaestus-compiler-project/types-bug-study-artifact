@@ -1,0 +1,106 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/inference/CoroutineInferenceSession.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/inference/CoroutineInferenceSession.kt
+index 45fd2302e07..9893438e467 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/inference/CoroutineInferenceSession.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/inference/CoroutineInferenceSession.kt
+@@ -242,7 +242,10 @@ class CoroutineInferenceSession(
+         val resultingSubstitutor =
+             NewTypeSubstitutorByConstructorMap((resultingCallSubstitutor + nonFixedTypesToResult).cast()) // TODO: SUB
+ 
+-        val atomCompleter = createResolvedAtomCompleter(resultingSubstitutor, completedCall.context)
++        val atomCompleter = createResolvedAtomCompleter(
++            resultingSubstitutor,
++            completedCall.context.replaceBindingTrace(topLevelCallContext.trace)
++        )
+ 
+         completeCall(completedCall, atomCompleter)
+     }
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt33542.kt b/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt33542.kt
+new file mode 100644
+index 00000000000..04e3715546e
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt33542.kt
+@@ -0,0 +1,26 @@
++// !LANGUAGE: +NewInference
++
++import kotlin.experimental.ExperimentalTypeInference
++
++interface In<in E> {
++    fun send(element: E)
++}
++
++class InImpl<E> : In<E> {
++    override fun send(element: E) {}
++}
++
++@<!DEPRECATION, EXPERIMENTAL_IS_NOT_ENABLED!>UseExperimental<!>(ExperimentalTypeInference::class)
++public fun <T> builder(@BuilderInference block: In<T>.() -> Unit) {
++    InImpl<T>().block()
++}
++
++suspend fun yield() {}
++
++fun test() {
++    builder {
++        send(run {
++            <!ILLEGAL_SUSPEND_FUNCTION_CALL!>yield<!>() // No error but `yield` is not inside "suspension" context actually
++        })
++    }
++}
+diff --git a/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt33542.txt b/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt33542.txt
+new file mode 100644
+index 00000000000..afd49498b41
+--- /dev/null
++++ b/compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt33542.txt
+@@ -0,0 +1,20 @@
++package
++
++@kotlin.UseExperimental(markerClass = {kotlin.experimental.ExperimentalTypeInference::class}) public fun </*0*/ T> builder(/*0*/ @kotlin.BuilderInference block: In<T>.() -> kotlin.Unit): kotlin.Unit
++public fun test(): kotlin.Unit
++public suspend fun yield(): kotlin.Unit
++
++public interface In</*0*/ in E> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract fun send(/*0*/ element: E): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class InImpl</*0*/ E> : In<E> {
++    public constructor InImpl</*0*/ E>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ fun send(/*0*/ element: E): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
+index 659627a8ece..c37500a8003 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestWithStdLibGenerated.java
+@@ -1962,6 +1962,11 @@ public class DiagnosticsTestWithStdLibGenerated extends AbstractDiagnosticsTestW
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt32271.kt");
+             }
+ 
++            @TestMetadata("kt33542.kt")
++            public void testKt33542() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt33542.kt");
++            }
++
+             @TestMetadata("kt35684.kt")
+             public void testKt35684() throws Exception {
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt35684.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
+index 930073647a1..dbd2113fa58 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsTestWithStdLibUsingJavacGenerated.java
+@@ -1962,6 +1962,11 @@ public class DiagnosticsTestWithStdLibUsingJavacGenerated extends AbstractDiagno
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt32271.kt");
+             }
+ 
++            @TestMetadata("kt33542.kt")
++            public void testKt33542() throws Exception {
++                runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt33542.kt");
++            }
++
+             @TestMetadata("kt35684.kt")
+             public void testKt35684() throws Exception {
+                 runTest("compiler/testData/diagnostics/testsWithStdLib/coroutines/inference/kt35684.kt");

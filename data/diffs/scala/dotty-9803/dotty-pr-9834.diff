@@ -1,0 +1,50 @@
+diff --git a/compiler/src/dotty/tools/dotc/typer/Typer.scala b/compiler/src/dotty/tools/dotc/typer/Typer.scala
+index d40ec154e12d..ea259a6da08f 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Typer.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Typer.scala
+@@ -188,7 +188,7 @@ class Typer extends Namer
+        */
+       def recurAndCheckNewOrShadowed(previous: Type, prevPrec: BindingPrec, prevCtx: Context)(using Context): Type =
+         val found = findRefRecur(previous, prevPrec, prevCtx)
+-        if found eq previous then checkNewOrShadowed(found, prevPrec)
++        if found eq previous then checkNewOrShadowed(found, prevPrec)(using prevCtx)
+         else found
+ 
+       def selection(imp: ImportInfo, name: Name, checkBounds: Boolean): Type =
+diff --git a/tests/neg/i9803.check b/tests/neg/i9803.check
+new file mode 100644
+index 000000000000..57e184487504
+--- /dev/null
++++ b/tests/neg/i9803.check
+@@ -0,0 +1,8 @@
++-- [E049] Reference Error: tests/neg/i9803.scala:15:10 -----------------------------------------------------------------
++15 |  println(f421()) // error
++   |          ^^^^
++   |          Reference to f421 is ambiguous,
++   |          it is both imported by name by import bugs.shadowing.x.f421
++   |          and imported by name subsequently by import bugs.shadowing.y.f421
++
++longer explanation available when compiling with `-explain`
+diff --git a/tests/neg/i9803.scala b/tests/neg/i9803.scala
+new file mode 100644
+index 000000000000..95b67a51861d
+--- /dev/null
++++ b/tests/neg/i9803.scala
+@@ -0,0 +1,16 @@
++package bugs.shadowing
++
++object x {
++  def f421() = 1
++}
++
++object y {
++  def f421() = true
++}
++
++import x.f421
++import y.f421
++
++object test {
++  println(f421()) // error
++}
+\ No newline at end of file

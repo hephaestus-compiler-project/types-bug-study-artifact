@@ -1,0 +1,77 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index 4fc46e3e6d..37594dd819 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -644,7 +644,9 @@ public abstract class StaticTypeCheckingSupport {
+             }
+         }
+ 
+-        return false;
++        // GROOVY-7316 : it is an apparently legal thing to allow this. It's not type safe,
++        // but it is allowed...
++        return right.isGenericsPlaceHolder();
+     }
+ 
+     private static boolean isGroovyConstructorCompatible(final Expression rightExpression) {
+diff --git a/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy7316Bug.groovy b/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy7316Bug.groovy
+new file mode 100644
+index 0000000000..549afe24de
+--- /dev/null
++++ b/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy7316Bug.groovy
+@@ -0,0 +1,56 @@
++/*
++ * Copyright 2003-2015 the original author or authors.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++
++
++
++
++
++
++
++
++
++
++package org.codehaus.groovy.classgen.asm.sc.bugs
++
++import groovy.transform.stc.StaticTypeCheckingTestCase
++import org.codehaus.groovy.classgen.asm.sc.StaticCompilationTestSupport
++
++class Groovy7316Bug extends StaticTypeCheckingTestCase implements StaticCompilationTestSupport {
++
++    void testTypeCheckingBypass() {
++        assertScript '''
++            public <T> T getSomething() { null }
++
++            public List getList() { getSomething() }
++        '''
++    }
++
++    void testTypeCheckingBypassUsingExplicitTypeHint() {
++        assertScript '''
++            public <T> T getSomething() { null }
++
++            public List getList() {
++                @ASTTest(phase=INSTRUCTION_SELECTION,value={
++                    def ift = node.getNodeMetaData(INFERRED_TYPE)
++                    assert ift == make(List)
++                })
++                def list = this.<List>getSomething()
++            }
++        '''
++    }
++
++}

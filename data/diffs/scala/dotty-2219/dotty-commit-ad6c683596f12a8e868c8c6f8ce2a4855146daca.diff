@@ -1,0 +1,26 @@
+diff --git a/compiler/src/dotty/tools/dotc/core/TypeApplications.scala b/compiler/src/dotty/tools/dotc/core/TypeApplications.scala
+index 82051b66c0..b37ed2b0af 100644
+--- a/compiler/src/dotty/tools/dotc/core/TypeApplications.scala
++++ b/compiler/src/dotty/tools/dotc/core/TypeApplications.scala
+@@ -429,7 +429,7 @@ class TypeApplications(val self: Type) extends AnyVal {
+       case dealiased: LazyRef =>
+         LazyRef(() => dealiased.ref.appliedTo(args))
+       case dealiased: WildcardType =>
+-        dealiased
++        WildcardType(dealiased.optBounds.appliedTo(args).bounds)
+       case dealiased: TypeRef if dealiased.symbol == defn.NothingClass =>
+         dealiased
+       case _ if typParams.isEmpty || typParams.head.isInstanceOf[LambdaParam] =>
+diff --git a/tests/pos/i2219.scala b/tests/pos/i2219.scala
+new file mode 100644
+index 0000000000..7f786eb3ee
+--- /dev/null
++++ b/tests/pos/i2219.scala
+@@ -0,0 +1,7 @@
++object Test {
++  type Inv[T[_]] = T[_]
++
++  class Hi[T[_]](x: Inv[T]) {
++    def foo[T[_]](value: Inv[T] = x) = {}
++  }
++}

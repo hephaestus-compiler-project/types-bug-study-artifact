@@ -1,0 +1,158 @@
+diff --git a/src/main/org/codehaus/groovy/control/StaticImportVisitor.java b/src/main/org/codehaus/groovy/control/StaticImportVisitor.java
+index 0f3a9d2668..5c17eb8772 100644
+--- a/src/main/org/codehaus/groovy/control/StaticImportVisitor.java
++++ b/src/main/org/codehaus/groovy/control/StaticImportVisitor.java
+@@ -284,6 +284,8 @@ public class StaticImportVisitor extends ClassCodeExpressionTransformer {
+         result.setImplicitThis(mce.isImplicitThis());
+         result.setSpreadSafe(mce.isSpreadSafe());
+         result.setMethodTarget(mce.getMethodTarget());
++        // GROOVY-6757
++        result.setGenericsTypes(mce.getGenericsTypes());
+         setSourcePosition(result, mce);
+         return result;
+     }
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index a92c311c4a..fd2bf89eb6 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -2887,7 +2887,11 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+ 
+                         if (isUsingGenericsOrIsArrayUsingGenerics(returnType)) {
+                             visitMethodCallArguments(chosenReceiver.getType(), argumentList, true, directMethodCallCandidate);
+-                            ClassNode irtg = inferReturnTypeGenerics(chosenReceiver.getType(), directMethodCallCandidate, callArguments);
++                            ClassNode irtg = inferReturnTypeGenerics(
++                                    chosenReceiver.getType(),
++                                    directMethodCallCandidate,
++                                    callArguments,
++                                    call.getGenericsTypes());
+                             returnType = irtg != null && implementsInterfaceOrIsSubclassOf(irtg, returnType) ? irtg : returnType;
+                             callArgsVisited = true;
+                         }
+@@ -4117,7 +4121,26 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+      * @param arguments the method call arguments
+      * @return parameterized, infered, class node
+      */
+-    protected ClassNode inferReturnTypeGenerics(final ClassNode receiver, final MethodNode method, final Expression arguments) {
++    protected ClassNode inferReturnTypeGenerics(ClassNode receiver, MethodNode method, Expression arguments) {
++        return inferReturnTypeGenerics(receiver, method, arguments, null);
++    }
++
++    /**
++     * If a method call returns a parameterized type, then we can perform additional inference on the
++     * return type, so that the type gets actual type parameters. For example, the method
++     * Arrays.asList(T...) is generified with type T which can be deduced from actual type
++     * arguments.
++     *
++     * @param method    the method node
++     * @param arguments the method call arguments
++     * @param explicitTypeHints explicit type hints as found for example in Collections.&lt;String&gt;emptyList()
++     * @return parameterized, infered, class node
++     */
++    protected ClassNode inferReturnTypeGenerics(
++            ClassNode receiver,
++            MethodNode method,
++            Expression arguments,
++            GenericsType[] explicitTypeHints) {
+         ClassNode returnType = method.getReturnType();
+         if (method instanceof ExtensionMethodNode
+                 && (isUsingGenericsOrIsArrayUsingGenerics(returnType))) {
+@@ -4143,6 +4166,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         if (getGenericsWithoutArray(returnType)==null) return returnType;
+         Map<String, GenericsType> resolvedPlaceholders = resolvePlaceHoldersFromDeclaration(receiver, getDeclaringClass(method, arguments), method, method.isStatic());
+         GenericsUtils.extractPlaceholders(receiver, resolvedPlaceholders);
++        resolvePlaceholdersFromExplicitTypeHints(method, explicitTypeHints, resolvedPlaceholders);
+         if (resolvedPlaceholders.isEmpty()) return returnType;
+         Map<String, GenericsType> placeholdersFromContext = extractGenericsParameterMapOfThis(typeCheckingContext.getEnclosingMethod());
+         applyGenericsConnections(placeholdersFromContext,resolvedPlaceholders);
+@@ -4188,6 +4212,22 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         return applyGenericsContext(resolvedPlaceholders, returnType);
+     }
+ 
++    private void resolvePlaceholdersFromExplicitTypeHints(final MethodNode method, final GenericsType[] explicitTypeHints, final Map<String, GenericsType> resolvedPlaceholders) {
++        if (explicitTypeHints!=null) {
++            GenericsType[] methodGenericTypes = method.getGenericsTypes();
++            if (methodGenericTypes!=null && methodGenericTypes.length==explicitTypeHints.length) {
++                for (int i = 0; i < explicitTypeHints.length; i++) {
++                    GenericsType methodGenericType = methodGenericTypes[i];
++                    GenericsType explicitTypeHint = explicitTypeHints[i];
++                    resolvedPlaceholders.put(methodGenericType.getName(), explicitTypeHint);
++                }
++                for (GenericsType typeHint : explicitTypeHints) {
++                    System.err.println("Type hint = " + typeHint);
++                }
++            }
++        }
++    }
++
+     private void extractGenericsConnectionsForSuperClassAndInterfaces(final Map<String, GenericsType> resolvedPlaceholders, final Map<String, GenericsType> connections) {
+         for (GenericsType value : new HashSet<GenericsType>(connections.values())) {
+             if (!value.isPlaceholder() && !value.isWildcard()) {
+diff --git a/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy6757Bug.groovy b/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy6757Bug.groovy
+new file mode 100644
+index 0000000000..1ea095770c
+--- /dev/null
++++ b/src/test/org/codehaus/groovy/classgen/asm/sc/bugs/Groovy6757Bug.groovy
+@@ -0,0 +1,63 @@
++/*
++ * Copyright 2003-2015 the original author or authors.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++
++
++
++
++
++
++
++
++package org.codehaus.groovy.classgen.asm.sc.bugs
++
++import groovy.transform.stc.StaticTypeCheckingTestCase
++import org.codehaus.groovy.classgen.asm.sc.StaticCompilationTestSupport
++
++class Groovy6757Bug extends StaticTypeCheckingTestCase implements StaticCompilationTestSupport {
++    void testExplicitTypeHint() {
++        assertScript '''
++            @ASTTest(phase=INSTRUCTION_SELECTION,value={
++                def ift = node.getNodeMetaData(INFERRED_TYPE)
++                assert ift == make(List)
++                def gt = ift.genericsTypes[0]
++                assert gt.type == STRING_TYPE
++            })
++            def list = Collections.<String>emptyList()
++            if (list) {
++              list.get(0).toUpperCase()
++            }
++        '''
++    }
++
++    void testExplicitTypeHintWithBoundedGenerics() {
++        // example from GROOVY-7307
++        assertScript '''
++            class A {
++                static <T extends Number> T id(T value) {
++                    value
++                }
++
++                // Narrower generic type: doesn't compile
++                static <U extends Integer> U id2(U value) {
++                    A.<U>id(value)
++                }
++            }
++            A
++        '''
++    }
++
++}

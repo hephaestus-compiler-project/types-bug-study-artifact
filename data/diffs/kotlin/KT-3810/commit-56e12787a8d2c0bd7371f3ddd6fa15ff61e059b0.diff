@@ -1,0 +1,109 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+index 314a8b1c023..881bc6e4236 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+@@ -281,7 +281,7 @@ public interface Errors {
+ 
+     // Property-specific
+ 
+-    DiagnosticFactory2<JetProperty, PropertyDescriptor, PropertyDescriptor> VAR_OVERRIDDEN_BY_VAL =
++    DiagnosticFactory2<JetNamedDeclaration, PropertyDescriptor, PropertyDescriptor> VAR_OVERRIDDEN_BY_VAL =
+             DiagnosticFactory2.create(ERROR, VAL_OR_VAR_NODE);
+ 
+     DiagnosticFactory0<PsiElement> REDUNDANT_MODIFIER_IN_GETTER = DiagnosticFactory0.create(WARNING);
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/PositioningStrategies.kt b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/PositioningStrategies.kt
+index 65a193930ad..cee751b22ce 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/PositioningStrategies.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/PositioningStrategies.kt
+@@ -24,10 +24,7 @@ import org.jetbrains.kotlin.JetNodeTypes
+ import org.jetbrains.kotlin.lexer.JetModifierKeywordToken
+ import org.jetbrains.kotlin.lexer.JetTokens
+ import org.jetbrains.kotlin.psi.*
+-import org.jetbrains.kotlin.psi.psiUtil.endOffset
+-import org.jetbrains.kotlin.psi.psiUtil.getCalleeHighlightingRange
+-import org.jetbrains.kotlin.psi.psiUtil.getStrictParentOfType
+-import org.jetbrains.kotlin.psi.psiUtil.startOffset
++import org.jetbrains.kotlin.psi.psiUtil.*
+ import org.jetbrains.kotlin.utils.sure
+ import kotlin.platform.platformStatic
+ 
+@@ -319,9 +316,13 @@ public object PositioningStrategies {
+         }
+     }
+ 
+-    public val VAL_OR_VAR_NODE: PositioningStrategy<JetProperty> = object : PositioningStrategy<JetProperty>() {
+-        override fun mark(element: JetProperty): List<TextRange> {
+-            return markElement(element.getValOrVarKeyword())
++    public val VAL_OR_VAR_NODE: PositioningStrategy<JetNamedDeclaration> = object : PositioningStrategy<JetNamedDeclaration>() {
++        override fun mark(element: JetNamedDeclaration): List<TextRange> {
++            return when (element) {
++                is JetParameter -> markElement(element.valOrVarKeyword ?: element)
++                is JetProperty -> markElement(element.valOrVarKeyword)
++                else -> error("Declaration is neither a parameter nor a property: " + element.getElementTextWithContext())
++            }
+         }
+     }
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/OverrideResolver.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/OverrideResolver.java
+index ec7d3de25c2..f6eb416de9d 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/OverrideResolver.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/OverrideResolver.java
+@@ -554,7 +554,7 @@ public class OverrideResolver {
+                 public void varOverriddenByVal(@NotNull CallableMemberDescriptor overridden) {
+                     if (!kindMismatchError) {
+                         kindMismatchError = true;
+-                        trace.report(VAR_OVERRIDDEN_BY_VAL.on((JetProperty) member, (PropertyDescriptor) declared, (PropertyDescriptor) overridden));
++                        trace.report(VAR_OVERRIDDEN_BY_VAL.on(member, (PropertyDescriptor) declared, (PropertyDescriptor) overridden));
+                     }
+                 }
+ 
+diff --git a/compiler/testData/diagnostics/tests/regressions/kt3810.kt b/compiler/testData/diagnostics/tests/regressions/kt3810.kt
+new file mode 100644
+index 00000000000..180c1dfc550
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/regressions/kt3810.kt
+@@ -0,0 +1,5 @@
++interface A {
++    var foo: String
++}
++
++class B(override <!VAR_OVERRIDDEN_BY_VAL!>val<!> foo: String) : A
+diff --git a/compiler/testData/diagnostics/tests/regressions/kt3810.txt b/compiler/testData/diagnostics/tests/regressions/kt3810.txt
+new file mode 100644
+index 00000000000..faa4084f6e0
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/regressions/kt3810.txt
+@@ -0,0 +1,16 @@
++package
++
++internal interface A {
++    internal abstract var foo: kotlin.String
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++internal final class B : A {
++    public constructor B(/*0*/ foo: kotlin.String)
++    internal open override /*1*/ val foo: kotlin.String
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
+index 9a0bd266c0b..758cd33d0be 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
+@@ -11220,6 +11220,12 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("kt3810.kt")
++            public void testKt3810() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/regressions/kt3810.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("kt385.109.441.kt")
+             public void testKt385_109_441() throws Exception {
+                 String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/regressions/kt385.109.441.kt");

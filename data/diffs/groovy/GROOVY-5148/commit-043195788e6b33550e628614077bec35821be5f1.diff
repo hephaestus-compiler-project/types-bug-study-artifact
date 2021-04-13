@@ -1,0 +1,273 @@
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index 035a455e75..c80637eb94 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -438,8 +438,23 @@ abstract class StaticTypeCheckingSupport {
+      * @return false if types are incompatible
+      */
+     public static boolean checkCompatibleAssignmentTypes(ClassNode left, ClassNode right) {
++        return checkCompatibleAssignmentTypes(left, right, null);
++    }
++
++    public static boolean checkCompatibleAssignmentTypes(ClassNode left, ClassNode right, Expression rightExpression) {
+         ClassNode leftRedirect = left.redirect();
+         ClassNode rightRedirect = right.redirect();
++
++        if (right==VOID_TYPE||right==void_WRAPPER_TYPE) {
++            return left==VOID_TYPE||left==void_WRAPPER_TYPE;
++        }
++
++        // if rightExpression is null and leftExpression is not a primitive type, it's ok
++        boolean rightExpressionIsNull = rightExpression instanceof ConstantExpression && ((ConstantExpression) rightExpression).getValue()==null;
++        if (rightExpressionIsNull && !isPrimitiveType(left)) {
++            return true;
++        }
++
+         // on an assignment everything that can be done by a GroovyCast is allowed
+ 
+         // anything can be assigned to an Object, String, boolean, Boolean
+@@ -452,6 +467,17 @@ abstract class StaticTypeCheckingSupport {
+             return true;
+         }
+ 
++        // char as left expression
++        if (leftRedirect == char_TYPE && rightRedirect==STRING_TYPE) {
++            if (rightExpression!=null && rightExpression instanceof ConstantExpression) {
++                String value = rightExpression.getText();
++                return value.length()==1;
++            }
++        }
++        if (leftRedirect == Character_TYPE && (rightRedirect==STRING_TYPE||rightExpressionIsNull)) {
++            return rightExpressionIsNull || (rightExpression instanceof ConstantExpression && rightExpression.getText().length()==1);
++        }
++
+         // if left is Enum and right is String or GString we do valueOf
+         if (leftRedirect.isDerivedFrom(Enum_Type) &&
+                 (rightRedirect == GSTRING_TYPE || rightRedirect == STRING_TYPE)) {
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+index 3bdde510d9..e5526f9a24 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java
+@@ -42,6 +42,8 @@ import static org.codehaus.groovy.transform.stc.StaticTypeCheckingSupport.*;
+  * @author Jochen Theodorou
+  */
+ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
++    private final static ClassNode READONLY_PROPERTY_RETURN = ClassHelper.make("<readonly>");
++
+     private final static List<MethodNode> EMPTY_METHODNODE_LIST = Collections.emptyList();
+ 
+     private SourceUnit source;
+@@ -269,7 +271,11 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+             // in the "with" case where the type must be taken from the inferred type
+             leftRedirect = leftExpressionType;
+         } else {
+-            leftRedirect = leftExpression.getType().redirect();
++            if (leftExpression instanceof VariableExpression && isPrimitiveType(((VariableExpression)leftExpression).getOriginType())) {
++                leftRedirect = leftExpressionType;
++            } else {
++                leftRedirect = leftExpression.getType().redirect();
++            }
+         }
+         if (leftExpression instanceof TupleExpression) {
+             // multiple assignment
+@@ -297,10 +303,10 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+             }
+             return;
+         }
+-        boolean compatible = checkCompatibleAssignmentTypes(leftRedirect, inferredRightExpressionType);
++        boolean compatible = checkCompatibleAssignmentTypes(leftRedirect, inferredRightExpressionType, rightExpression);
+         if (!compatible) {
+-            // if leftRedirect is of void type, then it means we are on a missing property
+-            if ((leftRedirect == VOID_TYPE) && (leftExpression instanceof PropertyExpression)) {
++            // if leftRedirect is of READONLY_PROPERTY_RETURN type, then it means we are on a missing property
++            if ((leftRedirect == READONLY_PROPERTY_RETURN) && (leftExpression instanceof PropertyExpression)) {
+                 addStaticTypeError("Cannot set read-only property: "+((PropertyExpression)leftExpression).getPropertyAsString(), leftExpression);
+             } else {
+                 addStaticTypeError("Cannot assign value of type " + inferredRightExpressionType.getName() + " to variable of type " + leftExpressionType.getName(), assignmentExpression);
+@@ -507,23 +513,32 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+                             return true;
+                         }
+                     }
+-                    if (checkForReadOnly) {
++                    // if the property expression is an attribute expression (o.@attr), then
++                    // we stop now, otherwise we must check the parent class
++                    current = isAttributeExpression ?null:current.getSuperClass();
++                }
++                if (checkForReadOnly) {
++                    current = testClass;
++                    while (current != null) {
++                        current = current.redirect();
++
+                         String pname = MetaClassHelper.capitalize(propertyName);
+-                        List<MethodNode> nodes = current.getMethods("get"+pname);
+-                        if (nodes.isEmpty()) nodes = current.getMethods("is"+pname);
++                        List<MethodNode> nodes = current.getMethods("get" + pname);
++                        if (nodes.isEmpty()) nodes = current.getMethods("is" + pname);
+                         if (!nodes.isEmpty()) {
+                             for (MethodNode node : nodes) {
+                                 Parameter[] parameters = node.getParameters();
+-                                if (node.getReturnType()!=VOID_TYPE && (parameters==null || parameters.length==0)) {
+-                                    if (visitor!=null) visitor.visitMethod(node);
++                                if (node.getReturnType() != VOID_TYPE && (parameters == null || parameters.length == 0)) {
++                                    if (visitor != null) visitor.visitMethod(node);
++                                    storeType(pexp, READONLY_PROPERTY_RETURN);
+                                     return true;
+                                 }
+                             }
+                         }
++                        // if the property expression is an attribute expression (o.@attr), then
++                        // we stop now, otherwise we must check the parent class
++                        current = isAttributeExpression ? null : current.getSuperClass();
+                     }
+-                    // if the property expression is an attribute expression (o.@attr), then
+-                    // we stop now, otherwise we must check the parent class
+-                    current = isAttributeExpression ?null:current.getSuperClass();
+                 }
+             } else {
+                 if (visitor!=null) {
+@@ -621,7 +636,7 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+     private ClassNode checkReturnType(final ReturnStatement statement) {
+         ClassNode type = getType(statement.getExpression());
+         if (methodNode != null) {
+-            if (!checkCompatibleAssignmentTypes(methodNode.getReturnType(), type)) {
++            if (!methodNode.isVoidMethod() && !checkCompatibleAssignmentTypes(methodNode.getReturnType(), type)) {
+                 addStaticTypeError("Cannot return value of type " + type + " on method returning type " + methodNode.getReturnType(), statement.getExpression());
+             }
+         }
+@@ -901,8 +916,16 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
+         super.visitCastExpression(expression);
+         if (!expression.isCoerce()) {
+             ClassNode targetType = expression.getType();
+-            ClassNode expressionType = getType(expression.getExpression());
+-            if (isNumberCategory(getWrapper(targetType)) && isNumberCategory(getWrapper(expressionType))) {
++            Expression source = expression.getExpression();
++            boolean sourceIsNull = source instanceof ConstantExpression && ((ConstantExpression) source).getValue()==null;
++            ClassNode expressionType = getType(source);
++            if (targetType.equals(char_TYPE) && expressionType==STRING_TYPE
++                    && source instanceof ConstantExpression && source.getText().length()==1) {
++                // ex: (char) 'c'
++            } else if (targetType.equals(Character_TYPE) && (expressionType==STRING_TYPE||sourceIsNull)
++                    && (sourceIsNull || source instanceof ConstantExpression && source.getText().length()==1)) {
++                // ex : (Character) 'c'
++            } else if (isNumberCategory(getWrapper(targetType)) && isNumberCategory(getWrapper(expressionType))) {
+                 // ex: short s = (short) 0
+             } else if (!isAssignableTo(expressionType, targetType)) {
+                 addStaticTypeError("Inconvertible types: cannot cast "+expressionType.getName()+" to "+targetType.getName(), expression);
+diff --git a/src/test/groovy/transform/stc/STCAssignmentTest.groovy b/src/test/groovy/transform/stc/STCAssignmentTest.groovy
+index 57e5c9523a..bd085ca530 100644
+--- a/src/test/groovy/transform/stc/STCAssignmentTest.groovy
++++ b/src/test/groovy/transform/stc/STCAssignmentTest.groovy
+@@ -141,7 +141,7 @@ class STCAssignmentTest extends StaticTypeCheckingTestCase {
+         shouldFailWithMessages '''
+             long a = Long.MAX_VALUE
+             int b = a
+-        ''', 'Possible loose of precision from long to java.lang.Integer'
++        ''', 'Possible loose of precision from long to int'
+     }
+ 
+     void testPossibleLooseOfPrecision2() {
+@@ -159,7 +159,7 @@ class STCAssignmentTest extends StaticTypeCheckingTestCase {
+     void testPossibleLooseOfPrecision4() {
+         shouldFailWithMessages '''
+             byte b = 128 // will not fit in a byte
+-        ''', 'Possible loose of precision from int to java.lang.Byte'
++        ''', 'Possible loose of precision from int to byte'
+     }
+ 
+     void testPossibleLooseOfPrecision5() {
+@@ -171,7 +171,7 @@ class STCAssignmentTest extends StaticTypeCheckingTestCase {
+     void testPossibleLooseOfPrecision6() {
+         shouldFailWithMessages '''
+             short b = 32768 // will not fit in a short
+-        ''', 'Possible loose of precision from int to java.lang.Short'
++        ''', 'Possible loose of precision from int to short'
+     }
+ 
+     void testPossibleLooseOfPrecision7() {
+@@ -195,7 +195,7 @@ class STCAssignmentTest extends StaticTypeCheckingTestCase {
+     void testPossibleLooseOfPrecision10() {
+         shouldFailWithMessages '''
+             int b = 32768.1d
+-        ''', 'Possible loose of precision from double to java.lang.Integer'
++        ''', 'Possible loose of precision from double to int'
+     }
+ 
+     void testCastIntToShort() {
+@@ -309,5 +309,77 @@ class STCAssignmentTest extends StaticTypeCheckingTestCase {
+             List<Integer> foo = true?new LinkedList<String>():new LinkedList<Integer>();
+         ''', 'Incompatible generic argument types. Cannot assign java.util.LinkedList <? extends java.lang.Comparable> to: java.util.List <Integer>'
+     }
++
++    void testCastStringToChar() {
++        assertScript '''
++            char c = 'a'
++        '''
++    }
++
++    void testCastStringLongerThan1CharToChar() {
++        shouldFailWithMessages '''
++            char c = 'aa'
++        ''','Cannot assign value of type java.lang.String to variable of type char'
++    }
++
++    void testCastNullToChar() {
++        shouldFailWithMessages '''
++            char c = null
++        ''', 'Cannot assign value of type java.lang.Object to variable of type char'
++    }
++
++    void testCastStringToCharacter() {
++        assertScript '''
++            Character c = 'a'
++        '''
++    }
++
++    void testCastStringLongerThan1CharToCharacter() {
++        shouldFailWithMessages '''
++            Character c = 'aa'
++        ''','Cannot assign value of type java.lang.String to variable of type java.lang.Character'
++    }
++
++    void testAssignNullToCharacter() {
++        assertScript '''
++            Character c = null
++        '''
++    }
++
++    void testCastStringToCharWithCast() {
++        assertScript '''
++            def c = (char) 'a'
++        '''
++    }
++
++    void testCastStringLongerThan1ToCharWithCast() {
++        shouldFailWithMessages '''
++            def c = (char) 'aa'
++        ''', 'Inconvertible types: cannot cast java.lang.String to char'
++    }
++
++    void testCastNullToCharWithCast() {
++        shouldFailWithMessages '''
++            def c = (char) null
++        ''', 'Inconvertible types: cannot cast java.lang.Object to char'
++    }
++
++    void testCastStringToCharacterWithCast() {
++        assertScript '''
++            def c = (Character) 'a'
++        '''
++    }
++
++    void testCastStringLongerThan1ToCharacterWithCast() {
++        shouldFailWithMessages '''
++            def c = (Character) 'aa'
++        ''', 'Inconvertible types: cannot cast java.lang.String to java.lang.Character'
++    }
++
++    void testCastNullToCharacterWithCast() {
++        assertScript '''
++            def c = (Character) null
++        '''
++    }
+ }
+ 

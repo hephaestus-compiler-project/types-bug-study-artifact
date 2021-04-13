@@ -1,0 +1,470 @@
+diff --git a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
+index 88b434195e1..fb7ea523533 100644
+--- a/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
++++ b/compiler/fir/resolve/tests/org/jetbrains/kotlin/fir/FirDiagnosticsSmokeTestGenerated.java
+@@ -19534,6 +19534,11 @@ public class FirDiagnosticsSmokeTestGenerated extends AbstractFirDiagnosticsSmok
+             runTest("compiler/testData/diagnostics/tests/smartCasts/kt2865.kt");
+         }
+ 
++        @TestMetadata("kt30826.kt")
++        public void testKt30826() throws Exception {
++            runTest("compiler/testData/diagnostics/tests/smartCasts/kt30826.kt");
++        }
++
+         @TestMetadata("kt3224.kt")
+         public void testKt3224() throws Exception {
+             runTest("compiler/testData/diagnostics/tests/smartCasts/kt3224.kt");
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/SmartCastManager.kt b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/SmartCastManager.kt
+index aa3a155b2ae..41422ed21da 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/SmartCastManager.kt
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/smartcasts/SmartCastManager.kt
+@@ -17,6 +17,7 @@
+ package org.jetbrains.kotlin.resolve.calls.smartcasts
+ 
+ import org.jetbrains.kotlin.builtins.KotlinBuiltIns
++import org.jetbrains.kotlin.config.LanguageFeature
+ import org.jetbrains.kotlin.config.LanguageVersionSettings
+ import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
+ import org.jetbrains.kotlin.diagnostics.Errors
+@@ -33,6 +34,7 @@ import org.jetbrains.kotlin.resolve.scopes.receivers.ImplicitReceiver
+ import org.jetbrains.kotlin.resolve.scopes.receivers.ReceiverValue
+ import org.jetbrains.kotlin.types.KotlinType
+ import org.jetbrains.kotlin.types.TypeUtils
++import org.jetbrains.kotlin.types.typeUtil.expandIntersectionTypeIfNecessary
+ import java.util.*
+ 
+ class SmartCastManager {
+@@ -178,8 +180,13 @@ class SmartCastManager {
+             recordExpressionType: Boolean
+         ): SmartCastResult? {
+             val calleeExpression = call?.calleeExpression
++            val expectedTypes = if (c.languageVersionSettings.supportsFeature(LanguageFeature.NewInference))
++                expectedType.expandIntersectionTypeIfNecessary()
++            else
++                listOf(expectedType)
++
+             for (possibleType in c.dataFlowInfo.getCollectedTypes(dataFlowValue, c.languageVersionSettings)) {
+-                if (ArgumentTypeResolver.isSubtypeOfForArgumentType(possibleType, expectedType) &&
++                if (expectedTypes.any { ArgumentTypeResolver.isSubtypeOfForArgumentType(possibleType, it) } &&
+                     (additionalPredicate == null || additionalPredicate(possibleType))
+                 ) {
+                     if (expression != null) {
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/AdditionalDiagnosticReporter.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/AdditionalDiagnosticReporter.kt
+index 99bd2a05188..c316fa1a7ca 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/AdditionalDiagnosticReporter.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/AdditionalDiagnosticReporter.kt
+@@ -22,6 +22,7 @@ import org.jetbrains.kotlin.descriptors.ReceiverParameterDescriptor
+ import org.jetbrains.kotlin.resolve.calls.model.*
+ import org.jetbrains.kotlin.types.UnwrappedType
+ import org.jetbrains.kotlin.types.checker.KotlinTypeChecker
++import org.jetbrains.kotlin.types.typeUtil.expandIntersectionTypeIfNecessary
+ 
+ // very initial state of component
+ // todo: handle all diagnostic inside DiagnosticReporterByTrackingStrategy
+@@ -43,10 +44,14 @@ class AdditionalDiagnosticReporter(private val languageVersionSettings: Language
+         expectedResultType: UnwrappedType
+     ): SmartCastDiagnostic? {
+         if (argument !is ExpressionKotlinCallArgument) return null
+-        if (!KotlinTypeChecker.DEFAULT.isSubtypeOf(argument.receiver.receiverValue.type, expectedResultType)) {
+-            return SmartCastDiagnostic(argument, expectedResultType.unwrap(), candidate.atom)
+-        }
+-        return null
++
++        val types = expectedResultType.expandIntersectionTypeIfNecessary()
++
++        val argumentType = argument.receiver.receiverValue.type
++        val isSubtype = types.map { KotlinTypeChecker.DEFAULT.isSubtypeOf(argumentType, it) }
++        if (isSubtype.any { it }) return null
++
++        return SmartCastDiagnostic(argument, types.first().unwrap(), candidate.atom)
+     }
+ 
+     private fun reportSmartCastOnReceiver(
+diff --git a/compiler/testData/diagnostics/tests/generics/nullability/smartCasts.kt b/compiler/testData/diagnostics/tests/generics/nullability/smartCasts.kt
+index bf66a69ee2f..daa9c8164a1 100644
+--- a/compiler/testData/diagnostics/tests/generics/nullability/smartCasts.kt
++++ b/compiler/testData/diagnostics/tests/generics/nullability/smartCasts.kt
+@@ -30,9 +30,9 @@ fun <T : CharSequence?> foo(x: T) {
+         <!DEBUG_INFO_SMARTCAST!>x<!>.length
+         x<!UNNECESSARY_SAFE_CALL!>?.<!>length
+ 
+-        x.bar1()
++        <!NI;DEBUG_INFO_SMARTCAST!>x<!>.bar1()
+         x.bar2()
+-        <!OI;DEBUG_INFO_SMARTCAST!>x<!>.bar3()
++        <!DEBUG_INFO_SMARTCAST!>x<!>.bar3()
+     }
+ 
+     if (x is CharSequence) {
+diff --git a/compiler/testData/diagnostics/tests/generics/nullability/smartCastsValueArgument.kt b/compiler/testData/diagnostics/tests/generics/nullability/smartCastsValueArgument.kt
+index 61c24054112..92486a37bc2 100644
+--- a/compiler/testData/diagnostics/tests/generics/nullability/smartCastsValueArgument.kt
++++ b/compiler/testData/diagnostics/tests/generics/nullability/smartCastsValueArgument.kt
+@@ -24,7 +24,7 @@ fun <T : CharSequence?> foo(x: T) {
+         y1 = <!DEBUG_INFO_SMARTCAST!>x<!>
+         y2 = <!DEBUG_INFO_SMARTCAST!>x<!>
+ 
+-        bar1(<!OI;DEBUG_INFO_SMARTCAST!>x<!>)
++        bar1(<!DEBUG_INFO_SMARTCAST!>x<!>)
+         bar2(<!DEBUG_INFO_SMARTCAST!>x<!>)
+         bar3(<!DEBUG_INFO_SMARTCAST!>x<!>)
+     }
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/intersectionScope/unstableSmartCast.kt b/compiler/testData/diagnostics/tests/smartCasts/intersectionScope/unstableSmartCast.kt
+index 161ddd49724..ac1fb2d44fb 100644
+--- a/compiler/testData/diagnostics/tests/smartCasts/intersectionScope/unstableSmartCast.kt
++++ b/compiler/testData/diagnostics/tests/smartCasts/intersectionScope/unstableSmartCast.kt
+@@ -31,8 +31,8 @@ fun test() {
+         x.foo().checkType { _<CharSequence?>() }
+         x.baz("")
+         x.baz(1).checkType { _<Unit>() }
+-        <!OI;SMARTCAST_IMPOSSIBLE!>x<!>.baz(1, 2)
++        <!SMARTCAST_IMPOSSIBLE!>x<!>.baz(1, 2)
+ 
+-        <!OI;SMARTCAST_IMPOSSIBLE!>x<!>.foobar().checkType { _<String>() }
++        <!SMARTCAST_IMPOSSIBLE!>x<!>.foobar().checkType { _<String>() }
+     }
+ }
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/kt30826.kt b/compiler/testData/diagnostics/tests/smartCasts/kt30826.kt
+new file mode 100644
+index 00000000000..e501dc31090
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/smartCasts/kt30826.kt
+@@ -0,0 +1,19 @@
++// !WITH_NEW_INFERENCE
++// Issue: KT-30826
++
++interface I1
++interface I2 {
++    fun foo() {}
++}
++
++class A : I1, I2
++
++fun foo(x: I1?) {
++    var y = x
++    y as I2
++    val bar = {
++        <!SMARTCAST_IMPOSSIBLE!>y<!>.foo() // NPE in NI, smartcast impossible in OI
++    }
++    y = null
++    bar()
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/smartCasts/kt30826.txt b/compiler/testData/diagnostics/tests/smartCasts/kt30826.txt
+new file mode 100644
+index 00000000000..0a20c5a9131
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/smartCasts/kt30826.txt
+@@ -0,0 +1,24 @@
++package
++
++public fun foo(/*0*/ x: I1?): kotlin.Unit
++
++public final class A : I1, I2 {
++    public constructor A()
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun foo(): kotlin.Unit
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface I1 {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface I2 {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open fun foo(): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.12.kt b/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.12.kt
+index f012662e00a..d99b68e46b1 100644
+--- a/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.12.kt
++++ b/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.12.kt
+@@ -61,7 +61,7 @@ fun <T> T?.case_5() {
+ 
+             <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>equals<!>(this)
+             <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>itest1<!>()
+-            apply {
++            <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>apply<!> {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>
+                 equals(this)
+@@ -69,7 +69,7 @@ fun <T> T?.case_5() {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>.equals(this)
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>.itest1()
+             }
+-            also {
++            <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>also<!> {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>.itest1()
+@@ -89,14 +89,14 @@ fun <T> T?.case_6() {
+ 
+             <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>equals<!>(this)
+             <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>itest1<!>()
+-            apply {
++            <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>apply<!> {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>
+                 equals(this)
+                 itest1()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>.equals(this)
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>.itest1()
+             }
+-            also {
++            <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>also<!> {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>.itest1()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>.equals(it)
+@@ -114,14 +114,14 @@ fun <T> T.case_7() {
+             <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & T"), DEBUG_INFO_SMARTCAST!>x<!>.equals(this)
+             <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & T"), DEBUG_INFO_SMARTCAST!>x<!>.itest1()
+ 
+-            x.apply {
++            <!DEBUG_INFO_SMARTCAST!>x<!>.apply {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>this<!>
+                 equals(this)
+                 itest1()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>this<!>.equals(this)
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>this<!>.itest1()
+             }
+-            x.also {
++            <!DEBUG_INFO_SMARTCAST!>x<!>.also {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>it<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>it<!>.itest1()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>it<!>.equals(it)
+@@ -140,14 +140,14 @@ fun <T> T.case_8() {
+ 
+             <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>equals<!>(this)
+             <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>itest1<!>()
+-            apply {
++            <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>apply<!> {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>this<!>
+                 equals(this)
+                 itest1()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>this<!>.equals(this)
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>this<!>.itest1()
+             }
+-            also {
++            <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>also<!> {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>it<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>it<!>.itest1()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>it<!>.equals(it)
+@@ -214,14 +214,14 @@ fun <T : Number> T?.case_11() {
+ 
+             <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>equals<!>(this)
+             <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>itest1<!>()
+-            apply {
++            <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>apply<!> {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>
+                 equals(this)
+                 itest1()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>.equals(this)
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>.itest1()
+             }
+-            also {
++            <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>also<!> {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>.itest1()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>.equals(it)
+@@ -1706,11 +1706,11 @@ fun <T> T.case_65() {
+             if (this != null) {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & Interface2 & T & T!!"), DEBUG_INFO_EXPRESSION_TYPE("T")!>this<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("Interface1"), DEBUG_INFO_EXPRESSION_TYPE("T"), DEBUG_INFO_SMARTCAST!>this<!>.equals(<!UNRESOLVED_REFERENCE!>x<!>)
+-                apply {
++                <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>apply<!> {
+                     <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & Interface2 & T!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & Interface2 & T!!}")!>this<!>
+                     <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & Interface2 & T!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & Interface2 & T!!}")!>this<!>.equals(this)
+                 }
+-                also {
++                <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>also<!> {
+                     <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & Interface2 & T!!}")!>it<!>
+                     <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & Interface2 & T!!}")!>it<!>.equals(it)
+                 }
+diff --git a/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.13.kt b/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.13.kt
+index da81b2d6e9f..f7c4735cd50 100644
+--- a/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.13.kt
++++ b/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.13.kt
+@@ -65,7 +65,7 @@ fun <T> case_5(x: T?) {
+ 
+             <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & T?"), DEBUG_INFO_SMARTCAST!>x<!>.equals(x)
+             <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & T?"), DEBUG_INFO_SMARTCAST!>x<!>.itest()
+-            x.apply {
++            <!DEBUG_INFO_SMARTCAST!>x<!>.apply {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>
+                 equals(this)
+@@ -73,7 +73,7 @@ fun <T> case_5(x: T?) {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>.equals(x)
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>.itest()
+             }
+-            x.also {
++            <!DEBUG_INFO_SMARTCAST!>x<!>.also {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>.itest()
+@@ -93,14 +93,14 @@ fun <T> case_6(x: T?) {
+ 
+             <!DEBUG_INFO_SMARTCAST!>x<!>.equals(x)
+             <!DEBUG_INFO_SMARTCAST!>x<!>.itest()
+-            x.apply {
++            <!DEBUG_INFO_SMARTCAST!>x<!>.apply {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>
+                 equals(this)
+                 itest()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>.equals(x)
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>.itest()
+             }
+-            x.also {
++            <!DEBUG_INFO_SMARTCAST!>x<!>.also {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>.itest()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>.equals(it)
+@@ -118,14 +118,14 @@ fun <T> case_7(y: T) {
+             <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & T"), DEBUG_INFO_SMARTCAST!>x<!>.equals(x)
+             <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & T"), DEBUG_INFO_SMARTCAST!>x<!>.itest()
+ 
+-            x.apply {
++            <!DEBUG_INFO_SMARTCAST!>x<!>.apply {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>this<!>
+                 equals(this)
+                 itest()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>this<!>.equals(x)
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>this<!>.itest()
+             }
+-            x.also {
++            <!DEBUG_INFO_SMARTCAST!>x<!>.also {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>it<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>it<!>.itest()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>it<!>.equals(it)
+@@ -144,14 +144,14 @@ fun <T> case_8(x: T) {
+ 
+             <!DEBUG_INFO_SMARTCAST!>x<!>.equals(x)
+             <!DEBUG_INFO_SMARTCAST!>x<!>.itest()
+-            x.apply {
++            <!DEBUG_INFO_SMARTCAST!>x<!>.apply {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>this<!>
+                 equals(this)
+                 itest()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>this<!>.equals(x)
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>this<!>.itest()
+             }
+-            x.also {
++            <!DEBUG_INFO_SMARTCAST!>x<!>.also {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>it<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>it<!>.itest()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T!!}")!>it<!>.equals(it)
+@@ -218,14 +218,14 @@ fun <T : Number> case_11(x: T?) {
+ 
+             <!DEBUG_INFO_SMARTCAST!>x<!>.equals(x)
+             <!DEBUG_INFO_SMARTCAST!>x<!>.itest()
+-            x.apply {
++            <!DEBUG_INFO_SMARTCAST!>x<!>.apply {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>
+                 equals(this)
+                 itest()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>.equals(x)
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}"), DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>this<!>.itest()
+             }
+-            x.also {
++            <!DEBUG_INFO_SMARTCAST!>x<!>.also {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>.itest()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("{Interface1 & T?!!}")!>it<!>.equals(it)
+diff --git a/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.5.kt b/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.5.kt
+index ac6114aa209..b02605ca9cb 100644
+--- a/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.5.kt
++++ b/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.5.kt
+@@ -188,7 +188,7 @@ fun case_11(x: Any?) {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & kotlin.Any?"), DEBUG_INFO_SMARTCAST!>x<!>.itest1()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("Interface2 & kotlin.Any?"), DEBUG_INFO_SMARTCAST!>x<!>.itest2()
+ 
+-                <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & Interface2 & kotlin.Any & kotlin.Any?")!>x<!>.let { <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest1(); <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest2() }
++                <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & kotlin.Any?"), DEBUG_INFO_SMARTCAST!>x<!>.let { <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest1(); <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest2() }
+             }
+         }
+     }
+@@ -206,7 +206,7 @@ fun case_12(x: Any?) {
+         <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & kotlin.Any?"), DEBUG_INFO_SMARTCAST!>x<!>.itest1()
+         <!DEBUG_INFO_EXPRESSION_TYPE("Interface2 & kotlin.Any?"), DEBUG_INFO_SMARTCAST!>x<!>.itest2()
+ 
+-        <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & Interface2 & kotlin.Any & kotlin.Any?")!>x<!>.let { <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest1(); <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest2() }
++        <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & kotlin.Any?"), DEBUG_INFO_SMARTCAST!>x<!>.let { <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest1(); <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest2() }
+     }
+ }
+ 
+diff --git a/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.6.kt b/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.6.kt
+index d0e41bd8e07..83ec484c871 100644
+--- a/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.6.kt
++++ b/compiler/tests-spec/testData/diagnostics/linked/type-inference/smart-casts/smart-casts-sources/p-4/pos/1.6.kt
+@@ -903,7 +903,7 @@ fun case_71(t: Any?) {
+                 <!DEBUG_INFO_EXPRESSION_TYPE("Interface2 & kotlin.Any?"), DEBUG_INFO_SMARTCAST!>t<!>.itest2()
+                 <!DEBUG_INFO_EXPRESSION_TYPE("Interface2 & kotlin.Any?"), DEBUG_INFO_SMARTCAST!>t<!>.itest()
+ 
+-                <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & Interface2 & kotlin.Any & kotlin.Any?")!>t<!>.let { <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest1(); <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest2() }
++                <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & kotlin.Any?"), DEBUG_INFO_SMARTCAST!>t<!>.let { <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest1(); <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest2() }
+             }
+         }
+     }
+@@ -924,7 +924,7 @@ fun case_72(t: Any?, z1: Nothing?) {
+         <!DEBUG_INFO_EXPRESSION_TYPE("Interface2 & kotlin.Any?"), DEBUG_INFO_SMARTCAST!>t<!>.itest2()
+         <!DEBUG_INFO_EXPRESSION_TYPE("Interface2 & kotlin.Any?"), DEBUG_INFO_SMARTCAST!>t<!>.itest()
+ 
+-        <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & Interface2 & kotlin.Any & kotlin.Any?")!>t<!>.let { <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest1(); <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest2() }
++        <!DEBUG_INFO_EXPRESSION_TYPE("Interface1 & kotlin.Any?"), DEBUG_INFO_SMARTCAST!>t<!>.let { <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest1(); <!DEBUG_INFO_EXPRESSION_TYPE("{Any & Interface1 & Interface2}")!>it<!>.itest2() }
+     }
+ }
+ 
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index 1f18e4f3010..772976ad412 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -19611,6 +19611,11 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 runTest("compiler/testData/diagnostics/tests/smartCasts/kt2865.kt");
+             }
+ 
++            @TestMetadata("kt30826.kt")
++            public void testKt30826() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/smartCasts/kt30826.kt");
++            }
++
+             @TestMetadata("kt3224.kt")
+             public void testKt3224() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/smartCasts/kt3224.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index 6ae5fb495df..70d3025c3cb 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -19536,6 +19536,11 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                 runTest("compiler/testData/diagnostics/tests/smartCasts/kt2865.kt");
+             }
+ 
++            @TestMetadata("kt30826.kt")
++            public void testKt30826() throws Exception {
++                runTest("compiler/testData/diagnostics/tests/smartCasts/kt30826.kt");
++            }
++
+             @TestMetadata("kt3224.kt")
+             public void testKt3224() throws Exception {
+                 runTest("compiler/testData/diagnostics/tests/smartCasts/kt3224.kt");
+diff --git a/core/descriptors/src/org/jetbrains/kotlin/types/TypeUtils.kt b/core/descriptors/src/org/jetbrains/kotlin/types/TypeUtils.kt
+index b888751cda2..3f074cbc687 100644
+--- a/core/descriptors/src/org/jetbrains/kotlin/types/TypeUtils.kt
++++ b/core/descriptors/src/org/jetbrains/kotlin/types/TypeUtils.kt
+@@ -243,3 +243,12 @@ val TypeParameterDescriptor.representativeUpperBound: KotlinType
+         } ?: upperBounds.first()
+     }
+ 
++fun KotlinType.expandIntersectionTypeIfNecessary(): Collection<KotlinType> {
++    if (constructor !is IntersectionTypeConstructor) return listOf(this)
++    val types = constructor.supertypes
++    return if (isMarkedNullable) {
++        types.map { it.makeNullable() }
++    } else {
++        types
++    }
++}
+\ No newline at end of file

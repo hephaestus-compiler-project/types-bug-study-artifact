@@ -1,0 +1,343 @@
+diff --git a/compiler/src/dotty/tools/dotc/core/TypeComparer.scala b/compiler/src/dotty/tools/dotc/core/TypeComparer.scala
+index f0615f8afeda..c41ecd76dc27 100644
+--- a/compiler/src/dotty/tools/dotc/core/TypeComparer.scala
++++ b/compiler/src/dotty/tools/dotc/core/TypeComparer.scala
+@@ -751,7 +751,7 @@ class TypeComparer(initctx: Context) extends ConstraintHandling[AbsentContext] w
+                 case _ => false
+             }
+           case _ => false
+-        comparePaths || isNewSubType(tp1.underlying.widenExpr)
++        comparePaths || isSubType(tp1.underlying.widenExpr, tp2, approx.addLow)
+       case tp1: RefinedType =>
+         isNewSubType(tp1.parent)
+       case tp1: RecType =>
+diff --git a/compiler/src/dotty/tools/dotc/typer/Inferencing.scala b/compiler/src/dotty/tools/dotc/typer/Inferencing.scala
+index d21d61bb427c..561243a75832 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Inferencing.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Inferencing.scala
+@@ -11,7 +11,7 @@ import NameKinds.UniqueName
+ import util.Spans._
+ import util.{Stats, SimpleIdentityMap}
+ import Decorators._
+-import config.Printers.{gadts, typr}
++import config.Printers.{gadts, typr, debug}
+ import annotation.tailrec
+ import reporting._
+ import collection.mutable
+@@ -171,37 +171,47 @@ object Inferencing {
+     res
+   }
+ 
+-  /** This class is mostly based on IsFullyDefinedAccumulator.
+-    * It tries to approximate the given type based on the available GADT constraints.
+-    */
++  /** Approximates a type to get rid of as many GADT-constrained abstract types as possible. */
+   private class ApproximateGadtAccumulator(using Context) extends TypeMap {
+ 
+     var failed = false
+ 
+-    private def instantiate(tvar: TypeVar, fromBelow: Boolean): Type = {
+-      val inst = tvar.instantiate(fromBelow)
+-      typr.println(i"forced instantiation of ${tvar.origin} = $inst")
+-      inst
+-    }
+-
+-    private def instDirection2(sym: Symbol)(using Context): Int = {
+-      val constrained = ctx.gadt.fullBounds(sym)
+-      val original = sym.info.bounds
+-      val cmp = ctx.typeComparer
+-      val approxBelow =
+-        if (!cmp.isSubTypeWhenFrozen(constrained.lo, original.lo)) 1 else 0
+-      val approxAbove =
+-        if (!cmp.isSubTypeWhenFrozen(original.hi, constrained.hi)) 1 else 0
+-      approxAbove - approxBelow
+-    }
+-
+-    private[this] var toMaximize: Boolean = false
+-
++    /** GADT approximation proceeds differently from type variable approximation.
++      *
++      * Essentially, what we're doing is we're inferring a type ascription that
++      * will remove as many GADT-constrained types as possible. This means that
++      * we want to approximate type T to type S in such a way that no matter how
++      * GADT-constrained types are instantiated, T <: S. In other words, the
++      * relationship _necessarily_ must hold.
++      *
++      * We accomplish that by:
++      *   - replacing covariant occurences with upper GADT bound
++      *   - replacing contravariant occurences with lower GADT bound
++      *   - leaving invariant occurences alone
++      *
++      * Examples:
++      *   - If we have GADT cstr A <: Int, then for all A <: Int, Option[A] <: Option[Int].
++      *     Therefore, we can approximate Option[A] ~~ Option[Int].
++      *   - If we have A >: S <: T, then for all such A, A => A <: S => T. This
++      *     illustrates that it's fine to differently approximate different
++      *     occurences of same type.
++      *   - If we have A <: Int and F <: [A] => Option[A] (note the invariance),
++      *     then we should approximate F[A] ~~ Option[A]. That is, we should
++      *     respect the invariance of the type constructor.
++      *   - If we have A <: Option[B] and B <: Int, we approximate A ~~
++      *     Option[B]. That is, we don't recurse into already approximated
++      *     types. Since GADT approximation is (for now) only used for member
++      *     selection, this behaviour is expected, as nested types cannot affect
++      *     member selection (note that given/extension lookup doesn't need GADT
++      *     approx, see gadt-approximation-interaction.scala).
++      */
+     def apply(tp: Type): Type = tp.dealias match {
+-      case tp @ TypeRef(qual, nme) if (qual eq NoPrefix) && ctx.gadt.contains(tp.symbol) =>
++      case tp @ TypeRef(qual, nme) if (qual eq NoPrefix)
++                                   && variance != 0
++                                   && ctx.gadt.contains(tp.symbol)
++                                   =>
+         val sym = tp.symbol
+-        val res =
+-          ctx.gadt.approximation(sym, fromBelow = variance < 0)
++        val res = ctx.gadt.approximation(sym, fromBelow = variance < 0)
+         gadts.println(i"approximated $tp  ~~  $res")
+         res
+ 
+diff --git a/compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala b/compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
+index 75e9caef6c12..22e1d10cb02d 100644
+--- a/compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
++++ b/compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
+@@ -687,14 +687,8 @@ object ProtoTypes {
+ 
+   /** Dummy tree to be used as an argument of a FunProto or ViewProto type */
+   object dummyTreeOfType {
+-    /*
+-     * A property indicating that the given tree was created with dummyTreeOfType.
+-     * It is sometimes necessary to detect the dummy trees to avoid unwanted readaptations on them.
+-     */
+-    val IsDummyTree = new Property.Key[Unit]
+-
+     def apply(tp: Type)(implicit src: SourceFile): Tree =
+-      (untpd.Literal(Constant(null)) withTypeUnchecked tp).withAttachment(IsDummyTree, ())
++      untpd.Literal(Constant(null)) withTypeUnchecked tp
+     def unapply(tree: untpd.Tree): Option[Type] = tree match {
+       case Literal(Constant(null)) => Some(tree.typeOpt)
+       case _ => None
+diff --git a/compiler/src/dotty/tools/dotc/typer/Typer.scala b/compiler/src/dotty/tools/dotc/typer/Typer.scala
+index 57095721628c..65bcb940e557 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Typer.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Typer.scala
+@@ -33,7 +33,7 @@ import collection.mutable
+ import annotation.tailrec
+ import Implicits._
+ import util.Stats.record
+-import config.Printers.{gadts, typr}
++import config.Printers.{gadts, typr, debug}
+ import config.Feature._
+ import config.SourceVersion._
+ import rewrites.Rewrites.patch
+@@ -3407,25 +3407,18 @@ class Typer extends Namer
+         case _ =>
+       }
+ 
+-      val approximation = Inferencing.approximateGADT(wtp)
+-      gadts.println(
+-        i"""GADT approximation {
+-        approximation = $approximation
+-        pt.isInstanceOf[SelectionProto] = ${pt.isInstanceOf[SelectionProto]}
+-        ctx.gadt.nonEmpty = ${ctx.gadt.nonEmpty}
+-        ctx.gadt = ${ctx.gadt.debugBoundsDescription}
+-        pt.isMatchedBy = ${
+-          if (pt.isInstanceOf[SelectionProto])
+-            pt.asInstanceOf[SelectionProto].isMatchedBy(approximation).toString
+-          else
+-            "<not a SelectionProto>"
+-        }
+-        }
+-        """
+-      )
++      // try GADT approximation, but only if we're trying to select a member
++      // Member lookup cannot take GADTs into account b/c of cache, so we
++      // approximate types based on GADT constraints instead. For an example,
++      // see MemberHealing in gadt-approximation-interaction.scala.
+       pt match {
+-        case pt: SelectionProto if ctx.gadt.nonEmpty && pt.isMatchedBy(approximation) =>
+-          return tpd.Typed(tree, TypeTree(approximation))
++        case pt: SelectionProto if ctx.gadt.nonEmpty =>
++          gadts.println(i"Trying to heal member selection by GADT-approximating $wtp")
++          val gadtApprox = Inferencing.approximateGADT(wtp)
++          gadts.println(i"GADT-approximated $wtp ~~ $gadtApprox")
++          if pt.isMatchedBy(gadtApprox) then
++            gadts.println(i"Member selection healed by GADT approximation")
++            return tpd.Typed(tree, TypeTree(gadtApprox))
+         case _ => ;
+       }
+ 
+@@ -3459,6 +3452,7 @@ class Typer extends Namer
+         if (isFullyDefined(wtp, force = ForceDegree.all) &&
+             ctx.typerState.constraint.ne(prevConstraint)) readapt(tree)
+         else err.typeMismatch(tree, pt, failure)
++
+       if ctx.mode.is(Mode.ImplicitsEnabled) && tree.typeOpt.isValueType then
+         if pt.isRef(defn.AnyValClass) || pt.isRef(defn.ObjectClass) then
+           ctx.error(em"the result of an implicit conversion must be more specific than $pt", tree.sourcePos)
+@@ -3469,14 +3463,13 @@ class Typer extends Namer
+             checkImplicitConversionUseOK(found.symbol, tree.posd)
+             readapt(found)(using ctx.retractMode(Mode.ImplicitsEnabled))
+           case failure: SearchFailure =>
+-            if (pt.isInstanceOf[ProtoType] && !failure.isAmbiguous) {
++            if (pt.isInstanceOf[ProtoType] && !failure.isAmbiguous) then
+               // don't report the failure but return the tree unchanged. This
+               // will cause a failure at the next level out, which usually gives
+               // a better error message. To compensate, store the encountered failure
+               // as an attachment, so that it can be reported later as an addendum.
+               rememberSearchFailure(tree, failure)
+               tree
+-            }
+             else recover(failure.reason)
+         }
+       else recover(NoMatchingImplicits)
+diff --git a/tests/neg/gadt-approximation-interaction.scala b/tests/neg/gadt-approximation-interaction.scala
+new file mode 100644
+index 000000000000..4ece60c2533a
+--- /dev/null
++++ b/tests/neg/gadt-approximation-interaction.scala
+@@ -0,0 +1,136 @@
++object MemberHealing {
++  enum SUB[-A, +B]:
++    case Refl[S]() extends SUB[S, S]
++
++  def foo[T](t: T, ev: T SUB Int) =
++    ev match { case SUB.Refl() =>
++      t + 2
++    }
++}
++
++object ImplicitLookup {
++  enum SUB[-A, +B]:
++    case Refl[S]() extends SUB[S, S]
++
++  class Tag[T]
++
++  implicit val ti: Tag[Int] = Tag()
++
++  def foo[T](t: T, ev: T SUB Int) =
++    ev match { case SUB.Refl() =>
++      implicitly[Tag[Int]]
++    }
++}
++
++object GivenLookup {
++  enum SUB[-A, +B]:
++    case Refl[S]() extends SUB[S, S]
++
++  class Tag[T]
++
++  given ti as Tag[Int]
++
++  def foo[T](t: T, ev: T SUB Int) =
++    ev match { case SUB.Refl() =>
++      summon[Tag[Int]]
++    }
++}
++
++object ImplicitConversion {
++  enum SUB[-A, +B]:
++    case Refl[S]() extends SUB[S, S]
++
++  class Pow(self: Int):
++    def **(other: Int): Int = math.pow(self, other).toInt
++
++  implicit def pow(i: Int): Pow = Pow(i)
++
++  def foo[T](t: T, ev: T SUB Int) =
++    ev match { case SUB.Refl() =>
++      t ** 2 // error // implementation limitation
++    }
++
++  def bar[T](t: T, ev: T SUB Int) =
++    ev match { case SUB.Refl() =>
++      (t: Int) ** 2 // sanity check
++    }
++}
++
++object GivenConversion {
++  enum SUB[-A, +B]:
++    case Refl[S]() extends SUB[S, S]
++
++  class Pow(self: Int):
++    def **(other: Int): Int = math.pow(self, other).toInt
++
++  given as Conversion[Int, Pow] = (i: Int) => Pow(i)
++
++  def foo[T](t: T, ev: T SUB Int) =
++    ev match { case SUB.Refl() =>
++      t ** 2 // error (implementation limitation)
++    }
++
++  def bar[T](t: T, ev: T SUB Int) =
++    ev match { case SUB.Refl() =>
++      (t: Int) ** 2 // sanity check
++    }
++}
++
++object ExtensionMethod {
++  enum SUB[-A, +B]:
++    case Refl[S]() extends SUB[S, S]
++
++  extension (x: Int):
++    def **(y: Int) = math.pow(x, y).toInt
++
++  def foo[T](t: T, ev: T SUB Int) =
++    ev match { case SUB.Refl() =>
++      t ** 2
++    }
++}
++
++object HKFun {
++  enum SUB[-A, +B]:
++    case Refl[S]() extends SUB[S, S]
++
++  enum HKSUB[-F[_], +G[_]]:
++    case Refl[H[_]]() extends HKSUB[H, H]
++
++  def foo[F[_], T](ft: F[T], hkev: F HKSUB Option, ev: T SUB Int) =
++    hkev match { case HKSUB.Refl() =>
++      ev match { case SUB.Refl() =>
++        // both should typecheck - we should respect invariance of F
++        // (and not approximate its argument)
++        // but also T <: Int b/c of ev
++        val x: T   = ft.get
++        val y: Int = ft.get
++      }
++    }
++
++  enum COVHKSUB[-F[+_], +G[+_]]:
++    case Refl[H[_]]() extends COVHKSUB[H, H]
++
++  def bar[F[+_], T](ft: F[T], hkev: F COVHKSUB Option, ev: T SUB Int) =
++    hkev match { case COVHKSUB.Refl() =>
++      ev match { case SUB.Refl() =>
++        // Sanity check for `foo`
++        // this is an error only because we blindly approximate covariant type arguments
++        // if it stops being an error, `foo` should be re-thought
++        val x: T   = ft.get // error
++        val y: Int = ft.get
++      }
++    }
++}
++
++object NestedConstrained {
++  enum SUB[-A, +B]:
++    case Refl[S]() extends SUB[S, S]
++
++  def foo[A, B](a: A, ev1: A SUB Option[B], ev2: B SUB Int) =
++    ev1 match { case SUB.Refl() =>
++      ev2 match { case SUB.Refl() =>
++        1 + "a"
++        a.get : Int
++      }
++    }
++}
+diff --git a/tests/pos/boundspropagation.scala.ignore b/tests/pending/boundspropagation.scala
+similarity index 100%
+rename from tests/pos/boundspropagation.scala.ignore
+rename to tests/pending/boundspropagation.scala
+diff --git a/tests/pos/i7044.scala.ignore b/tests/pos/i7044.scala
+similarity index 100%
+rename from tests/pos/i7044.scala.ignore
+rename to tests/pos/i7044.scala

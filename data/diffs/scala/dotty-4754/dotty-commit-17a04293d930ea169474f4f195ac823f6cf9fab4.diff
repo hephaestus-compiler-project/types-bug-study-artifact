@@ -1,0 +1,57 @@
+diff --git a/compiler/src/dotty/tools/dotc/transform/PostTyper.scala b/compiler/src/dotty/tools/dotc/transform/PostTyper.scala
+index 918d85afec..85e9af414d 100644
+--- a/compiler/src/dotty/tools/dotc/transform/PostTyper.scala
++++ b/compiler/src/dotty/tools/dotc/transform/PostTyper.scala
+@@ -17,7 +17,7 @@ object PostTyper {
+ 
+ /** A macro transform that runs immediately after typer and that performs the following functions:
+  *
+- *  (1) Add super accessors and protected accessors (@see SuperAccessors)
++ *  (1) Add super accessors (@see SuperAccessors)
+  *
+  *  (2) Convert parameter fields that have the same name as a corresponding
+  *      public parameter field in a superclass to a forwarder to the superclass
+diff --git a/compiler/src/dotty/tools/dotc/typer/Inliner.scala b/compiler/src/dotty/tools/dotc/typer/Inliner.scala
+index cd55764631..53ff2d950b 100644
+--- a/compiler/src/dotty/tools/dotc/typer/Inliner.scala
++++ b/compiler/src/dotty/tools/dotc/typer/Inliner.scala
+@@ -48,13 +48,16 @@ object Inliner {
+       def accessorNameKind = InlineAccessorName
+ 
+       /** A definition needs an accessor if it is private, protected, or qualified private
+-        *  and it is not part of the tree that gets inlined. The latter test is implemented
+-        *  by excluding all symbols properly contained in the inlined method.
+-        */
++       *  and it is not part of the tree that gets inlined. The latter test is implemented
++       *  by excluding all symbols properly contained in the inlined method.
++       *
++       *  Constant vals don't need accessors since they are inlined in FirstTransform.
++       */
+       def needsAccessor(sym: Symbol)(implicit ctx: Context) =
+         sym.isTerm &&
+         (sym.is(AccessFlags) || sym.privateWithin.exists) &&
+-        !sym.isContainedIn(inlineSym)
++        !sym.isContainedIn(inlineSym) &&
++        !(sym.isStable && sym.info.widenTermRefExpr.isInstanceOf[ConstantType])
+ 
+       def preTransform(tree: Tree)(implicit ctx: Context): Tree
+ 
+diff --git a/tests/pos/i4754.scala b/tests/pos/i4754.scala
+new file mode 100644
+index 0000000000..49cfeab4de
+--- /dev/null
++++ b/tests/pos/i4754.scala
+@@ -0,0 +1,13 @@
++object Foo {
++  private final val x = 1
++  private def y = 2
++}
++
++class Foo {
++  import Foo._
++  inline def foo = x + Foo.x + y + Foo.y
++}
++
++class Test {
++  (new Foo).foo
++}

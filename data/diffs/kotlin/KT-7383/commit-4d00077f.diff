@@ -1,0 +1,172 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tasks/TracingStrategyForInvoke.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tasks/TracingStrategyForInvoke.java
+index af94086c7e5..fcd4792d8fe 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tasks/TracingStrategyForInvoke.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/calls/tasks/TracingStrategyForInvoke.java
+@@ -16,7 +16,6 @@
+ 
+ package org.jetbrains.kotlin.resolve.calls.tasks;
+ 
+-import com.intellij.openapi.diagnostic.Logger;
+ import com.intellij.psi.PsiElement;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
+@@ -25,7 +24,6 @@ import org.jetbrains.kotlin.psi.Call;
+ import org.jetbrains.kotlin.psi.JetExpression;
+ import org.jetbrains.kotlin.psi.JetReferenceExpression;
+ import org.jetbrains.kotlin.psi.JetSimpleNameExpression;
+-import org.jetbrains.kotlin.psi.psiUtil.PsiUtilPackage;
+ import org.jetbrains.kotlin.resolve.BindingContext;
+ import org.jetbrains.kotlin.resolve.BindingTrace;
+ import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall;
+@@ -39,8 +37,6 @@ import static org.jetbrains.kotlin.resolve.BindingContext.CALL;
+ import static org.jetbrains.kotlin.resolve.BindingContext.RESOLVED_CALL;
+ 
+ public class TracingStrategyForInvoke extends AbstractTracingStrategy {
+-    private static final Logger LOG = Logger.getInstance(TracingStrategyForInvoke.class);
+-
+     private final JetType calleeType;
+ 
+     public TracingStrategyForInvoke(
+@@ -92,9 +88,6 @@ public class TracingStrategyForInvoke extends AbstractTracingStrategy {
+ 
+     private void functionExpectedOrNoReceiverAllowed(BindingTrace trace) {
+         if (KotlinBuiltIns.isFunctionType(calleeType)) {
+-            LOG.assertTrue(call.getExplicitReceiver().exists(),
+-                           "'Invoke' is not found on expression of function type (" + calleeType + "): "
+-                           + PsiUtilPackage.getTextWithLocation(call.getCallElement()));
+             trace.report(NO_RECEIVER_ALLOWED.on(reference));
+         }
+         else {
+diff --git a/compiler/testData/diagnostics/tests/functionLiterals/kt6541_extensionForExtensionFunction.kt b/compiler/testData/diagnostics/tests/functionLiterals/kt6541_extensionForExtensionFunction.kt
+new file mode 100644
+index 00000000000..0475b116d4f
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/functionLiterals/kt6541_extensionForExtensionFunction.kt
+@@ -0,0 +1,10 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++
++interface Foo
++fun (Foo.() -> Unit).invoke(b : Foo.() -> Unit)  {}
++
++object Z {
++    fun add(b : Foo.() -> Unit) : Z = Z
++}
++
++val t2 = Z add <!TYPE_MISMATCH!>{ } <!TOO_MANY_ARGUMENTS!>{ }<!><!>
+diff --git a/compiler/testData/diagnostics/tests/functionLiterals/kt6541_extensionForExtensionFunction.txt b/compiler/testData/diagnostics/tests/functionLiterals/kt6541_extensionForExtensionFunction.txt
+new file mode 100644
+index 00000000000..513673e4c63
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/functionLiterals/kt6541_extensionForExtensionFunction.txt
+@@ -0,0 +1,18 @@
++package
++
++internal val t2: Z
++internal fun (Foo.() -> kotlin.Unit).invoke(/*0*/ b: Foo.() -> kotlin.Unit): kotlin.Unit
++
++internal interface Foo {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++internal object Z {
++    private constructor Z()
++    internal final fun add(/*0*/ b: Foo.() -> kotlin.Unit): Z
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/functionLiterals/kt7383_starProjectedFunction.kt b/compiler/testData/diagnostics/tests/functionLiterals/kt7383_starProjectedFunction.kt
+new file mode 100644
+index 00000000000..10691a9c534
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/functionLiterals/kt7383_starProjectedFunction.kt
+@@ -0,0 +1,6 @@
++// KT-7383 Assertion failed when a star-projection of function type is used
++
++fun foo() {
++    val f : Function1<*, *> = { x -> x.toString() }
++    <!FUNCTION_EXPECTED, UNUSED_EXPRESSION!>f<!>(1)
++}
+diff --git a/compiler/testData/diagnostics/tests/functionLiterals/kt7383_starProjectedFunction.txt b/compiler/testData/diagnostics/tests/functionLiterals/kt7383_starProjectedFunction.txt
+new file mode 100644
+index 00000000000..093bfc34070
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/functionLiterals/kt7383_starProjectedFunction.txt
+@@ -0,0 +1,3 @@
++package
++
++internal fun foo(): kotlin.Unit
+diff --git a/compiler/testData/diagnostics/tests/resolve/invoke/invokeNonExtensionLambdaInContext.kt b/compiler/testData/diagnostics/tests/resolve/invoke/invokeNonExtensionLambdaInContext.kt
+new file mode 100644
+index 00000000000..813e63404ef
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/resolve/invoke/invokeNonExtensionLambdaInContext.kt
+@@ -0,0 +1,7 @@
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++
++class C {
++    fun f() {}
++}
++
++fun C.g(f: (String) -> Unit = { s -> f() }) {}
+diff --git a/compiler/testData/diagnostics/tests/resolve/invoke/invokeNonExtensionLambdaInContext.txt b/compiler/testData/diagnostics/tests/resolve/invoke/invokeNonExtensionLambdaInContext.txt
+new file mode 100644
+index 00000000000..e9eeb379a44
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/resolve/invoke/invokeNonExtensionLambdaInContext.txt
+@@ -0,0 +1,11 @@
++package
++
++internal fun C.g(/*0*/ f: (kotlin.String) -> kotlin.Unit = ...): kotlin.Unit
++
++internal final class C {
++    public constructor C()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    internal final fun f(): kotlin.Unit
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
+index 1a9a34832a9..3a5e662070d 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/JetDiagnosticsTestGenerated.java
+@@ -5400,12 +5400,24 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("kt6541_extensionForExtensionFunction.kt")
++            public void testKt6541_extensionForExtensionFunction() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/functionLiterals/kt6541_extensionForExtensionFunction.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("kt6869.kt")
+             public void testKt6869() throws Exception {
+                 String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/functionLiterals/kt6869.kt");
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("kt7383_starProjectedFunction.kt")
++            public void testKt7383_starProjectedFunction() throws Exception {
++                String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/functionLiterals/kt7383_starProjectedFunction.kt");
++                doTest(fileName);
++            }
++
+             @TestMetadata("LabeledFunctionLiterals.kt")
+             public void testLabeledFunctionLiterals() throws Exception {
+                 String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/functionLiterals/LabeledFunctionLiterals.kt");
+@@ -10763,6 +10775,12 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
+                     doTest(fileName);
+                 }
+ 
++                @TestMetadata("invokeNonExtensionLambdaInContext.kt")
++                public void testInvokeNonExtensionLambdaInContext() throws Exception {
++                    String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/resolve/invoke/invokeNonExtensionLambdaInContext.kt");
++                    doTest(fileName);
++                }
++
+                 @TestMetadata("KT-4372.kt")
+                 public void testKT_4372() throws Exception {
+                     String fileName = JetTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/resolve/invoke/KT-4372.kt");

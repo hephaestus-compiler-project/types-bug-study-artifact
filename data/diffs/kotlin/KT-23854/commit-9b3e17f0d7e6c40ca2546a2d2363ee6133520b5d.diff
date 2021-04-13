@@ -1,0 +1,461 @@
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/KotlinCallCompleter.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/KotlinCallCompleter.kt
+index 0faab91bf54..f31e7a8f18b 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/KotlinCallCompleter.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/components/KotlinCallCompleter.kt
+@@ -12,9 +12,12 @@ import org.jetbrains.kotlin.resolve.calls.inference.model.ConstraintStorage.Empt
+ import org.jetbrains.kotlin.resolve.calls.inference.model.ExpectedTypeConstraintPosition
+ import org.jetbrains.kotlin.resolve.calls.model.*
+ import org.jetbrains.kotlin.resolve.calls.tower.forceResolution
++import org.jetbrains.kotlin.resolve.constants.IntegerValueTypeConstructor
+ import org.jetbrains.kotlin.types.ErrorUtils
++import org.jetbrains.kotlin.types.IntersectionTypeConstructor
+ import org.jetbrains.kotlin.types.TypeUtils
+ import org.jetbrains.kotlin.types.UnwrappedType
++import org.jetbrains.kotlin.types.typeUtil.isPrimitiveNumberType
+ 
+ class KotlinCallCompleter(
+     private val postponedArgumentsAnalyzer: PostponedArgumentsAnalyzer,
+@@ -160,12 +163,40 @@ class KotlinCallCompleter(
+         // This is questionable as null return type can be only for error call
+         if (currentReturnType == null) return ConstraintSystemCompletionMode.PARTIAL
+ 
+-        // Consider call foo(bar(x)), if return type of bar is a proper one, then we can complete resolve for bar => full completion mode
+-        // Otherwise, we shouldn't complete bar until we process call foo
+-        return if (csBuilder.isProperType(currentReturnType))
+-            ConstraintSystemCompletionMode.FULL
+-        else
+-            ConstraintSystemCompletionMode.PARTIAL
++        return when {
++            // Consider call foo(bar(x)), if return type of bar is a proper one, then we can complete resolve for bar => full completion mode
++            // Otherwise, we shouldn't complete bar until we process call foo
++            csBuilder.isProperType(currentReturnType) -> ConstraintSystemCompletionMode.FULL
++
++            // Nested call is connected with the outer one through the UPPER constraint (returnType <: expectedOuterType)
++            // This means that there will be no new LOWER constraints =>
++            //   it's possible to complete call now if there are proper LOWER constraints
++            csBuilder.isTypeVariable(currentReturnType) ->
++                if (hasProperLowerConstraints(currentReturnType))
++                    ConstraintSystemCompletionMode.FULL
++                else
++                    ConstraintSystemCompletionMode.PARTIAL
++
++            else -> ConstraintSystemCompletionMode.PARTIAL
++        }
++    }
++
++    private fun KotlinResolutionCandidate.hasProperLowerConstraints(typeVariable: UnwrappedType): Boolean {
++        assert(csBuilder.isTypeVariable(typeVariable)) { "$typeVariable is not a type variable" }
++
++        val constructor = typeVariable.constructor
++        val variableWithConstraints = csBuilder.currentStorage().notFixedTypeVariables[constructor] ?: return false
++        return variableWithConstraints.constraints.any {
++            it.kind.isLower() && csBuilder.isProperType(it.type) && !it.type.isIntegerValueType()
++        }
++    }
++
++    private fun UnwrappedType.isIntegerValueType(): Boolean {
++        if (constructor is IntegerValueTypeConstructor) return true
++        if (constructor is IntersectionTypeConstructor)
++            return constructor.supertypes.all { it.isPrimitiveNumberType() }
++
++        return false
+     }
+ 
+     private fun KotlinResolutionCandidate.computeReturnTypeWithSmartCastInfo(
+diff --git a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/ConstraintStorage.kt b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/ConstraintStorage.kt
+index 07f4a410e36..f2d8c9f283e 100644
+--- a/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/ConstraintStorage.kt
++++ b/compiler/resolution/src/org/jetbrains/kotlin/resolve/calls/inference/model/ConstraintStorage.kt
+@@ -60,7 +60,11 @@ interface ConstraintStorage {
+ enum class ConstraintKind {
+     LOWER,
+     UPPER,
+-    EQUALITY
++    EQUALITY;
++
++    fun isLower(): Boolean = this == LOWER
++    fun isUpper(): Boolean = this == UPPER
++    fun isEqual(): Boolean = this == EQUALITY
+ }
+ 
+ class Constraint(
+diff --git a/compiler/testData/diagnostics/tests/controlStructures/ifElseIntersection.kt b/compiler/testData/diagnostics/tests/controlStructures/ifElseIntersection.kt
+index c9565393ff3..dd65c299a0c 100644
+--- a/compiler/testData/diagnostics/tests/controlStructures/ifElseIntersection.kt
++++ b/compiler/testData/diagnostics/tests/controlStructures/ifElseIntersection.kt
+@@ -11,7 +11,7 @@ fun <T> bind(r: Option<T>): Option<T> {
+         // Ideally we should infer Option<T> here (see KT-10896)
+         (<!OI;TYPE_INFERENCE_FAILED_ON_SPECIAL_CONSTRUCT!>if<!> (true) <!OI;TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>None()<!> else <!DEBUG_INFO_SMARTCAST!>r<!>) checkType { <!NI;DEBUG_INFO_UNRESOLVED_WITH_TARGET, NI;UNRESOLVED_REFERENCE_WRONG_RECEIVER, OI;TYPE_MISMATCH!>_<!><Option<T>>() }
+         // Works correctly
+-        if (true) None() else r
++        if (true) None() else <!NI;DEBUG_INFO_SMARTCAST!>r<!>
+     }
+     else r
+ }
+@@ -25,7 +25,7 @@ fun <T> bind2(r: Option<T>): Option<T> {
+ }
+ 
+ fun <T, R> bind3(r: Option<T>): Option<T> {
+-    return <!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!>if (r is Some) {
++    return <!NI;TYPE_MISMATCH!>if (r is Some) {
+         // Diagnoses an error correctly
+         if (true) <!OI;TYPE_MISMATCH!>None<R>()<!> else r
+     }
+@@ -36,7 +36,7 @@ fun <T> bindWhen(r: Option<T>): Option<T> {
+     return when (r) {
+         is Some -> {
+             // Works correctly
+-            if (true) None() else r
++            if (true) None() else <!NI;DEBUG_INFO_SMARTCAST!>r<!>
+         }
+         else -> r
+     }
+diff --git a/compiler/testData/diagnostics/tests/controlStructures/kt770.kt351.kt735_StatementType.kt b/compiler/testData/diagnostics/tests/controlStructures/kt770.kt351.kt735_StatementType.kt
+index 4c65eddf2f2..0a13e7501ed 100644
+--- a/compiler/testData/diagnostics/tests/controlStructures/kt770.kt351.kt735_StatementType.kt
++++ b/compiler/testData/diagnostics/tests/controlStructures/kt770.kt351.kt735_StatementType.kt
+@@ -108,7 +108,7 @@ fun testImplicitCoercion() {
+     val <!UNUSED_VARIABLE!>h<!> = if (false) <!IMPLICIT_CAST_TO_ANY!>4<!> else <!IMPLICIT_CAST_TO_ANY!>{}<!>
+ 
+     bar(<!NI;TYPE_MISMATCH!>if (true) {
+-        <!CONSTANT_EXPECTED_TYPE_MISMATCH, NI;CONSTANT_EXPECTED_TYPE_MISMATCH!>4<!>
++        <!OI;CONSTANT_EXPECTED_TYPE_MISMATCH!>4<!>
+     }
+         else {
+         <!UNUSED_VALUE!>z =<!> 342
+diff --git a/compiler/testData/diagnostics/tests/dataFlowInfoTraversal/BinaryExpression.kt b/compiler/testData/diagnostics/tests/dataFlowInfoTraversal/BinaryExpression.kt
+index 606bc3be388..48408d23083 100644
+--- a/compiler/testData/diagnostics/tests/dataFlowInfoTraversal/BinaryExpression.kt
++++ b/compiler/testData/diagnostics/tests/dataFlowInfoTraversal/BinaryExpression.kt
+@@ -6,6 +6,6 @@ fun foo() {
+     val x: Int? = null
+ 
+     bar(1 + (if (x == null) 0 else x))
+-    bar(<!NI;TYPE_MISMATCH!>if (x == null) <!DEBUG_INFO_CONSTANT, NI;TYPE_MISMATCH, TYPE_MISMATCH!>x<!> else x<!>)
++    bar(<!NI;TYPE_MISMATCH!>if (x == null) <!DEBUG_INFO_CONSTANT, OI;TYPE_MISMATCH!>x<!> else x<!>)
+     if (x != null) bar(x + x/(x-x*x))
+ }
+diff --git a/compiler/testData/diagnostics/tests/deparenthesize/checkDeparenthesizedType.kt b/compiler/testData/diagnostics/tests/deparenthesize/checkDeparenthesizedType.kt
+index f03833ab722..8e89a8ad7f3 100644
+--- a/compiler/testData/diagnostics/tests/deparenthesize/checkDeparenthesizedType.kt
++++ b/compiler/testData/diagnostics/tests/deparenthesize/checkDeparenthesizedType.kt
+@@ -19,8 +19,8 @@ fun test(i: Int?) {
+ 
+     foo(<!REDUNDANT_LABEL_WARNING!>l4@<!> <!TYPE_MISMATCH!>""<!>)
+     foo((<!TYPE_MISMATCH!>""<!>))
+-    foo(checkSubtype<Int>(<!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, TYPE_MISMATCH!>""<!>))
+-    foo(<!NI;TYPE_MISMATCH, TYPE_MISMATCH!>checkSubtype<Long>(<!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, TYPE_MISMATCH!>""<!>)<!>)
++    foo(checkSubtype<Int>(<!TYPE_MISMATCH!>""<!>))
++    foo(<!TYPE_MISMATCH!>checkSubtype<Long>(<!TYPE_MISMATCH!>""<!>)<!>)
+     
+     use(a, b, c, d)
+ }
+diff --git a/compiler/testData/diagnostics/tests/inference/coercionToUnit/nonPropagationOfCoercionToUnitInsideNestedLambda.kt b/compiler/testData/diagnostics/tests/inference/coercionToUnit/nonPropagationOfCoercionToUnitInsideNestedLambda.kt
+index 05f01522125..9a06b729ab7 100644
+--- a/compiler/testData/diagnostics/tests/inference/coercionToUnit/nonPropagationOfCoercionToUnitInsideNestedLambda.kt
++++ b/compiler/testData/diagnostics/tests/inference/coercionToUnit/nonPropagationOfCoercionToUnitInsideNestedLambda.kt
+@@ -24,7 +24,7 @@ fun foo(): String? {
+ 
+         run {
+             if (true) {
+-                Obj()
++                <!IMPLICIT_CAST_TO_ANY!>Obj()<!>
+             } else
+             <!INVALID_IF_AS_EXPRESSION!>if<!> (true) return null // Error, coercion to Unit doesn't propagate inside nested lambdas
+         }
+diff --git a/compiler/testData/diagnostics/tests/inference/commonSystem/selectFromCovariantAndContravariantTypes.kt b/compiler/testData/diagnostics/tests/inference/commonSystem/selectFromCovariantAndContravariantTypes.kt
+new file mode 100644
+index 00000000000..5dfa6d056e8
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/commonSystem/selectFromCovariantAndContravariantTypes.kt
+@@ -0,0 +1,20 @@
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++
++class In<in T>
++class Out<out T>
++
++class A
++class B
++
++fun <K> select(x: K, y: K): K = x
++fun <V> genericIn(x: In<V>) {}
++fun <V> genericOut(x: Out<V>) {}
++
++fun test1(a: In<A>, b: In<B>) {
++    genericIn(select(a, b))
++}
++
++fun test2(a: Out<A>, b: Out<B>) {
++    genericOut(select(a, b))
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/commonSystem/selectFromCovariantAndContravariantTypes.txt b/compiler/testData/diagnostics/tests/inference/commonSystem/selectFromCovariantAndContravariantTypes.txt
+new file mode 100644
+index 00000000000..2191369c9b3
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/commonSystem/selectFromCovariantAndContravariantTypes.txt
+@@ -0,0 +1,35 @@
++package
++
++public fun </*0*/ V> genericIn(/*0*/ x: In<V>): kotlin.Unit
++public fun </*0*/ V> genericOut(/*0*/ x: Out<V>): kotlin.Unit
++public fun </*0*/ K> select(/*0*/ x: K, /*1*/ y: K): K
++public fun test1(/*0*/ a: In<A>, /*1*/ b: In<B>): kotlin.Unit
++public fun test2(/*0*/ a: Out<A>, /*1*/ b: Out<B>): kotlin.Unit
++
++public final class A {
++    public constructor A()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class B {
++    public constructor B()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class In</*0*/ in T> {
++    public constructor In</*0*/ in T>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class Out</*0*/ out T> {
++    public constructor Out</*0*/ out T>()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/inference/commonSystem/selectFromTwoIncompatibleTypes.kt b/compiler/testData/diagnostics/tests/inference/commonSystem/selectFromTwoIncompatibleTypes.kt
+index 80b37cee940..c230bb349b3 100644
+--- a/compiler/testData/diagnostics/tests/inference/commonSystem/selectFromTwoIncompatibleTypes.kt
++++ b/compiler/testData/diagnostics/tests/inference/commonSystem/selectFromTwoIncompatibleTypes.kt
+@@ -10,16 +10,15 @@ fun <K> select(x: K, y: K): K = x
+ fun <V> generic(x: Inv<V>) {}
+ 
+ fun test1(a: Inv<A>, b: Inv<B>) {
+-    generic(<!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>select(<!TYPE_MISMATCH, TYPE_MISMATCH!>a<!>, b)<!>)
++    generic(select(a, b))
+ }
+ 
+ fun test2(a: Inv<*>?, b: Inv<*>) {
+-    generic(<!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>a ?: b<!>)
+-    generic(<!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>if (a != null) <!DEBUG_INFO_SMARTCAST!>a<!> else b<!>)
++    generic(a ?: b)
++    generic(if (a != null) <!DEBUG_INFO_SMARTCAST!>a<!> else b)
+     generic(a!!)
+ }
+ 
+ fun test3(a: Inv<out Any>, b: Inv<out Any>) {
+-    generic(<!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>select(a, b)<!>)
++    generic(select(a, b))
+ }
+-
+diff --git a/compiler/testData/diagnostics/tests/inference/commonSystem/selectIntegerValueTypeFromIf.kt b/compiler/testData/diagnostics/tests/inference/commonSystem/selectIntegerValueTypeFromIf.kt
+new file mode 100644
+index 00000000000..c213e5b51a2
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/commonSystem/selectIntegerValueTypeFromIf.kt
+@@ -0,0 +1,8 @@
++// !LANGUAGE: +NewInference
++// !DIAGNOSTICS: -UNUSED_PARAMETER
++
++fun takeLong(i: Long) {}
++
++fun test() {
++    takeLong(if (true) 1 else 0)
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/inference/commonSystem/selectIntegerValueTypeFromIf.txt b/compiler/testData/diagnostics/tests/inference/commonSystem/selectIntegerValueTypeFromIf.txt
+new file mode 100644
+index 00000000000..c2c24d6c7af
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/inference/commonSystem/selectIntegerValueTypeFromIf.txt
+@@ -0,0 +1,4 @@
++package
++
++public fun takeLong(/*0*/ i: kotlin.Long): kotlin.Unit
++public fun test(): kotlin.Unit
+diff --git a/compiler/testData/diagnostics/tests/nullabilityAndSmartCasts/AssertNotNull.kt b/compiler/testData/diagnostics/tests/nullabilityAndSmartCasts/AssertNotNull.kt
+index 9253493b908..b4d9f9645bd 100644
+--- a/compiler/testData/diagnostics/tests/nullabilityAndSmartCasts/AssertNotNull.kt
++++ b/compiler/testData/diagnostics/tests/nullabilityAndSmartCasts/AssertNotNull.kt
+@@ -35,5 +35,5 @@ fun main() {
+     }
+ 
+     val <!UNUSED_VARIABLE!>f<!> : String = <!NI;TYPE_MISMATCH!><!OI;TYPE_MISMATCH!>a<!><!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!><!>
+-    checkSubtype<String>(<!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!><!OI;TYPE_MISMATCH!>a<!><!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!><!>)
++    checkSubtype<String>(<!NI;TYPE_MISMATCH!><!OI;TYPE_MISMATCH!>a<!><!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!><!>)
+ }
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/nullabilityAndSmartCasts/kt2216.kt b/compiler/testData/diagnostics/tests/nullabilityAndSmartCasts/kt2216.kt
+index 382667b652a..fd169ae4710 100644
+--- a/compiler/testData/diagnostics/tests/nullabilityAndSmartCasts/kt2216.kt
++++ b/compiler/testData/diagnostics/tests/nullabilityAndSmartCasts/kt2216.kt
+@@ -15,7 +15,7 @@ fun foo() {
+ 
+     val y: Int? = 0
+     val z: Int? = 0
+-    bar(<!NI;TYPE_MISMATCH!>if (y != null) y else <!NI;TYPE_MISMATCH, TYPE_MISMATCH!>z<!><!>, <!TYPE_MISMATCH!>y<!>)
++    bar(<!NI;TYPE_MISMATCH!>if (y != null) y else <!OI;TYPE_MISMATCH!>z<!><!>, <!TYPE_MISMATCH!>y<!>)
+     y <!UNSAFE_OPERATOR_CALL!>+<!> 2
+     baz(<!TYPE_MISMATCH!>y<!>, <!TYPE_MISMATCH!>y<!>, if (y == null) return else y, y)
+     baz(y, z!!, z, y)
+diff --git a/compiler/testData/diagnostics/tests/nullabilityAndSmartCasts/unnecessaryNotNullAssertion.kt b/compiler/testData/diagnostics/tests/nullabilityAndSmartCasts/unnecessaryNotNullAssertion.kt
+index 2791109960c..a1e9a09a30d 100644
+--- a/compiler/testData/diagnostics/tests/nullabilityAndSmartCasts/unnecessaryNotNullAssertion.kt
++++ b/compiler/testData/diagnostics/tests/nullabilityAndSmartCasts/unnecessaryNotNullAssertion.kt
+@@ -11,9 +11,9 @@ fun test() {
+     takeNotNull(nullable()!!)
+ 
+     var x: String? = null
+-    takeNotNull(dependOn(x)<!NI;UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>)
+-    takeNotNull(dependOn(dependOn(x))<!NI;UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>)
+-    takeNotNull(dependOn(dependOn(x)<!NI;UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>))
++    takeNotNull(dependOn(x)!!)
++    takeNotNull(dependOn(dependOn(x))!!)
++    takeNotNull(dependOn(dependOn(x)!!))
+     takeNotNull(dependOn(dependOn(x!!)))
+ 
+     if (x != null) {
+diff --git a/compiler/testData/diagnostics/tests/resolve/specialConstructions/elvisAsCall.kt b/compiler/testData/diagnostics/tests/resolve/specialConstructions/elvisAsCall.kt
+index 8caafdeeb43..3abec5dfeab 100644
+--- a/compiler/testData/diagnostics/tests/resolve/specialConstructions/elvisAsCall.kt
++++ b/compiler/testData/diagnostics/tests/resolve/specialConstructions/elvisAsCall.kt
+@@ -33,5 +33,5 @@ fun testDataFlowInfo2(a: Int?, b: Int?) {
+ }
+ 
+ fun testTypeMismatch(a: String?, b: Any) {
+-    doInt(<!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!><!OI;TYPE_MISMATCH!>a<!> ?: <!OI;TYPE_MISMATCH!>b<!><!>)
++    doInt(<!NI;TYPE_MISMATCH!><!OI;TYPE_MISMATCH!>a<!> ?: <!OI;TYPE_MISMATCH!>b<!><!>)
+ }
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/resolve/specialConstructions/reportTypeMismatchDeeplyOnBranches.kt b/compiler/testData/diagnostics/tests/resolve/specialConstructions/reportTypeMismatchDeeplyOnBranches.kt
+index cce34aa4cca..dc507807c72 100644
+--- a/compiler/testData/diagnostics/tests/resolve/specialConstructions/reportTypeMismatchDeeplyOnBranches.kt
++++ b/compiler/testData/diagnostics/tests/resolve/specialConstructions/reportTypeMismatchDeeplyOnBranches.kt
+@@ -8,15 +8,15 @@ fun test(a: Int?, b: Int?) {
+ }
+ 
+ fun test(a: Int?, b: Int?, c: Int?) {
+-    bar(<!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!>if (a == null) return else if (b == null) return else <!OI;TYPE_MISMATCH!>c<!><!>)
++    bar(<!NI;TYPE_MISMATCH!>if (a == null) return else if (b == null) return else <!OI;TYPE_MISMATCH!>c<!><!>)
+ }
+ 
+ fun test(a: Any?, b: Any?, c: Int?) {
+-    bar(<!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!>if (a == null) if (b == null) <!OI;TYPE_MISMATCH!>c<!> else return else return<!>)
++    bar(<!NI;TYPE_MISMATCH!>if (a == null) if (b == null) <!OI;TYPE_MISMATCH!>c<!> else return else return<!>)
+ }
+ 
+ fun test(a: Int?, b: Any?, c: Int?) {
+-    bar(<!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!>if (a == null) {
++    bar(<!NI;TYPE_MISMATCH!>if (a == null) {
+         return
+     } else {
+         if (b == null) {
+diff --git a/compiler/testData/diagnostics/tests/when/kt10439.kt b/compiler/testData/diagnostics/tests/when/kt10439.kt
+index 09948bf0720..c20c63d840a 100644
+--- a/compiler/testData/diagnostics/tests/when/kt10439.kt
++++ b/compiler/testData/diagnostics/tests/when/kt10439.kt
+@@ -2,11 +2,11 @@
+ fun foo(x: Int) = x
+ 
+ fun test0(flag: Boolean) {
+-    foo(<!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!>if (flag) <!OI;CONSTANT_EXPECTED_TYPE_MISMATCH!>true<!> else <!OI;TYPE_MISMATCH!>""<!><!>)
++    foo(<!NI;TYPE_MISMATCH!>if (flag) <!OI;CONSTANT_EXPECTED_TYPE_MISMATCH!>true<!> else <!OI;TYPE_MISMATCH!>""<!><!>)
+ }
+ 
+ fun test1(flag: Boolean) {
+-    foo(<!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!>when (flag) {
++    foo(<!NI;TYPE_MISMATCH!>when (flag) {
+         true -> <!OI;CONSTANT_EXPECTED_TYPE_MISMATCH!>true<!>
+         else -> <!OI;TYPE_MISMATCH!>""<!>
+     }<!>)
+diff --git a/compiler/testData/diagnostics/tests/when/kt9929.kt b/compiler/testData/diagnostics/tests/when/kt9929.kt
+index c94ac61f194..f1dc2682288 100644
+--- a/compiler/testData/diagnostics/tests/when/kt9929.kt
++++ b/compiler/testData/diagnostics/tests/when/kt9929.kt
+@@ -1,5 +1,5 @@
+ // !WITH_NEW_INFERENCE
+-val test: Int = <!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!>if (true) {
++val test: Int = <!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!>if (true) {
+     when (2) {
+         1 -> 1
+         else -> <!OI;NULL_FOR_NONNULL_TYPE!>null<!>
+diff --git a/compiler/testData/diagnostics/tests/when/kt9972.kt b/compiler/testData/diagnostics/tests/when/kt9972.kt
+index c2a485d038c..814813cabeb 100644
+--- a/compiler/testData/diagnostics/tests/when/kt9972.kt
++++ b/compiler/testData/diagnostics/tests/when/kt9972.kt
+@@ -1,6 +1,6 @@
+ // !WITH_NEW_INFERENCE
+ fun test1(): Int {
+-    val x: String = <!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!>if (true) {
++    val x: String = <!NI;TYPE_MISMATCH!>if (true) {
+         when {
+             true -> <!OI;TYPE_MISMATCH!>Any()<!>
+             else -> <!OI;NULL_FOR_NONNULL_TYPE!>null<!>
+@@ -10,7 +10,7 @@ fun test1(): Int {
+ }
+ 
+ fun test2(): Int {
+-    val x: String = <!NI;TYPE_MISMATCH, NI;TYPE_MISMATCH!>when {
++    val x: String = <!NI;TYPE_MISMATCH!>when {
+                         true -> <!OI;TYPE_MISMATCH!>Any()<!>
+                         else -> null
+                     } ?: return 0<!>
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index bcbcaf67279..0fa34252c08 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -9853,11 +9853,21 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                     runTest("compiler/testData/diagnostics/tests/inference/commonSystem/nestedLambdas.kt");
+                 }
+ 
++                @TestMetadata("selectFromCovariantAndContravariantTypes.kt")
++                public void testSelectFromCovariantAndContravariantTypes() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/commonSystem/selectFromCovariantAndContravariantTypes.kt");
++                }
++
+                 @TestMetadata("selectFromTwoIncompatibleTypes.kt")
+                 public void testSelectFromTwoIncompatibleTypes() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/commonSystem/selectFromTwoIncompatibleTypes.kt");
+                 }
+ 
++                @TestMetadata("selectIntegerValueTypeFromIf.kt")
++                public void testSelectIntegerValueTypeFromIf() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/commonSystem/selectIntegerValueTypeFromIf.kt");
++                }
++
+                 @TestMetadata("theSameFunctionInArgs.kt")
+                 public void testTheSameFunctionInArgs() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/commonSystem/theSameFunctionInArgs.kt");
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+index 1d070adfff2..f84eed9ee18 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/javac/DiagnosticsUsingJavacTestGenerated.java
+@@ -9848,11 +9848,21 @@ public class DiagnosticsUsingJavacTestGenerated extends AbstractDiagnosticsUsing
+                     runTest("compiler/testData/diagnostics/tests/inference/commonSystem/nestedLambdas.kt");
+                 }
+ 
++                @TestMetadata("selectFromCovariantAndContravariantTypes.kt")
++                public void testSelectFromCovariantAndContravariantTypes() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/commonSystem/selectFromCovariantAndContravariantTypes.kt");
++                }
++
+                 @TestMetadata("selectFromTwoIncompatibleTypes.kt")
+                 public void testSelectFromTwoIncompatibleTypes() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/commonSystem/selectFromTwoIncompatibleTypes.kt");
+                 }
+ 
++                @TestMetadata("selectIntegerValueTypeFromIf.kt")
++                public void testSelectIntegerValueTypeFromIf() throws Exception {
++                    runTest("compiler/testData/diagnostics/tests/inference/commonSystem/selectIntegerValueTypeFromIf.kt");
++                }
++
+                 @TestMetadata("theSameFunctionInArgs.kt")
+                 public void testTheSameFunctionInArgs() throws Exception {
+                     runTest("compiler/testData/diagnostics/tests/inference/commonSystem/theSameFunctionInArgs.kt");

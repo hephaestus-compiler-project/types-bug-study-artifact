@@ -1,0 +1,86 @@
+diff --git a/compiler/testData/compileKotlinAgainstKotlin/typeAliasesKt13181.kt b/compiler/testData/compileKotlinAgainstKotlin/typeAliasesKt13181.kt
+new file mode 100644
+index 00000000000..36af0a7041d
+--- /dev/null
++++ b/compiler/testData/compileKotlinAgainstKotlin/typeAliasesKt13181.kt
+@@ -0,0 +1,17 @@
++// FILE: A.kt
++class Foo<out T>(val t: T) {
++    typealias Bar = (T) -> String
++
++    fun baz(b: Bar) = b(t)
++}
++
++// FILE: B.kt
++class FooTest {
++    fun baz(): String {
++        val b: Foo<String>.Bar = { "OK" }
++        return Foo("").baz(b)
++    }
++}
++
++fun box(): String =
++        FooTest().baz()
+\ No newline at end of file
+diff --git a/compiler/tests/org/jetbrains/kotlin/codegen/CompileKotlinAgainstKotlinTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/codegen/CompileKotlinAgainstKotlinTestGenerated.java
+index 176ec7d93c1..4777335f8ad 100644
+--- a/compiler/tests/org/jetbrains/kotlin/codegen/CompileKotlinAgainstKotlinTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/codegen/CompileKotlinAgainstKotlinTestGenerated.java
+@@ -208,4 +208,10 @@ public class CompileKotlinAgainstKotlinTestGenerated extends AbstractCompileKotl
+         String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/compileKotlinAgainstKotlin/starImportEnum.kt");
+         doTest(fileName);
+     }
++
++    @TestMetadata("typeAliasesKt13181.kt")
++    public void testTypeAliasesKt13181() throws Exception {
++        String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/compileKotlinAgainstKotlin/typeAliasesKt13181.kt");
++        doTest(fileName);
++    }
+ }
+diff --git a/core/deserialization/src/org/jetbrains/kotlin/serialization/deserialization/descriptors/DeserializedClassDescriptor.kt b/core/deserialization/src/org/jetbrains/kotlin/serialization/deserialization/descriptors/DeserializedClassDescriptor.kt
+index ee466979586..2d0d870d5d9 100644
+--- a/core/deserialization/src/org/jetbrains/kotlin/serialization/deserialization/descriptors/DeserializedClassDescriptor.kt
++++ b/core/deserialization/src/org/jetbrains/kotlin/serialization/deserialization/descriptors/DeserializedClassDescriptor.kt
+@@ -65,7 +65,7 @@ class DeserializedClassDescriptor(
+     private val containingDeclaration = outerContext.containingDeclaration
+     private val primaryConstructor = c.storageManager.createNullableLazyValue { computePrimaryConstructor() }
+     private val constructors = c.storageManager.createLazyValue { computeConstructors() }
+-    private val nestedTypeAliases = c.storageManager.createLazyValue { computeTypeAliases() }
++    private val nestedTypeAliases = c.storageManager.createLazyValue { NestedTypeAliases() }
+     private val companionObjectDescriptor = c.storageManager.createNullableLazyValue { computeCompanionObjectDescriptor() }
+ 
+     internal val thisAsProtoContainer: ProtoContainer.Class = ProtoContainer.Class(
+@@ -271,13 +271,14 @@ class DeserializedClassDescriptor(
+ 
+         override fun getContributedClassifier(name: Name, location: LookupLocation): ClassifierDescriptor? {
+             recordLookup(name, location)
+-            return classDescriptor.enumEntries?.findEnumEntry(name) ?: classDescriptor.nestedClasses?.findNestedClass(name)
++            return classDescriptor.enumEntries?.findEnumEntry(name) ?:
++                   classDescriptor.nestedClasses?.findNestedClass(name) ?:
++                   classDescriptor.nestedTypeAliases().findTypeAlias(name)
+         }
+ 
+         override fun addClassifierDescriptors(result: MutableCollection<DeclarationDescriptor>, nameFilter: (Name) -> Boolean) {
+             result.addAll(classDescriptor.nestedClasses?.all().orEmpty())
+-            result.addAll(classDescriptor.nestedTypeAliases())
+-            // TODO non-declared type aliases
++            result.addAll(classDescriptor.nestedTypeAliases().all())
+         }
+ 
+         override fun addEnumEntryDescriptors(result: MutableCollection<DeclarationDescriptor>, nameFilter: (Name) -> Boolean) {
+@@ -308,6 +309,15 @@ class DeserializedClassDescriptor(
+                 nestedClassNames.mapNotNull { name -> nestedClassByName(name) }
+     }
+ 
++    private inner class NestedTypeAliases {
++        private val nestedTypeAliases = computeTypeAliases()
++        private val nestedTypeAliasesByName = nestedTypeAliases.associateBy { it.name }
++
++        fun all() = nestedTypeAliases
++
++        fun findTypeAlias(name: Name): TypeAliasDescriptor? = nestedTypeAliasesByName[name]
++    }
++
+     private inner class EnumEntryClassDescriptors {
+         private val enumEntryProtos = classProto.enumEntryList.associateBy { c.nameResolver.getName(it.name) }
+ 

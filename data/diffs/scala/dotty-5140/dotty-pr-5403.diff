@@ -1,0 +1,93 @@
+diff --git a/compiler/src/dotty/tools/dotc/core/TypeApplications.scala b/compiler/src/dotty/tools/dotc/core/TypeApplications.scala
+index ec2b72a1508d..b2517f39655c 100644
+--- a/compiler/src/dotty/tools/dotc/core/TypeApplications.scala
++++ b/compiler/src/dotty/tools/dotc/core/TypeApplications.scala
+@@ -435,15 +435,19 @@ class TypeApplications(val self: Type) extends AnyVal {
+     case _ => if (self.isMatch) MatchAlias(self) else TypeAlias(self)
+   }
+ 
+-  /** Translate a type of the form From[T] to To[T], keep other types as they are.
++  /** Translate a type of the form From[T] to either To[T] or To[_ <: T] (if `wildcardArg` is set). Keep other types as they are.
+    *  `from` and `to` must be static classes, both with one type parameter, and the same variance.
+    *  Do the same for by name types => From[T] and => To[T]
+    */
+-  def translateParameterized(from: ClassSymbol, to: ClassSymbol)(implicit ctx: Context): Type = self match {
++  def translateParameterized(from: ClassSymbol, to: ClassSymbol, wildcardArg: Boolean = false)(implicit ctx: Context): Type = self match {
+     case self @ ExprType(tp) =>
+       self.derivedExprType(tp.translateParameterized(from, to))
+     case _ =>
+-      if (self.derivesFrom(from)) to.typeRef.appliedTo(self.baseType(from).argInfos)
++      if (self.derivesFrom(from)) {
++        val arg = self.baseType(from).argInfos.head
++        val arg1 = if (wildcardArg) TypeBounds.upper(arg) else arg
++        to.typeRef.appliedTo(arg1)
++      }
+       else self
+   }
+ 
+@@ -453,7 +457,9 @@ class TypeApplications(val self: Type) extends AnyVal {
+   def underlyingIfRepeated(isJava: Boolean)(implicit ctx: Context): Type =
+     if (self.isRepeatedParam) {
+       val seqClass = if (isJava) defn.ArrayClass else defn.SeqClass
+-      translateParameterized(defn.RepeatedParamClass, seqClass)
++      // If `isJava` is set, then we want to turn `RepeatedParam[T]` into `Array[_ <: T]`,
++      // since arrays aren't covariant until after erasure. See `tests/pos/i5140`.
++      translateParameterized(defn.RepeatedParamClass, seqClass, wildcardArg = isJava)
+     }
+     else self
+ 
+diff --git a/compiler/src/dotty/tools/dotc/transform/ElimRepeated.scala b/compiler/src/dotty/tools/dotc/transform/ElimRepeated.scala
+index 9f32ff936b64..1367538630ba 100644
+--- a/compiler/src/dotty/tools/dotc/transform/ElimRepeated.scala
++++ b/compiler/src/dotty/tools/dotc/transform/ElimRepeated.scala
+@@ -125,6 +125,13 @@ class ElimRepeated extends MiniPhase with InfoTransformer { thisPhase =>
+    *  @return  a thicket consisting of `ddef` and a varargs bridge method
+    *           which overrides the Java varargs method JM from this phase on
+    *           and forwards to `ddef`.
++   *
++   *  A bridge is necessary because the following hold
++   *    - the varargs in `ddef` will change from `RepeatedParam[T]` to `Seq[T]` after this phase
++   *    - _but_ the callers of `ddef` expect its varargs to be changed to `Array[_ <: T]`, since it overrides
++   *      a Java varargs
++   *  The solution is to add a "bridge" method that converts its argument from `Array[_ <: T]` to `Seq[T]` and
++   *  forwards it to `ddef`.
+    */
+   private def addVarArgsBridge(ddef: DefDef)(implicit ctx: Context): Tree = {
+     val original = ddef.symbol.asTerm
+@@ -133,7 +140,9 @@ class ElimRepeated extends MiniPhase with InfoTransformer { thisPhase =>
+       info = toJavaVarArgs(ddef.symbol.info)).enteredAfter(thisPhase).asTerm
+     val bridgeDef = polyDefDef(bridge, trefs => vrefss => {
+       val (vrefs :+ varArgRef) :: vrefss1 = vrefss
+-      val elemtp = varArgRef.tpe.widen.argTypes.head
++      // Can't call `.argTypes` here because the underlying array type is of the
++      // form `Array[_ <: SomeType]`, so we need `.argInfos` to get the `TypeBounds`.
++      val elemtp = varArgRef.tpe.widen.argInfos.head
+       ref(original.termRef)
+         .appliedToTypes(trefs)
+         .appliedToArgs(vrefs :+ tpd.wrapArray(varArgRef, elemtp))
+diff --git a/tests/pos/i5140/J.java b/tests/pos/i5140/J.java
+new file mode 100644
+index 000000000000..ce8e37a115c6
+--- /dev/null
++++ b/tests/pos/i5140/J.java
+@@ -0,0 +1,5 @@
++class Animal {}
++class Dog extends Animal {}
++class J {
++  void foo(Animal... animal) {}
++}
+diff --git a/tests/pos/i5140/S.scala b/tests/pos/i5140/S.scala
+new file mode 100644
+index 000000000000..c07874660460
+--- /dev/null
++++ b/tests/pos/i5140/S.scala
+@@ -0,0 +1,9 @@
++class S {
++  val j = new J()
++  val x: Array[Dog] = ???
++  // Check that the java varargs for `foo` gets typed as `Array[_ <: Animal]`.
++  // Otherwise, the call below would fail in -Ycheck:elimRepeated because arrays are invariant before erasure.
++  // This is unsound but allowed.
++  j.foo(x: _*)
++  j.foo(new Dog, new Dog)
++}

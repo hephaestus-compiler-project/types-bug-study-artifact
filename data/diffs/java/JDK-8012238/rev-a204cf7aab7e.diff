@@ -1,0 +1,443 @@
+changeset:   1897:a204cf7aab7e
+user:        mcimadamore
+date:        Wed Jul 17 14:11:41 2013 +0100
+summary:     8012238: Nested method capture and inference
+
+diff -r 866c87c01285 -r a204cf7aab7e src/share/classes/com/sun/tools/javac/code/Type.java
+--- a/src/share/classes/com/sun/tools/javac/code/Type.java	Wed Jul 17 14:09:46 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/code/Type.java	Wed Jul 17 14:11:41 2013 +0100
+@@ -1452,7 +1452,7 @@
+         }
+ 
+         /** inference variable bounds */
+-        private Map<InferenceBound, List<Type>> bounds;
++        protected Map<InferenceBound, List<Type>> bounds;
+ 
+         /** inference variable's inferred type (set from Infer.java) */
+         public Type inst = null;
+@@ -1520,7 +1520,11 @@
+         }
+ 
+         /** add a bound of a given kind - this might trigger listener notification */
+-        public void addBound(InferenceBound ib, Type bound, Types types) {
++        public final void addBound(InferenceBound ib, Type bound, Types types) {
++            addBound(ib, bound, types, false);
++        }
++
++        protected void addBound(InferenceBound ib, Type bound, Types types, boolean update) {
+             Type bound2 = boundMap.apply(bound);
+             List<Type> prevBounds = bounds.get(ib);
+             for (Type b : prevBounds) {
+@@ -1575,7 +1579,7 @@
+                     bounds.put(ib, newBounds.toList());
+                     //step 3 - for each dependency, add new replaced bound
+                     for (Type dep : deps) {
+-                        addBound(ib, types.subst(dep, from, to), types);
++                        addBound(ib, types.subst(dep, from, to), types, true);
+                     }
+                 }
+             } finally {
+@@ -1591,6 +1595,39 @@
+                 listener.varChanged(this, ibs);
+             }
+         }
++
++        public boolean isCaptured() {
++            return false;
++        }
++    }
++
++    /**
++     * This class is used to represent synthetic captured inference variables
++     * that can be generated during nested generic method calls. The only difference
++     * between these inference variables and ordinary ones is that captured inference
++     * variables cannot get new bounds through incorporation.
++     */
++    public static class CapturedUndetVar extends UndetVar {
++
++        public CapturedUndetVar(CapturedType origin, Types types) {
++            super(origin, types);
++            if (!origin.lower.hasTag(BOT)) {
++                bounds.put(InferenceBound.LOWER, List.of(origin.lower));
++            }
++        }
++
++        @Override
++        public void addBound(InferenceBound ib, Type bound, Types types, boolean update) {
++            if (update) {
++                //only change bounds if request comes from substBounds
++                super.addBound(ib, bound, types, update);
++            }
++        }
++
++        @Override
++        public boolean isCaptured() {
++            return true;
++        }
+     }
+ 
+     /** Represents NONE.
+diff -r 866c87c01285 -r a204cf7aab7e src/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Attr.java	Wed Jul 17 14:09:46 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/Attr.java	Wed Jul 17 14:11:41 2013 +0100
+@@ -4417,9 +4417,7 @@
+         }
+ 
+     private Type capture(Type type) {
+-        //do not capture free types
+-        return resultInfo.checkContext.inferenceContext().free(type) ?
+-                type : types.capture(type);
++        return types.capture(type);
+     }
+ 
+     private void validateTypeAnnotations(JCTree tree) {
+diff -r 866c87c01285 -r a204cf7aab7e src/share/classes/com/sun/tools/javac/comp/Infer.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Infer.java	Wed Jul 17 14:09:46 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/Infer.java	Wed Jul 17 14:11:41 2013 +0100
+@@ -159,7 +159,8 @@
+                     !warn.hasNonSilentLint(Lint.LintCategory.UNCHECKED)) {
+                 //inject return constraints earlier
+                 checkWithinBounds(inferenceContext, warn); //propagation
+-                generateReturnConstraints(resultInfo, mt, inferenceContext);
++                Type newRestype = generateReturnConstraints(resultInfo, mt, inferenceContext);
++                mt = (MethodType)types.createMethodTypeWithReturn(mt, newRestype);
+                 //propagate outwards if needed
+                 if (resultInfo.checkContext.inferenceContext().free(resultInfo.pt)) {
+                     //propagate inference context outwards and exit
+@@ -209,9 +210,20 @@
+      * call occurs in a context where a type T is expected, use the expected
+      * type to derive more constraints on the generic method inference variables.
+      */
+-    void generateReturnConstraints(Attr.ResultInfo resultInfo,
++    Type generateReturnConstraints(Attr.ResultInfo resultInfo,
+             MethodType mt, InferenceContext inferenceContext) {
+-        Type qtype1 = inferenceContext.asFree(mt.getReturnType());
++        Type from = mt.getReturnType();
++        if (mt.getReturnType().containsAny(inferenceContext.inferencevars) &&
++                resultInfo.checkContext.inferenceContext() != emptyContext) {
++            from = types.capture(from);
++            //add synthetic captured ivars
++            for (Type t : from.getTypeArguments()) {
++                if (t.hasTag(TYPEVAR) && ((TypeVar)t).isCaptured()) {
++                    inferenceContext.addVar((TypeVar)t);
++                }
++            }
++        }
++        Type qtype1 = inferenceContext.asFree(from);
+         Type to = returnConstraintTarget(qtype1, resultInfo.pt);
+         Assert.check(allowGraphInference || !resultInfo.checkContext.inferenceContext().free(to),
+                 "legacy inference engine cannot handle constraints on both sides of a subtyping assertion");
+@@ -224,6 +236,7 @@
+                     .setMessage("infer.no.conforming.instance.exists",
+                     inferenceContext.restvars(), mt.getReturnType(), to);
+         }
++        return from;
+     }
+ 
+     Type returnConstraintTarget(Type from, Type to) {
+@@ -436,7 +449,9 @@
+                     EnumSet<IncorporationStep> incorporationSteps = allowGraphInference ?
+                             incorporationStepsGraph : incorporationStepsLegacy;
+                     for (IncorporationStep is : incorporationSteps) {
+-                        is.apply(uv, inferenceContext, warn);
++                        if (is.accepts(uv, inferenceContext)) {
++                            is.apply(uv, inferenceContext, warn);
++                        }
+                     }
+                 }
+                 if (!mlistener.changed || !allowGraphInference) break;
+@@ -527,6 +542,11 @@
+                     }
+                 }
+             }
++            @Override
++            boolean accepts(UndetVar uv, InferenceContext inferenceContext) {
++                //applies to all undetvars
++                return true;
++            }
+         },
+         /**
+          * Check consistency of equality constraints. This is a slightly more aggressive
+@@ -647,6 +667,7 @@
+                 for (Type b : uv.getBounds(InferenceBound.UPPER)) {
+                     if (inferenceContext.inferenceVars().contains(b)) {
+                         UndetVar uv2 = (UndetVar)inferenceContext.asFree(b);
++                        if (uv2.isCaptured()) continue;
+                         //alpha <: beta
+                         //0. set beta :> alpha
+                         uv2.addBound(InferenceBound.LOWER, uv, infer.types);
+@@ -672,6 +693,7 @@
+                 for (Type b : uv.getBounds(InferenceBound.LOWER)) {
+                     if (inferenceContext.inferenceVars().contains(b)) {
+                         UndetVar uv2 = (UndetVar)inferenceContext.asFree(b);
++                        if (uv2.isCaptured()) continue;
+                         //alpha :> beta
+                         //0. set beta <: alpha
+                         uv2.addBound(InferenceBound.UPPER, uv, infer.types);
+@@ -697,6 +719,7 @@
+                 for (Type b : uv.getBounds(InferenceBound.EQ)) {
+                     if (inferenceContext.inferenceVars().contains(b)) {
+                         UndetVar uv2 = (UndetVar)inferenceContext.asFree(b);
++                        if (uv2.isCaptured()) continue;
+                         //alpha == beta
+                         //0. set beta == alpha
+                         uv2.addBound(InferenceBound.EQ, uv, infer.types);
+@@ -722,6 +745,10 @@
+         };
+ 
+         abstract void apply(UndetVar uv, InferenceContext inferenceContext, Warner warn);
++
++        boolean accepts(UndetVar uv, InferenceContext inferenceContext) {
++            return !uv.isCaptured();
++        }
+     }
+ 
+     /** incorporation steps to be executed when running in legacy mode */
+@@ -1027,13 +1054,36 @@
+         UPPER_LEGACY(InferenceBound.UPPER) {
+             @Override
+             public boolean accepts(UndetVar t, InferenceContext inferenceContext) {
+-                return !inferenceContext.free(t.getBounds(ib));
++                return !inferenceContext.free(t.getBounds(ib)) && !t.isCaptured();
+             }
+ 
+             @Override
+             Type solve(UndetVar uv, InferenceContext inferenceContext) {
+                 return UPPER.solve(uv, inferenceContext);
+             }
++        },
++        /**
++         * Like the former; the only difference is that this step can only be applied
++         * if all upper/lower bounds are ground.
++         */
++        CAPTURED(InferenceBound.UPPER) {
++            @Override
++            public boolean accepts(UndetVar t, InferenceContext inferenceContext) {
++                return !inferenceContext.free(t.getBounds(InferenceBound.UPPER, InferenceBound.LOWER));
++            }
++
++            @Override
++            Type solve(UndetVar uv, InferenceContext inferenceContext) {
++                Infer infer = inferenceContext.infer();
++                Type upper = UPPER.filterBounds(uv, inferenceContext).nonEmpty() ?
++                        UPPER.solve(uv, inferenceContext) :
++                        infer.syms.objectType;
++                Type lower = LOWER.filterBounds(uv, inferenceContext).nonEmpty() ?
++                        LOWER.solve(uv, inferenceContext) :
++                        infer.syms.botType;
++                CapturedType prevCaptured = (CapturedType)uv.qtype;
++                return new CapturedType(prevCaptured.tsym.name, prevCaptured.tsym.owner, upper, lower, prevCaptured.wildcard);
++            }
+         };
+ 
+         final InferenceBound ib;
+@@ -1052,7 +1102,7 @@
+          * Can the inference variable be instantiated using this step?
+          */
+         public boolean accepts(UndetVar t, InferenceContext inferenceContext) {
+-            return filterBounds(t, inferenceContext).nonEmpty();
++            return filterBounds(t, inferenceContext).nonEmpty() && !t.isCaptured();
+         }
+ 
+         /**
+@@ -1089,7 +1139,7 @@
+ 
+         EQ(EnumSet.of(InferenceStep.EQ)),
+         EQ_LOWER(EnumSet.of(InferenceStep.EQ, InferenceStep.LOWER)),
+-        EQ_LOWER_THROWS_UPPER(EnumSet.of(InferenceStep.EQ, InferenceStep.LOWER, InferenceStep.THROWS, InferenceStep.UPPER));
++        EQ_LOWER_THROWS_UPPER_CAPTURED(EnumSet.of(InferenceStep.EQ, InferenceStep.LOWER, InferenceStep.UPPER, InferenceStep.THROWS, InferenceStep.CAPTURED));
+ 
+         final EnumSet<InferenceStep> steps;
+ 
+@@ -1350,12 +1400,26 @@
+             Mapping fromTypeVarFun = new Mapping("fromTypeVarFunWithBounds") {
+                 // mapping that turns inference variables into undet vars
+                 public Type apply(Type t) {
+-                    if (t.hasTag(TYPEVAR)) return new UndetVar((TypeVar)t, types);
+-                    else return t.map(this);
++                    if (t.hasTag(TYPEVAR)) {
++                        TypeVar tv = (TypeVar)t;
++                        return tv.isCaptured() ?
++                                new CapturedUndetVar((CapturedType)tv, types) :
++                                new UndetVar(tv, types);
++                    } else {
++                        return t.map(this);
++                    }
+                 }
+             };
+ 
+         /**
++         * add a new inference var to this inference context
++         */
++        void addVar(TypeVar t) {
++            this.undetvars = this.undetvars.prepend(fromTypeVarFun.apply(t));
++            this.inferencevars = this.inferencevars.prepend(t);
++        }
++
++        /**
+          * returns the list of free variables (as type-variables) in this
+          * inference context
+          */
+diff -r 866c87c01285 -r a204cf7aab7e src/share/classes/com/sun/tools/javac/comp/Resolve.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Resolve.java	Wed Jul 17 14:09:46 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/Resolve.java	Wed Jul 17 14:11:41 2013 +0100
+@@ -961,10 +961,23 @@
+                 DeferredType dt = (DeferredType)found;
+                 return dt.check(this);
+             } else {
+-                return super.check(pos, chk.checkNonVoid(pos, types.capture(types.upperBound(found.baseType()))));
++                return super.check(pos, chk.checkNonVoid(pos, types.capture(U(found.baseType()))));
+             }
+         }
+ 
++        /**
++         * javac has a long-standing 'simplification' (see 6391995):
++         * given an actual argument type, the method check is performed
++         * on its upper bound. This leads to inconsistencies when an
++         * argument type is checked against itself. For example, given
++         * a type-variable T, it is not true that {@code U(T) <: T},
++         * so we need to guard against that.
++         */
++        private Type U(Type found) {
++            return found == pt ?
++                    found : types.upperBound(found);
++        }
++
+         @Override
+         protected MethodResultInfo dup(Type newPt) {
+             return new MethodResultInfo(newPt, checkContext);
+diff -r 866c87c01285 -r a204cf7aab7e test/tools/javac/lambda/NestedCapture01.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/NestedCapture01.java	Wed Jul 17 14:11:41 2013 +0100
+@@ -0,0 +1,43 @@
++/*
++ * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8012238
++ * @summary Nested method capture and inference
++ * @compile NestedCapture01.java
++ */
++class NestedCapture01 {
++
++    void test(String s) {
++       g(m(s.getClass()));
++    }
++
++    <F extends String> F m(Class<F> cf) {
++       return null;
++    }
++
++    <P extends String> P g(P vo) {
++       return null;
++    }
++}
+diff -r 866c87c01285 -r a204cf7aab7e test/tools/javac/lambda/NestedCapture02.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/NestedCapture02.java	Wed Jul 17 14:11:41 2013 +0100
+@@ -0,0 +1,43 @@
++/*
++ * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8012238
++ * @summary Nested method capture and inference
++ * @compile NestedCapture02.java
++ */
++class NestedCapture02<S,T> {
++
++     <S,T> NestedCapture02<S,T> create(NestedCapture02<? super S,?> first,
++             NestedCapture02<? super S, T> second) {
++         return null;
++     }
++
++     <U> NestedCapture02<S, ? extends U> cast(Class<U> target) { return null; }
++
++     <U> NestedCapture02<S, ? extends U> test(Class<U> target,
++             NestedCapture02<? super S, ?> first, NestedCapture02<? super S, T> second) {
++        return create(first, second.cast(target));
++     }
++}
+diff -r 866c87c01285 -r a204cf7aab7e test/tools/javac/lambda/NestedCapture03.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/NestedCapture03.java	Wed Jul 17 14:11:41 2013 +0100
+@@ -0,0 +1,36 @@
++/*
++ * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++/*
++ * @test
++ * @bug 8012238
++ * @summary Nested method capture and inference
++ * @compile NestedCapture03.java
++ */
++class NestedCapture03 {
++    <T extends String> T factory(Class<T> c) { return null; }
++
++    void test(Class<?> c) {
++        factory(c.asSubclass(String.class)).matches(null);
++    }
++}
+

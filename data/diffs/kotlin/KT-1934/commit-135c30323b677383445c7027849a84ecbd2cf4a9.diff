@@ -1,0 +1,1126 @@
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+index dfd065f3c7f..81ed3b21b2d 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/Errors.java
+@@ -324,6 +324,11 @@ public interface Errors {
+     DiagnosticFactory2<KtNamedDeclaration, CallableMemberDescriptor, CallableMemberDescriptor> PROPERTY_TYPE_MISMATCH_ON_OVERRIDE =
+             DiagnosticFactory2.create(ERROR, DECLARATION_RETURN_TYPE);
+ 
++    DiagnosticFactory2<KtClassOrObject, CallableMemberDescriptor, CallableMemberDescriptor> RETURN_TYPE_MISMATCH_ON_INHERITANCE =
++            DiagnosticFactory2.create(ERROR, DECLARATION_NAME);
++    DiagnosticFactory2<KtClassOrObject, CallableMemberDescriptor, CallableMemberDescriptor> PROPERTY_TYPE_MISMATCH_ON_INHERITANCE =
++            DiagnosticFactory2.create(ERROR, DECLARATION_NAME);
++
+     DiagnosticFactory2<KtClassOrObject, KtClassOrObject, CallableMemberDescriptor> ABSTRACT_MEMBER_NOT_IMPLEMENTED =
+             DiagnosticFactory2.create(ERROR, DECLARATION_NAME);
+     DiagnosticFactory2<KtClassOrObject, KtClassOrObject, CallableMemberDescriptor> ABSTRACT_CLASS_MEMBER_NOT_IMPLEMENTED =
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+index dd1735848e6..3504317d080 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
+@@ -555,9 +555,13 @@ public class DefaultErrorMessages {
+ 
+         MAP.put(RETURN_TYPE_MISMATCH_ON_OVERRIDE, "Return type of ''{0}'' is not a subtype of the return type of the overridden member ''{1}''",
+                 NAME, FQ_NAMES_IN_TYPES);
++        MAP.put(RETURN_TYPE_MISMATCH_ON_INHERITANCE, "''{0}'' clashes with ''{1}'': return types are incompatible",
++                SHORT_NAMES_IN_TYPES, SHORT_NAMES_IN_TYPES);
+ 
+         MAP.put(PROPERTY_TYPE_MISMATCH_ON_OVERRIDE, "Type of ''{0}'' doesn''t match the type of the overridden var-property ''{1}''",
+                 NAME, FQ_NAMES_IN_TYPES);
++        MAP.put(PROPERTY_TYPE_MISMATCH_ON_INHERITANCE, "''{0}'' clashes with ''{1}'': property types are incompatible",
++                SHORT_NAMES_IN_TYPES, SHORT_NAMES_IN_TYPES);
+ 
+         MAP.put(VAR_OVERRIDDEN_BY_VAL, "Var-property {0} cannot be overridden by val-property {1}", FQ_NAMES_IN_TYPES, FQ_NAMES_IN_TYPES);
+ 
+diff --git a/compiler/frontend/src/org/jetbrains/kotlin/resolve/OverrideResolver.java b/compiler/frontend/src/org/jetbrains/kotlin/resolve/OverrideResolver.java
+index 765793ad69c..b66b7b6a1dd 100644
+--- a/compiler/frontend/src/org/jetbrains/kotlin/resolve/OverrideResolver.java
++++ b/compiler/frontend/src/org/jetbrains/kotlin/resolve/OverrideResolver.java
+@@ -257,7 +257,7 @@ public class OverrideResolver {
+         }
+     }
+ 
+-    private void checkOverridesInAClass(@NotNull ClassDescriptorWithResolutionScopes classDescriptor, @NotNull KtClassOrObject klass) {
++    private void checkOverridesInAClass(@NotNull ClassDescriptorWithResolutionScopes classDescriptor, @NotNull final KtClassOrObject klass) {
+         // Check overrides for internal consistency
+         for (CallableMemberDescriptor member : classDescriptor.getDeclaredCallableMembers()) {
+             checkOverrideForMember(member);
+@@ -265,13 +265,53 @@ public class OverrideResolver {
+ 
+         // Check if everything that must be overridden, actually is
+         // More than one implementation or no implementations at all
+-        Set<CallableMemberDescriptor> abstractNoImpl = Sets.newLinkedHashSet();
+-        Set<CallableMemberDescriptor> manyImpl = Sets.newLinkedHashSet();
+-        Set<CallableMemberDescriptor> abstractInBaseClassNoImpl = Sets.newLinkedHashSet();
+-        Set<CallableMemberDescriptor> conflictingInterfaceOverrides = Sets.newLinkedHashSet();
+-        collectMissingImplementations(classDescriptor,
+-                                      abstractNoImpl, manyImpl,
+-                                      abstractInBaseClassNoImpl, conflictingInterfaceOverrides);
++        final Set<CallableMemberDescriptor> abstractNoImpl = Sets.newLinkedHashSet();
++        final Set<CallableMemberDescriptor> manyImpl = Sets.newLinkedHashSet();
++        final Set<CallableMemberDescriptor> abstractInBaseClassNoImpl = Sets.newLinkedHashSet();
++        final Set<CallableMemberDescriptor> conflictingInterfaceOverrides = Sets.newLinkedHashSet();
++
++        checkInheritedSignatures(
++                classDescriptor,
++                new CheckInheritedSignaturesReportingStrategy() {
++                    private boolean returnTypeMismatch = false;
++                    private boolean propertyTypeMismatch = false;
++
++                    @Override
++                    public void abstractMemberNoImpl(CallableMemberDescriptor descriptor) {
++                        abstractNoImpl.add(descriptor);
++                    }
++
++                    @Override
++                    public void abstractBaseClassMemberNoImpl(CallableMemberDescriptor descriptor) {
++                        abstractInBaseClassNoImpl.add(descriptor);
++                    }
++
++                    @Override
++                    public void manyImplMemberNoImpl(CallableMemberDescriptor descriptor) {
++                        manyImpl.add(descriptor);
++                    }
++
++                    @Override
++                    public void conflictingMemberFromInterface(CallableMemberDescriptor descriptor) {
++                        conflictingInterfaceOverrides.add(descriptor);
++                    }
++
++                    @Override
++                    public void clashingWithReturnType(CallableMemberDescriptor descriptor1, CallableMemberDescriptor descriptor2) {
++                        if (!returnTypeMismatch) {
++                            returnTypeMismatch = true;
++                            trace.report(RETURN_TYPE_MISMATCH_ON_INHERITANCE.on(klass, descriptor1, descriptor2));
++                        }
++                    }
++
++                    @Override
++                    public void clashingWithPropertyType(CallableMemberDescriptor descriptor1, CallableMemberDescriptor descriptor2) {
++                        if (!propertyTypeMismatch) {
++                            propertyTypeMismatch = true;
++                            trace.report(PROPERTY_TYPE_MISMATCH_ON_INHERITANCE.on(klass, descriptor1, descriptor2));
++                        }
++                    }
++                });
+ 
+         if (!classCanHaveAbstractMembers(classDescriptor)) {
+             if (!abstractInBaseClassNoImpl.isEmpty()) {
+@@ -292,34 +332,68 @@ public class OverrideResolver {
+ 
+     @NotNull
+     public static Set<CallableMemberDescriptor> getMissingImplementations(@NotNull ClassDescriptor classDescriptor) {
+-        Set<CallableMemberDescriptor> shouldImplement = new LinkedHashSet<CallableMemberDescriptor>();
+-        Set<CallableMemberDescriptor> dontCare = new HashSet<CallableMemberDescriptor>();
+-        collectMissingImplementations(classDescriptor, shouldImplement, shouldImplement, dontCare, dontCare);
+-        return shouldImplement;
++        CollectMissingImplementationsStrategy collector = new CollectMissingImplementationsStrategy();
++        checkInheritedSignatures(classDescriptor, collector);
++        return collector.shouldImplement;
++    }
++
++    private interface CheckInheritedSignaturesReportingStrategy {
++        void abstractMemberNoImpl(CallableMemberDescriptor descriptor);
++        void abstractBaseClassMemberNoImpl(CallableMemberDescriptor descriptor);
++        void manyImplMemberNoImpl(CallableMemberDescriptor descriptor);
++        void conflictingMemberFromInterface(CallableMemberDescriptor descriptor);
++        void clashingWithReturnType(CallableMemberDescriptor descriptor1, CallableMemberDescriptor descriptor2);
++        void clashingWithPropertyType(CallableMemberDescriptor descriptor1, CallableMemberDescriptor descriptor2);
++    }
++
++    private static class CollectMissingImplementationsStrategy implements CheckInheritedSignaturesReportingStrategy {
++        private Set<CallableMemberDescriptor> shouldImplement = new LinkedHashSet<CallableMemberDescriptor>();
++
++        @Override
++        public void abstractMemberNoImpl(CallableMemberDescriptor descriptor) {
++            shouldImplement.add(descriptor);
++        }
++
++        @Override
++        public void abstractBaseClassMemberNoImpl(CallableMemberDescriptor descriptor) {
++            // don't care
++        }
++
++        @Override
++        public void manyImplMemberNoImpl(CallableMemberDescriptor descriptor) {
++            shouldImplement.add(descriptor);
++        }
++
++        @Override
++        public void conflictingMemberFromInterface(CallableMemberDescriptor descriptor) {
++            // don't care
++        }
++
++        @Override
++        public void clashingWithReturnType(CallableMemberDescriptor descriptor1, CallableMemberDescriptor descriptor2) {
++            // don't care
++        }
++
++        @Override
++        public void clashingWithPropertyType(CallableMemberDescriptor descriptor1, CallableMemberDescriptor descriptor2) {
++            // don't care
++        }
+     }
+ 
+-    private static void collectMissingImplementations(
++    private static void checkInheritedSignatures(
+             @NotNull ClassDescriptor classDescriptor,
+-            @NotNull Set<CallableMemberDescriptor> abstractNoImpl,
+-            @NotNull Set<CallableMemberDescriptor> manyImpl,
+-            @NotNull Set<CallableMemberDescriptor> abstractInBaseClassNoImpl,
+-            @NotNull Set<CallableMemberDescriptor> conflictingInterfaceOverrides
++            @NotNull CheckInheritedSignaturesReportingStrategy reportingStrategy
+     ) {
+         for (DeclarationDescriptor member : DescriptorUtils.getAllDescriptors(classDescriptor.getDefaultType().getMemberScope())) {
+             if (member instanceof CallableMemberDescriptor) {
+-                collectMissingImplementations((CallableMemberDescriptor) member,
+-                                              abstractNoImpl, manyImpl,
+-                                              abstractInBaseClassNoImpl, conflictingInterfaceOverrides);
++                checkInheritedSignatures((CallableMemberDescriptor) member, reportingStrategy);
+             }
+         }
+     }
+ 
+-    private static void collectMissingImplementations(
++    private static void checkInheritedSignatures(
+             @NotNull CallableMemberDescriptor descriptor,
+-            @NotNull Set<CallableMemberDescriptor> abstractNoImpl,
+-            @NotNull Set<CallableMemberDescriptor> manyImpl,
+-            @NotNull Set<CallableMemberDescriptor> abstractInBaseClassNoImpl,
+-            @NotNull Set<CallableMemberDescriptor> conflictingInterfaceOverrides
++            @NotNull CheckInheritedSignaturesReportingStrategy reportingStrategy
+     ) {
+         if (descriptor.getKind().isReal()) return;
+         if (descriptor.getVisibility() == Visibilities.INVISIBLE_FAKE) return;
+@@ -341,7 +415,9 @@ public class OverrideResolver {
+         Set<CallableMemberDescriptor> relevantDirectlyOverridden =
+                 getRelevantDirectlyOverridden(overriddenDeclarationsByDirectParent, allFilteredOverriddenDeclarations);
+ 
+-        collectJava8MissingOverrides(relevantDirectlyOverridden, abstractInBaseClassNoImpl, conflictingInterfaceOverrides);
++        checkInheritedSignaturesForFakeOverride(descriptor, relevantDirectlyOverridden, reportingStrategy);
++
++        collectJava8MissingOverrides(relevantDirectlyOverridden, reportingStrategy);
+ 
+         List<CallableMemberDescriptor> implementations = collectImplementations(relevantDirectlyOverridden);
+         if (implementations.size() == 1 && isReturnTypeOkForOverride(descriptor, implementations.get(0))) return;
+@@ -351,20 +427,27 @@ public class OverrideResolver {
+         filterNotSynthesizedDescriptorsByModality(allFilteredOverriddenDeclarations, abstractOverridden, concreteOverridden);
+ 
+         if (implementations.isEmpty()) {
+-            abstractNoImpl.addAll(abstractOverridden);
++            for (CallableMemberDescriptor member : abstractOverridden) {
++                reportingStrategy.abstractMemberNoImpl(member);
++            }
+         }
+         else if (implementations.size() > 1) {
+-            manyImpl.addAll(concreteOverridden);
++            for (CallableMemberDescriptor member : concreteOverridden) {
++                reportingStrategy.manyImplMemberNoImpl(member);
++            }
+         }
+         else {
+-            abstractNoImpl.addAll(collectAbstractMethodsWithMoreSpecificReturnType(abstractOverridden, implementations.get(0)));
++            List<CallableMemberDescriptor> membersWithMoreSpecificReturnType =
++                    collectAbstractMethodsWithMoreSpecificReturnType(abstractOverridden, implementations.get(0));
++            for (CallableMemberDescriptor member : membersWithMoreSpecificReturnType) {
++                reportingStrategy.abstractMemberNoImpl(member);
++            }
+         }
+     }
+ 
+     private static void collectJava8MissingOverrides(
+-            Set<CallableMemberDescriptor> relevantDirectlyOverridden,
+-            @NotNull Set<CallableMemberDescriptor> abstractInBaseClassNoImpl,
+-            @NotNull Set<CallableMemberDescriptor> conflictingInterfaceOverrides
++            @NotNull Set<CallableMemberDescriptor> relevantDirectlyOverridden,
++            @NotNull CheckInheritedSignaturesReportingStrategy reportingStrategy
+     ) {
+         // Java 8:
+         // -- class should implement an abstract member of a super-class,
+@@ -396,11 +479,13 @@ public class OverrideResolver {
+         }
+ 
+         if (overridesAbstractInBaseClass != null) {
+-            abstractInBaseClassNoImpl.add(overridesAbstractInBaseClass);
++            reportingStrategy.abstractBaseClassMemberNoImpl(overridesAbstractInBaseClass);
+         }
+ 
+         if (!overridesClassMember && overridesNonAbstractInterfaceMember && overriddenInterfaceMembers.size() > 1) {
+-            conflictingInterfaceOverrides.addAll(overriddenInterfaceMembers);
++            for (CallableMemberDescriptor member : overriddenInterfaceMembers) {
++                reportingStrategy.conflictingMemberFromInterface(member);
++            }
+         }
+     }
+ 
+@@ -638,6 +723,39 @@ public class OverrideResolver {
+         }
+     }
+ 
++    private static void checkInheritedSignaturesForFakeOverride(
++            @NotNull CallableMemberDescriptor fakeOverride,
++            @NotNull Collection<CallableMemberDescriptor> relevantDirectlyOverridden,
++            @NotNull CheckInheritedSignaturesReportingStrategy reportingStrategy
++    ) {
++        assert fakeOverride.getKind() == FAKE_OVERRIDE
++                : "Fake override expected; actual: " + fakeOverride + " of kind " + fakeOverride.getKind();
++
++        // FIXME This algorithm depends on transitiveness of sub-typing relation, which is broken in presence of flexible types.
++        // See override/clashesOnInheritance/flexibleReturnType.kt.
++        if (relevantDirectlyOverridden.size() > 1) {
++            Iterator<CallableMemberDescriptor> overriddenIterator = relevantDirectlyOverridden.iterator();
++            CallableMemberDescriptor mostSpecificOverridden = overriddenIterator.next();
++            while (overriddenIterator.hasNext()) {
++                CallableMemberDescriptor overriddenDescriptor = overriddenIterator.next();
++                if (OverridingUtil.isMoreSpecific(overriddenDescriptor, mostSpecificOverridden)) {
++                    mostSpecificOverridden = overriddenDescriptor;
++                }
++            }
++
++            for (CallableMemberDescriptor overriddenDescriptor : relevantDirectlyOverridden) {
++                if (!OverridingUtil.isMoreSpecific(mostSpecificOverridden, overriddenDescriptor)) {
++                    if (overriddenDescriptor instanceof PropertyDescriptor) {
++                        reportingStrategy.clashingWithPropertyType(mostSpecificOverridden, overriddenDescriptor);
++                    }
++                    else {
++                        reportingStrategy.clashingWithReturnType(mostSpecificOverridden, overriddenDescriptor);
++                    }
++                }
++            }
++        }
++    }
++
+     private static void checkOverridesForMemberMarkedOverride(
+             @NotNull CallableMemberDescriptor declared,
+             boolean checkIfOverridesNothing,
+diff --git a/compiler/testData/codegen/box/bridges/kt1939.kt b/compiler/testData/codegen/box/bridges/kt1939.kt
+index ff7e345fdde..ad300dc796e 100644
+--- a/compiler/testData/codegen/box/bridges/kt1939.kt
++++ b/compiler/testData/codegen/box/bridges/kt1939.kt
+@@ -3,7 +3,7 @@ abstract class Foo<T> {
+ }
+ 
+ interface Tr {
+-    fun hello(s : String)
++    fun hello(s : String): String
+ }
+ 
+ class Bar: Foo<String>(), Tr {
+diff --git a/compiler/testData/diagnostics/tests/override/MultipleDefaultsAndNamesInSupertypes.kt b/compiler/testData/diagnostics/tests/override/MultipleDefaultsAndNamesInSupertypes.kt
+index 72d41113c68..e8d2abf8119 100644
+--- a/compiler/testData/diagnostics/tests/override/MultipleDefaultsAndNamesInSupertypes.kt
++++ b/compiler/testData/diagnostics/tests/override/MultipleDefaultsAndNamesInSupertypes.kt
+@@ -7,7 +7,8 @@ open class B {
+ }
+ 
+ interface C {
+-    fun foo(y: Int)
++    fun foo(y: Int): Int
+ }
+ 
+-<!MULTIPLE_DEFAULTS_INHERITED_FROM_SUPERTYPES_WHEN_NO_EXPLICIT_OVERRIDE, DIFFERENT_NAMES_FOR_THE_SAME_PARAMETER_IN_SUPERTYPES!>class Z<!> : A, B(), C
+\ No newline at end of file
++// TODO DIFFERENT_NAMES_FOR_THE_SAME_PARAMETER_IN_SUPERTYPES reported twice
++<!MULTIPLE_DEFAULTS_INHERITED_FROM_SUPERTYPES_WHEN_NO_EXPLICIT_OVERRIDE, DIFFERENT_NAMES_FOR_THE_SAME_PARAMETER_IN_SUPERTYPES, DIFFERENT_NAMES_FOR_THE_SAME_PARAMETER_IN_SUPERTYPES!>class Z<!> : A, B(), C
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/override/MultipleDefaultsAndNamesInSupertypes.txt b/compiler/testData/diagnostics/tests/override/MultipleDefaultsAndNamesInSupertypes.txt
+index b864ac62835..335c53c5393 100644
+--- a/compiler/testData/diagnostics/tests/override/MultipleDefaultsAndNamesInSupertypes.txt
++++ b/compiler/testData/diagnostics/tests/override/MultipleDefaultsAndNamesInSupertypes.txt
+@@ -17,7 +17,7 @@ public open class B {
+ 
+ public interface C {
+     public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
+-    public abstract fun foo(/*0*/ y: kotlin.Int): kotlin.Unit
++    public abstract fun foo(/*0*/ y: kotlin.Int): kotlin.Int
+     public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
+     public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
+ }
+@@ -25,7 +25,7 @@ public interface C {
+ public final class Z : A, B, C {
+     public constructor Z()
+     public open override /*3*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
+-    public final override /*3*/ /*fake_override*/ fun foo(/*0*/ x: kotlin.Int = ...): kotlin.Int
++    public final override /*3*/ /*fake_override*/ fun foo(/*0*/ y: kotlin.Int = ...): kotlin.Int
+     public open override /*3*/ /*fake_override*/ fun hashCode(): kotlin.Int
+     public open override /*3*/ /*fake_override*/ fun toString(): kotlin.String
+ }
+diff --git a/compiler/testData/diagnostics/tests/override/clashesOnInheritance/covariantOverrides.kt b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/covariantOverrides.kt
+new file mode 100644
+index 00000000000..75fd18a1ed8
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/covariantOverrides.kt
+@@ -0,0 +1,37 @@
++interface IBase {
++    fun copy(): IBase
++}
++
++interface ILeft : IBase {
++    override fun copy(): ILeft
++}
++
++open class CLeft : ILeft {
++    override fun copy(): ILeft = CLeft()
++}
++
++interface IRight : IBase {
++    override fun copy(): IRight
++}
++
++interface IDerived : ILeft, IRight {
++    override fun copy(): IDerived
++}
++
++// Error: ILeft::copy and IRight::copy have unrelated return types
++<!RETURN_TYPE_MISMATCH_ON_INHERITANCE, ABSTRACT_MEMBER_NOT_IMPLEMENTED!>class CDerivedInvalid1<!> : ILeft, IRight
++
++// Error: CLeft::copy and IRight::copy have unrelated return types
++<!RETURN_TYPE_MISMATCH_ON_INHERITANCE!>class CDerivedInvalid2<!> : CLeft(), IRight
++
++// OK: CDerived1::copy overrides both ILeft::copy and IRight::copy
++class CDerived1 : ILeft, IRight {
++    override fun copy(): CDerived1 = CDerived1()
++}
++
++// Although ILeft::copy and IRight::copy return types are unrelated, IDerived::copy return type is the most specific of three.
++abstract class CDerived2 : ILeft, IRight, IDerived
++
++class CDerived2a : ILeft, IRight, IDerived {
++    override fun copy(): IDerived = CDerived2a()
++}
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/override/clashesOnInheritance/covariantOverrides.txt b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/covariantOverrides.txt
+new file mode 100644
+index 00000000000..73bc80f288c
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/covariantOverrides.txt
+@@ -0,0 +1,77 @@
++package
++
++public final class CDerived1 : ILeft, IRight {
++    public constructor CDerived1()
++    public open override /*2*/ fun copy(): CDerived1
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public abstract class CDerived2 : ILeft, IRight, IDerived {
++    public constructor CDerived2()
++    public abstract override /*3*/ /*fake_override*/ fun copy(): IDerived
++    public open override /*3*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*3*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*3*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class CDerived2a : ILeft, IRight, IDerived {
++    public constructor CDerived2a()
++    public open override /*3*/ fun copy(): IDerived
++    public open override /*3*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*3*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*3*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class CDerivedInvalid1 : ILeft, IRight {
++    public constructor CDerivedInvalid1()
++    public abstract override /*2*/ /*fake_override*/ fun copy(): ILeft
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class CDerivedInvalid2 : CLeft, IRight {
++    public constructor CDerivedInvalid2()
++    public open override /*2*/ /*fake_override*/ fun copy(): ILeft
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public open class CLeft : ILeft {
++    public constructor CLeft()
++    public open override /*1*/ fun copy(): ILeft
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IBase {
++    public abstract fun copy(): IBase
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IDerived : ILeft, IRight {
++    public abstract override /*2*/ fun copy(): IDerived
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface ILeft : IBase {
++    public abstract override /*1*/ fun copy(): ILeft
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IRight : IBase {
++    public abstract override /*1*/ fun copy(): IRight
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/override/clashesOnInheritance/flexibleReturnType.kt b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/flexibleReturnType.kt
+new file mode 100644
+index 00000000000..fba4a9e01d2
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/flexibleReturnType.kt
+@@ -0,0 +1,30 @@
++// FILE: J.java
++public interface J {
++    String foo(); // String!
++}
++
++// FILE: K.kt
++interface K1 {
++    fun foo(): String
++}
++
++interface K2 {
++    fun foo(): String?
++}
++
++interface KDerived1a : K1, J
++
++interface KDerived1b : J, K1
++
++interface KDerived2a : K2, J
++
++interface KDerived2b : J, K2
++
++interface KDerived12a : K1, K2, J
++// public abstract override /*3*/ /*fake_override*/ fun foo(): kotlin.String!
++
++<!RETURN_TYPE_MISMATCH_ON_INHERITANCE!>interface KDerived12b<!> : K1, J, K2 // TODO
++// public abstract override /*3*/ /*fake_override*/ fun foo(): kotlin.String?
++
++interface KDerived12c : J, K1, K2
++// public abstract override /*3*/ /*fake_override*/ fun foo(): kotlin.String
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/override/clashesOnInheritance/flexibleReturnType.txt b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/flexibleReturnType.txt
+new file mode 100644
+index 00000000000..89d4705ab07
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/flexibleReturnType.txt
+@@ -0,0 +1,73 @@
++package
++
++public /*synthesized*/ fun J(/*0*/ function: () -> kotlin.String!): J
++
++public interface J {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public abstract fun foo(): kotlin.String!
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface K1 {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public abstract fun foo(): kotlin.String
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface K2 {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public abstract fun foo(): kotlin.String?
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface KDerived12a : K1, K2, J {
++    public open override /*3*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public abstract override /*3*/ /*fake_override*/ fun foo(): kotlin.String!
++    public open override /*3*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*3*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface KDerived12b : K1, J, K2 {
++    public open override /*3*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public abstract override /*3*/ /*fake_override*/ fun foo(): kotlin.String?
++    public open override /*3*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*3*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface KDerived12c : J, K1, K2 {
++    public open override /*3*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public abstract override /*3*/ /*fake_override*/ fun foo(): kotlin.String
++    public open override /*3*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*3*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface KDerived1a : K1, J {
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public abstract override /*2*/ /*fake_override*/ fun foo(): kotlin.String!
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface KDerived1b : J, K1 {
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public abstract override /*2*/ /*fake_override*/ fun foo(): kotlin.String
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface KDerived2a : K2, J {
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public abstract override /*2*/ /*fake_override*/ fun foo(): kotlin.String!
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface KDerived2b : J, K2 {
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public abstract override /*2*/ /*fake_override*/ fun foo(): kotlin.String?
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/override/clashesOnInheritance/propertyTypeMismatch.kt b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/propertyTypeMismatch.kt
+new file mode 100644
+index 00000000000..35a34215757
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/propertyTypeMismatch.kt
+@@ -0,0 +1,29 @@
++open class A {
++    open val foo: Boolean = true
++}
++
++interface IA {
++    val foo: String
++}
++
++interface IAA {
++    val foo: Int
++}
++
++interface IGA<T> {
++    val foo: T
++}
++
++<!PROPERTY_TYPE_MISMATCH_ON_INHERITANCE!>class B1<!>: A(), IA
++
++<!PROPERTY_TYPE_MISMATCH_ON_INHERITANCE!>class B2<!>: A(), IA, IAA
++
++abstract <!PROPERTY_TYPE_MISMATCH_ON_INHERITANCE!>class B3<!>: IA, IAA
++
++class BS1: A(), IGA<Boolean>
++
++class BS2: A(), IGA<Any>
++
++<!PROPERTY_TYPE_MISMATCH_ON_INHERITANCE!>class BS3<!>: A(), IGA<String>
++
++<!PROPERTY_TYPE_MISMATCH_ON_INHERITANCE!>class BG1<!><T>: A(), IGA<T>
+diff --git a/compiler/testData/diagnostics/tests/override/clashesOnInheritance/propertyTypeMismatch.txt b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/propertyTypeMismatch.txt
+new file mode 100644
+index 00000000000..b54ac4bf8a6
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/propertyTypeMismatch.txt
+@@ -0,0 +1,86 @@
++package
++
++public open class A {
++    public constructor A()
++    public open val foo: kotlin.Boolean = true
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class B1 : A, IA {
++    public constructor B1()
++    public open override /*2*/ /*fake_override*/ val foo: kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class B2 : A, IA, IAA {
++    public constructor B2()
++    public open override /*3*/ /*fake_override*/ val foo: kotlin.Boolean
++    public open override /*3*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*3*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*3*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public abstract class B3 : IA, IAA {
++    public constructor B3()
++    public abstract override /*2*/ /*fake_override*/ val foo: kotlin.String
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class BG1</*0*/ T> : A, IGA<T> {
++    public constructor BG1</*0*/ T>()
++    public open override /*2*/ /*fake_override*/ val foo: kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class BS1 : A, IGA<kotlin.Boolean> {
++    public constructor BS1()
++    public open override /*2*/ /*fake_override*/ val foo: kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class BS2 : A, IGA<kotlin.Any> {
++    public constructor BS2()
++    public open override /*2*/ /*fake_override*/ val foo: kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class BS3 : A, IGA<kotlin.String> {
++    public constructor BS3()
++    public open override /*2*/ /*fake_override*/ val foo: kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IA {
++    public abstract val foo: kotlin.String
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IAA {
++    public abstract val foo: kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IGA</*0*/ T> {
++    public abstract val foo: T
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/override/clashesOnInheritance/returnTypeMismatch.kt b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/returnTypeMismatch.kt
+new file mode 100644
+index 00000000000..3548cc9114b
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/returnTypeMismatch.kt
+@@ -0,0 +1,29 @@
++open class A {
++    open fun foo(): Boolean = true
++}
++
++interface IA {
++    fun foo(): String
++}
++
++interface IAA {
++    fun foo(): Int
++}
++
++interface IGA<T> {
++    fun foo(): T
++}
++
++<!RETURN_TYPE_MISMATCH_ON_INHERITANCE!>class B1<!>: A(), IA
++
++<!RETURN_TYPE_MISMATCH_ON_INHERITANCE!>class B2<!>: A(), IA, IAA
++
++abstract <!RETURN_TYPE_MISMATCH_ON_INHERITANCE!>class B3<!>: IA, IAA
++
++class BS1: A(), IGA<Boolean>
++
++class BS2: A(), IGA<Any>
++
++<!RETURN_TYPE_MISMATCH_ON_INHERITANCE!>class BS3<!>: A(), IGA<String>
++
++<!RETURN_TYPE_MISMATCH_ON_INHERITANCE!>class BG1<!><T>: A(), IGA<T>
+diff --git a/compiler/testData/diagnostics/tests/override/clashesOnInheritance/returnTypeMismatch.txt b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/returnTypeMismatch.txt
+new file mode 100644
+index 00000000000..5b8f07b2609
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/returnTypeMismatch.txt
+@@ -0,0 +1,86 @@
++package
++
++public open class A {
++    public constructor A()
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open fun foo(): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class B1 : A, IA {
++    public constructor B1()
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun foo(): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class B2 : A, IA, IAA {
++    public constructor B2()
++    public open override /*3*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*3*/ /*fake_override*/ fun foo(): kotlin.Boolean
++    public open override /*3*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*3*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public abstract class B3 : IA, IAA {
++    public constructor B3()
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public abstract override /*2*/ /*fake_override*/ fun foo(): kotlin.String
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class BG1</*0*/ T> : A, IGA<T> {
++    public constructor BG1</*0*/ T>()
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun foo(): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class BS1 : A, IGA<kotlin.Boolean> {
++    public constructor BS1()
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun foo(): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class BS2 : A, IGA<kotlin.Any> {
++    public constructor BS2()
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun foo(): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public final class BS3 : A, IGA<kotlin.String> {
++    public constructor BS3()
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun foo(): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IA {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public abstract fun foo(): kotlin.String
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IAA {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public abstract fun foo(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IGA</*0*/ T> {
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public abstract fun foo(): T
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/testData/diagnostics/tests/override/clashesOnInheritance/unrelatedInherited.kt b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/unrelatedInherited.kt
+new file mode 100644
+index 00000000000..3e6fb0ded2b
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/unrelatedInherited.kt
+@@ -0,0 +1,33 @@
++interface IA {
++    fun method(): String
++    val propVal: String
++    var propVar: String
++}
++
++interface IB1 : IA
++interface IB2 : IA
++
++interface IGA<T> {
++    fun method(): T
++    val propVal: T
++    var propVar: T
++}
++
++interface IGB1Str : IGA<String>
++interface IGB2Str : IGA<String>
++interface IGB3Int : IGA<Int>
++
++interface IGB4T<T> : IGA<T>
++interface IGB5T<T> : IGA<T>
++
++interface IC : IB1, IB2
++
++interface IGC1 : IGB1Str, IGB2Str
++
++interface IGC2 : <!INCONSISTENT_TYPE_PARAMETER_VALUES!>IGB1Str, IGB3Int<!>
++
++interface IGC3<T> : IGB4T<T>, IGB5T<T>
++
++interface IGC4<T> : <!INCONSISTENT_TYPE_PARAMETER_VALUES!>IGB4T<T>, IGB5T<String><!>
++
++interface IGC5 : IGB4T<String>, IGB5T<String>
+\ No newline at end of file
+diff --git a/compiler/testData/diagnostics/tests/override/clashesOnInheritance/unrelatedInherited.txt b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/unrelatedInherited.txt
+new file mode 100644
+index 00000000000..c6798b98b23
+--- /dev/null
++++ b/compiler/testData/diagnostics/tests/override/clashesOnInheritance/unrelatedInherited.txt
+@@ -0,0 +1,136 @@
++package
++
++public interface IA {
++    public abstract val propVal: kotlin.String
++    public abstract var propVar: kotlin.String
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract fun method(): kotlin.String
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IB1 : IA {
++    public abstract override /*1*/ /*fake_override*/ val propVal: kotlin.String
++    public abstract override /*1*/ /*fake_override*/ var propVar: kotlin.String
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract override /*1*/ /*fake_override*/ fun method(): kotlin.String
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IB2 : IA {
++    public abstract override /*1*/ /*fake_override*/ val propVal: kotlin.String
++    public abstract override /*1*/ /*fake_override*/ var propVar: kotlin.String
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract override /*1*/ /*fake_override*/ fun method(): kotlin.String
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IC : IB1, IB2 {
++    public abstract override /*2*/ /*fake_override*/ val propVal: kotlin.String
++    public abstract override /*2*/ /*fake_override*/ var propVar: kotlin.String
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract override /*2*/ /*fake_override*/ fun method(): kotlin.String
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IGA</*0*/ T> {
++    public abstract val propVal: T
++    public abstract var propVar: T
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract fun method(): T
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IGB1Str : IGA<kotlin.String> {
++    public abstract override /*1*/ /*fake_override*/ val propVal: kotlin.String
++    public abstract override /*1*/ /*fake_override*/ var propVar: kotlin.String
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract override /*1*/ /*fake_override*/ fun method(): kotlin.String
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IGB2Str : IGA<kotlin.String> {
++    public abstract override /*1*/ /*fake_override*/ val propVal: kotlin.String
++    public abstract override /*1*/ /*fake_override*/ var propVar: kotlin.String
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract override /*1*/ /*fake_override*/ fun method(): kotlin.String
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IGB3Int : IGA<kotlin.Int> {
++    public abstract override /*1*/ /*fake_override*/ val propVal: kotlin.Int
++    public abstract override /*1*/ /*fake_override*/ var propVar: kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract override /*1*/ /*fake_override*/ fun method(): kotlin.Int
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IGB4T</*0*/ T> : IGA<T> {
++    public abstract override /*1*/ /*fake_override*/ val propVal: T
++    public abstract override /*1*/ /*fake_override*/ var propVar: T
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract override /*1*/ /*fake_override*/ fun method(): T
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IGB5T</*0*/ T> : IGA<T> {
++    public abstract override /*1*/ /*fake_override*/ val propVal: T
++    public abstract override /*1*/ /*fake_override*/ var propVar: T
++    public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*1*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract override /*1*/ /*fake_override*/ fun method(): T
++    public open override /*1*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IGC1 : IGB1Str, IGB2Str {
++    public abstract override /*2*/ /*fake_override*/ val propVal: kotlin.String
++    public abstract override /*2*/ /*fake_override*/ var propVar: kotlin.String
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract override /*2*/ /*fake_override*/ fun method(): kotlin.String
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IGC2 : IGB1Str, IGB3Int {
++    public abstract override /*2*/ /*fake_override*/ val propVal: kotlin.String
++    public abstract override /*2*/ /*fake_override*/ var propVar: kotlin.String
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract override /*2*/ /*fake_override*/ fun method(): kotlin.String
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IGC3</*0*/ T> : IGB4T<T>, IGB5T<T> {
++    public abstract override /*2*/ /*fake_override*/ val propVal: T
++    public abstract override /*2*/ /*fake_override*/ var propVar: T
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract override /*2*/ /*fake_override*/ fun method(): T
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IGC4</*0*/ T> : IGB4T<T>, IGB5T<kotlin.String> {
++    public abstract override /*2*/ /*fake_override*/ val propVal: T
++    public abstract override /*2*/ /*fake_override*/ var propVar: T
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract override /*2*/ /*fake_override*/ fun method(): T
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
++
++public interface IGC5 : IGB4T<kotlin.String>, IGB5T<kotlin.String> {
++    public abstract override /*2*/ /*fake_override*/ val propVal: kotlin.String
++    public abstract override /*2*/ /*fake_override*/ var propVar: kotlin.String
++    public open override /*2*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
++    public open override /*2*/ /*fake_override*/ fun hashCode(): kotlin.Int
++    public abstract override /*2*/ /*fake_override*/ fun method(): kotlin.String
++    public open override /*2*/ /*fake_override*/ fun toString(): kotlin.String
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+index ca50d4142cd..57ecf2029de 100644
+--- a/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
++++ b/compiler/tests/org/jetbrains/kotlin/checkers/DiagnosticsTestGenerated.java
+@@ -11295,6 +11295,45 @@ public class DiagnosticsTestGenerated extends AbstractDiagnosticsTest {
+                 doTest(fileName);
+             }
+ 
++            @TestMetadata("compiler/testData/diagnostics/tests/override/clashesOnInheritance")
++            @TestDataPath("$PROJECT_ROOT")
++            @RunWith(JUnit3RunnerWithInners.class)
++            public static class ClashesOnInheritance extends AbstractDiagnosticsTest {
++                public void testAllFilesPresentInClashesOnInheritance() throws Exception {
++                    KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/diagnostics/tests/override/clashesOnInheritance"), Pattern.compile("^(.+)\\.kt$"), true);
++                }
++
++                @TestMetadata("covariantOverrides.kt")
++                public void testCovariantOverrides() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/override/clashesOnInheritance/covariantOverrides.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("flexibleReturnType.kt")
++                public void testFlexibleReturnType() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/override/clashesOnInheritance/flexibleReturnType.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("propertyTypeMismatch.kt")
++                public void testPropertyTypeMismatch() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/override/clashesOnInheritance/propertyTypeMismatch.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("returnTypeMismatch.kt")
++                public void testReturnTypeMismatch() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/override/clashesOnInheritance/returnTypeMismatch.kt");
++                    doTest(fileName);
++                }
++
++                @TestMetadata("unrelatedInherited.kt")
++                public void testUnrelatedInherited() throws Exception {
++                    String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/diagnostics/tests/override/clashesOnInheritance/unrelatedInherited.kt");
++                    doTest(fileName);
++                }
++            }
++
+             @TestMetadata("compiler/testData/diagnostics/tests/override/parameterNames")
+             @TestDataPath("$PROJECT_ROOT")
+             @RunWith(JUnit3RunnerWithInners.class)
+diff --git a/core/descriptors/src/org/jetbrains/kotlin/resolve/OverridingUtil.java b/core/descriptors/src/org/jetbrains/kotlin/resolve/OverridingUtil.java
+index 85c3338ddd9..cbbd90d7b14 100644
+--- a/core/descriptors/src/org/jetbrains/kotlin/resolve/OverridingUtil.java
++++ b/core/descriptors/src/org/jetbrains/kotlin/resolve/OverridingUtil.java
+@@ -319,7 +319,7 @@ public class OverridingUtil {
+         }
+     }
+ 
+-    private static boolean isMoreSpecific(@NotNull CallableMemberDescriptor a, @NotNull CallableMemberDescriptor b) {
++    public static boolean isMoreSpecific(@NotNull CallableMemberDescriptor a, @NotNull CallableMemberDescriptor b) {
+         if (a instanceof SimpleFunctionDescriptor) {
+             assert b instanceof SimpleFunctionDescriptor : "b is " + b.getClass();
+ 
+@@ -333,12 +333,14 @@ public class OverridingUtil {
+         if (a instanceof PropertyDescriptor) {
+             assert b instanceof PropertyDescriptor : "b is " + b.getClass();
+ 
+-            if (((PropertyDescriptor) a).isVar() || ((PropertyDescriptor) b).isVar()) {
+-                return ((PropertyDescriptor) a).isVar();
++            PropertyDescriptor pa = (PropertyDescriptor) a;
++            PropertyDescriptor pb = (PropertyDescriptor) b;
++            if (pa.isVar() && pb.isVar()) {
++                return KotlinTypeChecker.DEFAULT.equalTypes(pa.getType(), pb.getType());
+             }
+ 
+-            // both vals
+-            return KotlinTypeChecker.DEFAULT.isSubtypeOf(((PropertyDescriptor) a).getType(), ((PropertyDescriptor) b).getType());
++            // both vals or var <? val
++            return KotlinTypeChecker.DEFAULT.isSubtypeOf(pa.getType(), pb.getType());
+         }
+         throw new IllegalArgumentException("Unexpected callable: " + a.getClass());
+     }
+diff --git a/idea/idea-analysis/src/org/jetbrains/kotlin/idea/highlighter/IdeErrorMessages.java b/idea/idea-analysis/src/org/jetbrains/kotlin/idea/highlighter/IdeErrorMessages.java
+index 21fc23f1c03..9e20fb5afca 100644
+--- a/idea/idea-analysis/src/org/jetbrains/kotlin/idea/highlighter/IdeErrorMessages.java
++++ b/idea/idea-analysis/src/org/jetbrains/kotlin/idea/highlighter/IdeErrorMessages.java
+@@ -96,9 +96,13 @@ public class IdeErrorMessages {
+ 
+         MAP.put(RETURN_TYPE_MISMATCH_ON_OVERRIDE, "<html>Return type is ''{0}'', which is not a subtype of overridden<br/>" +
+                                                   "{1}</html>", HTML_RENDER_RETURN_TYPE, DescriptorRenderer.HTML);
++        MAP.put(RETURN_TYPE_MISMATCH_ON_INHERITANCE, "<html>Return types of inherited members are incompatible:<br/>{0},<br/>{1}</html>",
++                DescriptorRenderer.HTML, DescriptorRenderer.HTML);
+ 
+         MAP.put(PROPERTY_TYPE_MISMATCH_ON_OVERRIDE, "<html>Var-property type is ''{0}'', which is not a type of overridden<br/>" +
+                                                   "{1}</html>", HTML_RENDER_RETURN_TYPE, DescriptorRenderer.HTML);
++        MAP.put(PROPERTY_TYPE_MISMATCH_ON_INHERITANCE, "<html>Property types of inherited members are incompatible:<br/>{0},<br/>{1}</html>",
++                DescriptorRenderer.HTML, DescriptorRenderer.HTML);
+ 
+         MAP.put(VAR_OVERRIDDEN_BY_VAL, "<html>Val-property cannot override var-property<br />" +
+                                        "{1}</html>", DescriptorRenderer.HTML, DescriptorRenderer.HTML);

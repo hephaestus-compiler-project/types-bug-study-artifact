@@ -1,0 +1,67 @@
+changeset:   3947:a9477dca2b57
+user:        sadayapalam
+date:        Mon Feb 06 13:12:30 2017 +0530
+summary:     8173456: com.sun.tools.javac.util.Assert.error during code compilation
+
+diff -r 31f3cfd70930 -r a9477dca2b57 src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Sat Feb 04 14:05:08 2017 -0500
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Mon Feb 06 13:12:30 2017 +0530
+@@ -2947,6 +2947,14 @@
+                 return;
+             }
+ 
++            if (!env.info.isSpeculative && that.getMode() == JCMemberReference.ReferenceMode.NEW) {
++                Type enclosingType = exprType.getEnclosingType();
++                if (enclosingType != null && enclosingType.hasTag(CLASS)) {
++                    // Check for the existence of an apropriate outer instance
++                    rs.resolveImplicitThis(that.pos(), env, exprType);
++                }
++            }
++
+             if (resultInfo.checkContext.deferredAttrContext().mode == AttrMode.CHECK) {
+ 
+                 if (that.getMode() == ReferenceMode.INVOKE &&
+diff -r 31f3cfd70930 -r a9477dca2b57 test/tools/javac/lambda/MethodReferenceNoThisTest.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/MethodReferenceNoThisTest.java	Mon Feb 06 13:12:30 2017 +0530
+@@ -0,0 +1,31 @@
++/*
++ * @test /nodynamiccopyright/
++ * @bug 8173456
++ * @summary com.sun.tools.javac.util.Assert.error during code compilation
++ * @compile/fail/ref=MethodReferenceNoThisTest.out -XDrawDiagnostics MethodReferenceNoThisTest.java
++ */
++
++import java.util.function.Function;
++
++abstract class MethodReferenceNoThisTest_Base {
++  protected MethodReferenceNoThisTest_Base(Function<MethodReferenceNoThisTest_Base, MethodReferenceNoThisTest_AV> x) {}
++}
++
++abstract class MethodReferenceNoThisTest_AV {
++    MethodReferenceNoThisTest_AV(MethodReferenceNoThisTest_Base b) {
++    }
++}
++
++public class MethodReferenceNoThisTest extends MethodReferenceNoThisTest_Base {
++
++    public MethodReferenceNoThisTest() {
++        super(V::new);
++    }
++
++    private class V extends MethodReferenceNoThisTest_AV {
++
++        V(MethodReferenceNoThisTest_Base b) {
++            super(b);
++        }
++    }
++}
+\ No newline at end of file
+diff -r 31f3cfd70930 -r a9477dca2b57 test/tools/javac/lambda/MethodReferenceNoThisTest.out
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/tools/javac/lambda/MethodReferenceNoThisTest.out	Mon Feb 06 13:12:30 2017 +0530
+@@ -0,0 +1,2 @@
++MethodReferenceNoThisTest.java:22:15: compiler.err.cant.ref.before.ctor.called: this
++1 error
+\ No newline at end of file
+

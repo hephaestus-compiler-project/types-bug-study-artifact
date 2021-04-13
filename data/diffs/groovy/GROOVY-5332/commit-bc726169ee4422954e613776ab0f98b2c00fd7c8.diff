@@ -1,0 +1,110 @@
+diff --git a/src/main/org/codehaus/groovy/ast/tools/GenericsUtils.java b/src/main/org/codehaus/groovy/ast/tools/GenericsUtils.java
+index 1793e1827c..a3f45915ea 100644
+--- a/src/main/org/codehaus/groovy/ast/tools/GenericsUtils.java
++++ b/src/main/org/codehaus/groovy/ast/tools/GenericsUtils.java
+@@ -53,6 +53,17 @@ public class GenericsUtils {
+                 for (int j = 0; j < redirectGenericTypes.length && match == null; j++) {
+                     GenericsType redirectGenericType = redirectGenericTypes[j];
+                     if (redirectGenericType.isCompatibleWith(currentTarget.getType())) {
++                        if (currentTarget.isPlaceholder() && redirectGenericType.isPlaceholder() && !currentTarget.getName().equals(redirectGenericType.getName())) {
++                            // check if there's a potential better match
++                            boolean skip = false;
++                            for (int k=j+1; k<redirectGenericTypes.length && !skip; k++) {
++                                GenericsType ogt = redirectGenericTypes[k];
++                                if (ogt.isPlaceholder() && ogt.isCompatibleWith(currentTarget.getType()) && ogt.getName().equals(currentTarget.getName())) {
++                                    skip = true;
++                                }
++                            }
++                            if (skip) continue;
++                        }
+                         match = parameterizedTypes[j];
+                         if (currentTarget.isWildcard()) {
+                             // if alignment target is a wildcard type
+diff --git a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+index 9d310fb643..3dfcdbfb96 100644
+--- a/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
++++ b/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java
+@@ -973,16 +973,27 @@ public abstract class StaticTypeCheckingSupport {
+      * @return
+      */
+     public static Parameter[] parameterizeArguments(final ClassNode receiver, final MethodNode m) {
+-        GenericsType[] redirectReceiverTypes = receiver.redirect().getGenericsTypes();
+-        if (redirectReceiverTypes==null) {
+-            // we must perform an additional check for methods like Collections#sort which define generics
+-            // at the method level
+-            redirectReceiverTypes = m.getGenericsTypes();
++        MethodNode mn = m;
++        ClassNode actualReceiver = receiver;
++        /*if (m instanceof ExtensionMethodNode) {
++            ExtensionMethodNode emn = (ExtensionMethodNode) m;
++            mn = emn.getExtensionMethodNode();
++            actualReceiver = emn.getDeclaringClass();
++        }*/
++        List<GenericsType> redirectTypes = new ArrayList<GenericsType>();
++//        if (mn.getGenericsTypes()!=null) Collections.addAll(redirectTypes,mn.getGenericsTypes());
++        if (actualReceiver.redirect().getGenericsTypes()!=null) {
++            Collections.addAll(redirectTypes,actualReceiver.redirect().getGenericsTypes());
+         }
+-        if (redirectReceiverTypes==null) return m.getParameters();
+-        Parameter[] methodParameters = m.getParameters();
++
++        if (redirectTypes.isEmpty()) {
++            return m.getParameters();
++        }
++        GenericsType[] redirectReceiverTypes = redirectTypes.toArray(new GenericsType[redirectTypes.size()]);
++
++        Parameter[] methodParameters = mn.getParameters();
+         Parameter[] params = new Parameter[methodParameters.length];
+-        GenericsType[] receiverParameterizedTypes = receiver.getGenericsTypes();
++        GenericsType[] receiverParameterizedTypes = actualReceiver.getGenericsTypes();
+         if (receiverParameterizedTypes==null) {
+             receiverParameterizedTypes = redirectReceiverTypes;
+         }
+@@ -1011,6 +1022,15 @@ public abstract class StaticTypeCheckingSupport {
+                 params[i] = methodParameter;
+             }
+         }
++        /*if (m instanceof ExtensionMethodNode) {
++            // the parameter array we're using is the one from the extension
++            // but we want to return an array for the regular method
++            Parameter[] result = new Parameter[params.length-1];
++            // 0 is the receiver
++            // 1..n are what we want to return
++            System.arraycopy(params, 1, result, 0, result.length);
++            return result;
++        }*/
+         return params;
+     }
+ 
+diff --git a/src/test/groovy/transform/stc/GenericsSTCTest.groovy b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+index cc2daa38b0..6056f00cdd 100644
+--- a/src/test/groovy/transform/stc/GenericsSTCTest.groovy
++++ b/src/test/groovy/transform/stc/GenericsSTCTest.groovy
+@@ -385,6 +385,27 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
+         '''
+     }
+ 
++    void testPutMethodWithPrimitiveValue() {
++        assertScript '''
++            Map<String, Integer> map = new HashMap<String,Integer>()
++            map.put('hello', 1)
++        '''
++    }
++
++    void testPutMethodWithWrongValueType() {
++        shouldFailWithMessages '''
++            Map<String, Integer> map = new HashMap<String,Integer>()
++            map.put('hello', new Object())
++        ''', 'Cannot find matching method java.util.HashMap#put(java.lang.String, java.lang.Object)'
++    }
++
++    void testPutMethodWithPrimitiveValueAndArrayPut() {
++        assertScript '''
++            Map<String, Integer> map = new HashMap<String,Integer>()
++            map['hello'] = 1
++        '''
++    }
++
+     void testAssignmentOfNewInstance() {
+         Expression expr = null
+         config.addCompilationCustomizers(

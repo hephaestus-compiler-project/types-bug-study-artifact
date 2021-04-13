@@ -1,0 +1,470 @@
+changeset:   2186:4788eb38cac5
+user:        emc
+date:        Mon Nov 11 09:47:46 2013 -0500
+summary:     8027439: Compile-time error in the case of ((Integer[] & Serializable)new Integer[1]).getClass()
+
+diff -r 6e0f31d61e56 -r 4788eb38cac5 src/share/classes/com/sun/tools/javac/code/Types.java
+--- a/src/share/classes/com/sun/tools/javac/code/Types.java	Sat Nov 09 15:24:38 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/code/Types.java	Mon Nov 11 09:47:46 2013 -0500
+@@ -244,7 +244,7 @@
+             public Type visitClassType(ClassType t, Symbol sym) {
+                 if (t.tsym == sym)
+                     return t;
+-                Type base = asSuper(sym.type, t);
++                Type base = asSuper(sym.type, t.tsym);
+                 if (base == null)
+                     return null;
+                 ListBuffer<Type> from = new ListBuffer<Type>();
+@@ -687,7 +687,7 @@
+                         (t.flags() & SYNTHETIC) == 0;
+             }
+         };
+-        private boolean pendingBridges(ClassSymbol origin, TypeSymbol sym) {
++        private boolean pendingBridges(ClassSymbol origin, TypeSymbol s) {
+             //a symbol will be completed from a classfile if (a) symbol has
+             //an associated file object with CLASS kind and (b) the symbol has
+             //not been entered
+@@ -696,11 +696,11 @@
+                     enter.getEnv(origin) == null) {
+                 return false;
+             }
+-            if (origin == sym) {
++            if (origin == s) {
+                 return true;
+             }
+             for (Type t : interfaces(origin.type)) {
+-                if (pendingBridges((ClassSymbol)t.tsym, sym)) {
++                if (pendingBridges((ClassSymbol)t.tsym, s)) {
+                     return true;
+                 }
+             }
+@@ -761,7 +761,7 @@
+             } else if (t.hasTag(TYPEVAR)) {
+                 return isSubtypeUnchecked(t.getUpperBound(), s, warn);
+             } else if (!s.isRaw()) {
+-                Type t2 = asSuper(t, s);
++                Type t2 = asSuper(t, s.tsym);
+                 if (t2 != null && t2.isRaw()) {
+                     if (isReifiable(s)) {
+                         warn.silentWarn(LintCategory.UNCHECKED);
+@@ -914,7 +914,7 @@
+ 
+             @Override
+             public Boolean visitClassType(ClassType t, Type s) {
+-                Type sup = asSuper(t, s);
++                Type sup = asSuper(t, s.tsym);
+                 return sup != null
+                     && sup.tsym == s.tsym
+                     // You're not allowed to write
+@@ -1935,42 +1935,30 @@
+      * @param t a type
+      * @param sym a symbol
+      */
+-    public Type asSuper(Type t, Symbol s) {
+-        return asSuper(t, s.type);
+-    }
+-
+-    public Type asSuper(Type t, Type s) {
+-        return asSuper.visit(t, s);
++    public Type asSuper(Type t, Symbol sym) {
++        return asSuper.visit(t, sym);
+     }
+     // where
+-        private SimpleVisitor<Type,Type> asSuper = new SimpleVisitor<Type,Type>() {
+-
+-            public Type visitType(Type t, Type s) {
++        private SimpleVisitor<Type,Symbol> asSuper = new SimpleVisitor<Type,Symbol>() {
++
++            public Type visitType(Type t, Symbol sym) {
+                 return null;
+             }
+ 
+             @Override
+-            public Type visitClassType(ClassType t, Type s) {
+-                if (t.tsym == s.tsym)
++            public Type visitClassType(ClassType t, Symbol sym) {
++                if (t.tsym == sym)
+                     return t;
+ 
+                 Type st = supertype(t);
+-
+-                switch(st.getTag()) {
+-                default: break;
+-                case CLASS:
+-                case ARRAY:
+-                case TYPEVAR:
+-                case ERROR: {
+-                    Type x = asSuper(st, s);
++                if (st.hasTag(CLASS) || st.hasTag(TYPEVAR) || st.hasTag(ERROR)) {
++                    Type x = asSuper(st, sym);
+                     if (x != null)
+                         return x;
+-                } break;
+                 }
+-
+-                if ((s.tsym.flags() & INTERFACE) != 0) {
++                if ((sym.flags() & INTERFACE) != 0) {
+                     for (List<Type> l = interfaces(t); l.nonEmpty(); l = l.tail) {
+-                        Type x = asSuper(l.head, s);
++                        Type x = asSuper(l.head, sym);
+                         if (x != null)
+                             return x;
+                     }
+@@ -1979,20 +1967,22 @@
+             }
+ 
+             @Override
+-            public Type visitArrayType(ArrayType t, Type s) {
+-                return isSubtype(t, s) ? s : null;
++            public Type visitArrayType(ArrayType t, Symbol sym) {
++                return isSubtype(t, sym.type) ? sym.type : null;
+             }
+ 
+             @Override
+-            public Type visitTypeVar(TypeVar t, Type s) {
+-                if (t.tsym == s.tsym)
++            public Type visitTypeVar(TypeVar t, Symbol sym) {
++                if (t.tsym == sym)
+                     return t;
+                 else
+-                    return asSuper(t.bound, s);
++                    return asSuper(t.bound, sym);
+             }
+ 
+             @Override
+-            public Type visitErrorType(ErrorType t, Type s) { return t; }
++            public Type visitErrorType(ErrorType t, Symbol sym) {
++                return t;
++            }
+         };
+ 
+     /**
+@@ -3573,9 +3563,9 @@
+             //step 3 - for each element G in MEC, compute lci(Inv(G))
+             List<Type> candidates = List.nil();
+             for (Type erasedSupertype : mec) {
+-                List<Type> lci = List.of(asSuper(ts.head, erasedSupertype));
++                List<Type> lci = List.of(asSuper(ts.head, erasedSupertype.tsym));
+                 for (Type t : ts) {
+-                    lci = intersect(lci, List.of(asSuper(t, erasedSupertype)));
++                    lci = intersect(lci, List.of(asSuper(t, erasedSupertype.tsym)));
+                 }
+                 candidates = candidates.appendList(lci);
+             }
+@@ -3995,7 +3985,7 @@
+         // The arguments to the supers could be unified here to
+         // get a more accurate analysis
+         while (commonSupers.nonEmpty()) {
+-            Type t1 = asSuper(from, commonSupers.head);
++            Type t1 = asSuper(from, commonSupers.head.tsym);
+             Type t2 = commonSupers.head; // same as asSuper(to, commonSupers.head.tsym);
+             if (disjointTypes(t1.getTypeArguments(), t2.getTypeArguments()))
+                 return false;
+@@ -4026,7 +4016,7 @@
+             from = target;
+         }
+         Assert.check((from.tsym.flags() & FINAL) != 0);
+-        Type t1 = asSuper(from, to);
++        Type t1 = asSuper(from, to.tsym);
+         if (t1 == null) return false;
+         Type t2 = to;
+         if (disjointTypes(t1.getTypeArguments(), t2.getTypeArguments()))
+diff -r 6e0f31d61e56 -r 4788eb38cac5 src/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Attr.java	Sat Nov 09 15:24:38 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/Attr.java	Mon Nov 11 09:47:46 2013 -0500
+@@ -58,7 +58,6 @@
+ import static com.sun.tools.javac.code.Kinds.ERRONEOUS;
+ import static com.sun.tools.javac.code.TypeTag.*;
+ import static com.sun.tools.javac.code.TypeTag.WILDCARD;
+-import static com.sun.tools.javac.code.TypeTag.ARRAY;
+ import static com.sun.tools.javac.tree.JCTree.Tag.*;
+ 
+ /** This is the main context-dependent analysis phase in GJC. It
+@@ -806,44 +805,33 @@
+         Type t = tree.type != null ?
+             tree.type :
+             attribType(tree, env);
+-        return checkBase(t, tree, env, classExpected, interfaceExpected, false, checkExtensible);
++        return checkBase(t, tree, env, classExpected, interfaceExpected, checkExtensible);
+     }
+     Type checkBase(Type t,
+                    JCTree tree,
+                    Env<AttrContext> env,
+                    boolean classExpected,
+-                   boolean interfacesOnlyExpected,
+-                   boolean interfacesOrArraysExpected,
++                   boolean interfaceExpected,
+                    boolean checkExtensible) {
+         if (t.isErroneous())
+             return t;
+-        if (t.hasTag(TYPEVAR) && !classExpected &&
+-            !interfacesOrArraysExpected && !interfacesOnlyExpected) {
++        if (t.hasTag(TYPEVAR) && !classExpected && !interfaceExpected) {
+             // check that type variable is already visible
+             if (t.getUpperBound() == null) {
+                 log.error(tree.pos(), "illegal.forward.ref");
+                 return types.createErrorType(t);
+             }
+-        } else if (classExpected) {
++        } else {
+             t = chk.checkClassType(tree.pos(), t, checkExtensible|!allowGenerics);
+-        } else {
+-            t = chk.checkClassOrArrayType(tree.pos(), t,
+-                                          checkExtensible|!allowGenerics);
+         }
+-        if (interfacesOnlyExpected && !t.tsym.isInterface()) {
++        if (interfaceExpected && (t.tsym.flags() & INTERFACE) == 0) {
+             log.error(tree.pos(), "intf.expected.here");
+             // return errType is necessary since otherwise there might
+             // be undetected cycles which cause attribution to loop
+             return types.createErrorType(t);
+-        } else if (interfacesOrArraysExpected &&
+-            !(t.tsym.isInterface() || t.getTag() == ARRAY)) {
+-            log.error(tree.pos(), "intf.or.array.expected.here");
+-            // return errType is necessary since otherwise there might
+-            // be undetected cycles which cause attribution to loop
+-            return types.createErrorType(t);
+         } else if (checkExtensible &&
+                    classExpected &&
+-                   t.tsym.isInterface()) {
++                   (t.tsym.flags() & INTERFACE) != 0) {
+             log.error(tree.pos(), "no.intf.expected.here");
+             return types.createErrorType(t);
+         }
+@@ -855,12 +843,6 @@
+         chk.checkNonCyclic(tree.pos(), t);
+         return t;
+     }
+-    //where
+-        private Object asTypeParam(Type t) {
+-            return (t.hasTag(TYPEVAR))
+-                                    ? diags.fragment("type.parameter", t)
+-                                    : t;
+-        }
+ 
+     Type attribIdentAsEnumType(Env<AttrContext> env, JCIdent id) {
+         Assert.check((env.enclClass.sym.flags() & ENUM) != 0);
+@@ -3985,7 +3967,7 @@
+         Set<Type> boundSet = new HashSet<Type>();
+         if (bounds.nonEmpty()) {
+             // accept class or interface or typevar as first bound.
+-            bounds.head.type = checkBase(bounds.head.type, bounds.head, env, false, false, false, false);
++            bounds.head.type = checkBase(bounds.head.type, bounds.head, env, false, false, false);
+             boundSet.add(types.erasure(bounds.head.type));
+             if (bounds.head.type.isErroneous()) {
+                 return bounds.head.type;
+@@ -4001,7 +3983,7 @@
+                 // if first bound was a class or interface, accept only interfaces
+                 // as further bounds.
+                 for (JCExpression bound : bounds.tail) {
+-                    bound.type = checkBase(bound.type, bound, env, false, false, true, false);
++                    bound.type = checkBase(bound.type, bound, env, false, true, false);
+                     if (bound.type.isErroneous()) {
+                         bounds = List.of(bound);
+                     }
+diff -r 6e0f31d61e56 -r 4788eb38cac5 src/share/classes/com/sun/tools/javac/comp/Check.java
+--- a/src/share/classes/com/sun/tools/javac/comp/Check.java	Sat Nov 09 15:24:38 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/comp/Check.java	Mon Nov 11 09:47:46 2013 -0500
+@@ -707,37 +707,6 @@
+         return t;
+     }
+ 
+-    // Analog of checkClassType that calls checkClassOrArrayType instead
+-    Type checkClassOrArrayType(DiagnosticPosition pos,
+-                               Type t, boolean noBounds) {
+-        t = checkClassOrArrayType(pos, t);
+-        if (noBounds && t.isParameterized()) {
+-            List<Type> args = t.getTypeArguments();
+-            while (args.nonEmpty()) {
+-                if (args.head.hasTag(WILDCARD))
+-                    return typeTagError(pos,
+-                                        diags.fragment("type.req.exact"),
+-                                        args.head);
+-                args = args.tail;
+-            }
+-        }
+-        return t;
+-    }
+-
+-    /** Check that type is a reifiable class, interface or array type.
+-     *  @param pos           Position to be used for error reporting.
+-     *  @param t             The type to be checked.
+-     */
+-    Type checkReifiableReferenceType(DiagnosticPosition pos, Type t) {
+-        t = checkClassOrArrayType(pos, t);
+-        if (!t.isErroneous() && !types.isReifiable(t)) {
+-            log.error(pos, "illegal.generic.type.for.instof");
+-            return types.createErrorType(t);
+-        } else {
+-            return t;
+-        }
+-    }
+-
+     /** Check that type is a reference type, i.e. a class, interface or array type
+      *  or a type variable.
+      *  @param pos           Position to be used for error reporting.
+@@ -2253,9 +2222,6 @@
+             seen = seen.prepend(tv);
+             for (Type b : types.getBounds(tv))
+                 checkNonCyclic1(pos, b, seen);
+-        } else if (t.hasTag(ARRAY)) {
+-            final ArrayType at = (ArrayType)t.unannotatedType();
+-            checkNonCyclic1(pos, at.elemtype, seen);
+         }
+     }
+ 
+diff -r 6e0f31d61e56 -r 4788eb38cac5 src/share/classes/com/sun/tools/javac/resources/compiler.properties
+--- a/src/share/classes/com/sun/tools/javac/resources/compiler.properties	Sat Nov 09 15:24:38 2013 +0100
++++ b/src/share/classes/com/sun/tools/javac/resources/compiler.properties	Mon Nov 11 09:47:46 2013 -0500
+@@ -575,9 +575,6 @@
+ compiler.err.intf.expected.here=\
+     interface expected here
+ 
+-compiler.err.intf.or.array.expected.here=\
+-    interface or array type expected here
+-
+ compiler.err.intf.meth.cant.have.body=\
+     interface abstract methods cannot have body
+ 
+diff -r 6e0f31d61e56 -r 4788eb38cac5 test/tools/javac/ArraysInIntersections.java
+--- a/test/tools/javac/ArraysInIntersections.java	Sat Nov 09 15:24:38 2013 +0100
++++ /dev/null	Thu Jan 01 00:00:00 1970 +0000
+@@ -1,39 +0,0 @@
+-/*
+- * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
+- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+- *
+- * This code is free software; you can redistribute it and/or modify it
+- * under the terms of the GNU General Public License version 2 only, as
+- * published by the Free Software Foundation.
+- *
+- * This code is distributed in the hope that it will be useful, but WITHOUT
+- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+- * version 2 for more details (a copy is included in the LICENSE file that
+- * accompanied this code).
+- *
+- * You should have received a copy of the GNU General Public License version
+- * 2 along with this work; if not, write to the Free Software Foundation,
+- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+- *
+- * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+- * or visit www.oracle.com if you need additional information or have any
+- * questions.
+- */
+-
+-/*
+- * @test
+- * @bug 8021339
+- * @summary Allow arrays in intersection types
+- * @compile ArraysInIntersections.java
+- */
+-
+-import java.io.Serializable;
+-
+-public class ArraysInIntersections<T extends Serializable & Integer[]> {
+-
+-    public <S extends Serializable & Integer[]> Object m() {
+-        return (Serializable & Integer[]) new Integer[1];
+-    }
+-
+-}
+diff -r 6e0f31d61e56 -r 4788eb38cac5 test/tools/javac/InferArraysInIntersections.java
+--- a/test/tools/javac/InferArraysInIntersections.java	Sat Nov 09 15:24:38 2013 +0100
++++ /dev/null	Thu Jan 01 00:00:00 1970 +0000
+@@ -1,38 +0,0 @@
+-/*
+- * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
+- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+- *
+- * This code is free software; you can redistribute it and/or modify it
+- * under the terms of the GNU General Public License version 2 only, as
+- * published by the Free Software Foundation.
+- *
+- * This code is distributed in the hope that it will be useful, but WITHOUT
+- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+- * version 2 for more details (a copy is included in the LICENSE file that
+- * accompanied this code).
+- *
+- * You should have received a copy of the GNU General Public License version
+- * 2 along with this work; if not, write to the Free Software Foundation,
+- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+- *
+- * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+- * or visit www.oracle.com if you need additional information or have any
+- * questions.
+- */
+-
+-/*
+- * @test
+- * @bug 8021339
+- * @summary Allow arrays in intersection types
+- * @compile -doe -XDrawDiagnostics InferArraysInIntersections.java
+- */
+-import java.util.*;
+-
+-class InferArraysInIntersections {
+-   <T> T m(List<? super T> t) { return null; }
+-
+-   void test(List<char[]> lc) {
+-      Runnable r = m(lc); //inference fails here
+-   }
+-}
+diff -r 6e0f31d61e56 -r 4788eb38cac5 test/tools/javac/diags/examples/InterfaceOrArrayExpected.java
+--- a/test/tools/javac/diags/examples/InterfaceOrArrayExpected.java	Sat Nov 09 15:24:38 2013 +0100
++++ /dev/null	Thu Jan 01 00:00:00 1970 +0000
+@@ -1,28 +0,0 @@
+-/*
+- * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
+- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+- *
+- * This code is free software; you can redistribute it and/or modify it
+- * under the terms of the GNU General Public License version 2 only, as
+- * published by the Free Software Foundation.
+- *
+- * This code is distributed in the hope that it will be useful, but WITHOUT
+- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+- * version 2 for more details (a copy is included in the LICENSE file that
+- * accompanied this code).
+- *
+- * You should have received a copy of the GNU General Public License version
+- * 2 along with this work; if not, write to the Free Software Foundation,
+- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+- *
+- * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+- * or visit www.oracle.com if you need additional information or have any
+- * questions.
+- */
+-
+-// key: compiler.err.intf.or.array.expected.here
+-
+-import java.util.List;
+-
+-class InterfaceExpected<T extends List & String> { }
+diff -r 6e0f31d61e56 -r 4788eb38cac5 test/tools/javac/generics/typevars/6680106/T6680106.out
+--- a/test/tools/javac/generics/typevars/6680106/T6680106.out	Sat Nov 09 15:24:38 2013 +0100
++++ b/test/tools/javac/generics/typevars/6680106/T6680106.out	Mon Nov 11 09:47:46 2013 -0500
+@@ -1,7 +1,13 @@
+-T6680106.java:11:14: compiler.err.cyclic.inheritance: T
+-T6680106.java:12:14: compiler.err.cyclic.inheritance: T
+-T6680106.java:13:14: compiler.err.cyclic.inheritance: T
+-T6680106.java:14:14: compiler.err.cyclic.inheritance: T
+-T6680106.java:15:14: compiler.err.cyclic.inheritance: T
+-T6680106.java:16:14: compiler.err.cyclic.inheritance: T
+-6 errors
++T6680106.java:11:25: compiler.err.type.found.req: T[], (compiler.misc.type.req.class)
++T6680106.java:12:25: compiler.err.type.found.req: S[], (compiler.misc.type.req.class)
++T6680106.java:12:40: compiler.err.type.found.req: T[], (compiler.misc.type.req.class)
++T6680106.java:13:25: compiler.err.type.found.req: S[], (compiler.misc.type.req.class)
++T6680106.java:13:40: compiler.err.type.found.req: U[], (compiler.misc.type.req.class)
++T6680106.java:13:55: compiler.err.type.found.req: T[], (compiler.misc.type.req.class)
++T6680106.java:14:30: compiler.err.type.found.req: T[], (compiler.misc.type.req.class)
++T6680106.java:15:30: compiler.err.type.found.req: S[], (compiler.misc.type.req.class)
++T6680106.java:15:50: compiler.err.type.found.req: T[], (compiler.misc.type.req.class)
++T6680106.java:16:30: compiler.err.type.found.req: S[], (compiler.misc.type.req.class)
++T6680106.java:16:50: compiler.err.type.found.req: U[], (compiler.misc.type.req.class)
++T6680106.java:16:70: compiler.err.type.found.req: T[], (compiler.misc.type.req.class)
++12 errors
+

@@ -1,0 +1,105 @@
+diff --git a/compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/library/a.kt b/compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/library/a.kt
+new file mode 100644
+index 00000000000..ecd1b615431
+--- /dev/null
++++ b/compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/library/a.kt
+@@ -0,0 +1,3 @@
++package a
++
++interface A<T>
+\ No newline at end of file
+diff --git a/compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/library/b.kt b/compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/library/b.kt
+new file mode 100644
+index 00000000000..0119a76dd55
+--- /dev/null
++++ b/compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/library/b.kt
+@@ -0,0 +1,8 @@
++package b
++
++import a.A
++
++interface B {
++    fun foo(): A<Int>
++    fun bar(): A<String>
++}
+diff --git a/compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/output.txt b/compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/output.txt
+new file mode 100644
+index 00000000000..7ebc04d7632
+--- /dev/null
++++ b/compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/output.txt
+@@ -0,0 +1,10 @@
++compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/source.kt:6:5: error: cannot access class 'a.A'. Check your module classpath for missing or conflicting dependencies
++    if (true) {
++    ^
++compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/source.kt:7:11: error: cannot access class 'a.A'. Check your module classpath for missing or conflicting dependencies
++        b.foo()
++          ^
++compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/source.kt:9:11: error: cannot access class 'a.A'. Check your module classpath for missing or conflicting dependencies
++        b.bar()
++          ^
++COMPILATION_ERROR
+diff --git a/compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/source.kt b/compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/source.kt
+new file mode 100644
+index 00000000000..69e4aa17f5e
+--- /dev/null
++++ b/compiler/testData/compileKotlinAgainstCustomBinaries/computeSupertypeWithMissingDependency/source.kt
+@@ -0,0 +1,11 @@
++package c
++
++import b.B
++
++fun bar(b: B) {
++    if (true) {
++        b.foo()
++    } else {
++        b.bar()
++    }
++}
+diff --git a/compiler/tests/org/jetbrains/kotlin/jvm/compiler/CompileKotlinAgainstCustomBinariesTest.kt b/compiler/tests/org/jetbrains/kotlin/jvm/compiler/CompileKotlinAgainstCustomBinariesTest.kt
+index 54b5818e057..b03c17de8b6 100644
+--- a/compiler/tests/org/jetbrains/kotlin/jvm/compiler/CompileKotlinAgainstCustomBinariesTest.kt
++++ b/compiler/tests/org/jetbrains/kotlin/jvm/compiler/CompileKotlinAgainstCustomBinariesTest.kt
+@@ -1,17 +1,6 @@
+ /*
+- * Copyright 2010-2017 JetBrains s.r.o.
+- *
+- * Licensed under the Apache License, Version 2.0 (the "License");
+- * you may not use this file except in compliance with the License.
+- * You may obtain a copy of the License at
+- *
+- * http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
++ * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
++ * that can be found in the license/LICENSE.txt file.
+  */
+ 
+ package org.jetbrains.kotlin.jvm.compiler
+@@ -214,6 +203,10 @@ class CompileKotlinAgainstCustomBinariesTest : AbstractKotlinCompilerIntegration
+         doTestBrokenLibrary("library", "a/A.class")
+     }
+ 
++    fun testComputeSupertypeWithMissingDependency() {
++        doTestBrokenLibrary("library", "a/A.class")
++    }
++
+     fun testMissingDependencyDifferentCases() {
+         doTestBrokenLibrary("library", "a/A.class")
+     }
+diff --git a/core/descriptors/src/org/jetbrains/kotlin/descriptors/NotFoundClasses.kt b/core/descriptors/src/org/jetbrains/kotlin/descriptors/NotFoundClasses.kt
+index cccec98a941..b1ff746ab23 100644
+--- a/core/descriptors/src/org/jetbrains/kotlin/descriptors/NotFoundClasses.kt
++++ b/core/descriptors/src/org/jetbrains/kotlin/descriptors/NotFoundClasses.kt
+@@ -61,7 +61,7 @@ class NotFoundClasses(private val storageManager: StorageManager, private val mo
+             private val isInner: Boolean,
+             numberOfDeclaredTypeParameters: Int
+     ) : ClassDescriptorBase(storageManager, container, name, SourceElement.NO_SOURCE, /* isExternal = */ false) {
+-        private val typeParameters = (1..numberOfDeclaredTypeParameters).map { index ->
++        private val typeParameters = (0 until numberOfDeclaredTypeParameters).map { index ->
+             TypeParameterDescriptorImpl.createWithDefaultBound(
+                     this, Annotations.EMPTY, false, Variance.INVARIANT, Name.identifier("T$index"), index
+             )

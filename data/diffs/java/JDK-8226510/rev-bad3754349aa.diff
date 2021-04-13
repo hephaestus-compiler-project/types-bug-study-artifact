@@ -1,0 +1,290 @@
+changeset:   55528:bad3754349aa
+user:        jlahoda
+date:        Thu Jun 27 10:39:27 2019 +0200
+summary:     8226510: No compilation error when switch expression has no result expressions
+
+diff -r ed7851b2d5e4 -r bad3754349aa src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Fri Jun 28 05:29:54 2019 +0800
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Attr.java	Thu Jun 27 10:39:27 2019 +0200
+@@ -1447,6 +1447,9 @@
+         if (tree.cases.isEmpty()) {
+             log.error(tree.pos(),
+                       Errors.SwitchExpressionEmpty);
++        } else if (caseTypes.isEmpty()) {
++            log.error(tree.pos(),
++                      Errors.SwitchExpressionNoResultExpressions);
+         }
+ 
+         Type owntype = (tree.polyKind == PolyKind.STANDALONE) ? condType(caseTypePositions.toList(), caseTypes.toList()) : pt();
+diff -r ed7851b2d5e4 -r bad3754349aa src/jdk.compiler/share/classes/com/sun/tools/javac/resources/compiler.properties
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/resources/compiler.properties	Fri Jun 28 05:29:54 2019 +0800
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/resources/compiler.properties	Thu Jun 27 10:39:27 2019 +0200
+@@ -223,6 +223,9 @@
+ compiler.err.switch.expression.empty=\
+     switch expression does not have any case clauses
+ 
++compiler.err.switch.expression.no.result.expressions=\
++    switch expression does not have any result expressions
++
+ # 0: name
+ compiler.err.call.must.be.first.stmt.in.ctor=\
+     call to {0} must be first statement in constructor
+diff -r ed7851b2d5e4 -r bad3754349aa test/langtools/tools/javac/diags/examples/BreakOutsideSwitchExpression.java
+--- a/test/langtools/tools/javac/diags/examples/BreakOutsideSwitchExpression.java	Fri Jun 28 05:29:54 2019 +0800
++++ b/test/langtools/tools/javac/diags/examples/BreakOutsideSwitchExpression.java	Thu Jun 27 10:39:27 2019 +0200
+@@ -30,7 +30,8 @@
+     int t(int i) {
+         OUT: while (true) {
+             return switch (i) {
+-                default: break OUT;
++                case 0: break OUT;
++                default: yield 0;
+             };
+         }
+         return -1;
+diff -r ed7851b2d5e4 -r bad3754349aa test/langtools/tools/javac/diags/examples/ContinueOutsideSwitchExpression.java
+--- a/test/langtools/tools/javac/diags/examples/ContinueOutsideSwitchExpression.java	Fri Jun 28 05:29:54 2019 +0800
++++ b/test/langtools/tools/javac/diags/examples/ContinueOutsideSwitchExpression.java	Thu Jun 27 10:39:27 2019 +0200
+@@ -30,7 +30,8 @@
+     int t(int i) {
+         OUT: while (true) {
+             return switch (i) {
+-                default: continue OUT;
++                case 0: continue OUT;
++                default: yield 0;
+             };
+         }
+     }
+diff -r ed7851b2d5e4 -r bad3754349aa test/langtools/tools/javac/diags/examples/ReturnOutsideSwitchExpression.java
+--- a/test/langtools/tools/javac/diags/examples/ReturnOutsideSwitchExpression.java	Fri Jun 28 05:29:54 2019 +0800
++++ b/test/langtools/tools/javac/diags/examples/ReturnOutsideSwitchExpression.java	Thu Jun 27 10:39:27 2019 +0200
+@@ -29,7 +29,8 @@
+ class ReturnOutsideSwitchExpression {
+     int t(int i) {
+         return switch (i) {
+-            default: return -1;
++            case 0: return -1;
++            default: yield 0;
+         };
+     }
+ }
+diff -r ed7851b2d5e4 -r bad3754349aa test/langtools/tools/javac/diags/examples/RuleCompletesNormally.java
+--- a/test/langtools/tools/javac/diags/examples/RuleCompletesNormally.java	Fri Jun 28 05:29:54 2019 +0800
++++ b/test/langtools/tools/javac/diags/examples/RuleCompletesNormally.java	Thu Jun 27 10:39:27 2019 +0200
+@@ -29,7 +29,8 @@
+ class RuleCompletesNormally {
+     public String convert(int i) {
+         return switch (i) {
+-            default -> {}
++            case 0 -> {}
++            default -> "";
+         };
+     }
+ }
+diff -r ed7851b2d5e4 -r bad3754349aa test/langtools/tools/javac/diags/examples/SwitchExpressionCompletesNormally.java
+--- a/test/langtools/tools/javac/diags/examples/SwitchExpressionCompletesNormally.java	Fri Jun 28 05:29:54 2019 +0800
++++ b/test/langtools/tools/javac/diags/examples/SwitchExpressionCompletesNormally.java	Thu Jun 27 10:39:27 2019 +0200
+@@ -29,6 +29,7 @@
+ class SwitchExpressionCompletesNormally {
+     public String convert(int i) {
+         return switch (i) {
++            case 0: yield "";
+             default:
+         };
+     }
+diff -r ed7851b2d5e4 -r bad3754349aa test/langtools/tools/javac/diags/examples/SwitchExpressionNoResultExpressions.java
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/test/langtools/tools/javac/diags/examples/SwitchExpressionNoResultExpressions.java	Thu Jun 27 10:39:27 2019 +0200
+@@ -0,0 +1,35 @@
++/*
++ * Copyright (c) 2019, Oracle and/or its affiliates. All rights reserved.
++ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
++ *
++ * This code is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 only, as
++ * published by the Free Software Foundation.
++ *
++ * This code is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ * version 2 for more details (a copy is included in the LICENSE file that
++ * accompanied this code).
++ *
++ * You should have received a copy of the GNU General Public License version
++ * 2 along with this work; if not, write to the Free Software Foundation,
++ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
++ *
++ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
++ * or visit www.oracle.com if you need additional information or have any
++ * questions.
++ */
++
++// key: compiler.err.switch.expression.no.result.expressions
++// key: compiler.note.preview.filename
++// key: compiler.note.preview.recompile
++// options: --enable-preview -source ${jdk.version}
++
++class SwitchExpressionCompletesNormally {
++    public String convert(int i) {
++        return switch (i) {
++            default -> throw new AssertionError();
++        };
++    }
++}
+diff -r ed7851b2d5e4 -r bad3754349aa test/langtools/tools/javac/switchexpr/EmptySwitch.java
+--- a/test/langtools/tools/javac/switchexpr/EmptySwitch.java	Fri Jun 28 05:29:54 2019 +0800
++++ b/test/langtools/tools/javac/switchexpr/EmptySwitch.java	Thu Jun 27 10:39:27 2019 +0200
+@@ -23,15 +23,29 @@
+ 
+ /*
+  * @test
+- * @bug 8206986
+- * @summary Verify than an empty switch expression is rejected.
+- * @compile/fail/ref=EmptySwitch.out --enable-preview -source ${jdk.version} -XDrawDiagnostics EmptySwitch.java
++ * @bug 8206986 8226510
++ * @summary Verify than a switch that does not yield a value is rejected.
++ * @compile/fail/ref=EmptySwitch.out --enable-preview -source ${jdk.version} -XDrawDiagnostics -XDshould-stop.at=FLOW EmptySwitch.java
+  */
+ 
+ public class EmptySwitch {
+     private void print(EmptySwitchEnum t) {
+         (switch (t) {
+         }).toString();
++        (switch (t) {
++            default -> throw new IllegalStateException();
++        }).toString();
++        (switch (t) {
++            default: throw new IllegalStateException();
++        }).toString();
++        (switch (0) {
++            case 0: yield "";
++            default:
++        }).toString();
++        (switch (0) {
++            case 0 -> { yield ""; }
++            default -> { }
++        }).toString();
+     }
+ 
+     enum EmptySwitchEnum {
+diff -r ed7851b2d5e4 -r bad3754349aa test/langtools/tools/javac/switchexpr/EmptySwitch.out
+--- a/test/langtools/tools/javac/switchexpr/EmptySwitch.out	Fri Jun 28 05:29:54 2019 +0800
++++ b/test/langtools/tools/javac/switchexpr/EmptySwitch.out	Thu Jun 27 10:39:27 2019 +0200
+@@ -1,4 +1,8 @@
+ EmptySwitch.java:33:10: compiler.err.switch.expression.empty
++EmptySwitch.java:35:10: compiler.err.switch.expression.no.result.expressions
++EmptySwitch.java:38:10: compiler.err.switch.expression.no.result.expressions
++EmptySwitch.java:44:9: compiler.err.switch.expression.completes.normally
++EmptySwitch.java:47:26: compiler.err.rule.completes.normally
+ - compiler.note.preview.filename: EmptySwitch.java
+ - compiler.note.preview.recompile
+-1 error
++5 errors
+diff -r ed7851b2d5e4 -r bad3754349aa test/langtools/tools/javac/switchexpr/ExpressionSwitchBreaks2.java
+--- a/test/langtools/tools/javac/switchexpr/ExpressionSwitchBreaks2.java	Fri Jun 28 05:29:54 2019 +0800
++++ b/test/langtools/tools/javac/switchexpr/ExpressionSwitchBreaks2.java	Thu Jun 27 10:39:27 2019 +0200
+@@ -41,9 +41,11 @@
+         }
+         }
+         j: print(switch (i) {
++            case 0: yield 0;
+             default: break j;
+         }, 0);
+         j2: print(switch (i) {
++            case 0: yield 0;
+             default: break j2;
+         }, 0);
+         return null;
+diff -r ed7851b2d5e4 -r bad3754349aa test/langtools/tools/javac/switchexpr/ExpressionSwitchBreaks2.out
+--- a/test/langtools/tools/javac/switchexpr/ExpressionSwitchBreaks2.out	Fri Jun 28 05:29:54 2019 +0800
++++ b/test/langtools/tools/javac/switchexpr/ExpressionSwitchBreaks2.out	Thu Jun 27 10:39:27 2019 +0200
+@@ -5,8 +5,8 @@
+ ExpressionSwitchBreaks2.java:30:29: compiler.err.undef.label: UNKNOWN
+ ExpressionSwitchBreaks2.java:40:17: compiler.err.no.switch.expression
+ ExpressionSwitchBreaks2.java:40:29: compiler.err.cant.resolve.location: kindname.variable, undef, , , (compiler.misc.location: kindname.class, ExpressionSwitchBreaks2, null)
+-ExpressionSwitchBreaks2.java:44:22: compiler.err.break.outside.switch.expression
+-ExpressionSwitchBreaks2.java:47:22: compiler.err.break.outside.switch.expression
++ExpressionSwitchBreaks2.java:45:22: compiler.err.break.outside.switch.expression
++ExpressionSwitchBreaks2.java:49:22: compiler.err.break.outside.switch.expression
+ - compiler.note.preview.filename: ExpressionSwitchBreaks2.java
+ - compiler.note.preview.recompile
+-9 errors
++9 errors
+\ No newline at end of file
+diff -r ed7851b2d5e4 -r bad3754349aa test/langtools/tools/javac/switchexpr/ExpressionSwitchFlow.java
+--- a/test/langtools/tools/javac/switchexpr/ExpressionSwitchFlow.java	Fri Jun 28 05:29:54 2019 +0800
++++ b/test/langtools/tools/javac/switchexpr/ExpressionSwitchFlow.java	Thu Jun 27 10:39:27 2019 +0200
+@@ -22,6 +22,7 @@
+     private String test3(int i) {
+         return switch (i) {
+             case 0 -> {}
++            case 1 -> "";
+             default -> throw new IllegalStateException();
+         };
+     }
+@@ -40,17 +41,20 @@
+     private String test6(int i) {
+         return switch (i) {
+             case 0 -> throw new IllegalStateException();
++            case 1 -> "";
+             default -> {}
+         };
+     }
+     private String test7(int i) {
+         return switch (i) {
+             case 0: throw new IllegalStateException();
++            case 1: yield "";
+             default:
+         };
+     }
+     private String test8(int i) {
+         return switch (i) {
++            case 1: yield "";
+             case 0: i++;
+             default: {
+             }
+@@ -58,6 +62,7 @@
+     }
+     private String test9(int i) {
+         return switch (i) {
++            case 1: yield "";
+             case 0:
+             default:
+                 System.err.println();
+diff -r ed7851b2d5e4 -r bad3754349aa test/langtools/tools/javac/switchexpr/ExpressionSwitchFlow.out
+--- a/test/langtools/tools/javac/switchexpr/ExpressionSwitchFlow.out	Fri Jun 28 05:29:54 2019 +0800
++++ b/test/langtools/tools/javac/switchexpr/ExpressionSwitchFlow.out	Thu Jun 27 10:39:27 2019 +0200
+@@ -1,12 +1,12 @@
+ ExpressionSwitchFlow.java:11:24: compiler.err.rule.completes.normally
+ ExpressionSwitchFlow.java:18:13: compiler.err.rule.completes.normally
+ ExpressionSwitchFlow.java:24:24: compiler.err.rule.completes.normally
+-ExpressionSwitchFlow.java:31:25: compiler.err.rule.completes.normally
+-ExpressionSwitchFlow.java:37:25: compiler.err.rule.completes.normally
+-ExpressionSwitchFlow.java:43:25: compiler.err.rule.completes.normally
+-ExpressionSwitchFlow.java:50:9: compiler.err.switch.expression.completes.normally
+-ExpressionSwitchFlow.java:57:9: compiler.err.switch.expression.completes.normally
+-ExpressionSwitchFlow.java:64:9: compiler.err.switch.expression.completes.normally
++ExpressionSwitchFlow.java:32:25: compiler.err.rule.completes.normally
++ExpressionSwitchFlow.java:38:25: compiler.err.rule.completes.normally
++ExpressionSwitchFlow.java:45:25: compiler.err.rule.completes.normally
++ExpressionSwitchFlow.java:53:9: compiler.err.switch.expression.completes.normally
++ExpressionSwitchFlow.java:61:9: compiler.err.switch.expression.completes.normally
++ExpressionSwitchFlow.java:69:9: compiler.err.switch.expression.completes.normally
+ - compiler.note.preview.filename: ExpressionSwitchFlow.java
+ - compiler.note.preview.recompile
+ 9 errors
+diff -r ed7851b2d5e4 -r bad3754349aa test/langtools/tools/javac/switchexpr/WrongBreakTest.out
+--- a/test/langtools/tools/javac/switchexpr/WrongBreakTest.out	Fri Jun 28 05:29:54 2019 +0800
++++ b/test/langtools/tools/javac/switchexpr/WrongBreakTest.out	Thu Jun 27 10:39:27 2019 +0200
+@@ -1,8 +1,9 @@
+ WrongBreakTest.java:36:41: compiler.err.illegal.start.of.expr
+ WrongBreakTest.java:35:39: compiler.err.break.outside.switch.expression
++WrongBreakTest.java:35:17: compiler.err.switch.expression.no.result.expressions
+ WrongBreakTest.java:36:9: compiler.err.ref.ambiguous: test, kindname.method, test(int), WrongBreakTest, kindname.method, test(java.lang.Object), WrongBreakTest
+ WrongBreakTest.java:38:13: compiler.err.no.switch.expression
+ WrongBreakTest.java:41:13: compiler.err.no.switch.expression
+ - compiler.note.preview.filename: WrongBreakTest.java
+ - compiler.note.preview.recompile
+-5 errors
++6 errors
+
