@@ -57,6 +57,6 @@ python scripts/rq2.py data/bugs.json --patterns figures/patterns.pdf \
     --patterns-symptoms figures/patterns_symptoms.pdf
 python scripts/rq3.py data/diffs/ data/ --directory figures
 python scripts/rq4.py data/characteristics.json data/bugs.json data/test_cases/ \
-    --output characteristics.pdf
-python scripts/lift.py data/iterations/ data/ data/diffs/
+    --output figures/characteristics.pdf
+python scripts/lift.py data/bugs.json data/ data/diffs/
 ```
