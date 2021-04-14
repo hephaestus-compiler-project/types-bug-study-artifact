@@ -1,0 +1,40 @@
+As reported by @JasnaMRB.
+
+Reasonably minimized:
+```scala
+trait AA
+trait BB
+trait Foo {
+  def consume(a: AA): Unit
+}
+
+object FooOpss {
+  implicit class FooOps(val self: Foo) {
+    def consume(a: BB): Unit = ???
+  }
+}
+import FooOpss._
+
+class Test {
+  val theFoo: Foo = ???
+  def doIt(id: Long): Unit =
+    theFoo.consume(BBFactory.create(id))
+}
+
+object BBFactory {
+  def create(id: Long)(implicit i: DummyImplicit): BB = ???
+}
+```
+
+If that's not minimal enough, have a salient `-Ytyper-debug` message:
+```
+|    |    |    no second try: (a: AA)Unit and (id: Long)(implicit i: DummyImplicit)BB because error not in result: source-/Users/hhoughton/Developer/scala/test/files/pos/jasna/Test.scala,line-17,offset=278!=RangePosition(/Users/hhoughton/Developer/scala/test/files/pos/jasna/Test.scala, 247, 261, 283)
+```
+
+
+and also the revealing difference before and after `typer`:
+```
+    [216:283]def doIt([225:233]id: [229:233]Long): [236:240]Unit = [247:283][247:261]theFoo.consume([262:282][262:278]BBFactory.create([279:281]id))
+
+    [216:283]def doIt([225:233]id: [229:233]<type: [229:233]scala.Long>): [220]Unit = [247:283][247:261][247]Test.this.theFoo.consume([262:282][262:278]BBFactory.create([279:281]id))
+```

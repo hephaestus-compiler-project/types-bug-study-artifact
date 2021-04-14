@@ -1,0 +1,212 @@
+FULL PRODUCT VERSION :
+java version "1.8.0_25"
+Java(TM) SE Runtime Environment (build 1.8.0_25-b17)
+Java HotSpot(TM) 64-Bit Server VM (build 25.25-b02, mixed mode)
+
+Javac -version:
+javac 1.8.0_25
+
+ADDITIONAL OS VERSION INFORMATION :
+Darwin 14.0.0 Darwin Kernel Version 14.0.0: Fri Sep 19 00:26:44 PDT 2014; root:xnu-2782.1.97~2/RELEASE_X86_64 x86_64
+
+A DESCRIPTION OF THE PROBLEM :
+When trying to compile code that passes an empty diamonoperator in super constructor code will fail in null pointer.
+
+public class CompilerBug {
+
+    public CompilerBug() {
+        super(new Object<>());
+    }
+
+    public static void main() {
+        new CompilerBug();
+    }
+}
+
+compiling above code with javac
+javac CompileBug.java
+
+will fail with stacktrace:
+
+An exception has occurred in the compiler (1.8.0_25). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.NullPointerException
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitNewClass(Flow.java:1239)
+	at com.sun.tools.javac.tree.JCTree$JCNewClass.accept(JCTree.java:1516)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitApply(Flow.java:1230)
+	at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1465)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.tree.TreeScanner.visitExec(TreeScanner.java:175)
+	at com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1296)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitBlock(Flow.java:993)
+	at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:909)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitMethodDef(Flow.java:960)
+	at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:778)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitClassDef(Flow.java:923)
+	at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:693)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.analyzeTree(Flow.java:1323)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.analyzeTree(Flow.java:1313)
+	at com.sun.tools.javac.comp.Flow.analyzeTree(Flow.java:212)
+	at com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1327)
+	at com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1296)
+	at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:901)
+	at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:860)
+	at com.sun.tools.javac.main.Main.compile(Main.java:523)
+	at com.sun.tools.javac.main.Main.compile(Main.java:381)
+	at com.sun.tools.javac.main.Main.compile(Main.java:370)
+	at com.sun.tools.javac.main.Main.compile(Main.java:361)
+	at com.sun.tools.javac.Main.compile(Main.java:56)
+	at com.sun.tools.javac.Main.main(Main.java:42)
+
+REGRESSION.  Last worked in version 7u71
+
+ADDITIONAL REGRESSION INFORMATION: 
+java -version:
+java version "1.7.0_71"
+Java(TM) SE Runtime Environment (build 1.7.0_71-b14)
+Java HotSpot(TM) 64-Bit Server VM (build 24.71-b01, mixed mode)
+
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+
+public class CompilerBug {
+
+    public CompilerBug() {
+        super(new Object<>());
+    }
+
+    public static void main() {
+        new CompilerBug();
+    }
+}
+compiling above code with javac (1.8.0_25)
+will fail with NullPointerException
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Should produce a compilation error. Not a Nullpointer exception.
+
+as in previous version (1.7.0_71)
+
+CompilerBug.java:8: error: cannot infer type arguments for Object;
+        super(new Object<>());
+                        ^
+  reason: cannot use '<>' with non-generic class Object
+1 error
+ACTUAL -
+An exception has occurred in the compiler (1.8.0_25). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.NullPointerException
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitNewClass(Flow.java:1239)
+	at com.sun.tools.javac.tree.JCTree$JCNewClass.accept(JCTree.java:1516)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitApply(Flow.java:1230)
+	at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1465)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.tree.TreeScanner.visitExec(TreeScanner.java:175)
+	at com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1296)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitBlock(Flow.java:993)
+	at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:909)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitMethodDef(Flow.java:960)
+	at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:778)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitClassDef(Flow.java:923)
+	at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:693)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.analyzeTree(Flow.java:1323)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.analyzeTree(Flow.java:1313)
+	at com.sun.tools.javac.comp.Flow.analyzeTree(Flow.java:212)
+	at com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1327)
+	at com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1296)
+	at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:901)
+	at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:860)
+	at com.sun.tools.javac.main.Main.compile(Main.java:523)
+	at com.sun.tools.javac.main.Main.compile(Main.java:381)
+	at com.sun.tools.javac.main.Main.compile(Main.java:370)
+	at com.sun.tools.javac.main.Main.compile(Main.java:361)
+	at com.sun.tools.javac.Main.compile(Main.java:56)
+	at com.sun.tools.javac.Main.main(Main.java:42)
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+An exception has occurred in the compiler (1.8.0_25). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.NullPointerException
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitNewClass(Flow.java:1239)
+	at com.sun.tools.javac.tree.JCTree$JCNewClass.accept(JCTree.java:1516)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitApply(Flow.java:1230)
+	at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1465)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.tree.TreeScanner.visitExec(TreeScanner.java:175)
+	at com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1296)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitBlock(Flow.java:993)
+	at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:909)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitMethodDef(Flow.java:960)
+	at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:778)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitClassDef(Flow.java:923)
+	at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:693)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:398)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.analyzeTree(Flow.java:1323)
+	at com.sun.tools.javac.comp.Flow$FlowAnalyzer.analyzeTree(Flow.java:1313)
+	at com.sun.tools.javac.comp.Flow.analyzeTree(Flow.java:212)
+	at com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1327)
+	at com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1296)
+	at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:901)
+	at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:860)
+	at com.sun.tools.javac.main.Main.compile(Main.java:523)
+	at com.sun.tools.javac.main.Main.compile(Main.java:381)
+	at com.sun.tools.javac.main.Main.compile(Main.java:370)
+	at com.sun.tools.javac.main.Main.compile(Main.java:361)
+	at com.sun.tools.javac.Main.compile(Main.java:56)
+	at com.sun.tools.javac.Main.main(Main.java:42)
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+public class CompilerBug {
+
+    public CompilerBug() {
+        super(new Object<>());
+    }
+
+    public static void main() {
+        new CompilerBug();
+    }
+}
+
+---------- END SOURCE ----------
+

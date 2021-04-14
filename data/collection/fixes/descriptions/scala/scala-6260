@@ -1,0 +1,101 @@
+Lambdas with AnyVal extension arguments, where the single val is erased to Object, seem to produce invalid classes, which is only indicated when trying to load those classes.  This is a simplified example.
+
+```scala
+> console-quick
+[info] Starting scala interpreter...
+[info]
+Welcome to Scala version 2.10.0-M6 (Java HotSpot(TM) 64-Bit Server VM, Java 1.6.0_33).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> class Box[X](val x: X) extends AnyVal {
+     |   def map[Y](f: X => Y): Box[Y] =
+     |     ((bx: Box[X]) => new Box(f(bx.x)))(this)
+     | }
+defined class Box
+
+scala> new Box(42) map (_ + 1)
+java.lang.ClassFormatError: Duplicate method name&signature in class file Box$$anonfun$extension$map$1
+        at java.lang.ClassLoader.defineClass1(Native Method)
+        at java.lang.ClassLoader.defineClassCond(Unknown Source)
+        at java.lang.ClassLoader.defineClass(Unknown Source)
+        at java.lang.ClassLoader.defineClass(Unknown Source)
+        at scala.tools.nsc.interpreter.AbstractFileClassLoader.findClass(AbstractFileClassLoader.scala:71)
+        at java.lang.ClassLoader.loadClass(Unknown Source)
+        at java.lang.ClassLoader.loadClass(Unknown Source)
+        at Box$.extension$map(<console>:9)
+        at .<init>(<console>:8)
+        at .<clinit>(<console>)
+        at .<init>(<console>:7)
+        at .<clinit>(<console>)
+        at $print(<console>)
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)
+        at java.lang.reflect.Method.invoke(Unknown Source)
+        at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.call(IMain.scala:736)
+        at scala.tools.nsc.interpreter.IMain$Request.loadAndRun(IMain.scala:991)
+        at scala.tools.nsc.interpreter.IMain.loadAndRunReq$1(IMain.scala:579)
+        at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:610)
+        at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:574)
+        at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:742)
+        at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:787)
+        at scala.tools.nsc.interpreter.ILoop.command(ILoop.scala:699)
+        at scala.tools.nsc.interpreter.ILoop.processLine$1(ILoop.scala:563)
+        at scala.tools.nsc.interpreter.ILoop.innerLoop$1(ILoop.scala:570)
+        at scala.tools.nsc.interpreter.ILoop.loop(ILoop.scala:573)
+        at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply$mcZ$sp(ILoop.scala:864)
+        at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply(ILoop.scala:819)
+        at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply(ILoop.scala:819)
+        at scala.tools.nsc.util.ScalaClassLoader$.savingContextLoader(ScalaClassLoader.scala:135)
+        at scala.tools.nsc.interpreter.ILoop.process(ILoop.scala:819)
+        at scala.tools.nsc.interpreter.ILoop.main(ILoop.scala:886)
+        at xsbt.ConsoleInterface.run(ConsoleInterface.scala:57)
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)
+        at java.lang.reflect.Method.invoke(Unknown Source)
+        at sbt.compiler.AnalyzingCompiler.call(AnalyzingCompiler.scala:73)
+        at sbt.compiler.AnalyzingCompiler.console(AnalyzingCompiler.scala:64)
+        at sbt.Console.console0$1(Console.scala:23)
+        at sbt.Console$$anonfun$apply$2$$anonfun$apply$1.apply$mcV$sp(Console.scala:24)
+        at sbt.TrapExit$.executeMain$1(TrapExit.scala:33)
+        at sbt.TrapExit$$anon$1.run(TrapExit.scala:42)
+```
+
+```java
+// Box$$anonfun$extension$map$1 from javap
+public final class Box$$anonfun$extension$map$1 extends scala.runtime.AbstractFunction1 implements scala.Serializable{
+public static final long serialVersionUID;
+
+public final java.lang.Object apply(java.lang.Object);
+  Code:
+   0:	aload_0
+   1:	getfield	#23; //Field f$1:Lscala/Function1;
+   4:	aload_1
+   5:	invokeinterface	#27,  2; //InterfaceMethod scala/Function1.apply:(Ljava/lang/Object;)Ljava/lang/Object;
+   10:	areturn
+
+public final java.lang.Object apply(java.lang.Object);
+  Code:
+   0:	new	#33; //class Box
+   3:	dup
+   4:	aload_0
+   5:	aload_1
+   6:	checkcast	#33; //class Box
+   9:	invokevirtual	#37; //Method Box.x:()Ljava/lang/Object;
+   12:	invokevirtual	#38; //Method apply:(Ljava/lang/Object;)Ljava/lang/Object;
+   15:	invokespecial	#42; //Method Box."<init>":(Ljava/lang/Object;)V
+   18:	areturn
+
+public Box$$anonfun$extension$map$1(scala.Function1);
+  Code:
+   0:	aload_0
+   1:	aload_1
+   2:	putfield	#23; //Field f$1:Lscala/Function1;
+   5:	aload_0
+   6:	invokespecial	#47; //Method scala/runtime/AbstractFunction1."<init>":()V
+   9:	return
+
+}
+```

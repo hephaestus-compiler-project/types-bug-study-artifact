@@ -1,0 +1,33 @@
+Here is the simplest code I can offer to reproduce this problem:
+```kotlin
+interface Inner
+interface Wrapper<T : Inner>
+
+object Start : Inner
+object End : Inner
+object Other : Inner
+
+fun <T : Inner> wrapper() = object : Wrapper<T> {}
+fun <T : Inner> consume(wrapper: Wrapper<T>) {}
+
+fun error() {
+    val list = listOf(wrapper<Start>(), wrapper<End>())
+    consume(list.firstOrNull() ?: wrapper<Other>())
+}
+```
+The expression `list.firstOrNull() ?: wrapper<Other>()` generates a whopping 12 errors by itself. The actual number of errors varies depending on the expression, but here are all the errors this expression generates:
+```
+e: (31, 13): Type mismatch: inferred type is Wrapper<out Inner>? but Wrapper<Inner>? was expected
+e: (31, 13): Type mismatch: inferred type is Wrapper<out Inner> but Wrapper<Inner> was expected
+e: (31, 13): Type mismatch: inferred type is Wrapper<Other> but Wrapper<Inner> was expected
+e: (31, 13): Type mismatch: inferred type is Wrapper<out Inner> but Wrapper<Inner>? was expected
+e: (31, 13): Type mismatch: inferred type is Inner but Other was expected
+e: (31, 13): Type mismatch: inferred type is Wrapper<Inner> but Wrapper<out Other> was expected
+e: (31, 13): Type mismatch: inferred type is Wrapper<out Inner> but Wrapper<out Other> was expected
+e: (31, 13): Type mismatch: inferred type is Wrapper<out Inner> but Wrapper<out Other>? was expected
+e: (31, 13): Type mismatch: inferred type is Wrapper<Inner> but Wrapper<Other> was expected
+e: (31, 13): Type mismatch: inferred type is Wrapper<out Inner> but Wrapper<Other> was expected
+e: (31, 13): Type mismatch: inferred type is Wrapper<out Inner> but Wrapper<Other>? was expected
+e: (31, 35): Type mismatch: inferred type is Wrapper<Other> but Wrapper<Inner> was expected
+```
+If the expression is extracted into a `val` and used in the function after being declared, no errors are generated. This code works perfectly fine with the current type inference engine.

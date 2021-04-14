@@ -1,0 +1,26 @@
+```scala
+object Test {
+  type T <: AnyRef
+
+  def test(x: T): Unit = {
+    x match {
+      case foo =>
+        val z: T = foo
+    }
+  }
+}
+```
+This compiles with scalac but fails in dotty with:
+```scala
+-- [E007] Type Mismatch Error: try/collect.scala -------------------------------
+7 |        val z: T = foo
+  |                   ^^^
+  |                   found:    Object(foo)
+  |                   required: Test.T
+```
+This happens because we aggressively widen the selector in `typedMatch`:
+```scala
+        val selType = widenForMatchSelector(
+            fullyDefinedType(sel1.tpe, "pattern selector", tree.pos))
+```
+Replacing `widenForMatchSelector` for by a call to `.widen` fixes the issue, but breaks one test:  `tests/patmat/for.scala` which is run with `-Ycheck-all-patmat` and should not report any exhaustivity warning, I'm not sure why there's a difference here. A possible solution would be to call `widenForMatchSelector` inside the exhaustivity checker, but I don't know if that gives the correct semantics.

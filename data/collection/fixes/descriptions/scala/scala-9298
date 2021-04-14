@@ -1,0 +1,63 @@
+It looks like scalac tries to semi-erase value classes in Java-defined symbols, which of course doesn't make sense since these symbols come from a classfile:
+
+Meter.scala:
+```scala
+class Meter(val x: Int) extends AnyVal
+```
+JUse.java:
+```java
+class JUse {
+  public static Meter jm() {
+    return new Meter(2);
+  }
+}
+```
+Use.scala:
+```scala
+object Use {
+  def main(args: Array[String]): Unit = {
+    val x: Meter = JUse.jm
+  }
+}
+```
+Runtime error:
+```scala
+% scala Use
+java.lang.NoSuchMethodError: JUse.jm()I
+        at Use$.main(Use.scala:5)
+        at Use.main(Use.scala)
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:497)
+        at scala.reflect.internal.util.ScalaClassLoader$$anonfun$run$1.apply(ScalaClassLoader.scala:70)
+        at scala.reflect.internal.util.ScalaClassLoader$class.asContext(ScalaClassLoader.scala:31)
+        at scala.reflect.internal.util.ScalaClassLoader$URLClassLoader.asContext(ScalaClassLoader.scala:101)
+        at scala.reflect.internal.util.ScalaClassLoader$class.run(ScalaClassLoader.scala:70)
+        at scala.reflect.internal.util.ScalaClassLoader$URLClassLoader.run(ScalaClassLoader.scala:101)
+        at scala.tools.nsc.CommonRunner$class.run(ObjectRunner.scala:22)
+        at scala.tools.nsc.ObjectRunner$.run(ObjectRunner.scala:39)
+        at scala.tools.nsc.CommonRunner$class.runAndCatch(ObjectRunner.scala:29)
+        at scala.tools.nsc.ObjectRunner$.runAndCatch(ObjectRunner.scala:39)
+        at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:65)
+        at scala.tools.nsc.MainGenericRunner.run$1(MainGenericRunner.scala:87)
+        at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:98)
+        at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:103)
+        at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+```
+
+
+The output of Erasure confirms that the compiler has completely lost its mind as it tries to cast an Integer to a Meter:
+```scala
+  object Use extends Object {
+    def <init>(): Use.type = {
+      Use.super.<init>();
+      ()
+    };
+    def main(args: Array[String]): Unit = {
+      val x: ErasedValueType(class Meter, Int) = scala.Int.box(JUse.jm()).$asInstanceOf[Meter]().x().$asInstanceOf[ErasedValueType(class Meter, Int)]();
+      ()
+    }
+  }
+
+```

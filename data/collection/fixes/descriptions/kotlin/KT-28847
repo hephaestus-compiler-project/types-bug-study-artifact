@@ -1,0 +1,95 @@
+Compile the following code (it's extracted from [GithubPullRequestDescriptionPanel.kt](https://github.com/JetBrains/intellij-community/blob/master/plugins/github/src/org/jetbrains/plugins/github/pullrequest/ui/details/GithubPullRequestDescriptionPanel.kt)) with Kotlin 1.3.11 and language and API level set to 1.3. 
+```
+import kotlin.properties.ObservableProperty
+import kotlin.reflect.KProperty
+
+class Foo {
+    var property: String? by equalVetoingObservable<String?>(null) {
+        !it.isNullOrEmpty()
+        foo.bar()
+    }
+
+    private val foo = object : Any() {
+        fun bar() {
+            !property.isNullOrEmpty()
+        }
+
+    }
+
+    inline fun <T> equalVetoingObservable(initialValue: T, crossinline onChange: (newValue: T) -> Unit) =
+        object : ObservableProperty<T>(initialValue) {
+            override fun beforeChange(property: KProperty<*>, oldValue: T, newValue: T) = oldValue != newValue
+            override fun afterChange(property: KProperty<*>, oldValue: T, newValue: T) = onChange(newValue)
+        }
+}
+```
+
+It fails with the following exception:
+
+```stacktrace
+> Error:Kotlin: [Internal Error] java.lang.AssertionError: Rewrite at slice FUNCTOR key: @kotlin.internal.InlineOnly public inline fun kotlin.CharSequence?.isNullOrEmpty(): kotlin.Boolean defined in kotlin.text[DeserializedSimpleFunctionDescriptor@24720f61] old value: org.jetbrains.kotlin.contracts.model.functors.SubstitutingFunctor@ea72407@245834759 new value: org.jetbrains.kotlin.contracts.model.functors.SubstitutingFunctor@5765ed6e@1466297710
+	at com.intellij.openapi.diagnostic.DefaultLogger.error(DefaultLogger.java:63)
+	at com.intellij.openapi.diagnostic.Logger.error(Logger.java:123)
+	at org.jetbrains.kotlin.util.slicedMap.Slices.logErrorAboutRewritingNonEqualObjects(Slices.java:157)
+	at org.jetbrains.kotlin.util.slicedMap.Slices.access$000(Slices.java:30)
+	at org.jetbrains.kotlin.util.slicedMap.Slices$1.processRewrite(Slices.java:42)
+	at org.jetbrains.kotlin.util.slicedMap.SlicedMapImpl.put(SlicedMapImpl.java:65)
+	at org.jetbrains.kotlin.resolve.BindingTraceContext.record(BindingTraceContext.java:135)
+	at org.jetbrains.kotlin.cli.jvm.compiler.NoScopeRecordCliBindingTrace.record(CliTrace.kt:52)
+	at org.jetbrains.kotlin.resolve.ObservableBindingTrace.record(ObservableBindingTrace.java:56)
+	at org.jetbrains.kotlin.resolve.BindingContextUtils.lambda$addOwnDataTo$0(BindingContextUtils.java:238)
+	at org.jetbrains.kotlin.util.slicedMap.SlicedMapImpl.lambda$forEach$0(SlicedMapImpl.java:116)
+	at org.jetbrains.kotlin.util.slicedMap.OpenAddressLinearProbingHashTable.forEach(OpenAddressLinearProbingHashTable.kt:123)
+	at org.jetbrains.kotlin.util.slicedMap.SlicedMapImpl.forEach(SlicedMapImpl.java:110)
+	at org.jetbrains.kotlin.resolve.BindingContextUtils.addOwnDataTo(BindingContextUtils.java:236)
+	at org.jetbrains.kotlin.resolve.DelegatingBindingTrace.addOwnDataTo(DelegatingBindingTrace.kt:145)
+	at org.jetbrains.kotlin.resolve.TemporaryBindingTrace.commit(TemporaryBindingTrace.java:52)
+	at org.jetbrains.kotlin.resolve.DelegatedPropertyResolver.resolveDelegateExpression(DelegatedPropertyResolver.kt:486)
+	at org.jetbrains.kotlin.resolve.DelegatedPropertyResolver.resolvePropertyDelegate(DelegatedPropertyResolver.kt:89)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolvePropertyDelegate(BodyResolver.java:862)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolveProperty(BodyResolver.java:756)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolvePropertyDeclarationBodies(BodyResolver.java:777)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolveBehaviorDeclarationBodies(BodyResolver.java:117)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolveBodies(BodyResolver.java:242)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations(LazyTopDownAnalyzer.kt:225)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations$default(LazyTopDownAnalyzer.kt:60)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(TopDownAnalyzerFacadeForJVM.kt:110)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration$default(TopDownAnalyzerFacadeForJVM.kt:82)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$analyze$1.invoke(KotlinToJVMBytecodeCompiler.kt:375)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$analyze$1.invoke(KotlinToJVMBytecodeCompiler.kt:67)
+	at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.kt:107)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.kt:366)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt:120)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:161)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:57)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.java:96)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.java:52)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:93)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$compile$$inlined$ifAlive$lambda$1.invoke(CompileServiceImpl.kt:436)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$compile$$inlined$ifAlive$lambda$1.invoke(CompileServiceImpl.kt:102)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$$inlined$ifAlive$lambda$2.invoke(CompileServiceImpl.kt:1029)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$$inlined$ifAlive$lambda$2.invoke(CompileServiceImpl.kt:102)
+	at org.jetbrains.kotlin.daemon.common.DummyProfiler.withMeasure(PerfUtils.kt:137)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.checkedCompile(CompileServiceImpl.kt:1071)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.doCompile(CompileServiceImpl.kt:1028)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:434)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:357)
+	at sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:573)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:834)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:688)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:687)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+Caused by: java.lang.Throwable: Rewrite at slice FUNCTOR key: @kotlin.internal.InlineOnly public inline fun kotlin.CharSequence?.isNullOrEmpty(): kotlin.Boolean defined in kotlin.text[DeserializedSimpleFunctionDescriptor@24720f61] old value: org.jetbrains.kotlin.contracts.model.functors.SubstitutingFunctor@ea72407@245834759 new value: org.jetbrains.kotlin.contracts.model.functors.SubstitutingFunctor@5765ed6e@1466297710
+	... 61 more
+```

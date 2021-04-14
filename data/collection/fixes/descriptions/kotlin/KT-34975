@@ -1,0 +1,127 @@
+# Classification
+
+* Type of change:
+    * New errors are introduced
+* Motivation types:
+    * Implementation changes are required for implementation design/architectural reasons
+* Impact types:
+    * Compilation. Some code that used to compile won't compile anymore
+        * There were cases when such code worked with no exceptions
+            * Some such code could compile without any warnings
+* Detection and Migration modes:
+    * Migration can't be automated
+
+# Existing behavior
+
+## Code example
+
+The code is
+
+```kotlin
+class Tree(val x: Int, val left: Tree? = null, val right: Tree? = null)
+
+fun order(T: Tree?) = sequence {
+    if (T == null) return@sequence
+    yieldAll(order(T.left))
+    yield(T.x)
+    yieldAll(order(T.right))
+}
+```
+
+This code compiles without errors and warnings.
+
+## What's wrong with it
+
+The problem is that the resulting type of the function `order` depends on a recursive constraint inside lambda of the `sequence` call: `yieldAll(order(T.left))`. So, in order to analyze `yieldAll(order(T.left))` we have to know type of the function `order`. Note that this pattern works only for so-called builder inference, where the type of a call is computed from the constraints inside a lambda.
+To support this kind of inference, the compiler analyzes the lambda of a `sequence` call **twice**. After the first pass, the compiler tries to compute the type of the `sequence` call from proper constraints such as `yield(T.x)` and then analyzes lambda for the second time. As a result, such code works but because of exponential growth use of similar pattern can be resulted in poor compiler performance. For example, the following code compiles about 15 seconds (measurements are very simple):
+```
+fun test() = sequence {
+    sequence {
+        sequence {
+            sequence {
+                sequence {
+                    sequence {
+                        sequence {
+                            sequence {
+                                sequence {
+                                    sequence {
+                                        foo()
+                                        foo()
+                                        foo()
+                                        foo()
+                                        foo()
+                                        foo()
+                                        foo()
+                                        foo()
+                                        foo()
+                                        foo()
+                                        foo()
+                                        yield("")
+                                    }
+                                    yield("")
+                                }
+                                yield("")
+                            }
+                            yield("")
+                        }
+                        yield("")
+                    }
+                    yield("")
+                }
+                yield("")
+            }
+            yield("")
+        }    
+        yield("")
+    }
+    yield("")
+}
+
+fun foo() {}
+```
+
+After the fix, this code compiles in less than a second. 
+
+# Affected versions: when did the problem appear first?
+
+The problem exists since Kotlin 1.2
+
+# Proposed changes
+
+The proposal is to fix "builder inference" algorithm and analyze such lambdas only once. As a result, this kind of algorithm will be more similar to a regular one but the initial example will not compile anymore as there will be an error about recursive constraint:
+```kotlin
+class Tree(val x: Int, val left: Tree? = null, val right: Tree? = null)
+
+fun order(T: Tree?) = sequence {
+    if (T == null) return@sequence
+    yieldAll(order(T.left)) // Error: Type checking has run into a recursive problem.
+    yield(T.x)
+    yieldAll(order(T.right))
+}
+```
+
+In some cases, where there are nested lambdas with such inference, compilation speed can be improved as for the example above with nested `sequence` calls.
+
+# Impact
+
+Some code will not compile anymore but we didn't meet such pattern during compilation of our internal projects, so we believe that it's quite rare.
+
+## Workaround
+
+The workaround is to specify the return type of the function `order` as it states in the error description:
+```kotlin
+class Tree(val x: Int, val left: Tree? = null, val right: Tree? = null)
+
+fun order(T: Tree?): Sequence<Int> = sequence {
+    if (T == null) return@sequence
+    yieldAll(order(T.left))
+    yield(T.x)
+    yieldAll(order(T.right))
+}
+```
+
+# Migration plan
+
+- 1.4.0 Implement proposed changes
+
+This problem is fixed under the new type inference algorithm, so there will be a common compiler key for the old behavior.

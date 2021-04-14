@@ -1,0 +1,73 @@
+FULL PRODUCT VERSION :
+java version "9.0.1"
+Java(TM) SE Runtime Environment (build 9.0.1+11)
+Java HotSpot(TM) 64-Bit Server VM (build 9.0.1+11, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux 3.13.0-46-generic #79-Ubuntu SMP Tue Mar 10 20:06:50 UTC 2015 x86_64 x86_64 x86_64 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+Compiling the given source code with JDK9 results in the given compile error; the code compiles fine with versions 1.8.0_151 and 10-ea+30.
+The error is caused by the presence of the type parameter <T> in the declaration of myMethod. If the method is declared as "static void myMethod(Object data)" instead, the code compiles in JDK9 as well. Note that the compilation still fails if the type parameter is present but not referenced, e.g. "static <T> void myMethod() {}" still causes the same error even though <T> is not used anywhere.
+
+REGRESSION.  Last worked in version 8u151
+
+ADDITIONAL REGRESSION INFORMATION: 
+java version "1.8.0_151"
+Java(TM) SE Runtime Environment (build 1.8.0_151-b12)
+Java HotSpot(TM) 64-Bit Server VM (build 25.151-b12, mixed mode)
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile the given source code with JDK 9
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Code compiles without error
+ACTUAL -
+Compilation fails
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+CompileErrJdk9.java:24: error: incompatible types: inference variable R has incompatible bounds
+        call(() -> myMethod("hello")); //compile error in jdk9
+            ^
+    upper bounds: Object
+    lower bounds: void
+  where R is a type-variable:
+    R extends Object declared in method <R>call(Closure<R>)
+1 error
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+public class CompileErrJdk9 {
+
+    @FunctionalInterface public interface Closure<R> {
+        R apply();
+    }
+
+    @FunctionalInterface public interface VoidClosure {
+        void apply();
+    }
+
+    static <R> R call(Closure<R> closure) {
+        return closure.apply();
+    }
+
+    static void call(VoidClosure closure) {
+        call(() -> { closure.apply(); return null; });
+    }
+
+    static <T> void myMethod(T data) {
+        System.out.println(data);
+    }
+
+    public static void main(String[] args) {
+        call(() -> myMethod("hello")); //compile error in jdk9
+    }
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Removing the type parameter <T> from the declaration of myMethod (e.g. using Object as the parameter type) causes the code to compile normally even under JDK9.
+

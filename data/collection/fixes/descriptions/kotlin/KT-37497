@@ -1,0 +1,29 @@
+The following code
+```
+import java.util.*
+
+object Bug1 {
+    @JvmStatic
+    fun main(args: Array<String>) {
+        val list = object : ArrayList<String>(listOf("a")) {
+            override fun sort(c: Comparator<in String>?) {
+                super.sort(c)
+                println(c)
+            }
+        }
+        println(list)
+    }
+}
+```
+
+is compilable and runnable without -Xnew-inference, but with -Xnew-inference isn't.
+
+The compiler error output is:
+```
+Error:(8, 17) Kotlin: 'super' is not an expression, it can not be used as a receiver for extension functions
+Error:(8, 23) Kotlin: Using 'sort(kotlin.Comparator<in T> /* = java.util.Comparator<in T> */): Unit' is an error. Use sortWith(comparator) instead.
+Error:(8, 28) Kotlin: Type mismatch: inferred type is java.util.Comparator<CapturedType(in String)>? but kotlin.Comparator<in TypeVariable(T)> /* = java.util.Comparator<in TypeVariable(T)> */ was expected
+```
+
+Kotlin 1.3.70
+JDK 13

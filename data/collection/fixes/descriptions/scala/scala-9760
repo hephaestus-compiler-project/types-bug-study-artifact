@@ -1,0 +1,26 @@
+In the following the, pattern matches should refine `F` to `List`, 
+```scala
+object HKGADT {
+  sealed trait Foo[F[_]]
+  final case class Bar() extends Foo[List]
+
+  def frob[F[_]](foo: Foo[F]): F[Int] =
+    foo match {
+      case Bar() => // dotc accepts the pattern, scalac doesn't.
+         List(1) // both dotc and scalac error here
+    }
+
+  sealed trait Foo1[F]
+  final case class Bar1() extends Foo1[Int]
+  def frob1[A](foo: Foo1[A]) = foo match {
+    case Bar1() => 1 // alles klar in scalac, dotc
+  }
+}
+```
+
+It doesn't because of this [defensive move](https://github.com/scala/scala/commit/f39537a369e3b137f5b1bef21cc8f5d86bc9d9d8#diff-62ccdfe29e58b8e9f06ed66d4cfc88a5R1459) ... according to @retronym this,
+
+>does not treat `F` in the type of the scrutinee of the match as a free type param, which is needed to allow the constructor pattern of type `Foo[List]` to be allowed.
+
+
+It turns out that this exclusion is overly conservative and the bug it was originally introduced to avoid was later fixed independently in [this commit](https://github.com/scala/scala/pull/2354/commits/6a61e172d9de912c74af50e49f0057fbe8d4e500).

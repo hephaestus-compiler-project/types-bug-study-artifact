@@ -1,0 +1,75 @@
+The static type checker cannot find default methods on an interface if the method overloads an abstract method. For example, consider the following Java classes:
+{code:java}
+package net.robinfriedli.botify.scripting;
+
+public interface TestInt {
+
+    void foo(String s);
+
+    default void foo(long l) {}
+}
+
+public class TestImpl implements TestInt {
+    @Override
+    public void foo(String s) {
+    }
+}{code}
+When compiling the script
+{code:java}
+new net.robinfriedli.botify.scripting.TestImpl().foo(1l){code}
+ the following exception is thrown:
+
+ 
+{code:java}
+MultipleCompilationErrorsException:
+startup failed:
+Script1.groovy: 1: [Static type checking] - Cannot find matching method net.robinfriedli.botify.scripting.TestImpl#foo(long). Please check if the declared type is correct and if the method exists.
+ @ line 1, column 1.
+   new net.robinfriedli.botify.scripting.TestImpl().foo(1l)
+   ^
+
+1 error
+{code}
+The script runs fine without static compilation.
+
+ 
+
+Calling the implemented abstract method compiles sucessfully:
+{code:java}
+new net.robinfriedli.botify.scripting.TestImpl().foo('str')
+{code}
+However, when changing the interface to
+
+ 
+{code:java}
+package net.robinfriedli.botify.scripting;
+
+public interface TestInt {
+
+    void foo(String s);
+
+    default void bar(long l) {}
+}
+{code}
+The following script compiles:
+
+ 
+
+ 
+{code:java}
+new net.robinfriedli.botify.scripting.TestImpl().bar(1l)
+{code}
+ 
+
+The scripts are executed in Java by GroovyShell#evaluate using the following compiler configuration:
+{code:java}
+CompilerConfiguration compilerConfiguration = new CompilerConfiguration();
+ASTTransformationCustomizer compileStaticCustomizer = new ASTTransformationCustomizer(
+    singletonMap("extensions", singletonList("net.robinfriedli.botify.scripting.TypeCheckingExtension")),
+    CompileStatic.class
+);
+
+compilerConfiguration.addCompilationCustomizers(compileStaticCustomizer);
+return compilerConfiguration;
+{code}
+ 

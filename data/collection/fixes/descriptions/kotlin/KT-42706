@@ -1,0 +1,24 @@
+This test throws `java.lang.ClassCastException: Foo cannot be cast to java.lang.Void` if run in Android project.
+I think kotlin type infer gets confused between the java generic infer in `fromJson` and the inline kotlin function `use`, ends up inferring the type is `Nothing` and tries to cast `Foo` to `Void` at runtime.
+This is a similar issue to https://youtrack.jetbrains.com/issue/KT-41176 but it could be the bottomline cause is different. Code runs fine in kotlin 1.3.
+
+```
+    data class Foo(
+        @SerializedName("foo") val foo: Int
+    )
+
+    private fun toFoo(json: String?): Foo? =
+        JsonReader(json?.byteInputStream()?.reader()).use {
+            try {
+                Gson().fromJson(it, Foo::class.java)
+            } catch (e: JsonSyntaxException) {
+                null
+            }
+        }
+
+    @Test
+    fun testGsonBug() {
+        val json = """{ "foo" : 1}"""
+        assertEquals(1, toFoo(json)!!.foo)
+    }
+```

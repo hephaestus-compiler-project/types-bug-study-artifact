@@ -1,0 +1,68 @@
+Implicit conversion gets applied when the code can be compiled without the implicit conversion. This happens when dealing with `op=` on mutable attributes with immutable type.
+
+Consider an expression `a.b += c`. If `b` has `+` defined, but does not have `+=` defined, the expression is expanded to `a.b = a.b + c`. However if there is an implicit conversion `convertToT` that transforms `a.b` into some type `T` that has `+=` defined, and this implicit conversion is in scope, then the conversion takes priority over expanding the expression.
+
+So `a.b += c` gets transformed into `convertToT(a.b).+=(c)` instead of `a.b = a.b + c`.
+
+The Implicit conversion must take a superclass of the attribute for this bug to occur.
+
+An example below demonstrates this behaviour. Notice that both code blocks in main() are exactly the same, yet produce different results. The first code block does not have the implicit conversion in scope, so it works as expected. The second block has the conversion in scope, and produces an unexpected result.
+
+```scala
+package example {
+    class IntHolder(private var i: Int) {
+        import wrappedint._
+        def value = new ImmutableWrappedInt(i)
+        def value_=(w: AbsWrappedInt) { i = w.v }
+    }
+
+    package wrappedint {
+        abstract class AbsWrappedInt {
+            def v: Int
+            def +(x: Int) = new WrappedInt(v + x)
+        }
+        class ImmutableWrappedInt(val v: Int) extends AbsWrappedInt
+        class WrappedInt(var v: Int) extends AbsWrappedInt {
+            def +=(x: Int) { v += x }
+        }
+    }
+    package object wrappedfloat {
+        import wrappedint._
+        implicit def commonToFloat(c: AbsWrappedInt) = new WrappedFloat(c.v)
+    }
+    package wrappedfloat {
+        class WrappedFloat(var v: Float) {
+            def +(x: Float) = new WrappedFloat(v + x)
+            def +=(x: Float) { v += x }
+        }
+    }
+    object Main {
+        import example.wrappedint._
+
+        def main(args: Array[String]) {
+            {
+                val t = new IntHolder(2)
+                t.value += 2
+                println("2 + 2 = " + t.value.v)
+            }
+
+            import example.wrappedfloat._
+
+            // this code is a copy of the block above
+            {
+                val t = new IntHolder(2)
+                t.value += 2
+                println("2 + 2 = " + t.value.v)
+            }
+        }
+    }
+}
+```
+
+output:
+```scala
+2 + 2 = 4
+2 + 2 = 2
+```
+
+Tested on scala-2.8.0.Beta1-prerelease and scala-2.8.0.r20995 with the same result.

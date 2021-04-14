@@ -1,0 +1,70 @@
+This is a retroactive bug report on Scala 2.12.x and 2.13.0 ~ 1 since it seems to be fixed in Scala 2.13.2.
+
+## reproduction steps
+
+using Scala 2.13.1
+
+### bar/B.scala
+
+```scala
+package bar
+
+protected[bar] class B(x: Int)
+```
+
+### foo/Test.scala
+
+```scala
+package example
+
+import bar.B
+
+object Test {
+  def b = new B(1)
+}
+```
+
+### bash
+
+```bash
+mkdir -p bar/classes/
+mkdir -p foo/classes/
+$HOME/Applications/scala-2.13.1/bin/scalac bar/B.scala -d bar/classes
+ls bar/classes/bar
+# outputs B.class
+
+$HOME/Applications/scala-2.13.1/bin/scalac -cp bar/classes/ foo/Test.scala -d foo/classes
+ls foo/classes/example
+# outputs Test$.class  Test.class
+```
+
+## problem
+
+The separate compilation violates `protected[bar]`.
+
+## expectation
+
+`Test` should not compile.
+
+```scala
+foo/Test.scala:6: error: not found: type B
+  def b = new B(1)
+              ^
+1 error
+```
+
+## note
+
+If I compile all sources together the accessibility is checked correctly:
+
+```
+$ $HOME/Applications/scala-2.13.1/bin/scalac bar/B.scala  foo/Test.scala -d foo/classes
+foo/Test.scala:6: error: not found: type B
+  def b = new B(1)
+              ^
+one error found
+```
+
+## keyword for search
+
+visibility

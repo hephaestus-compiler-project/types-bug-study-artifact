@@ -1,0 +1,41 @@
+```kotlin
+open class KFoo {
+    fun foo(): String {
+        if (this is KFooQux) return qux
+        throw AssertionError()
+    }
+}
+
+class KFooQux : KFoo()
+val KFooQux.qux get() = "OK"
+
+fun main(args: Array<String>) {
+    println(KFooQux().foo())
+}
+```
+
+Exception in thread "main" java.lang.VerifyError: Bad type on operand stack
+Exception Details:
+  Location:
+    test/KFoo.foo()Ljava/lang/String; @8: invokestatic
+  Reason:
+    Type 'test/KFoo' (current frame, stack[0]) is not assignable to 'test/KFooQux'
+  Current Frame:
+    bci: @8
+    flags: { }
+    locals: { 'test/KFoo' }
+    stack: { 'test/KFoo' }
+  Bytecode:
+    0x0000000: 2ac1 0009 9900 082a b800 0fb0 bb00 1159
+    0x0000010: b700 15c0 0017 bf                      
+  Stackmap Table:
+    same_frame(@12)
+
+```
+    ALOAD 0
+    INSTANCEOF test/KFooQux
+    IFEQ L1
+    ALOAD 0 // << KFoo
+    // << missing CHECKCAST
+    INVOKESTATIC test/AbKt.getQux (Ltest/KFooQux;)Ljava/lang/String;
+```

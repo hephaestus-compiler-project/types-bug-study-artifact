@@ -1,0 +1,93 @@
+```scala
+import scala.reflect._
+
+case class T1()
+case class T2()
+
+abstract class In[T]
+case class VIn[T]() extends In[T]
+
+object Test extends App {
+  def t1[T: ClassTag](v: In[T]) = {
+    v match {
+      case x: In[T1] if classTag[T] == classTag[T1] => "T1"
+      case y: In[T2] if classTag[T] == classTag[T2] => "T2"
+    }
+  }
+
+  def t2[T: ClassTag](v: In[T]) = {
+    v match {
+      case x: In[_] if classTag[T] == classTag[T1] => "T1"
+      case y: In[_] if classTag[T] == classTag[T2] => "T2"
+    }
+  }
+
+  println(t1(VIn[T2]())) // T1 (bug)
+  println(t2(VIn[T2]())) // T2 (ok)
+}
+```
+
+Under `-Xprint:typer`
+
+```scala
+    def t1[T](v: In[T])(implicit evidence$1: scala.reflect.ClassTag[T]): String = v match {
+      case (x @ (_: In[T1])) if scala.reflect.`package`.classTag[T](evidence$1).==(scala.reflect.`package`.classTag[T1](evidence$1)) => "T1"
+      case (y @ (_: In[T2])) if scala.reflect.`package`.classTag[T](evidence$1).==(scala.reflect.`package`.classTag[T2](evidence$1)) => "T2"
+    };
+    def t2[T](v: In[T])(implicit evidence$2: scala.reflect.ClassTag[T]): String = v match {
+      case (x @ (_: In[_])) if scala.reflect.`package`.classTag[T](evidence$2).==(scala.reflect.`package`.classTag[T1]((ClassTag.apply[T1](classOf[T1]): scala.reflect.ClassTag[T1]))) => "T1"
+      case (y @ (_: In[_])) if scala.reflect.`package`.classTag[T](evidence$2).==(scala.reflect.`package`.classTag[T2]((ClassTag.apply[T2](classOf[T2]): scala.reflect.ClassTag[T2]))) => "T2"
+    };
+```
+
+Log of `-Ytyper-debug`
+
+```
+|    |    |    |-- classTag[T].$eq$eq(classTag[T1]) : pt=Boolean EXPRmode (site: method t1 in Test) 
+[...]
+|    |    |    |    |-- classTag[T1] : pt=Any BYVALmode-EXPRmode (silent: method t1 in Test) 
+|    |    |    |    |    |-- classTag BYVALmode-EXPRmode-FUNmode-POLYmode-TAPPmode (silent: method t1 in Test) 
+|    |    |    |    |    |    |-- scala.reflect.`package` EXPRmode-POLYmode-QUALmode (silent: method t1 in Test) 
+|    |    |    |    |    |    |    \-> reflect.type
+|    |    |    |    |    |    \-> [T](implicit ctag: scala.reflect.ClassTag[T])scala.reflect.ClassTag[T]
+|    |    |    |    |    |-- T1 TYPEmode (silent: method t1 in Test) 
+|    |    |    |    |    |    \-> T1
+|    |    |    |    |    |-- [T](implicit ctag: scala.reflect.ClassTag[T])scala.reflec... : pt=Any BYVALmode-EXPRmode (silent: method t1 in Test) 
+|    |    |    |    |    |    \-> scala.reflect.ClassTag[T1]
+|    |    |    |    |    [adapt] [T](implicit ctag: scala.reflect.ClassTag[T])scala.reflec... adapted to [T](implicit ctag: scala.reflect.ClassTag[T])scala.reflec... based on pt Any
+|    |    |    |    |    \-> scala.reflect.ClassTag[T1]
+
+
+|    |    |    |-- classTag[T].$eq$eq(classTag[T1]) : pt=Boolean EXPRmode (site: method t2 in Test) 
+[...]
+|    |    |    |    |-- classTag[T1] : pt=Any BYVALmode-EXPRmode (silent: method t2 in Test) 
+|    |    |    |    |    |-- classTag BYVALmode-EXPRmode-FUNmode-POLYmode-TAPPmode (silent: method t2 in Test) 
+|    |    |    |    |    |    |-- scala.reflect.`package` EXPRmode-POLYmode-QUALmode (silent: method t2 in Test) 
+|    |    |    |    |    |    |    \-> reflect.type
+|    |    |    |    |    |    \-> [T](implicit ctag: scala.reflect.ClassTag[T])scala.reflect.ClassTag[T]
+|    |    |    |    |    |-- T1 TYPEmode (silent: method t2 in Test) 
+|    |    |    |    |    |    \-> T1
+|    |    |    |    |    |-- [T]()scala.reflect.ClassTag[T] EXPRmode (silent: method t2 in Test) implicits disabled
+|    |    |    |    |    |    |-- [T]()scala.reflect.ClassTag[T] BYVALmode-EXPRmode-FUNmode-POLYmode (silent: method t2 in Test) implicits disabled
+|    |    |    |    |    |    |    \-> ()scala.reflect.ClassTag[T1]
+|    |    |    |    |    |    |-- ClassTag.apply[T1](Predef.this.classOf[T1]) EXPRmode (silent: method t2 in Test) implicits disabled
+|    |    |    |    |    |    |    |-- ClassTag.apply[T1] BYVALmode-EXPRmode-FUNmode-POLYmode (silent: method t2 in Test) implicits disabled
+|    |    |    |    |    |    |    |    |-- ClassTag.apply BYVALmode-EXPRmode-FUNmode-POLYmode-TAPPmode (silent: method t2 in Test) implicits disabled
+|    |    |    |    |    |    |    |    |    |-- scala.reflect.ClassTag.type EXPRmode-POLYmode-QUALmode (silent: method t2 in Test) implicits disabled
+|    |    |    |    |    |    |    |    |    |    \-> scala.reflect.ClassTag.type
+|    |    |    |    |    |    |    |    |    \-> [T](runtimeClass1: Class[_])scala.reflect.ClassTag[T]
+|    |    |    |    |    |    |    |    \-> (runtimeClass1: Class[_])scala.reflect.ClassTag[T1]
+|    |    |    |    |    |    |    |-- [T]=> Class[T] : pt=Class[_] BYVALmode-EXPRmode (silent: method t2 in Test) implicits disabled
+|    |    |    |    |    |    |    |    \-> Class[T1](classOf[T1])
+|    |    |    |    |    |    |    \-> scala.reflect.ClassTag[T1]
+|    |    |    |    |    |    |-- (ClassTag.apply[T1](classOf[T1]): scala.reflect.ClassTag[... EXPRmode (silent: method t2 in Test) implicits disabled
+|    |    |    |    |    |    |    \-> scala.reflect.ClassTag[T1]
+|    |    |    |    |    |    [adapt] [T]()scala.reflect.ClassTag[T] adapted to (ClassTag.apply[T1](classOf[T1]): scala.reflect.ClassTag[...
+|    |    |    |    |    |    \-> scala.reflect.ClassTag[T1]
+|    |    |    |    |    |-- [T](implicit ctag: scala.reflect.ClassTag[T])scala.reflec... : pt=Any BYVALmode-EXPRmode (silent: method t2 in Test) 
+|    |    |    |    |    |    \-> scala.reflect.ClassTag[T1]
+|    |    |    |    |    [adapt] [T](implicit ctag: scala.reflect.ClassTag[T])scala.reflec... adapted to [T](implicit ctag: scala.reflect.ClassTag[T])scala.reflec... based on pt Any
+|    |    |    |    |    \-> scala.reflect.ClassTag[T1]
+```
+
+Source: http://stackoverflow.com/questions/30877478/pattern-matching-chooses-the-wrong-case-if-used-with-classtag/30883009#30883009

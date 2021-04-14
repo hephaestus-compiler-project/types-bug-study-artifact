@@ -1,0 +1,36 @@
+[scalafiddle](https://scalafiddle.io/sf/Oeb4wdu/0) 
+
+all lines compile except the 3rd-to-last line (marked with "🚫"):
+```scala
+trait HKT[F[_]]  // test HKT that we will attempt to derive instances of for the types below
+
+trait A1[S[_]] {      type T }  // ✅ HKT param: works OK
+trait A2 { type S   ; type T }  // ✅ non-HKT member: works OK
+trait A3 { type S[_]; type T }  // 🚫 HKT member: breaks implicit resolution; see below
+
+// "Aux"-style aliases for fixing member types: "ST" fixes S and T, "T" fixes just T (where applicable)
+object A1 { type ST[ S[_], _T] = A1[S] {                    type T = _T }                                  }
+object A2 { type ST[_S   , _T] = A2    { type S    = _S   ; type T = _T }; type T[_T] = A2 { type T = _T } }
+object A3 { type ST[_S[_], _T] = A3    { type S[U] = _S[U]; type T = _T }; type T[_T] = A3 { type T = _T } }
+
+// HKT derivations for aliases above, always with wildcard `T` in rightmost position, for partial unification
+implicit def a1[S[_]]: HKT[A1.ST[S, ?]] = ???
+implicit def a2[S   ]: HKT[A2.ST[S, ?]] = ???
+implicit def a3[S[_]]: HKT[A3.ST[S, ?]] = ???
+implicit def a2t     : HKT[A2. T      ] = ???
+implicit def a3t     : HKT[A3. T      ] = ???
+
+implicitly[HKT[A1.ST[List, ?]]]  // ✅ HKT-param: OK
+implicitly[HKT[A2.ST[Char, ?]]]  // ✅ non-HKT member: OK
+implicitly[HKT[A3.ST[List, ?]]]  // 🚫 HKT-member: can't partially-unify
+implicitly[HKT[A2.T]]            // ✅
+implicitly[HKT[A3.T]]            // ✅ ignoring the HKT-member: OK again
+```
+error:
+```
+ScalaFiddle.scala:21: error: could not find implicit value for parameter e: ScalaFiddle.this.HKT[[β$5$]ScalaFiddle.this.A3{type S[U] = immutable.this.List[U]; type T = β$5$}]
+  implicitly[HKT[A3.ST[List, ?]]]  // 🚫 can't partially-unify over HKT-member
+            ^
+```
+
+partial-unification works over HKT-parameters (`A1`) and non-HKT-members (`A2`), but not over HKT-members (`A3`)

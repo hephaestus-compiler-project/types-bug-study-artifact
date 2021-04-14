@@ -1,0 +1,60 @@
+I decided to report yet another example of #5592 because it seemed to me that Scalac is much closer to figuring out the right thing. It seems that type inference suddenly becomes stupid when an implicit conversion is applied *implicitly* rather than explicitly. In all other instances of #5592, instead, either type inference doesn't work even if the implicit conversion is applied explicitly, or it is clear that adding the conversion clearly gives more information to type inference (i.e. the only unifier between type variables A and B requires an implicit conversion).
+
+```scala
+trait Exp[+T]
+case class Const[T](t: T) extends Exp[T]
+implicit def pure[T](t: T): Exp[T] = Const(t)
+case class LiftTuple2[A1, A2](t1: Exp[A1], t2: Exp[A2]) extends Exp[(A1, A2)]
+implicit def tuple2ToTuple2ExpPrime[ArgFOO1, A2, E1 <% Exp[ArgFOO1], E2 <% Exp[A2]](tuple: (E1, E2)): LiftTuple2[ArgFOO1, A2] = LiftTuple2[ArgFOO1, A2](tuple._1, tuple._2)
+
+val a = pure(1)
+val b = pure("")
+val c = pure(2)
+def asExp[T](t: Exp[T]) = t //an evaluation context triggering implicit conversions
+tuple2ToTuple2ExpPrime(((a, b), c))
+asExp(tuple2ToTuple2ExpPrime( ((a, b), c) ))
+asExp(((a, b), c)) //does not compile
+```
+
+The last expression does not typecheck, yet it is obtained from `asExp(tuple2ToTuple2ExpPrime( ((a, b), c) ))` by removing an unambiguous implicit conversion - the compiler can also consider `pure`, but `tuple2ToTuple2ExpPrime` is strictly more specific.
+
+Actually typing the last expression gives:
+```scala
+scala> asExp(((a, b), c)) //does not compile
+<console>:19: error: No implicit view available from (Exp[Int], Exp[java.lang.String]) => Exp[ArgFOO1].
+              asExp(((a, b), c)) //does not compile
+                    ^
+```
+`ArgFOO1` appears in the output, hence the compiler did figure out that `tuple2ToTuple2ExpPrime` was to be applied.
+Notice that I want the compiler to use `tuple2ToTuple2ExpPrime` twice here, but even if I change the example to avoid that, I experience the same issue.
+In the same console, let's paste this further code:
+```scala
+case class LiftTuple3[A1, A2, A3](t1: Exp[A1], t2: Exp[A2], t3: Exp[A3]) extends Exp[(A1, A2, A3)]
+implicit def tuple3ToTuple3Exp[A1, A2, A3](tuple: (Exp[A1], Exp[A2], Exp[A3])): LiftTuple3[A1, A2, A3] = LiftTuple3[A1, A2, A3](tuple._1, tuple._2, tuple._3)
+val d = pure(2.0)
+asExp(tuple2ToTuple2ExpPrime((a, b, c), d))
+asExp(((a, b, c), d)) //does not compile
+```
+
+Error:
+```scala
+scala> asExp(((a, b, c), d)) //does not compile
+<console>:23: error: No implicit view available from (Exp[Int], Exp[java.lang.String], Exp[Int]) => Exp[ArgFOO1].
+              asExp(((a, b, c), d)) //does not compile
+                    ^
+```
+
+As a last touch, `E1 <% Exp[ArgFOO1]` requires in practice that `E1` and `Exp[ArgFOO1]` to be distinct, but that's boring, as I believe it is just another example of #3346:
+```scala
+scala> asExp( (asExp( (a, b) ), c) )
+<console>:19: error: No implicit view available from Exp[Int] => Exp[ArgFOO1].
+              asExp( (asExp( (a, b) ), c) )
+                             ^
+scala> implicit def identity2[A](x: A): A         = x
+identity2: [A](x: A)A
+
+scala> asExp( (asExp( (a, b) ), c) )
+<console>:21: error: No implicit view available from Exp[Int] => Exp[ArgFOO1].
+              asExp( (asExp( (a, b) ), c) )
+```
+Actually, this suggests that this is a dup of #3346; but I did not know that applying the conversion explicitly could help. I hope this is helpful.

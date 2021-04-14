@@ -1,0 +1,269 @@
+The issue is that Nil and :: implement Serializable by being a case class/object, but the sealed abstract class List does not.
+
+This leads to huge types down the line:
+
+```scala
+List(List(), Vector())
+```
+
+
+... results in the following type:
+
+```scala
+List[scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def companion:
+ scala.collection.generic.GenericCompanion[scala.collection.immutable.Seq with
+ scala.collection.AbstractSeq{def dropRight(n: Int): scala.collection.immutable.Seq[Any] with
+ scala.collection.AbstractSeq[Any]; def takeRight(n: Int): scala.collection.immutable.Seq[Any] with
+ scala.collection.AbstractSeq[Any]; def drop(n: Int): scala.collection.immutable.Seq[Any] with
+ scala.collection.AbstractSeq[Any]; def take(n: Int): scala.collection.immutable.Seq[Any] with
+ scala.collection.AbstractSeq[Any]; def slice(from: Int,until: Int): scala.collection.immutable.Seq[Any]
+ with scala.collection.AbstractSeq[Any]}]; def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]{def
+ companion: scala.collection.generic.GenericCompanion[scala.collection.immutable.Seq with
+ scala.collection.AbstractSeq]; def dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def drop(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]
+ {def dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def takeRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def drop(n:
+ Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing];
+ def slice(from: Int,until: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]}; def slice(from: Int,until: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]{def
+ dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def takeRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def drop(n:
+ Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing];
+ def slice(from: Int,until: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]}; def splitAt(n: Int): (scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing], scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing])}; def takeRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]{def
+ companion: scala.collection.generic.GenericCompanion[scala.collection.immutable.Seq with
+ scala.collection.AbstractSeq]; def dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def drop(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]
+ {def dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def takeRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def drop(n:
+ Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing];
+ def slice(from: Int,until: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]}; def slice(from: Int,until: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]{def
+ dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def takeRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def drop(n:
+ Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing];
+ def slice(from: Int,until: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]}; def splitAt(n: Int): (scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing], scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing])}; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]{def companion:
+ scala.collection.generic.GenericCompanion[scala.collection.immutable.Seq with
+ scala.collection.AbstractSeq]; def dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def drop(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]
+ {def dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def takeRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def drop(n:
+ Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing];
+ def slice(from: Int,until: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]}; def slice(from: Int,until: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]{def
+ dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def takeRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def drop(n:
+ Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing];
+ def slice(from: Int,until: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]}; def splitAt(n: Int): (scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing], scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing])}; def take(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]{def companion:
+ scala.collection.generic.GenericCompanion[scala.collection.immutable.Seq with
+ scala.collection.AbstractSeq]; def dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def drop(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]
+ {def dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def takeRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def drop(n:
+ Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing];
+ def slice(from: Int,until: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]}; def slice(from: Int,until: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]{def
+ dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def takeRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def drop(n:
+ Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing];
+ def slice(from: Int,until: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]}; def splitAt(n: Int): (scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing], scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing])}; def slice(from: Int,until: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]{def
+ companion: scala.collection.generic.GenericCompanion[scala.collection.immutable.Seq with
+ scala.collection.AbstractSeq]; def dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def drop(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]};
+ def take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]
+ {def dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def takeRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def drop(n:
+ Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing];
+ def slice(from: Int,until: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]}; def slice(from: Int,until: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]{def
+ dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def takeRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def drop(n:
+ Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing];
+ def slice(from: Int,until: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]}; def splitAt(n: Int): (scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing], scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing])}; def splitAt(n: Int):
+ (scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]{def
+ dropRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def takeRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def drop(n:
+ Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ take(n: Int): scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing];
+ def slice(from: Int,until: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]}, scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]{def dropRight(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def
+ takeRight(n: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]; def drop(n: Int): scala.collection.immutable.Seq[Nothing]
+ with scala.collection.AbstractSeq[Nothing]; def take(n: Int):
+ scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing]; def slice(from:
+ Int,until: Int): scala.collection.immutable.Seq[Nothing] with
+ scala.collection.AbstractSeq[Nothing]})}]
+```
+
+Making List implement Serializable:
+
+```scala
+List[scala.collection.immutable.Seq[Nothing] with scala.collection.AbstractSeq[Nothing] with java.io.Serializable]
+```
+
+While we are all aware of the issues around Serializable, I think in this case it is perfectly sound and safe to make List serializable:
+
+- List is not an interface, it is the base type of an ADT. Common behavior of its members should be reflected in the base type.
+- List is sealed, there is no chance of an user providing a new non-serializable subtype of List.

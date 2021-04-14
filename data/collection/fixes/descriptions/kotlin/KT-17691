@@ -1,0 +1,79 @@
+# Classification
+
+* Type of change:
+    * Some valid language constructs change their meaning
+* Motivation types:
+    * Inconsistency of the arguments execution order between arguments with named vararg and without it
+* Impact types:
+    * Some code changes its meaning
+* Detection and Migration modes:
+    * Migration can't be automated
+
+# Background
+
+In Kotlin, value arguments are evaluated and executed in the order in which it was listed:
+```
+fun foo(foo: Any, bar: Any) {}
+
+fun main() {
+    foo({ println("1") }(), { println("2") }())
+}
+```
+In the example above, "1 2" will be printed.
+
+Also this is described in details in [the Kotlin specification](https://kotlinlang.org/spec/expressions.html?sentence=expressions,call-and-property-access-expressions,function-calls-and-property-access,7,2#function-calls-and-property-access):
+> The evaluation of a function call begins with the evaluation of its explicit receiver, if it is present. Function arguments are then evaluated **in the order of their appearance** in the function call left-to-right, with no consideration on how the parameters of the function were specified during function declaration. This means that, even if the order at declaration-site was different, arguments at call-site are evaluated in the order they are given.
+
+# Existing behavior
+
+Due to the bug in one of the components of the compiler front-end, the rule above is violated in cases where named vararg is among the arguments. In such cases, first, the code is generated to execute for all arguments except named vararg, and, second, for it. That is, named vararg is always placed at the end of the argument list to codegen and, consequently, to potential execute.
+```
+fun foo(vararg foo: Any, bar: Any) {}
+
+fun main() {
+    foo({ println("1") }(), bar = { println("2") }()) // "2 1" is printed
+}
+```
+In this example, we pass the following argument list to codegen: `[ <arg for { println("2") }()>, <arg for { println("1") }()> ]`, that is wrong.
+
+Note that, the behaviour is still correct if named vararg is the last argument.
+
+Also it's important to note, that there may be invalid smartcasts due to the described problem:
+```
+fun foo(vararg foo: String, bar: Any) {}
+
+fun main() {
+    val x: String? = null
+    foo(foo = *arrayOf(checkNotNull(x)), bar = { x.length }()) // x is smartcast to String, NPE is thrown
+}
+```
+The evaluation order and execution order aren't the same in the example above.
+
+# Proposed changes
+
+We propose generating the target code for an argument in the order in which it's listed, in any case, exactly as described in the Kotlin specification.
+
+After the change, in the example above, "1 2" will be printed instead of "2 1", that is the argument list `[ <arg for { println("1") }()>, <arg for { println("2") }()> ]` will be passed to codegen.
+
+# Impact
+
+The change may affect any argument lists with named vararg. For the semantics to change, the named vararg argument needs to have some side effect and should be not the last.
+
+For instance:
+```
+fun foo(vararg foo: Any, bar: Any) {}
+
+fun main() {
+    var x = 1
+    foo(foo = *arrayOf({ x = 2 }()), bar = { x = 3 }())
+
+    if (x == 3) {
+        throw Exception() // will be thrown only after the change
+    }
+}
+```
+
+# Migration plan
+
+* 1.4.20: have the warning on named vararg argument (only if it's not the last) about that the behaviour is going to be changed
+* 1.5: introduce the new behaviour with the correct execution order.

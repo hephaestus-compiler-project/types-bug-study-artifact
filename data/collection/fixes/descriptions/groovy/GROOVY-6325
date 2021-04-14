@@ -1,0 +1,58 @@
+{code}
+import groovy.transform.TypeChecked
+
+@TypeChecked
+class MyCar {
+    private String _brand
+    private String _model
+
+    String getBrand() {
+        return _brand
+    }
+
+    void setBrand(String brand) {
+        _brand = brand
+    }
+
+    String getModel() {
+        return _model
+    }
+
+    void setModel(String model) {
+        _model = model
+    }
+}
+
+@TypeChecked
+class MyCarMain {
+    static void main(String[] args) {
+        def main = new MyCarMain()
+        def car = main.configureCar {
+            brand = "BMW"
+            model = brand
+        }
+        println car.model
+    }
+
+    MyCar configureCar(@DelegatesTo(value = MyCar, strategy = Closure.DELEGATE_FIRST) Closure closure) {
+        def car = new MyCar()
+        closure.delegate = car
+        closure.resolveStrategy = Closure.DELEGATE_FIRST
+        closure()
+        car
+    }
+}
+{code}
+
+{code}
+Groovyc: [Static type checking] - The variable [brand] is undeclared.
+{code}
+
+{{model = getBrand()}} solves the problem. Problem doesn't occur when declaring {{MyCar}} as:
+
+{code}
+class MyCar {
+  String brand
+  String model
+}
+{code}

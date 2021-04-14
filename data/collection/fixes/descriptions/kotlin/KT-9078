@@ -1,0 +1,94 @@
+{code}
+class KFunctionKt9005WorkAround<out R: Any?>(private val _member: KProperty<R>, private val _functionInstance: Function<R>): KCallable<R> {
+    private val _reflectedFunction: KFunction<R> = _functionInstance.reflect() ?: throw IllegalStateException("The function instance isn't reflect-able")
+    private val _invokeMethod: Method =  _functionInstance.javaClass.getMethods().filter {  method ->
+        method.getName() == "invoke" &&
+                method.parameterCount == _reflectedFunction.parameters.size()
+    }.first()
+
+    private val _parameters: List<KParameter> = run {
+        _invokeMethod.parameters.withIndex().zip(_reflectedFunction.parameters).map {
+            object : KParameter {
+                override val index: Int = it.first.index
+                override val isOptional: Boolean = it.second.isOptional
+                override val kind: KParameter.Kind = it.second.kind
+                override val name: String? = it.second.name
+                override val type: KType = it.first.value.getType().kotlin.defaultType
+                override val annotations: List<Annotation> = _member.annotations
+            }
+        }
+    }
+
+    override val name: String = _member.name
+    override val parameters: List<KParameter> = _parameters
+    override val returnType: KType = _invokeMethod.returnType.kotlin.defaultType
+    override val annotations: List<Annotation> = _member.annotations
+
+    @suppress("UNCHECKED_CAST")
+    override fun call(vararg args: Any?): R {
+        return _invokeMethod.invoke(_functionInstance, args) as R
+    }
+
+    @suppress("UNCHECKED_CAST")
+    override fun callBy(args: Map<KParameter, Any?>): R {
+        throw UnsupportedOperationException()
+    }
+}
+
+
+{code}
+
+{cut Exception}
+Error:Kotlin: [Internal Error] java.lang.NullPointerException
+	at org.jetbrains.kotlin.cfg.JetFlowInformationProvider.recordInitializedVariables(JetFlowInformationProvider.java:593)
+	at org.jetbrains.kotlin.cfg.JetFlowInformationProvider.recordInitializedVariables(JetFlowInformationProvider.java:363)
+	at org.jetbrains.kotlin.cfg.JetFlowInformationProvider.checkDeclaration(JetFlowInformationProvider.java:117)
+	at org.jetbrains.kotlin.resolve.ControlFlowAnalyzer.checkDeclarationContainer(ControlFlowAnalyzer.java:81)
+	at org.jetbrains.kotlin.resolve.ControlFlowAnalyzer.process(ControlFlowAnalyzer.java:47)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolveBodies(BodyResolver.java:228)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations(LazyTopDownAnalyzer.kt:199)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzerForTopLevel.analyzeDeclarations(LazyTopDownAnalyzerForTopLevel.java:74)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzerForTopLevel.analyzeFiles(LazyTopDownAnalyzerForTopLevel.java:66)
+	at org.jetbrains.kotlin.resolve.jvm.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(TopDownAnalyzerFacadeForJVM.java:155)
+	at org.jetbrains.kotlin.resolve.jvm.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegrationWithCustomContext(TopDownAnalyzerFacadeForJVM.java:107)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$3.invoke(KotlinToJVMBytecodeCompiler.java:323)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$3.invoke(KotlinToJVMBytecodeCompiler.java:316)
+	at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.java:227)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.java:315)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules(KotlinToJVMBytecodeCompiler.java:131)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:171)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:54)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:174)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:135)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execAndOutputXml(CLICompiler.java:63)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+	at java.lang.reflect.Method.invoke(Method.java:597)
+	at org.jetbrains.kotlin.compilerRunner.CompilerRunnerUtil.invokeExecMethod(CompilerRunnerUtil.java:93)
+	at org.jetbrains.kotlin.compilerRunner.KotlinCompilerRunner.execCompiler(KotlinCompilerRunner.java:149)
+	at org.jetbrains.kotlin.compilerRunner.KotlinCompilerRunner.runCompiler(KotlinCompilerRunner.java:103)
+	at org.jetbrains.kotlin.compilerRunner.KotlinCompilerRunner.runK2JvmCompiler(KotlinCompilerRunner.java:68)
+	at org.jetbrains.kotlin.jps.build.KotlinBuilder.compileToJvm(KotlinBuilder.kt:540)
+	at org.jetbrains.kotlin.jps.build.KotlinBuilder.doCompileModuleChunk(KotlinBuilder.kt:282)
+	at org.jetbrains.kotlin.jps.build.KotlinBuilder.doBuild(KotlinBuilder.kt:171)
+	at org.jetbrains.kotlin.jps.build.KotlinBuilder.build(KotlinBuilder.kt:104)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.runModuleLevelBuilders(IncProjectBuilder.java:1210)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.runBuildersForChunk(IncProjectBuilder.java:884)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.buildTargetsChunk(IncProjectBuilder.java:956)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.buildChunkIfAffected(IncProjectBuilder.java:850)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.buildChunks(IncProjectBuilder.java:675)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.runBuild(IncProjectBuilder.java:373)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.build(IncProjectBuilder.java:193)
+	at org.jetbrains.jps.cmdline.BuildRunner.runBuild(BuildRunner.java:137)
+	at org.jetbrains.jps.cmdline.BuildSession.runBuild(BuildSession.java:294)
+	at org.jetbrains.jps.cmdline.BuildSession.run(BuildSession.java:125)
+	at org.jetbrains.jps.cmdline.BuildMain$MyMessageHandler$1.run(BuildMain.java:232)
+	at org.jetbrains.jps.service.impl.SharedThreadPoolImpl$1.run(SharedThreadPoolImpl.java:42)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:439)
+	at java.util.concurrent.FutureTask$Sync.innerRun(FutureTask.java:303)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:138)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.runTask(ThreadPoolExecutor.java:886)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:908)
+	at java.lang.Thread.run(Thread.java:662)
+{cut}

@@ -1,0 +1,56 @@
+Two pieces of code, identical except for the bounds on the type parameters. Without bounds on type params, it compiles OK, but with a bound of  `<: Int` the compiler gives Cyclic reference errors.
+
+## Minimized code
+Error
+```Scala
+import scala.compiletime.ops.int._
+
+trait V[R[_ <: Int]]
+trait M[R[_ <: Int, _ <: Int], RR[_ <: Int]]
+trait D:
+  type MR[R, C]
+  type RR[N]
+trait IV[VR1[_ <: Int]]:
+  val a: D {type RR[N <: Int] = VR1[N]}
+case class SIV[VR1[_ <: Int]](a: D {type RR[N <: Int] = VR1[N]}) extends IV[VR1]
+object IV:
+  given [MR[_ <: Int, _ <: Int]](using im: IM[MR]) as IV[im.a.RR] = SIV(im.a)
+trait IM[MR1[_ <: Int, _ <: Int]]:
+  val a: D {type MR[R <: Int, C <: Int] = MR1[R, C]}
+```
+OK
+```Scala
+import scala.compiletime.ops.int._
+
+trait V[R[_]]
+trait M[R[_, _], RR[_]]
+trait D:
+  type MR[R, C]
+  type RR[N]
+trait IV[VR1[_]]:
+  val a: D {type RR[N] = VR1[N]}
+case class SIV[VR1[_]](a: D {type RR[N] = VR1[N]}) extends IV[VR1]
+object IV:
+  given [MR[_, _]](using im: IM[MR]) as IV[im.a.RR] = SIV(im.a)
+trait IM[MR1[_, _]]:
+  val a: D {type MR[R, C] = MR1[R, C]}
+```
+
+## Output
+
+```scala
+-- [E046] Cyclic Error: try/i9779.scala:13:18 ----------------------------------
+13 |trait IM[MR1[_ <: Int, _ <: Int]]:
+   |                  ^
+   |                  Cyclic reference involving type MR1
+
+longer explanation available when compiling with `-explain`
+-- [E046] Cyclic Error: try/i9779.scala:13:8 -----------------------------------
+13 |trait IM[MR1[_ <: Int, _ <: Int]]:
+   |        ^
+   |        Cyclic reference involving method <init>
+```
+
+## Expectation
+
+Introducing a bound  `<: Int` would not introduce a Cyclic reference

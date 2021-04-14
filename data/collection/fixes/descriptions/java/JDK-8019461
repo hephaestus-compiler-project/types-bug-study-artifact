@@ -1,0 +1,98 @@
+From Alex Buckley:
+
+
+* Imports
+
+- compiler.err.already.defined.single.import
+
+Says "java.awt.List is already defined in a single-type import" which is a bit odd given that the caret points to "import java._util_.List". The message means to say "Type with simple name List is already imported by a single-type-import". (Notice two hyphens)
+
+- compiler.err.already.defined.static.single.import
+
+Says "A is already defined in a static single-type import" which is true, but speaks about the _second_ import whereas the caret points to the (legal) first import. I would say "Static member A is already imported by a single-static-import" with the caret pointing to the second import. Note it's "single-static-import" not "static single-type import" - a single-static-import declaration can import more than just types.
+
+Sadly, JLS 7.5.3 "Single Static Import" doesn't have the "no duplicates" rule which javac is implementing! But I looked at 7.5.3 and 7.5.4 last time round, so maybe there is an open bug for it.
+
+BTW, no example of a single-type-import clashing with a single-static-import? The JLS does consider that.
+
+
+* Annotations
+
+- compiler.err.annotation.missing.default.value
+
+Says "annotation Anno is missing value for the attribute value" but better as "annotation @Anno is missing value for the element 'value'". Annotations should always be prefixed with @ (to distinguish them from annotation types) and annotations don't have attributes, they have element-value pairs which provide values for elements declared in the annotation type.
+
+Similarly for compiler.err.annotation.missing.default.value.1
+
+- compiler.err.annotation.not.valid.for.type
+
+Says "annotation not valid for a value of type int" but it should be "annotation not valid for an _element_ of type int". (You could say "annotation not valid _as_ a value of type int", but then the question arises, why do we want a value of type int? and the answer is, because there's an element of type int in the annotation type, so we may as well refer to that element directly.)
+
+Technically the message should be "annotation not commensurate with an element of type int" but only the five people who've read JLS 9.7.1 will know the term "commensurate".
+
+- compiler.err.attribute.value.must.be.constant
+
+Says "attribute value must be constant" but it should be "_element_ value must be a _constant expression_". The key should be renamed to compiler.err.annotation.value.must.be.constant (aligns with other compiler.err.annotation.value.must.be.* keys).
+
+- compiler.err.duplicate.annotation.member.value
+
+Says "duplicate annotation member value value in Anno" but should be "duplicate element 'value' in annotation @Anno". The key should be renamed to compiler.err.annotation.duplicate.element.
+
+- compiler.err.duplicate.annotation.missing.container
+
+Says "duplicate annotation: the declaration of Anno does not have a valid Repeatable annotation" but better as "duplicate annotation: Anno is not a repeatable annotation type". The key should be renamed to compiler.err.duplicate.annotation.missing.containing.type.
+
+
+* Annotation types (inc. repeatable annotation types)
+
+- compiler.err.invalid.repeatable.annotation.not.documented
+
+Says "containing annotation type, Annos, is not @Documented while repeated annotation type, Anno, is" but better as "repeatable annotation type (Anno) is @Documented but containing annotation types (Annos) is not".
+
+- compiler.err.invalid.repeatable.annotation.not.inherited
+
+Says "containing annotation type, Annos, is not @Inherited while repeated annotation type, Anno, is" but better as "repeatable annotation type (Anno) is @Inherited but containing annotation type (Annos) is not".
+
+- compiler.err.invalid.repeatable.annotation.elem.nondefault
+
+Says "containing annotation Annos does not have a default value for element foo()" but it should be "containing annotation type (Annos) does not have a default value for element 'foo'".
+
+- compiler.err.invalid.repeatable.annotation.retention
+
+Says "containing annotation Annos has shorter retention (CLASS) than the contained annotation Anno with retention RUNTIME" but it should be "retention of containing annotation type (Annos) is shorter than retention of repeatable annotation type (Anno)". (No need to mention CLASS and RUNTIME in the error message.)
+
+- compiler.err.invalid.repeatable.annotation.incompatible.target
+
+Says "target of container annotation Annos is not a subset of target of repeated annotation Anno" but it should be "containing annotation type (Annos) is applicable to more targets than repeatable annotation type (Anno)".
+
+- compiler.err.invalid.repeatable.annotation.value.return
+
+Says "duplicate annotation: value element of containing annotation Annos should have type Anno[], found String" but it should be "duplicate annotation: containing annotation type (Annos) must have a 'value' element of type Anno[]".
+
+- compiler.err.cyclic.annotation.element
+
+Says "cyclic annotation element type" but better as "type of element 'value' is cyclic". (The term "annotation element type" in the original message is properly the term for the type of an element-value pair in an annotation. That's not the same thing as the type of an element of an annotation type.)
+
+- compiler.err.default.allowed.in.intf.annotation.member
+
+Says "default value only allowed in an @interface member" but better as "default value only allowed in an annotation type declaration". (The programmer probably meant to put @ before 'interface', so the compiler hints that they didn't.)
+
+- compiler.err.intf.annotation.cant.have.type.params
+
+Says "@interface may not have type parameters" but better as "Annotation type 'X' cannot be generic".
+
+- compiler.err.intf.annotation.member.clash
+
+Says "@interface member clashes with method 'toString()' in Annotation" but better as "Annotation type 'X' declares an element with the same name as a method in Object".
+
+- compiler.err.intf.annotation.members.cant.have.params
+
+Says "@interface members may not have parameters" but better as "Elements in annotation type declarations cannot declare formal parameters."
+
+- compiler.err.intf.annotation.members.cant.have.type.params
+
+Says "@interface members may not have type parameters" but better as "Elements in annotation type declarations cannot be generic methods."
+
+- compiler.err.invalid.annotation.member.type
+
+Says "invalid type for annotation member" but it should be "invalid type for element 'value' of annotation type". The key should be renamed to compiler.err.annotation.invalid.element.type.

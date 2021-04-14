@@ -1,0 +1,17 @@
+The following two matches succeed when they should not. `Tuple`, `NonEmptyTuple`, `*:` erase to `Object` or `Product` and therefore the test is performed on those classes. 
+
+```Scala
+("a": Any) match
+    case _: Tuple => assert(false)
+    case _ => // ok
+```
+
+```Scala
+  case class Foo(a: Int)
+
+  (Foo(1): Any) match
+    case a: (_ *: _) => a.tail
+    case _ => // ok
+```
+
+As these classes do not exist at runtime we should handle them as abstract types which would yield the unchecked warning. This approach could be combined with [TypeTest](https://github.com/lampepfl/dotty/pull/7555) to provide a type test that does the correct checks at runtime.

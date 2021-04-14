@@ -1,0 +1,26 @@
+com.sun.tools.javac.file.Locations.ModulePathLocationHandler.ModulePathIterator#inferModuleName reads:
+
+// --
+if (p.getFileName().toString().endsWith(".jar") && fsInfo.exists(p)) {
+    URI uri = URI.create("jar:" + p.toUri());
+// --
+
+This code was introduced recently and was modelled after this snippet just
+a few lines below:
+
+// --
+           if (p.getFileName().toString().endsWith(".jmod")) {
+                    try {
+                        FileSystem fs = fileSystems.get(p);
+                        if (fs == null) {
+                            URI uri = URI.create("jar:" + p.toUri());
+// --
+
+Both of these are problematic as they construct a URI that will fail
+with a MalformedURLException should a URL ever be constructed
+from the URI.
+
+At the moment this bug is latent (harmless) since these faulty states are
+transient and quickly disposed without triggering any problems/symptoms.
+
+But these should be cleaned up.

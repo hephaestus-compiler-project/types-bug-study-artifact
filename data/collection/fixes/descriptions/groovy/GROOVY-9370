@@ -1,0 +1,47 @@
+The following code works in Groovy 2.5.8 but fails in 2.5.9 (and 3.0.0-rc-3):
+{code:java}
+@groovy.transform.CompileStatic
+@FunctionalInterface
+interface Invoker {
+    void invoke()
+}
+
+@groovy.transform.CompileStatic
+class Library {
+    void something(Invoker invoker) {
+        invoker.invoke()
+    }
+
+    void somethingElse() {
+    }
+}
+
+@groovy.transform.CompileStatic
+class Main {
+    final Library lib = new Library()
+
+    void main() {
+        new Invoker() { // Anonymous class
+            void invoke() {
+                lib.something { // Coerce to SAM
+                    lib.somethingElse() // This fails
+                }
+            }
+        }
+    }
+}
+{code}
+Compiler error:
+{noformat}
+> Task :compileGroovy
+startup failed:
+C:\Work\Groovy-STC-bug\src\main\groovy\groovy\Main.groovy: 25: [Static type checking] - Cannot find matching method java.lang.Object#somethingElse(). Please check if the declared type is correct and if the method exists.
+ @ line 25, column 21.
+                       lib.somethingElse() // This fails
+                       ^
+1 error
+> Task :compileGroovy FAILED
+{noformat}
+The problem occurs only with the combination of an anonymous class with a nested closure that is type coerced to a SAM interface. It works fine the other way around, or if both are using anonymous classes or both are using type coercions. For the same reason, it is easy to work around. But it is an annoying bug nevertheless.
+
+At this time, there are a few other type checking issues open that describes problems that manifests themselves with "Cannot find matching method java.lang.Object". But I think this is a different root cause than those.

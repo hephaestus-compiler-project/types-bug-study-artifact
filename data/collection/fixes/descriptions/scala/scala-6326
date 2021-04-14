@@ -1,0 +1,75 @@
+```scala
+class ValueClass(val x: Int) extends AnyVal
+
+object Test extends App {
+  new ValueClass(1).getClass
+}
+```
+
+```scala
+java.lang.ClassCastException: ValueClass cannot be cast to scala.AnyVal
+        at Test$delayedInit$body.apply(Test.scala:4)
+        at scala.Function0$class.apply$mcV$sp(Function0.scala:40)
+        at scala.runtime.AbstractFunction0.apply$mcV$sp(AbstractFunction0.scala:12)
+        at scala.App$$anonfun$main$1.apply(App.scala:61)
+        at scala.App$$anonfun$main$1.apply(App.scala:61)
+        at scala.collection.immutable.List.foreach(List.scala:309)
+        at scala.collection.generic.TraversableForwarder$class.foreach(TraversableForwarder.scala:32)
+        at scala.collection.mutable.ListBuffer.foreach(ListBuffer.scala:45)
+        at scala.App$class.main(App.scala:61)
+        at Test$.main(Test.scala:3)
+        at Test.main(Test.scala)
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+        at java.lang.reflect.Method.invoke(Method.java:597)
+        at scala.tools.nsc.util.ScalaClassLoader$$anonfun$run$1.apply(ScalaClassLoader.scala:71)
+        at scala.tools.nsc.util.ScalaClassLoader$class.asContext(ScalaClassLoader.scala:31)
+        at scala.tools.nsc.util.ScalaClassLoader$URLClassLoader.asContext(ScalaClassLoader.scala:139)
+        at scala.tools.nsc.util.ScalaClassLoader$class.run(ScalaClassLoader.scala:71)
+        at scala.tools.nsc.util.ScalaClassLoader$URLClassLoader.run(ScalaClassLoader.scala:139)
+        at scala.tools.nsc.CommonRunner$class.run(ObjectRunner.scala:28)
+        at scala.tools.nsc.ObjectRunner$.run(ObjectRunner.scala:45)
+        at scala.tools.nsc.CommonRunner$class.runAndCatch(ObjectRunner.scala:35)
+        at scala.tools.nsc.ObjectRunner$.runAndCatch(ObjectRunner.scala:45)
+        at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:74)
+        at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:96)
+        at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:105)
+        at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+```
+
+```scala
+C:\Projects\Kepler\sandbox @ ticket/6318>scalac Test.scala -Xprint:erasure
+[[syntax trees at end of                   erasure]] // Test.scala
+package <empty> {
+  final class ValueClass extends Object {
+    <paramaccessor> private[this] val x: Int = _;
+    <stable> <accessor> <paramaccessor> def x(): Int = ValueClass.this.x;
+    def <init>(x: Int): ValueClass = {
+      ValueClass.super.<init>();
+      ()
+    };
+    override <synthetic> def hashCode(): Int = ValueClass.extension#Code(ValueClass.this.x().$asInstanceOf[ErasedValueType(ValueClass)]());
+    override <synthetic> def equals(x$1: Object): Boolean = ValueClass.extension=uals(ValueClass.this.x().$asInstanceOf[ErasedValueType(ValueClass)](), x$1)
+  };
+  <synthetic> object ValueClass extends Object {
+    def <init>(): ValueClass.type = {
+      ValueClass.super.<init>();
+      ()
+    };
+    final <synthetic> def extension#Code($this: ErasedValueType(ValueClass)): Int = scala.Int.box(new ValueClass($this.$asInstanceOf[Int]()).x()).hashCode();
+    final <synthetic> def extension=uals($this: ErasedValueType(ValueClass), x$1: Object): Boolean = x$1.$isInstanceOf[ValueClass]().&&({
+      <synthetic> val ValueClass$1: ErasedValueType(ValueClass) = x$1.$asInstanceOf[ValueClass]().x().$asInstanceOf[ErasedValueType(ValueClass)]();
+      new ValueClass($this.$asInstanceOf[Int]()).x().==(new ValueClass(ValueClass$1.$asInstanceOf[Int]()).x())
+    })
+  };
+  object Test extends Object with App {
+    def <init>(): Test.type = {
+      Test.super.<init>();
+      Test.this.$asInstanceOf[App$class]()./*App$class*/$init$();
+      ()
+    };
+    new ValueClass(1.$asInstanceOf[Int]()).$asInstanceOf[AnyVal]().getClass()
+  }
+}
+```

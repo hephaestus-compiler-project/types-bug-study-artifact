@@ -1,0 +1,32 @@
+When I try to compile the following code:
+```scala
+  object O {
+    implicit def a(s:String):String = error("")
+    implicit def a(i:Int):String = error("")
+    implicit def b(i:Int):String = error("")
+  }
+
+  class C {
+    val v:String = {
+      import O.a
+      2
+    }
+  }
+```
+I get the following error:
+```scala
+  > scalac -version
+  Scala compiler version 2.7.2.RC3 -- Copyright 2002-2008, LAMP/EPFL
+  > scalac ImportOverloadedTest.scala
+  ImportOverloadedTest.scala:10: error: type mismatch;
+   found   : Int(2)
+   required: String
+      2
+      ^
+  one error found
+```
+I would have expected the implicit function, a::Int->String (which is imported in the body of the v::String declaration) to be used to convert the literal value of 2 to a String.
+
+If I change the import statement to "import O._" and remove the b::Int -> String function, the code compiles. It also compiles if I just change the name of the a::String -> String function. 
+
+This issue was originally posted to the mailing list: http://www.nabble.com/-scala--Importing-overloaded-implicit-functions-td20026428.html

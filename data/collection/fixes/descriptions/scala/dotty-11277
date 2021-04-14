@@ -1,0 +1,34 @@
+```scala
+class Foo {
+  opaque type Num = Int
+
+  val z = Test.id(this)(1)
+}
+object Test {
+  def id(f: Foo)(x: f.Num): f.Num = x
+}
+```
+```scala
+-- [E007] Type Mismatch Error: try/opaque.scala:4:24 ---------------------------
+4 |  val z = Test.id(this)(1)
+  |                        ^
+  |                        Found:    (1 : Int)
+  |                        Required: Foo.this.Num
+```
+As far as I can tell, the issue is that `infoDependsOnPrefix` is defined as:
+https://github.com/lampepfl/dotty/blob/3b741d67f8631487aa553c52e03ac21157e68563/compiler/src/dotty/tools/dotc/core/Types.scala#L2300-L2301
+And `membersNeedAsSeenFrom` returns true when the prefix is the current `thisType`, because we don't actually need to do an as-seen-from. But for opaque types we do need to recompute the info as a member of its thisType prefix to reveal the opaque type alias, so my best bet is that we need something like this:
+```diff
+--- compiler/src/dotty/tools/dotc/core/Types.scala
++++ compiler/src/dotty/tools/dotc/core/Types.scala
+@@ -2302,6 +2302,7 @@ object Types {
+      */
+     private def infoDependsOnPrefix(symd: SymDenotation, prefix: Type)(using Context): Boolean =
+       symd.maybeOwner.membersNeedAsSeenFrom(prefix) && !symd.is(NonMember)
++      || prefix.isInstanceOf[Types.ThisType] && symd.is(Opaque)
+
+     /** Is this a reference to a class or object member? */
+     def isMemberRef(using Context): Boolean = designator match {
+```
+
+Which does fix the original issue, but I don't understand the full opaque type implementation well enough to say if this is good enough (for example there's a seemingly related special case in https://github.com/lampepfl/dotty/blob/3b741d67f8631487aa553c52e03ac21157e68563/compiler/src/dotty/tools/dotc/core/Denotations.scala#L1066-L1076, and I have no idea why). WDYT @odersky ?

@@ -1,0 +1,59 @@
+{code lang=kt}
+val lambdasMap: Map<String, (String) -> String?> = mapOf(
+        "foo" to {input -> input + "_fooed"},
+        "bar" to {input -> "bar"},
+        "baz" to {input -> if ('a' in input) "baz" else null}
+)
+
+fun main(args: Array<String>){
+    val testStr = "lalala"
+    listOf("foo", "bar", "baz", "ololoz").forEach {
+        println(lambdasMap[it]?.invoke(testStr))
+    }
+}
+{code}
+
+Here we have a map of lambdas, and each lambda has the same type and receives singe value. Moreover, the type of lambdas is specified explicitly. Naturally, one wants to use 'it' in lambdas or omit explicit parameter:
+{code lang=kt}
+val lambdasMap: Map<String, (String) -> String?> = mapOf(
+        "foo" to {it + "_fooed"},
+        "bar" to {"bar"},
+        "baz" to {if ('a' in it) "baz" else null}
+)
+{code}
+
+But the compiler complains:
+{code}
+Error:(2, 52) Kotlin: Type inference failed. Expected type mismatch: inferred type is Map<String, () -> String?> but Map<String, (String) -> String?> was expected
+Error:(3, 19) Kotlin: Unresolved reference: it
+Error:(5, 30) Kotlin: Unresolved reference: it
+{code}
+
+Same issue with lists and other containers. 
+But without container everything is consistent:
+{code lang=kt}
+val foo1: (String) -> String? = { input -> input + "_fooed"} //ok
+val foo2 = {input: String -> input + "_fooed"} //ok
+val foo3 = {it + "_fooed"} //Unresolved reference: it
+val foo4: (String) -> String? = {it + "_fooed"} //ok
+{code}
+
+And of course, this works:
+{code lang=kt}
+val foo: (String) -> String? = { it + "_fooed" }
+val bar: (String) -> String? = { "bar" }
+val baz: (String) -> String? = { if ('a' in it) "baz" else null }
+
+val lambdasMap = mapOf(
+        "foo" to foo,
+        "bar" to bar,
+        "baz" to baz
+)
+{code}
+
+I think that complier should understand that lambdas in containers have single parameter and 'it' can be used in them when the type is explicitly specified. 
+This issue is similar to KT-7758. 
+
+
+
+

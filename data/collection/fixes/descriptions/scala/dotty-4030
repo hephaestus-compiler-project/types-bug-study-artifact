@@ -1,0 +1,46 @@
+Pattern matches have to be linear in type variables. But apparently Dotty demands the same in *generated* type variables as well, at least if they come from a single type variable.
+
+Sample code:
+
+```scala
+sealed trait Root[T]
+case object C1 extends Root[Int]
+case object C2 extends Root[String]
+//case class C3[X, Y]() extends Root[X|Y|(X => X)]
+case class C3[X, Y]() extends Root[(X => X)|(Y => Y)|(X => Y)]
+case class C4[X, Y]() extends Root[(X => X)|(Y => Y)|(X => Y)]
+
+object TestGADT {
+  //type Foo // abstract
+
+  def f[A <: Seq[_], B, Foo >: A => B](v: Root[Foo], u: Root[Foo]) = (v, u) match {
+    //case C1 =>
+    //case C2 =>
+    case (C3(), C3()) =>
+  }
+  //f(C3[Int, Int]())
+  //implicitly[Int <:< Int|(Int => Int)]
+  //implicitly[(Int => Int) <:< String|(Int => Int)]//($conforms[Int => Int])
+  //f[Int, Int, Int|(Int => Int)](C3[Int, Int]())
+  //f(C3[Int, Int]())
+  f(C3[Seq[_], Long](), C4[Seq[_], Long]())
+}
+```
+
+Error (with `-explain`, on commit 4149833dcd82e2ce72d1233dbe9a523a9e0d0ad9):
+```
+-- [E005] Naming Error: /Users/pgiarrusso/git/dotty/tests/IterableTest.scala:157:12
+157 |    case (C3(), C3()) =>
+    |            ^
+    |            duplicate pattern variable: `_$6`
+
+Explanation
+===========
+For each case bound variable names have to be unique. In:
+
+case (C3(), C3()) =>
+
+`_$6` is not unique. Rename one of the bound variables!
+
+one error found
+```

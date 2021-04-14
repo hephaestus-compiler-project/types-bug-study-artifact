@@ -1,0 +1,25 @@
+The scala compiler crashes with expressions of the form
+
+     ((a || ???) && (b || ???))
+
+where `???` is of type `Nothing` (i.e., throws an exception).
+The Bug is **not** triggered by `(a || ???)`.
+
+A quick look at `scala.tools.nsc.backend.jvm.GenASM` indicates an undefined failure label:
+
+    2442: jcode.emitIF(cond.negate(), labels(failure))
+
+This is a regression from Scala 2.10.
+
+(see: https://github.com/scala/scala/pull/2185, https://github.com/scala/scala/issues/3793)
+
+Workaround: `-YdisableUnreachablePrevention`
+(Alternatively: `-Ylinearizer:normal`)
+
+---
+
+java version "1.7.0_55"
+OpenJDK Runtime Environment (IcedTea 2.4.7) (ArchLinux build 7.u55_2.4.7-1-x86_64)
+OpenJDK 64-Bit Server VM (build 24.51-b03, mixed mode)
+
+Scala code runner version 2.11.1 -- Copyright 2002-2013, LAMP/EPFL

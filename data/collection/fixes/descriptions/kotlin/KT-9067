@@ -1,0 +1,28 @@
+Support `lateinit` properties, i.e. properties with no intializers (for injection, tests etc)
+
+* marked with `lateinit` modifier
+* such a property always has a backing field
+    * `hasBackingField()` must return true
+* must not have an initializer, must not be a delegated property
+* Must not be `abstract`
+* trying to read a value before the property has been intialized leads to an exception
+    * Exception class name: `UnitilializedPropertyAccessException(“lateinit propery ${name} has not been initialized”)`
+    * TECHNICALLY: check in getter (if not private)
+    * NOTE: when the property is `private`, checks must be emitted upon each access 
+        * including synthetic accessors, when accessing from nested classes
+* Property must have a non-null reference type
+    * if the type is a type parameter, it must not have nullable upper bounds
+* Must not be of primitive (value) type: `Byte`, `Short`, `Int`, `Long`, `Char`, `Float`, `Double`, `Boolean`
+* Custom bodies of getters/setters are not allowed for such properties
+* JVM: backing field has the same visibility as the property
+* Not allowed on primary constructor parameters
+* Not allowed on top-level properties 
+* Not allowed on local variables and parameters
+* if a lateinit property is a `val`
+    * JVM: backing field is not marked `ACC_FINAL`
+    * assignment to such properties is not allowed anywhere in the code
+* Derived facts
+    * `lateinit` property can override a supertype member
+    * can not be an extension (custom getter/setter no allowed)
+    * Only allowed for class/object members
+        * not in interface (see abstractness/backing field requirement)

@@ -1,0 +1,103 @@
+We've recently been seeing a lot of errors like this when building our app on CI:
+
+```
+> Task :energy-switch:kaptDebugKotlin
+Compilation with Kotlin compile daemon was not successful
+java.rmi.UnmarshalException: Error unmarshaling return header; nested exception is: 
+    java.io.EOFException
+    at sun.rmi.transport.StreamRemoteCall.executeCall(StreamRemoteCall.java:236)
+    at sun.rmi.server.UnicastRef.invoke(UnicastRef.java:161)
+    at java.rmi.server.RemoteObjectInvocationHandler.invokeRemoteMethod(RemoteObjectInvocationHandler.java:227)
+    at java.rmi.server.RemoteObjectInvocationHandler.invoke(RemoteObjectInvocationHandler.java:179)
+    at com.sun.proxy.$Proxy126.compile(Unknown Source)
+    at org.jetbrains.kotlin.compilerRunner.GradleKotlinCompilerWork.nonIncrementalCompilationWithDaemon(GradleKotlinCompilerWork.kt:230)
+    at org.jetbrains.kotlin.compilerRunner.GradleKotlinCompilerWork.compileWithDaemon(GradleKotlinCompilerWork.kt:192)
+    ...
+```
+
+For context, our project has ≈250k lines of Kotlin and ≈6k lines of Java (according to `cloc`) split across 160 Gradle modules.
+
+After SSHing into the CI boxes and monitoring the list of running process, it was pretty clear that this was a memory related issue - the memory usage of the `KotlinCompileDaemon` process goes up and up until the memory available on the box is exhausted & the daemon process dies, resulting in the above exception.
+
+## Metaspace leak
+
+I connected VisualVM to a running Kotlin daemon process (with a maximum heap size of `4g`). Interestingly, the heap (top right) looks healthy - whenever it's nearly full, the GC kicks in and frees up a bunch of space:
+
+![unhealthy-heap]
+
+However, the metaspace looks less healthy (again top right):
+
+![unhealthy-metaspace]
+
+The metaspace is used to store class metadata, so as you'd expect its size correlates strongly with the number of loaded classes (bottom left). This all points to a classloader leak - the metaspace shouldn't be anywhere near this size in a correctly behaving application.
+
+Analysis of a heap dump from the Kotlin compiler daemon shows that there are *hundreds* of copies of classes related to compiler plugins such as kapt:
+
+![mat-duplicate-classes]
+
+These are all kept alive by *soft references* from `ClassTraversalCache`:
+
+![mat-path-to-gc-root]
+
+The key to this issue is that by default, the size of the metaspace is unbounded. When the JVM needs to allocate memory in the metaspace (e.g. when it needs to load a class) it will perform these steps in order, stopping when one succeeds ([source][hotspot]):
+
+1) Trigger a regular GC (clearing anything that is not strongly or softly reachable).
+2) Try to expand the metaspace.
+3) Trigger a last ditch GC (clearing anything that is not strongly reachable).
+
+Unfortunately, the default way that Linux manages memory (by overcommitting) means that (2) will practically always succeed, so the metaspace just expands forever and the soft references to these classes are not cleared. Eventually the machine's physical memory is exhausted and the OOM killer kills a process, which always ends up being the Kotlin compiler daemon (because it's using so much memory and therefore has the highest `oom_score`).
+
+## A workaround (and a recent regression)
+
+If I explicitly limit the size of the metaspace (with `-XX:MaxMetaspaceSize=1g`), the soft references to the class loader *are* eventually cleared (and all of the associated classes are unloaded):
+
+![healthy-metaspace]
+
+Unfortunately, `ClassTraversalCache` was [recently changed][strong-ref] to use strong references to both keys and values. This hasn't been released yet, but if it is this workaround will no longer help (because the loaded classes will not be eligible for GC even after the last-ditch collection of soft references). 
+
+I ran the same profiling as above using the `1.3.50-dev-1913` build, and the daemon quickly crashed with `java.lang.OutOfMemoryError: Metaspace`.
+
+## Potential fixes
+
+I'm not familiar enough with the architecture of the compiler to know what the best way to fix this is (particularly how important `ClassTraversalCache` is to the compiler's performance). However, this seems very similar to the class loader leaks encountered by web frameworks that support dynamic reloading, so here are some potential fixes I can think of:
+
+1) Get rid of `ClassTraversalCache` entirely.
+2) Only populate `ClassTraversalCache` with classes that were loaded using the same class loader as `ClassTraversalCache` (or one of its ancestors).
+3) Explicitly track the lifetime of all class loaders & clear the relevant entries in `ClassTraversalCache` when a class loader is no longer required. This does not seem like a good solution, since it would leak an implementation detail across the codebase and would be very fragile.
+4) Set a default `-XX:MaxMetaspaceSize=?` for the Kotlin compiler daemon, so the metaspace is never unbounded. This seems like more of a workaround than a solution, since it means that *all* soft references in the VM will be cleared once the limit is hit, not just those held by `ClassTraversalCache`.
+
+Fixes 2, 3 and 4 assume that the [recent changes][strong-ref] are reverted so the cache uses weak keys and soft values.
+
+Here are some options that I **don't** think will work:
+
+1) Limiting the size of the cache (or using time-based eviction). This won't work because any reference from `ClassTraversalCache` to an object loaded by a short-lived class loader will leak every class that was loaded by that class loader.
+2) Using weak references *to* `ClassInfo` instances (i.e. using weak values in the cache). This won't work because nothing else has a reference to the `ClassInfo` instances, so they would be immediately eligible for GC.
+3) Using weak references *from* the `ClassInfo` instances, along the lines of:
+    ```
+    data class ClassInfo(
+        val constructorInfo: ConstructorInfo?,
+        val setterInfos: List<SetterInfo>,
+        val registrations: List<WeakReference<Type>>,
+        val defaultImplementation: WeakReference<Class<*>>?
+    )
+
+    data class ConstructorInfo(
+        val constructor: WeakReference<Constructor<*>>,
+        val parameters: List<WeakReferenceType>>
+    )
+    
+    data class SetterInfo(
+        val method: WeakReference<Method>,
+        val parameters: List<WeakReference<Type>>
+    )
+    ```
+    This won't work for similar reasons to (2) - `Class.getMethods()` returns a *copy* of the list of methods, so there would be no other references to the `Method` instances and they would be immediately eligible for GC.
+
+[unhealthy-heap]: https://imgur.com/xZUnhiF.png
+[unhealthy-metaspace]: https://imgur.com/ybvZTgl.png
+[healthy-metaspace]: https://imgur.com/2yE8IP3.png
+[mat-duplicate-classes]: https://imgur.com/ZW3Lv32.png
+[mat-class-loaders]: https://imgur.com/xbPspe5.png
+[mat-path-to-gc-root]: https://imgur.com/GcCu3GM.png
+[strong-ref]: https://github.com/JetBrains/kotlin/commit/b59bd9d6a6965ed0678e57eb89f605dc118d8367
+[hotspot]: https://hg.openjdk.java.net/jdk8u/jdk8u/hotspot/file/9deea71d83dd/src/share/vm/gc_implementation/shared/vmGCOperations.cpp#l263

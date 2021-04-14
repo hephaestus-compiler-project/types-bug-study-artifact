@@ -1,0 +1,51 @@
+The following case causes an assertion failure in the latest 2.12 version. The case is obtained from "t1085.scala" in the testsuite.
+
+It also crashes 2.11.8, but 2.9 is fine.
+
+Update: the error message of #10015 is similar. However, that case doesn't crash 2.11.8
+
+```scala
+$ scalac -version
+Scala compiler version 2.12.0-20161020-214217-5b8e4d3 -- Copyright 2002-2016, LAMP/EPFL and Lightbend, Inc.
+
+$ scalac crash-t1085.scala-39.scala
+crash-t1085.scala-39.scala:2: error: illegal cyclic reference involving type List
+ object Test { def listFunctor [ a ] : Functor [ a ] { type MyType [ x ] = List [ x ] } = new Functor [ a ] { type List [ t ] = List [ t ] } }
+                                                                                                                                ^
+error: java.lang.AssertionError: assertion failed:
+  AdaptTypeError - foundType is Erroneous: Functor[a]{type List[t] = <error>}
+     while compiling: crash-t1085.scala-39.scala
+        during phase: typer
+     library version: version 2.12.0-20161020-214217-5b8e4d3
+    compiler version: version 2.12.0-20161020-214217-5b8e4d3
+  reconstructed args:
+
+  last tree to typer: Select(New, <init>)
+       tree position: line 2 of crash-t1085.scala-39.scala
+            tree tpe: ()Functor[a]{type List[t] = <error>}
+              symbol: constructor $anon
+   symbol definition: def <init>(): $anon (a MethodSymbol)
+      symbol package: <empty>
+       symbol owners: constructor $anon -> <$anon: Functor[a]> -> method listFunctor -> object Test
+           call site: method listFunctor in object Test in package <empty>
+
+== Source file context for tree position ==
+
+     0 trait Functor [ a ] { type MyType [ a ] }
+     1  object Test { def listFunctor [ a ] : Functor [ a ] { type MyType [ x ] = List [ x ] } = new Functor [ a ] { type List [ t ] = List [ t ] } }
+	at scala.tools.nsc.Global.assert(Global.scala:229)
+	at scala.tools.nsc.typechecker.ContextErrors$TyperContextErrors$TyperErrorGen$.AdaptTypeError(ContextErrors.scala:216)
+	at scala.tools.nsc.typechecker.Typers$Typer.adaptMismatchedSkolems$1(Typers.scala:1044)
+	at scala.tools.nsc.typechecker.Typers$Typer.lastTry$1(Typers.scala:1055)
+	at scala.tools.nsc.typechecker.Typers$Typer.adaptExprNotFunMode$1(Typers.scala:1105)
+	at scala.tools.nsc.typechecker.Typers$Typer.vanillaAdapt$1(Typers.scala:1151)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1195)
+(...)
+
+$ cat crash-t1085.scala-39.scala
+trait Functor[a] { type MyType[a] }
+object Test {
+  def listFunctor[a]: Functor[a] { type MyType[x] = List[x] } =
+    new Functor[a] { type List[t] = List[t] }
+}
+```

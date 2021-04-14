@@ -1,0 +1,43 @@
+The code is:
+```
+inline fun <reified T, reified K> case_14(x: T, y: K) {
+    if (x is K) {
+        x.equals(x) // NPE, x is {T!! & K!!}
+    }
+    /*
+     * or:
+     * x as K
+     * x.equals(x) // NPE, x is {T!! & K!!}
+     */
+}
+
+fun main() {
+    val x: Int? = null
+    val y: Int? = 10
+
+    case_14(x, y)
+}
+
+```
+
+It seems, type should be `T & K`, because we still don't know something about nullability `K`.
+
+More interesting example:
+```
+inline fun <reified T, reified K> case_14(y: K) {
+    var x: T? = 10 as T
+
+    x = null
+
+    if (x is K) {
+        x::equals // x is {Nothing && T!! & K!!}
+        println("unreachable code") // is printed
+    }
+}
+
+fun main() {
+    val x: Int? = 10
+    case_14(x)
+}
+
+```

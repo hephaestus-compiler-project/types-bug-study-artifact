@@ -1,0 +1,43 @@
+Compiling the following code with scalac 2.8.x will not terminate:
+
+```scala
+sealed trait Bool {
+    type If[T <: Up, F <: Up, Up] <: Up
+}
+sealed trait True extends Bool {
+    type If[T <: Up, F <: Up, Up] = T
+}
+sealed trait False extends Bool {
+    type If[T <: Up, F <: Up, Up] = F
+}
+
+class Field[E, N <: Bool](implicit val default: N#If[Option[E], E, Any]) {
+    type NotNull = Field[E, False]
+
+    def notNull: NotNull = new NotNull
+
+}
+```
+
+Removing the def notNull line allows this to compile, so the bug seems to be in implicit resolution.
+
+Tried with
+
+ * Java(TM) SE Runtime Environment (build 1.6.0_22-b04) Java !HotSpot(TM) 64-Bit Server VM (build 17.1-b03, mixed mode) 
+  * scalac 2.7.5final (Ubuntu Karmic package)
+  * scalac 2.9.0.r23446 from SVN
+ * OpenJDK Runtime Environment (!IcedTea6 1.9) (6b20-1.9-0ubuntu1) OpenJDK 64-Bit Server VM (build 17.0-b16, mixed mode)
+  * scalac 2.8.0 (final) from maven with sbt
+  * scalac 2.8.1.RC4 from maven with sbt
+
+scalac 2.7.5final terminates with
+
+```scala
+$$ scalac bug.scala
+bug.scala:24: error: no implicit argument matching parameter type False#If[Option[E],E,Any] was found.
+    def NOT_NULL: NotNull = new NotNull
+                            ^
+one error found
+```
+
+All the 2.8.x/2.9.x versions eventually diverge with 100% CPU usage, no growth in memory usage and as of 5 minutes of running, no stack overflow.

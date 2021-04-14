@@ -1,0 +1,47 @@
+Using javac in jdk7_b140.
+
+Compilation error 
+
+NumberOfFocusListeners.java:14: error: length in Array is defined in an inaccessible class or interface
+        return button.getListeners(listener.getClass()).length;
+                                                       ^
+1 error,
+
+
+when trying to compile the following mini-test:
+
+/********************************************************************/
+
+import java.awt.Button;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusListener;
+
+public class NumberOfFocusListeners {
+
+    public static void main(String[] args) {
+        System.out.println(numberOfFocusListeners());
+    }
+
+    private static int numberOfFocusListeners() {
+        FocusListener listener = new FocusAdapter(){};
+        Button button = new Button();
+        return button.getListeners(listener.getClass()).length;
+    }
+}
+
+/********************************************************************/
+
+Javac in jdk7_b140 (win x86, linux x86) cannot compile this code. Javac in jdk7_b139, jdk6_u25 and jdk6_u24 compiles it without problems. So, it seems like regression bug.
+The following JCK test
+api/javax_swing/plaf/metal/MetalComboBoxUI/index.html#public
+
+won't be compiled with JDK7 b140 javac (with the default source/target options)
+
+
+
+tests/api/javax_swing/plaf/metal/MetalComboBoxUI/publicTests.java:145: error: length in Array is defined in an inaccessible class or interface
+                c.getFocusListener().getClass()).length;
+                                                ^
+tests/api/javax_swing/plaf/metal/MetalComboBoxUI/publicTests.java:151: error: length in Array is defined in an inaccessible class or interface
+                c.getFocusListener().getClass()).length)) {
+                                                ^

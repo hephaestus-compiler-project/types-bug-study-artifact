@@ -1,0 +1,40 @@
+I was refactoring my code from abstract types
+
+```
+trait Foo {
+  type Self <: Foo
+  def someOper: Self
+}
+```
+
+Into F-bounded polymorphism
+
+```
+trait Foo[Self <: Foo[Self]] {
+  def someOper: Self
+}
+```
+
+Somewhere along the lines compiler started crashing with:
+
+```
+java.lang.StackOverflowError
+	at scala.reflect.internal.tpe.TypeConstraints$TypeConstraint.instValid(TypeConstraints.scala:157)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:175)
+	at scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:700)
+	at scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:669)
+	at scala.collection.immutable.List.loop$1(List.scala:172)
+	at scala.collection.immutable.List.mapConserve(List.scala:188)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:157)
+	at scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:700)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:175)
+	at scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:700)
+	at scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:669)
+	at scala.collection.immutable.List.loop$1(List.scala:172)
+	at scala.collection.immutable.List.mapConserve(List.scala:188)
+...
+```
+
+I'm doing ```sbt clean ~compile```. 
+
+What can I do to provide more info?

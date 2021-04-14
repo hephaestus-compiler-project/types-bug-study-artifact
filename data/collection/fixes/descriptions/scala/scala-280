@@ -1,0 +1,19 @@
+Scala compiler version 2.6.1-RC1 -- (c) 2002-2007 LAMP/EPFL
+
+```scala
+object BugPatternMatching extends Application {
+
+  List('cond, List(2, 3), List('else,1)) match {
+    case 'cond :: List('else, x) :: Nil     => println("case 1")
+    case 'cond :: (x :: y :: Nil) :: xs     => println("case 2")
+    case _ => error("bug")
+  }
+
+}
+```
+
+**Expected:** the program prints "case 2" because the value should be matched by the second pattern.
+
+**What happens:** the value is only matched by the default terminating case
+
+**Remark:** if we replace List('else, x) with the theoretically equivalent pattern ('else :: x :: Nil), the expected behavior is obtained.

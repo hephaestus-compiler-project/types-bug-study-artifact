@@ -1,0 +1,57 @@
+foo.kt:
+```kotlin
+package foo
+
+class Foo<T>
+
+typealias MyHandler<P> = Foo<P>.() -> Unit
+```
+
+bar.kt
+```kotlin
+package bar
+
+import foo.*
+
+fun foo(f: MyHandler<Int>) {}
+
+fun test() {
+	foo {
+		this
+	}
+}
+```
+
+```
+$ ls
+foo.kt	out	test.kt
+
+$ kotlinc-js-1.2.20 foo.kt -output out/foo.js -meta-info
+
+$ ls out
+foo		foo.js		foo.meta.js
+
+$ jar cvf foo-js.jar out/*
+added manifest
+adding: out/foo/(in = 0) (out= 0)(stored 0%)
+adding: out/foo/foo/(in = 0) (out= 0)(stored 0%)
+adding: out/foo/foo/foo.kjsm(in = 247) (out= 181)(deflated 26%)
+adding: out/foo.js(in = 548) (out= 324)(deflated 40%)
+adding: out/foo.meta.js(in = 314) (out= 273)(deflated 13%)
+
+$ ls
+foo-js.jar	foo.kt		out		test.kt
+
+$ kotlinc-js-1.2.20 test.kt -output test.js -libraries foo-js.jar
+test.kt:5:9: warning: parameter 'f' is never used
+fun foo(f: MyHandler<Int>) {}
+        ^
+test.kt:9:3: warning: the expression is unused
+		this
+  ^
+
+$ kotlinc-js-1.2.30-eap-16 test.kt -output test.js -libraries foo-js.jar
+test.kt:9:3: error: 'this' is not defined in this context
+		this
+  ^
+```

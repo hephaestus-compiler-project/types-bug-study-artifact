@@ -1,0 +1,49 @@
+scalac compiles but dotc crashes.
+
+$ dotc -version
+```
+Dotty compiler version 0.5.0-bin-SNAPSHOT-git-4fefb64 -- Copyright 2002-2017, LAMP/EPFL
+```
+
+$ dotc abc.scala
+```
+exception occurred while compiling abc.scala
+Exception in thread "main" scala.MatchError: Assign(Apply(Select(This(Ident(JavaInteraction)),protected$count),List(This(Ident(JavaInteraction)))),Apply(Select(This(Ident(JavaInteraction)),protected$count),List(This(Ident(JavaInteraction))))) (of class dotty.tools.dotc.ast.Trees$Assign)
+	at dotty.tools.dotc.transform.SuperAccessors.transformAssign(SuperAccessors.scala:395)
+	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.transform(PostTyper.scala:213)
+	at dotty.tools.dotc.ast.Trees$Instance$TreeMap.transform(Trees.scala:1153)
+	at dotty.tools.dotc.transform.MacroTransform$Transformer.transform(MacroTransform.scala:63)
+	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.transform(PostTyper.scala:293)
+	at dotty.tools.dotc.transform.MacroTransform$Transformer.transformStat$2(MacroTransform.scala:45)
+	at dotty.tools.dotc.transform.MacroTransform$Transformer.transformStats$$anonfun$1(MacroTransform.scala:47)
+	at dotty.tools.dotc.core.Decorators$ListDecorator$.loop$1(Decorators.scala:62)
+	at dotty.tools.dotc.core.Decorators$ListDecorator$.mapconserve$extension(Decorators.scala:78)
+	at dotty.tools.dotc.transform.MacroTransform$Transformer.transformStats(MacroTransform.scala:47)
+	at dotty.tools.dotc.transform.MacroTransform$Transformer.transform(MacroTransform.scala:61)
+	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.transform$$anonfun$5$$anonfun$1(PostTyper.scala:232)
+	at dotty.tools.dotc.transform.SuperAccessors.wrapTemplate(SuperAccessors.scala:410)
+	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.transform$$anonfun$2(PostTyper.scala:232)
+	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.withNoCheckNews(PostTyper.scala:102)
+	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.transform(PostTyper.scala:233)
+	at dotty.tools.dotc.ast.Trees$Instance$TreeMap.transform(Trees.scala:1206)
+	at dotty.tools.dotc.transform.MacroTransform$Transformer.transform(MacroTransform.scala:55)
+	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.transform(PostTyper.scala:248)
+	at dotty.tools.dotc.transform.MacroTransform$Transformer.transformStat$2(MacroTransform.scala:43)
+<snipped>
+```
+
+$ cat abc.scala
+```scala
+package p {
+  package a {
+    class JavaInteraction(arr: Array[Char])
+        extends java.io.CharArrayReader(arr) {
+      class Inner {
+        {
+          count = count
+        }
+      }
+    }
+  }
+}
+```

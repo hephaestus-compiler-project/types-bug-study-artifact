@@ -1,0 +1,68 @@
+          FULL PRODUCT VERSION :
+~/apps/jdk1.7.0_51/bin/java -version
+java version "1.7.0_51"
+Java(TM) SE Runtime Environment (build 1.7.0_51-b13)
+Java HotSpot(TM) 64-Bit Server VM (build 24.51-b03, mixed mode)
+
+~/apps/jdk1.8.0_40/bin/java -version
+java version "1.8.0_40"
+Java(TM) SE Runtime Environment (build 1.8.0_40-b25)
+Java HotSpot(TM) 64-Bit Server VM (build 25.40-b25, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux se-185 3.2.0-4-amd64 #1 SMP Debian 3.2.65-1+deb7u2 x86_64 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+See Test1.java as an example that shows the problem. It is very much stripped down from the original code, to showcase the problem.
+
+The JDK 7 compiler compiles this very fast. JDK 8 compilers seem to perform exponentially more work, and compilation time blows up. This to me is a severe performance regression, making it practically impossible to perform runtime in-memory code compilation.
+
+For 12 nested 'x' calls, as in Test1.java, this is the performance:
+
+$ time ~/apps/jdk1.7.0_51/bin/javac Test1.java
+
+real    0m0.380s
+user    0m0.616s
+sys     0m0.024s
+
+$ time ~/apps/jdk1.8.0_40/bin/javac Test1.java
+
+real    0m34.500s
+user    0m39.698s
+sys     0m0.172s
+
+Changing the 12 nested 'x' calls to more nested 'x' calls leads me to conclude that an exponential amount of work is performed. Maybe multiple variants are tried for each call?
+
+It should be noted that the Eclipse Luna JDT Java 8 compiler has no issues with this code, and compiles it very fast.
+
+I looked, but could not find an existing bug report for this performance degradation. I did previously report a similar, but different performance issue, currently under review with Review ID: JI-9019327. That problem was related to nested calls with multiple overloads. This problem is for nested calls with only one overload, so the number of overloads is not relevant for this issue, therefore making this a different issue.
+
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+@SuppressWarnings("javadoc")
+public class Test1 {
+    public static void main(String[] args) {
+        Map<Integer, String> a = x(x(x(x(x(x(x(x(x(x(x(x(
+                                    new LinkedHashMap<Integer, String>(),
+                                    1, "a"),  2, "b"),  3, "c"),  4, "d"),
+                                    5, "e"),  6, "f"),  7, "g"),  8, "h"),
+                                    9, "i"), 10, "j"), 11, "k"), 12, "l");
+        System.out.println(a);
+    }
+
+    @SuppressWarnings("unused")
+    public static <K, V> Map<K, V> x(Map<K, V> m, K k, V v) {
+        // Replaced actual code by dummy implementation.
+        return null;
+    }
+}
+
+---------- END SOURCE ----------
+

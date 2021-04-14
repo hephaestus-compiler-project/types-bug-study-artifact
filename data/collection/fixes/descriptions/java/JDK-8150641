@@ -1,0 +1,29 @@
+Consider code like this:
+{code}
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        try (StandardJavaFileManager fm = compiler.getStandardFileManager(null, null, null)) {
+            for (int i = 0; i < 10; i++) {
+                compiler.getTask(null, fm, d -> {}, Arrays.asList("-classpath", jars, "-proc:none"), null, Arrays.asList(new JavaSource())).call();
+            }
+        }
+{code}
+
+Where "jars" is a path containing many jars, each of the compilations will be much slower on JDK 9 (301.05ms) that it used to be on JDK 8 (15.275).
+
+This is using:
+$ java -version
+java version "1.8.0_40"
+Java(TM) SE Runtime Environment (build 1.8.0_40-b25)
+Java HotSpot(TM) 64-Bit Server VM (build 25.40-b25, mixed mode)
+
+and
+$ java -version
+java version "9-ea"
+Java(TM) SE Runtime Environment (build 9-ea+105-2016-02-10-210515.javare.4433.nc)
+Java HotSpot(TM) 64-Bit Server VM (build 9-ea+105-2016-02-10-210515.javare.4433.nc, mixed mode)
+
+To reproduce:
+1. wget http://download.netbeans.org/netbeans/8.1/final/zip/netbeans-8.1-201510222201-javase.zip, unpack it
+2.download the attached testcase, unpack
+3. edit test.sh to fill in paths to JDK 8 and JDK 9
+4. run test.sh, passing the "netbeans" directory from step 1 as a parameter

@@ -1,0 +1,47 @@
+It is possible to convince a type variable to appear as an actual type. I'm not sure how else to describe it:
+
+```scala
+
+scala> :pa
+// Entering paste mode (ctrl-D to finish)
+ 
+sealed abstract class \/[+A, +B]
+final case class -\/[+A](a: A) extends (A \/ Nothing)
+final case class \/-[+B](b: B) extends (Nothing \/ B)
+ 
+object \/ {
+ 
+  def left[A, B]:  A => A \/ B = -\/(_)
+  def right[A, B]: B => A \/ B = \/-(_)
+ 
+  def fromEither[A, B](e: Either[A, B]): A \/ B =
+    e fold (left, right)
+ 
+}
+ 
+implicit class EitherOps[A, B](self: Either[A, B]) {
+  final def disjunction: A \/ B = \/ fromEither self
+}
+ 
+ 
+// Exiting paste mode, now interpreting.
+ 
+defined class $bslash$div
+defined class $minus$bslash$div
+defined class $bslash$div$minus
+defined module $bslash$div
+defined class EitherOps
+ 
+scala> Left(1).disjunction
+res0: \/[Int,B] = -\/(1) // what the hell is B?
+ 
+scala> Right(1).disjunction
+res1: \/[A,Int] = \/-(1)
+ 
+scala> Right(1).disjunction : Nothing \/ Int
+<console>:15: error: type mismatch;
+ found   : \/[A,Int]
+ required: \/[Nothing,Int]
+              Right(1).disjunction : Nothing \/ Int
+
+```

@@ -1,0 +1,28 @@
+The problem I mentioned in https://github.com/lampepfl/dotty/issues/2500#issuecomment-397300984.
+
+```scala
+trait Type { type T }
+object Type { implicit def Type[S]: Type { type T = S } = new Type { type T = S } }
+trait Type1 { type T[_] }
+object Type1 { implicit def Type1[S[_]]: Type1 { type T[A] = S[A] } = new Type1 { type T[A] = S[A] } }
+trait Functor[F[_]] { def map[A,B](x: F[A])(f: A => B): F[B] }
+object Functor { implicit object listFun extends Functor[List] { def map[A,B](ls: List[A])(f: A => B) = ls.map(f) } }
+
+val map: implicit (A:Type,B:Type,F:Type1) => (F.T[A.T]) => (A.T => B.T) =>
+         implicit (Functor[F.T])          => F.T[B.T]
+  = x => f => implicit fun => fun.map(x)(f)
+
+val ls = List(1,2,3)
+println(map.apply.apply(ls)(_.toString))
+```
+
+gives:
+
+```
+-- Error: /tmp/scastie6141179723275680546/src/main/scala/main.scala:38:43 ------
+   |    println(map.apply.apply(ls)(_.toString))
+   |                                           ^
+   |no implicit argument of type Functor[List] was found for parameter of implicit Functor[List] => List[String]
+```
+
+When calling `map.apply.apply(ls)(_.toString)(listFun:Functor[List])` I get the error `found: Functor[List]; required: Functor[List]` so I assume it's a current Dotty bug.

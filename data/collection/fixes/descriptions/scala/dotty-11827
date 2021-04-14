@@ -1,0 +1,47 @@
+## Compiler version
+```sh
+[eje@localhost poc-coulomb-scala3]$ ./mill show coulomb.scalaVersion
+[1/1] show 
+"3.0.0-RC2"
+```
+
+## Minimized code
+
+the following code also resides here:
+https://github.com/erikerlandson/poc-coulomb-scala3/blob/match-type-bug/coulomb/src/coulomb/infra/sigops.scala
+
+```scala
+package repro
+
+trait SNil
+trait %:[H, T]
+trait Zero
+trait Fail
+
+type FilterZ[S] = S match
+    case SNil => SNil
+    case Zero %: t => FilterZ[t]
+    case h %: t => h %: FilterZ[t]
+    case Any => Fail
+```
+
+## Output
+
+Does not traverse the type and remove `Zero` as expected:
+```scala
+scala> import repro.*
+
+scala> type T = FilterZ[String %: Zero %: SNil]
+// defined alias type T = repro.FilterZ[String %: repro.Zero %: repro.SNil]
+```
+
+
+## Expectation
+My reading of the match-type doc led me to hope that it could filter out elements that match the corresponding match-type case:
+```scala
+// ideally, some variation on this, where `Zero` gets filtered out
+scala> import repro.*
+
+scala> type T = FilterZ[String %: Zero %: SNil]
+// defined alias type T = String %: repro.SNil
+```

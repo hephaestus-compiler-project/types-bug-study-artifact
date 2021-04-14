@@ -1,0 +1,73 @@
+The following code is green, but the compilation fails with an exception.
+
+
+```kotlin
+package test
+
+interface DeclarationDescriptor
+interface ParameterDescriptor : DeclarationDescriptor
+interface VariableDescriptor : DeclarationDescriptor
+
+interface IrSymbolOwner
+interface IrValueParameter : IrSymbolOwner
+interface IrVariable : IrSymbolOwner
+
+interface IrSymbol
+
+interface IrBindableSymbol<out D : DeclarationDescriptor, B : IrSymbolOwner> : IrSymbol
+interface IrValueSymbol : IrSymbol
+interface IrValueParameterSymbol : IrValueSymbol, IrBindableSymbol<ParameterDescriptor, IrValueParameter>
+interface IrVariableSymbol : IrValueSymbol, IrBindableSymbol<VariableDescriptor, IrVariable>
+
+class Remapper {
+    val valueParameters = HashMap<IrValueParameterSymbol, IrValueParameterSymbol>()
+    val variables = HashMap<IrVariableSymbol, IrVariableSymbol>()
+
+    fun getReferencedValue(symbol: IrValueSymbol): IrValueSymbol =
+            when (symbol) {
+                is IrValueParameterSymbol -> valueParameters[symbol]
+                is IrVariableSymbol -> variables[symbol]
+                else -> throw IllegalArgumentException("Unexpected symbol $symbol")
+            }  ?: symbol
+}
+```
+
+Error:Kotlin: [Internal Error] org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: Error type encountered: org.jetbrains.kotlin.types.ErrorUtils$UninferredParameterTypeConstructor@2927cf3e (ErrorTypeImpl).
+Cause: Error type encountered: org.jetbrains.kotlin.types.ErrorUtils$UninferredParameterTypeConstructor@2927cf3e (ErrorTypeImpl).
+File being compiled and position: (23,13) in /home/user/IdeaProjects/TestKtJvm2/src/test/ab.kt
+PsiElement: when (symbol) {
+                is IrValueParameterSymbol -> valueParameters[symbol]
+                is IrVariableSymbol -> variables[symbol]
+                else -> throw IllegalArgumentException("Unexpected symbol $symbol")
+            }  ?: symbol
+The root cause was thrown at: KotlinTypeMapper.java:147
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:324)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:287)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:330)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:334)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.returnExpression(ExpressionCodegen.java:2256)
+        ...
+Caused by: java.lang.IllegalStateException: Error type encountered: org.jetbrains.kotlin.types.ErrorUtils$UninferredParameterTypeConstructor@2927cf3e (ErrorTypeImpl).
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$1.processErrorType(KotlinTypeMapper.java:147)
+	at org.jetbrains.kotlin.load.kotlin.TypeSignatureMappingKt.mapType(typeSignatureMapping.kt:111)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.mapType(KotlinTypeMapper.java:470)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.mapType(KotlinTypeMapper.java:441)
+	at org.jetbrains.kotlin.codegen.CodegenUtilKt.asmType(codegenUtil.kt:302)
+	at org.jetbrains.kotlin.codegen.CodegenUtilKt.asmType(codegenUtil.kt:305)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.expressionType(ExpressionCodegen.java:446)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.generateElvis(ExpressionCodegen.java:3845)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.visitBinaryExpression(ExpressionCodegen.java:3519)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.visitBinaryExpression(ExpressionCodegen.java:120)
+	at org.jetbrains.kotlin.psi.KtBinaryExpression.accept(KtBinaryExpression.java:33)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:305)
+	... 65 more
+
+It compiles if I change `getReferencedValue` to
+```kotlin
+    fun getReferencedValue(symbol: IrValueSymbol): IrValueSymbol =
+            when (symbol) {
+                is IrValueParameterSymbol -> valueParameters[symbol] ?: symbol
+                is IrVariableSymbol -> variables[symbol] ?: symbol
+                else -> throw IllegalArgumentException("Unexpected symbol $symbol")
+            }
+```

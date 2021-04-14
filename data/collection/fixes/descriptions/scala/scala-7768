@@ -1,0 +1,75 @@
+This was my most recent idea for modifying implicit search to make contravariance less useless. Maybe someone else would like to pursue it - I realize I've been hogging this brick wall for the last five years, but it feels so good on my head.
+
+Thread: https://groups.google.com/d/msg/scala-debate/QTo_n3U9B0k/TurohNUHGbQJ
+Older thread: https://groups.google.com/forum/#!msg/scala-language/ZE83TvSWpT4/el3-hNgzwv8J
+
+```scala
+This makes sense, and indeed mirrors the contravariant case.
+
+In fact, it seems like we can cover all bases by reformulating
+prioritization, ignoring specificity for specificity's sake.
+Instead, start by trying for an exact match; then follow the
+variance arrow the minimum distance.
+
+class A
+class B extends A
+class C extends B
+class D extends C
+class E extends D
+
+class Con[-T](override val toString: String)
+class Cov[+T](override val toString: String)
+
+object ConTest {
+  implicit val a = new Con[A]("Con[A]")
+  implicit val c = new Con[C]("Con[C]")
+  implicit val e = new Con[E]("Con[E]")
+}
+object CovTest {
+  implicit val a = new Cov[A]("Cov[A]")
+  implicit val c = new Cov[C]("Cov[C]")
+  implicit val e = new Cov[E]("Cov[E]")
+}
+
+object Test {
+  def f1() {
+    import ConTest._
+    println(List(
+      implicitly[Con[A]],
+      implicitly[Con[B]],
+      implicitly[Con[C]],
+      implicitly[Con[D]],
+      implicitly[Con[E]]
+    ) mkString " ")
+  }
+  def f2() {
+    import CovTest._
+    println(List(
+      implicitly[Cov[A]],
+      implicitly[Cov[B]],
+      implicitly[Cov[C]],
+      implicitly[Cov[D]],
+      implicitly[Cov[E]]
+    ) mkString " ")
+  }
+
+  def main(args: Array[String]): Unit = {
+    f1()
+    f2()
+  }
+}
+
+/*** 
+
+Currently:
+
+Con[A] Con[A] Con[A] Con[A] Con[A]
+Cov[E] Cov[E] Cov[E] Cov[E] Cov[E]
+
+Hypothetically:
+
+Con[A] Con[A] Con[C] Con[C] Con[E]
+Cov[A] Cov[C] Cov[C] Cov[E] Cov[E]
+
+***/
+```

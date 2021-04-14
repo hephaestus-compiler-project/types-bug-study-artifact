@@ -1,0 +1,47 @@
+Dependent method types and singleton types allow me to turn this extractor:
+```scala
+object & { def unapply[A <: AnyRef](a: A): Some[(A, A)] = Some(a, a) }
+```
+into this one, with a more precise type:
+```scala
+object & { def unapply[A <: AnyRef](a: A): Some[(a.type, a.type)] = Some(a, a) }
+```
+(Note that the `<: AnyRef` bound is only there to allow using `a.type`, so is unnecessary in the first example).
+However, the new extractor does not work, and Paul Phillips said it's a bug (https://groups.google.com/d/msg/scala-language/gcGGjkDazwE/8nmHdVudE2QJ). For instance, given these declarations:
+```scala
+trait Exp[+T]
+case class ArrayApply[T](arr: Exp[Array[T]], idx: Exp[Int]) extends Exp[T]
+```
+at the REPL we see that:
+```scala
+scala> def f[T <: AnyRef](x: Exp[T]) = x match { case (y: ArrayApply[t]) & ArrayApply(x, i) => x }
+<console>:11: error: constructor cannot be instantiated to expected type;
+ found   : ArrayApply[T]
+ required: <unapply-selector>.type
+       def f[T <: AnyRef](x: Exp[T]) = x match { case (y: ArrayApply[t]) & ArrayApply(x, i) => x }
+```
+Apparently, the dependent method type in the result, `a.type` with `a = x: Exp[T]`, is not resolved to `Exp[T]`.
+The same code works fine with the previous definition of `&`:
+```scala
+
+scala> object & { def unapply[A <: AnyRef](a: A): Some[(A, A)] = Some(a, a) }
+defined module $amp
+
+scala> def f[T <: AnyRef](x: Exp[T]) = x match { case (y: ArrayApply[t]) & ArrayApply(x, i) => x }
+f: [T <: AnyRef](x: Exp[T])Exp[Array[T]]
+```
+The bug clearly requires dependent method types, but it also seems to require singleton types, since the variation below with dependent method types works fine.
+
+```scala
+scala> trait Exp[+T] {type Res = Exp[T]}
+defined trait Exp
+
+scala> case class ArrayApply[T](arr: Exp[Array[T]], idx: Exp[Int]) extends Exp[T]
+defined class ArrayApply
+
+scala> object & { def unapply[A](a: Exp[A]): Some[(a.Res, a.Res)] = Some((a, a)) }
+defined module $amp
+
+scala> def f[T <: AnyRef](x: Exp[T]) = x match { case (y: ArrayApply[t]) & ArrayApply(x, i) => ArrayApply(x, i) }
+f: [T <: AnyRef](x: Exp[T])ArrayApply[T]
+```

@@ -1,0 +1,41 @@
+I have the following Groovy program.
+{code:groovy}
+@groovy.transform.CompileStatic
+public class Main {
+  public static void main(String[] args) {
+    Closure<A<Long>> closure =  { -> {
+      final x = (Long) 1;
+      new A<>(x);
+    }}
+    // If I remove 'extends Number' in class A, the following code
+    // works as expected.
+    final Long y = closure().f;
+  }
+}
+
+class A<T extends Number> {
+  T f;
+  public A(T f) {
+    this.f = f;
+  }
+}
+{code}
+h2. Actual Behavior
+
+The program does not compile, and I get the following error.
+{code:java}
+org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
+Main.groovy: 10: [Static type checking] - Cannot assign value of type java.lang.Number to variable of type java.lang.Long
+ @ line 10, column 20.
+       final Long y = closure().f;
+                      ^
+
+1 error
+
+{code}
+h2. Expected Behavior
+
+Compile successfully.
+h2. Affected Version
+
+I have also tested it with the compiler from Master (commit: e69c874e1a6a3cdeb236bad6a6faa061a30c88ca).

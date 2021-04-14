@@ -1,0 +1,118 @@
+---------
+TEST 1
+---------
+{code}
+package test
+
+import groovy.transform.CompileStatic
+
+class TestClass {
+
+	@CompileStatic
+	void doTest() {
+		Closure<String> closure = {
+			return "foo";
+		}
+	}
+
+}
+{code}
+Compiles fine.
+
+---------
+TEST 2
+---------
+{code}
+package test
+
+import groovy.transform.CompileStatic
+
+class TestClass {
+
+	@CompileStatic
+	void doTest() {
+		Closure<String> closure = {
+			if ("bah".length() == 3) {
+				return null
+			}
+			return "foo";
+		}
+	}
+
+}
+{code}
+...gives...
+{code}
+groovyc Test2.groovy
+org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
+Test2.groovy: 9: [Static type checking] - Incompatible generic argument types. Cannot assign groovy.lang.Closure <java.lang.Object> to: groovy.lang.Closure <String>
+ @ line 9, column 29.
+   		Closure<String> closure = {
+                               ^
+
+1 error
+{code}
+
+---------
+TEST 3
+---------
+{code}
+package test
+
+import groovy.transform.CompileStatic
+
+class TestClass {
+
+	@CompileStatic
+	void doTest() {
+		Closure<String> closure = {
+			return null;
+		}
+	}
+
+}
+{code}
+...gives...
+{code}
+groovyc Test3.groovy
+org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
+Test3.groovy: 9: [Static type checking] - Incompatible generic argument types. Cannot assign groovy.lang.Closure <java.lang.Object> to: groovy.lang.Closure <String>
+ @ line 9, column 29.
+   		Closure<String> closure = {
+                               ^
+
+1 error
+{code}
+
+---------
+TEST 4
+---------
+{code}
+package test
+
+import groovy.transform.CompileStatic
+
+class TestClass {
+
+	@CompileStatic
+	void doTest() {
+		Closure<String> closure = {
+
+		}
+	}
+
+}
+{code}
+Compiles fine.
+
+---------
+COMMENTS
+---------
+All files were compiled with 'groovyc Test\[1234\].groovy'. I expected all tests to compile. I wouldn't have thought returning null would cause a static compilation failure since null is a valid String. Also, I expected test 3 and test 4 to be equivalent.
+
+The workaround appears to be to cast the closure, like:
+{code}
+Closure<String> closure = (Closure<String>) {
+    ...
+}
+{code}

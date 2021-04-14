@@ -1,0 +1,91 @@
+Paste it in empty file, then remove `TItem` parameter from `Pipeline` interface
+```
+interface Pipeline<TPipeline, TItem> {
+    fun pipe(block: Pipeline<TPipeline, TItem>.() -> TItem)
+    fun <I> pipeFor(init: () -> Iterable<I>, block: Pipeline<TPipeline, TItem>.(I) -> Unit)
+    fun execute() : TPipeline
+}
+
+fun <T> iterable(block: Pipeline<Iterable<T>>.() -> Unit) = IterablePipeline<T>().apply(block).execute()
+
+class IterablePipeline<T> : Pipeline<Iterable<T>> {
+
+    override fun pipe(block: Pipeline<Iterable<T>>.() -> Iterable<T>) {
+    }
+
+    override fun <I> pipeFor(init: () -> Iterable<I>, block: Pipeline<Iterable<T>>.(I) -> Unit) {
+    }
+
+    override fun execute(): Iterable<T> {
+        return emptyList()
+    }
+}
+```
+2 trailing arguments were found in [ERROR : Pipeline]<TPipeline, [ERROR : TItem]> type
+java.lang.AssertionError: 2 trailing arguments were found in [ERROR : Pipeline]<TPipeline, [ERROR : TItem]> type
+	at org.jetbrains.kotlin.descriptors.TypeParameterUtilsKt.buildPossiblyInnerType(typeParameterUtils.kt:93)
+	at org.jetbrains.kotlin.descriptors.TypeParameterUtilsKt.buildPossiblyInnerType(typeParameterUtils.kt:64)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.renderTypeConstructorAndArguments(DescriptorRendererImpl.kt:274)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.renderTypeConstructorAndArguments$default(DescriptorRendererImpl.kt:270)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.renderDefaultType(DescriptorRendererImpl.kt:259)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.renderInflexibleType(DescriptorRendererImpl.kt:202)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.renderNormalizedType(DescriptorRendererImpl.kt:172)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.access$renderNormalizedType(DescriptorRendererImpl.kt:40)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.renderFunctionType(DescriptorRendererImpl.kt:334)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.renderInflexibleType(DescriptorRendererImpl.kt:200)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.renderNormalizedType(DescriptorRendererImpl.kt:172)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.renderType(DescriptorRendererImpl.kt:150)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.renderVariable(DescriptorRendererImpl.kt:756)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.renderValueParameter(DescriptorRendererImpl.kt:726)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.renderValueParameters(DescriptorRendererImpl.kt:693)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.renderFunction(DescriptorRendererImpl.kt:613)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.access$renderFunction(DescriptorRendererImpl.kt:40)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl$RenderDeclarationDescriptorVisitor.visitFunctionDescriptor(DescriptorRendererImpl.kt:937)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl$RenderDeclarationDescriptorVisitor.visitFunctionDescriptor(DescriptorRendererImpl.kt:900)
+	at org.jetbrains.kotlin.descriptors.impl.FunctionDescriptorImpl.accept(FunctionDescriptorImpl.java:520)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.render(DescriptorRendererImpl.kt:513)
+	at org.jetbrains.kotlin.idea.quickfix.ChangeMemberFunctionSignatureFix$Signature.<init>(ChangeMemberFunctionSignatureFix.kt:62)
+	at org.jetbrains.kotlin.idea.quickfix.ChangeMemberFunctionSignatureFix$Companion.signatureToMatch(ChangeMemberFunctionSignatureFix.kt:134)
+	at org.jetbrains.kotlin.idea.quickfix.ChangeMemberFunctionSignatureFix$Companion.access$signatureToMatch(ChangeMemberFunctionSignatureFix.kt:81)
+	at org.jetbrains.kotlin.idea.quickfix.ChangeMemberFunctionSignatureFix$Companion.computePossibleSignatures(ChangeMemberFunctionSignatureFix.kt:103)
+	at org.jetbrains.kotlin.idea.quickfix.ChangeMemberFunctionSignatureFix$Companion.createAction(ChangeMemberFunctionSignatureFix.kt:84)
+	at org.jetbrains.kotlin.idea.quickfix.KotlinSingleIntentionActionFactory.doCreateActions(KotlinSingleIntentionActionFactory.kt:27)
+	at org.jetbrains.kotlin.idea.quickfix.KotlinIntentionActionsFactory.createActions(KotlinIntentionActionsFactory.kt:54)
+	at org.jetbrains.kotlin.idea.quickfix.KotlinIntentionActionsFactory.createActionsForAllProblems(KotlinIntentionActionsFactory.kt:36)
+	at org.jetbrains.kotlin.idea.highlighter.KotlinPsiCheckerKt.createQuickFixes(KotlinPsiChecker.kt:109)
+	at org.jetbrains.kotlin.idea.highlighter.KotlinPsiCheckerKt.access$createQuickFixes(KotlinPsiChecker.kt:1)
+	at org.jetbrains.kotlin.idea.highlighter.ElementAnnotator.setUpAnnotations(KotlinPsiChecker.kt:238)
+	at org.jetbrains.kotlin.idea.highlighter.ElementAnnotator.registerDiagnosticAnnotations(KotlinPsiChecker.kt:234)
+	at org.jetbrains.kotlin.idea.highlighter.ElementAnnotator.access$registerDiagnosticAnnotations(KotlinPsiChecker.kt:166)
+	at org.jetbrains.kotlin.idea.highlighter.ElementAnnotator.registerDiagnosticsAnnotations(KotlinPsiChecker.kt:170)
+	at org.jetbrains.kotlin.idea.highlighter.KotlinPsiChecker.annotateElement(KotlinPsiChecker.kt:84)
+	at org.jetbrains.kotlin.idea.highlighter.KotlinPsiChecker.annotate(KotlinPsiChecker.kt:73)
+	at org.jetbrains.kotlin.idea.highlighter.KotlinPsiCheckerAndHighlightingUpdater.annotate(KotlinPsiCheckerAndHighlightingUpdater.java:32)
+	at com.intellij.codeInsight.daemon.impl.DefaultHighlightVisitor.runAnnotators(DefaultHighlightVisitor.java:162)
+	at com.intellij.codeInsight.daemon.impl.DefaultHighlightVisitor.visit(DefaultHighlightVisitor.java:103)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.runVisitors(GeneralHighlightingPass.java:354)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.access$100(GeneralHighlightingPass.java:65)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass$3.run(GeneralHighlightingPass.java:283)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.analyzeByVisitors(GeneralHighlightingPass.java:308)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.access$200(GeneralHighlightingPass.java:65)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass$4.run(GeneralHighlightingPass.java:314)
+	at com.intellij.codeInsight.daemon.impl.DefaultHighlightVisitor.analyze(DefaultHighlightVisitor.java:87)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.analyzeByVisitors(GeneralHighlightingPass.java:311)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.collectHighlights(GeneralHighlightingPass.java:280)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.collectInformationWithProgress(GeneralHighlightingPass.java:219)
+	at com.intellij.codeInsight.daemon.impl.ProgressableTextEditorHighlightingPass.doCollectInformation(ProgressableTextEditorHighlightingPass.java:82)
+	at com.intellij.codeHighlighting.TextEditorHighlightingPass.collectInformation(TextEditorHighlightingPass.java:67)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$1$1.run(PassExecutorService.java:444)
+	at com.intellij.openapi.application.impl.ApplicationImpl.tryRunReadAction(ApplicationImpl.java:1169)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$1.run(PassExecutorService.java:435)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.registerIndicatorAndRun(CoreProgressManager.java:446)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.executeProcessUnderProgress(CoreProgressManager.java:392)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.executeProcessUnderProgress(ProgressManagerImpl.java:54)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.doRun(PassExecutorService.java:432)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.run(PassExecutorService.java:408)
+	at com.intellij.concurrency.JobLauncherImpl$VoidForkJoinTask$1.exec(JobLauncherImpl.java:206)
+	at jsr166e.ForkJoinTask.doExec(ForkJoinTask.java:260)
+	at jsr166e.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:858)
+	at jsr166e.ForkJoinPool.scan(ForkJoinPool.java:1687)
+	at jsr166e.ForkJoinPool.runWorker(ForkJoinPool.java:1642)
+	at jsr166e.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:108)

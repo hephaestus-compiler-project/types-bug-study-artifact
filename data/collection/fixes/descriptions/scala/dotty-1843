@@ -1,0 +1,37 @@
+Compiling:
+```scala
+scala> abstract class Foo[T] {
+           override def toString = toString(unit)
+           def unit: T
+           def toString(t: T) = ???
+         }
+```
+gives:
+```
+-- Error: <console> ------------------------------------------------------------
+6 |    override def toString = toString(unit)
+  |                            ^^^^^^^^
+  |                            cyclic reference involving method toString
+```
+  
+Scalac's error is:
+```
+<console>:13: error: overloaded method a needs result type
+                  override def toString = toString(unit)
+                                    ^
+```
+  
+I wonder whether:
+
+1. This error can be removed. `toString(t: T): T` should be distinguishable from `toString: T`. Is the cyclic reference analysis only by name? Can we not improve the state of the art in Dotty because of an intrinsic limitation of Scala's type inference? What's going on otherwise?
+2. If it cannot be removed, we can at least improve the error message.
+
+It's good to mention that making the return type of the parameterless `toString`explicit works. It can also be reproduced by replacing `toString` with any method name.
+```scala
+scala> abstract class Foo[T] {
+                    override def toString: String = toString(unit)
+                    def unit: T = ???
+                    def toString(t: T) = ???
+                  } 
+defined class Foo
+```

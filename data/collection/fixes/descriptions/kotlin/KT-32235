@@ -1,0 +1,26 @@
+The following shows an error with the new type inference, but compiles and runs fine:
+
+```kotlin
+class A<T> {
+    val children = mutableListOf<B<T>>()
+}
+
+class B<T>
+
+class C {
+    var a: A<*>? = null
+    var b: B<*>? = null
+        set(value) {
+            if (value != null) {
+                val a = a
+                require(a != null && value in a.children)
+            }
+            field = value
+        }
+}
+```
+
+Specifically, the `in` in the setter for `b` is highlighted with
+> Type inference failed. The value of type parameter T should be mentioned in input types (arguments types, receiver type or expected type). Try to specify it explicitly.
+
+_I'm not sure, but this may be related to [KT-32157](https://youtrack.jetbrains.com/issue/KT-32157)_

@@ -1,0 +1,51 @@
+Consider the following piece of code:
+```kt
+val <C> C.foo get() = Foo<C>()
+class Foo<C> { operator fun <T> invoke(body: () -> Unit) {} }
+
+class Bar {
+//    val baz = foo {}      // (1)
+//    val baz = foo<Int> {} // (2)
+}
+```
+In 1.3.72 uncommenting the 1st line reports that
+```
+Type inference failed: Not enough information to infer parameter T in operator fun <T> invoke(body: () -> Unit): Unit Please specify it explicitly.
+```
+(this behavior is probably correct)
+
+Trying to "specify" the type explicitly (by uncommenting line 2) then gives the following error:
+```
+Exception in thread "main" org.jetbrains.kotlin.util.KotlinFrontEndException: Exception while analyzing expression at (6,15) in /File.kt
+ at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.logOrThrowException (ExpressionTypingVisitorDispatcher.java:253) 
+ at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.lambda$getTypeInfo$0 (ExpressionTypingVisitorDispatcher.java:224) 
+ at org.jetbrains.kotlin.util.PerformanceCounter.time (PerformanceCounter.kt:101) 
+Caused by: org.jetbrains.kotlin.util.KotlinFrontEndException: Exception while analyzing expression at (6,15) in /File.kt
+at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher .logOrThrowException(ExpressionTypingVisitorDispatcher.java:253)
+at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher .lambda$getTypeInfo$0(ExpressionTypingVisitorDispatcher.java:224)
+at org.jetbrains.kotlin.util.PerformanceCounter .time(PerformanceCounter.kt:101)
+```
+
+Interestingly enough, in 1.4-M3 uncommenting the 1st line gives the following error instead of `Not enough information to infer parameter T`
+```
+Exception in thread "main" java.lang.IllegalStateException: Backend Internal error: Exception during file facade code generation
+File being compiled: mock:///File.kt
+The root cause java.lang.RuntimeException was thrown at: org.jetbrains.kotlin.codegen.ImplementationBodyCodegen.generateConstructors(ImplementationBodyCodegen.java:458)
+ at org.jetbrains.kotlin.backend.common.CodegenUtil.reportBackendException (CodegenUtil.kt:239) 
+ at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generate (PackageCodegenImpl.java:78) 
+ at org.jetbrains.kotlin.codegen.DefaultCodegenFactory.generatePackage (CodegenFactory.kt:88) 
+Caused by: java.lang.IllegalStateException: Backend Internal error: Exception during file facade code generation
+File being compiled: mock:///File.kt
+The root cause java.lang.RuntimeException was thrown at: org.jetbrains.kotlin.codegen.ImplementationBodyCodegen.generateConstructors(ImplementationBodyCodegen.java:458)
+at org.jetbrains.kotlin.backend.common.CodegenUtil .reportBackendException(CodegenUtil.kt:239)
+at org.jetbrains.kotlin.codegen.PackageCodegenImpl .generate(PackageCodegenImpl.java:78)
+at org.jetbrains.kotlin.codegen.DefaultCodegenFactory .generatePackage(CodegenFactory.kt:88)
+Caused by: java.lang.IllegalStateException: Backend Internal error: Exception during file facade code generation
+File being compiled: mock:///File.kt
+The root cause java.lang.RuntimeException was thrown at: org.jetbrains.kotlin.codegen.ImplementationBodyCodegen.generateConstructors(ImplementationBodyCodegen.java:458)
+at org.jetbrains.kotlin.backend.common.CodegenUtil .reportBackendException(CodegenUtil.kt:239)
+at org.jetbrains.kotlin.codegen.PackageCodegenImpl .generate(PackageCodegenImpl.java:78)
+at org.jetbrains.kotlin.codegen.DefaultCodegenFactory .generatePackage(CodegenFactory.kt:88)
+```
+
+Also, hovering over the red squiggly line in IntelliJ gives this "pretty" result. Although the missing images are probably an unrelated bug.![](image.png)

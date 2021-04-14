@@ -1,0 +1,68 @@
+The following tests show tests failing at runtime while getting no compilation errors or warnings on the subject.
+The cast error during runtime is correct since an array is passed instead of an ArrayList but this should be a compile time error.
+Similarly passing ArrayList<T> where T is not a string should also be compile time error, instead the class is created and get error at run time when accessing the argument.
+
+{code lang=kotlin}
+package com.vladsch.idea.multimarkdown
+
+import org.junit.Test
+import java.util.*
+
+
+class KotlinBug_02(
+        var arrayList: ArrayList<String>
+) {
+
+    fun printElems() {
+        for (item in arrayList) {
+            println("$item is ${item.javaClass}")
+        }
+    }
+    companion object {
+
+        fun getDefault(type: String): KotlinBug_02 {
+            return KotlinBug_02(
+                    when (type) {
+                        "Lany" -> arrayOf(Any())     // should flag as wrong type
+                        "Lint" -> arrayOf(1) // should flag as wrong type
+                        "Lfloat" -> arrayOf(1f) // should flag as wrong type
+                        "Ldouble" -> arrayOf(1.0) // should flag as wrong type
+                        "Lstring" -> arrayOf("") // should flag as wrong type
+                        "any" -> arrayListOf(Any())     // should flag as wrong type
+                        "int" -> arrayListOf(1) // should flag as wrong type
+                        "float" -> arrayListOf(1f) // should flag as wrong type
+                        "double" -> arrayListOf(1.0) // should flag as wrong type
+                        "string" -> arrayListOf("") // ok
+                        else -> arrayOf<Any>()      // should flag as wrong type
+                    })
+        }
+    }
+}
+
+class TestIt {
+    // @formatter:off
+    @Test fun testFailsCreate_Lany() { val test = KotlinBug_02.getDefault("Lany"); }
+    @Test fun testFailsCreate_Lint() { val test = KotlinBug_02.getDefault("Lint"); }
+    @Test fun testFailsCreate_Lfloat() { val test = KotlinBug_02.getDefault("Lfloat"); }
+    @Test fun testFailsCreate_Ldouble() { val test = KotlinBug_02.getDefault("Ldouble"); }
+    @Test fun testFailsCreate_Lstring() { val test = KotlinBug_02.getDefault("Lstring"); }
+    @Test fun testShouldFailCreate_any() { val test = KotlinBug_02.getDefault("any"); }
+    @Test fun testShouldFailCreate_int() { val test = KotlinBug_02.getDefault("int"); }
+    @Test fun testShouldFailCreate_float() { val test = KotlinBug_02.getDefault("float"); }
+    @Test fun testShouldFailCreate_double() { val test = KotlinBug_02.getDefault("double"); }
+    @Test fun testSucceedsCreate_string() { val test = KotlinBug_02.getDefault("string"); }
+
+    @Test fun testFailsAccess_Lany() { val test = KotlinBug_02.getDefault("Lany"); test.printElems(); }
+    @Test fun testFailsAccess_Lint() { val test = KotlinBug_02.getDefault("Lint"); test.printElems(); }
+    @Test fun testFailsAccess_Lfloat() { val test = KotlinBug_02.getDefault("Lfloat"); test.printElems(); }
+    @Test fun testFailsAccess_Ldouble() { val test = KotlinBug_02.getDefault("Ldouble"); test.printElems(); }
+    @Test fun testFailsAccess_Lstring() { val test = KotlinBug_02.getDefault("Lstring"); test.printElems(); }
+    @Test fun testFailsAccess_any() { val test = KotlinBug_02.getDefault("any"); test.printElems(); }
+    @Test fun testFailsAccess_int() { val test = KotlinBug_02.getDefault("int"); test.printElems(); }
+    @Test fun testFailsAccess_float() { val test = KotlinBug_02.getDefault("float"); test.printElems(); }
+    @Test fun testFailsAccess_double() { val test = KotlinBug_02.getDefault("double"); test.printElems(); }
+    @Test fun testSucceedsAccess_string() { val test = KotlinBug_02.getDefault("string"); test.printElems(); }
+    // @formatter:on
+}
+{code}
+

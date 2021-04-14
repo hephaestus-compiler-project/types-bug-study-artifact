@@ -1,0 +1,74 @@
+The compiler crashes when I add a case statement. Removing it makes the compiler work again. 
+
+Some more details on my example: I'm parsing a log file whose lines I read and match with regular expressions:
+
+val durationMatch = new Regex(""".*Duration:.*computed: (\d+).*""")
+val lines = Source.fromFile(file).getLines().toArray
+for (i <- 0 until lines.length) {
+      val line = lines(i)
+      line match {
+        case durationMatch(duration) => // do something
+        // ... here come 6 other cases ...
+        case _ => // nothing
+      }
+}
+
+
+Note: if I add the very same case statement and remove another, everything works just fine. 
+
+Here's the stack trace:
+
+java.lang.Error: ch.epfl.lamp.fjbg.JCode$OffsetTooBigException: offset too big to fit in 16 bits: 34590 
+at ch.epfl.lamp.fjbg.JFieldOrMethod.writeTo(JFieldOrMethod.java:130) 
+at ch.epfl.lamp.fjbg.JClass.writeTo(JClass.java:358) 
+at scala.tools.nsc.backend.jvm.BytecodeWriters$ClassBytecodeWriter$class.writeClass(BytecodeWriters.scala:87) 
+at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase$$anon$2.writeClass(GenJVM.scala:82) 
+at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator.emitClass(GenJVM.scala:172) 
+at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator.genClass(GenJVM.scala:314) 
+at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase$$anonfun$run$4.apply(GenJVM.scala:86) 
+at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase$$anonfun$run$4.apply(GenJVM.scala:86) 
+at scala.collection.mutable.HashMap$$anon$2$$anonfun$foreach$3.apply(HashMap.scala:102) 
+at scala.collection.mutable.HashMap$$anon$2$$anonfun$foreach$3.apply(HashMap.scala:102) 
+at scala.collection.Iterator$class.foreach(Iterator.scala:660) 
+at scala.collection.mutable.HashTable$$anon$1.foreach(HashTable.scala:157) 
+at scala.collection.mutable.HashTable$class.foreachEntry(HashTable.scala:190) 
+at scala.collection.mutable.HashMap.foreachEntry(HashMap.scala:43) 
+at scala.collection.mutable.HashMap$$anon$2.foreach(HashMap.scala:102) 
+at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase.run(GenJVM.scala:86) 
+at scala.tools.nsc.Global$Run.compileSources(Global.scala:953) 
+at scala.tools.nsc.Global$Run.compile(Global.scala:1038) 
+at xsbt.CompilerInterface.run(CompilerInterface.scala:106) 
+at scala.tools.eclipse.buildmanager.sbtintegration.ScalaSbtCompiler.compile(ScalaSbtCompiler.scala:35) 
+at scala.tools.eclipse.buildmanager.sbtintegration.AnalysisCompile$$anonfun$8.compileScala$1(AnalysisCompile.scala:123)
+at scala.tools.eclipse.buildmanager.sbtintegration.AnalysisCompile$$anonfun$8.apply(AnalysisCompile.scala:158) 
+at scala.tools.eclipse.buildmanager.sbtintegration.AnalysisCompile$$anonfun$8.apply(AnalysisCompile.scala:98) 
+at sbt.inc.IncrementalCompile$$anonfun$doCompile$1.apply(Compile.scala:21) 
+at sbt.inc.IncrementalCompile$$anonfun$doCompile$1.apply(Compile.scala:19) 
+at sbt.inc.Incremental$.cycle(Incremental.scala:33) 
+at sbt.inc.Incremental$.compile(Incremental.scala:20) 
+at sbt.inc.IncrementalCompile$.apply(Compile.scala:17) 
+at scala.tools.eclipse.buildmanager.sbtintegration.AnalysisCompile.doCompile(AnalysisCompile.scala:176) 
+at scala.tools.eclipse.buildmanager.sbtintegration.EclipseSbtBuildManager.runCompiler(EclipseSbtBuildManager.scala:360)
+at scala.tools.eclipse.buildmanager.sbtintegration.EclipseSbtBuildManager.update(EclipseSbtBuildManager.scala:327) 
+at scala.tools.eclipse.buildmanager.sbtintegration.EclipseSbtBuildManager.build(EclipseSbtBuildManager.scala:389) 
+at scala.tools.eclipse.ScalaProject.build(ScalaProject.scala:697) 
+at scala.tools.eclipse.ScalaBuilder.build(ScalaBuilder.scala:107) 
+at org.eclipse.core.internal.events.BuildManager$2.run(BuildManager.java:629) 
+at org.eclipse.core.runtime.SafeRunner.run(SafeRunner.java:42) 
+at org.eclipse.core.internal.events.BuildManager.basicBuild(BuildManager.java:172) 
+at org.eclipse.core.internal.events.BuildManager.basicBuild(BuildManager.java:203) 
+at org.eclipse.core.internal.events.BuildManager$1.run(BuildManager.java:255) 
+at org.eclipse.core.runtime.SafeRunner.run(SafeRunner.java:42) 
+at org.eclipse.core.internal.events.BuildManager.basicBuild(BuildManager.java:258) 
+at org.eclipse.core.internal.events.BuildManager.basicBuildLoop(BuildManager.java:311) 
+at org.eclipse.core.internal.events.BuildManager.build(BuildManager.java:343) 
+at org.eclipse.core.internal.events.AutoBuildJob.doBuild(AutoBuildJob.java:144) 
+at org.eclipse.core.internal.events.AutoBuildJob.run(AutoBuildJob.java:242) 
+at org.eclipse.core.internal.jobs.Worker.run(Worker.java:54) 
+Caused by: ch.epfl.lamp.fjbg.JCode$OffsetTooBigException: offset too big to fit in 16 bits: 34590 
+at ch.epfl.lamp.fjbg.JCode.checkOffset16(JCode.java:903) 
+at ch.epfl.lamp.fjbg.JCode.patchAllOffset(JCode.java:982) 
+at ch.epfl.lamp.fjbg.JCode.freeze(JCode.java:102) 
+at ch.epfl.lamp.fjbg.JMethod.freeze(JMethod.java:89) 
+at ch.epfl.lamp.fjbg.JFieldOrMethod.writeTo(JFieldOrMethod.java:127) 
+... 45 more 

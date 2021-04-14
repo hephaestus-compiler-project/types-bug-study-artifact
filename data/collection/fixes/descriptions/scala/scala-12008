@@ -1,0 +1,37 @@
+## reproduction steps
+using Scala 2.13.1, 2.13.2,
+
+```scala
+	class V[I <: Int with Singleton](val i: I) extends AnyVal
+
+	val i = new V[1](1)
+	def accept[I <: Int with Singleton](i: V[I]): I = i.i
+```
+## problem
+```
+Error:scalac: 
+  Erasure should have added an unboxing operation to prevent this cast. Tree: i.$asInstanceOf[Int]()
+     while compiling: C:\slang\src\test\scala\Playground.scala
+        during phase: jvm
+     library version: version 2.13.2
+    compiler version: version 2.13.2
+  reconstructed args: -deprecation -feature -Wconf:cat=feature:w -Wconf:cat=deprecation:w -Wconf:cat=deprecation:ws -Wconf:cat=feature:ws -Wconf:cat=optimizer:ws -classpath C:\slang\target\scala-2.13\test-classes;C:\slang\target\scala-2.13\classes;C:\Users\user\.ivy2\cache\org.scala-sbt\test-interface\jars\test-interface-1.0.jar;C:\Users\user\.ivy2\cache\org.scalatest\scalatest_2.13\bundles\scalatest_2.13-3.1.1.jar;C:\Users\user\.ivy2\cache\org.scalactic\scalactic_2.13\bundles\scalactic_2.13-3.1.1.jar;C:\Users\user\.ivy2\cache\org.scalacheck\scalacheck_2.13\jars\scalacheck_2.13-1.14.3.jar;C:\Users\user\.ivy2\cache\org.scala-lang.modules\scala-xml_2.13\bundles\scala-xml_2.13-1.2.0.jar;C:\Users\user\.ivy2\cache\org.scala-lang\scala-reflect\jars\scala-reflect-2.13.2.jar;C:\Users\user\.ivy2\cache\org.scala-lang\scala-library\jars\scala-library-2.13.2.jar;C:\Users\user\.ivy2\cache\com.chuusai\shapeless_2.13\bundles\shapeless_2.13-2.3.3.jar -language:existentials -language:higherKinds -language:implicitConversions -language:postfixOps -language:reflectiveCalls -Vimplicits
+  last tree to typer: Literal(Constant(ArithmeticException))
+       tree position: line 309 of C:\slang\src\test\scala\net\noresttherein\slang\vars\VarSpec.scala
+            tree tpe: Class(classOf[java.lang.ArithmeticException])
+              symbol: null
+           call site: constructor VolatileSpec in object VolatileSpec in package vars
+== Source file context for tree position ==
+```
+(Source file context irrelevant and completely unhelpful here)
+
+(explain how the above behavior isn't what you expected)
+Should compile? Not crash at least? Singleton types aren't disallowed values of value classes, so at least documentation update would be welcome.
+
+## workaround
+
+```scala
+class V[I <: Int with Singleton](val x: Int) extends AnyVal {
+  def i: I = x.asInstanceOf[I]
+}
+```

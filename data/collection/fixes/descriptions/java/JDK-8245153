@@ -1,0 +1,43 @@
+ADDITIONAL SYSTEM INFORMATION :
+Linux Mint 19.1, kernel 4.15.0-54-generic
+open jdk 13 or greater.
+
+A DESCRIPTION OF THE PROBLEM :
+Encoding a double quoted empty string using unicode characters for the quotes results in a 'unclosed string literal' error.  This seems to only occur for an empty String constant of "" when the source code uses \u0022\u0022 for the String.  If the String is not empty, as in \u0022\u0020\u0022, then no error occurs.
+
+REGRESSION : Last worked in version 12
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile the class A in the source code using:
+    javac A.java
+
+Use javac 13 or greater.
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+No errors
+ACTUAL -
+A.java:3: error: unclosed string literal
+  String s = \u0022\u0022;
+
+---------- BEGIN SOURCE ----------
+class A
+{
+  String s = \u0022\u0022;
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+The first unicode sequence for a double-quote must be replaced with actual character as in:
+   String s = "\u0022;
+Note that if the String is not empty, it works as in 
+   String s = \u0022#\u0022;
+or
+   String s = \u0022\u0023\u0022;
+
+
+FREQUENCY : always
+
+

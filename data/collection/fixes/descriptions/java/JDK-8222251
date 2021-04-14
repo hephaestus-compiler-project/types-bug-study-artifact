@@ -1,0 +1,220 @@
+ADDITIONAL SYSTEM INFORMATION :
+Fedora release 29 (Twenty Nine)
+openjdk version "12" 2019-03-19
+OpenJDK Runtime Environment 19.3 (build 12+33)
+javac 12
+
+
+A DESCRIPTION OF THE PROBLEM :
+Jdbi tests against all current JDK releases to ensure best compatibility to our users.  Our current code compiles against 8, 9, and 11.  Upon adding 12 to the list, we encounter an internal javac error:
+
+[INFO] Compiling 124 source files to /home/travis/build/jdbi/jdbi/core/target/test-classes
+java.lang.NullPointerException
+	at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitApply(Flow.java:1304)
+
+As the same code compiled under previous releases, we believe this to be a javac regression.
+
+We are tracking the issue: https://github.com/jdbi/jdbi/pull/1502 in case there is any useful context there.
+
+REGRESSION : Last worked in version 11.0.2
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Execute javac 12 against https://gist.github.com/stevenschlansker/a23cc97fb6d15fad6ae04bf54511ce62
+
+The source compiles fine in 11 but crashes 12.  The code is not expected to do anything useful, it is extracted from the larger project.
+
+[steven@luminol:~](:|â)% /usr/lib/jvm/java-11/bin/javac TestJdk12Regression.java 
+[steven@luminol:~](:|â)% /usr/lib/jvm/java-12/bin/javac TestJdk12Regression.java
+An exception has occurred in the compiler (12). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.NullPointerException
+	at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitApply(Flow.java:1304)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1709)
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+The code should compile.
+ACTUAL -
+[INFO] Compiling 124 source files to /home/travis/build/jdbi/jdbi/core/target/test-classes
+An exception has occurred in the compiler (12). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.NullPointerException
+	at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitApply(Flow.java:1304)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1709)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:394)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.visitSelect(TreeScanner.java:308)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCFieldAccess.accept(JCTree.java:2189)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:394)
+	at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitApply(Flow.java:1302)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1709)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:394)
+	at jdk.compiler/com.sun.tools.javac.comp.Flow$LambdaFlowAnalyzer.visitLambda(Flow.java:1499)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCLambda.accept(JCTree.java:1886)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:394)
+	at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.analyzeTree(Flow.java:1396)
+	at jdk.compiler/com.sun.tools.javac.comp.Flow.analyzeLambdaThrownTypes(Flow.java:251)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.visitLambda(Attr.java:2805)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCLambda.accept(JCTree.java:1886)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+	at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$4.complete(DeferredAttr.java:377)
+	at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredType.check(DeferredAttr.java:338)
+	at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredType.check(DeferredAttr.java:324)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve$MethodResultInfo.check(Resolve.java:1058)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve$4.checkArg(Resolve.java:885)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve$AbstractMethodCheck.argumentsAcceptable(Resolve.java:773)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve$4.argumentsAcceptable(Resolve.java:894)
+	at jdk.compiler/com.sun.tools.javac.comp.Infer.instantiateMethod(Infer.java:181)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve.rawInstantiate(Resolve.java:603)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve.checkMethod(Resolve.java:642)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.checkMethod(Attr.java:4321)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.checkIdInternal(Attr.java:4114)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.checkMethodIdInternal(Attr.java:4015)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.checkId(Attr.java:4004)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.visitSelect(Attr.java:3897)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCFieldAccess.accept(JCTree.java:2189)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.visitApply(Attr.java:2191)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1709)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribExpr(Attr.java:715)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.visitExec(Attr.java:1860)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1519)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:737)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStats(Attr.java:756)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.visitBlock(Attr.java:1307)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:1026)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:737)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStats(Attr.java:756)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.visitBlock(Attr.java:1307)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:1026)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+	at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr.attribSpeculative(DeferredAttr.java:501)
+	at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr.attribSpeculative(DeferredAttr.java:484)
+	at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr.attribSpeculativeLambda(DeferredAttr.java:459)
+	at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredAttrNode$StructuralStuckChecker.canLambdaBodyCompleteNormally(DeferredAttr.java:903)
+	at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredAttrNode$StructuralStuckChecker.visitLambda(DeferredAttr.java:881)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCLambda.accept(JCTree.java:1886)
+	at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredAttrNode$StructuralStuckChecker.complete(DeferredAttr.java:835)
+	at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredType.check(DeferredAttr.java:338)
+	at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredAttrNode.process(DeferredAttr.java:782)
+	at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredAttrContext.complete(DeferredAttr.java:629)
+	at jdk.compiler/com.sun.tools.javac.comp.Infer.instantiateMethod(Infer.java:214)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve.rawInstantiate(Resolve.java:603)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve.selectBest(Resolve.java:1561)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve.findMethodInScope(Resolve.java:1731)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve.findMethod(Resolve.java:1800)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve.findMethod(Resolve.java:1774)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve$10.doLookup(Resolve.java:2652)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve$BasicLookupHelper.lookup(Resolve.java:3291)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve.lookupMethod(Resolve.java:3541)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve.resolveQualifiedMethod(Resolve.java:2649)
+	at jdk.compiler/com.sun.tools.javac.comp.Resolve.resolveQualifiedMethod(Resolve.java:2643)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.selectSym(Attr.java:3922)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.visitSelect(Attr.java:3802)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCFieldAccess.accept(JCTree.java:2189)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.visitApply(Attr.java:2191)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1709)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribExpr(Attr.java:715)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.visitExec(Attr.java:1860)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1519)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:737)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStats(Attr.java:756)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.visitBlock(Attr.java:1307)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:1026)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:737)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.visitMethodDef(Attr.java:1111)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:872)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:737)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:4884)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4775)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4704)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attrib(Attr.java:4649)
+	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1341)
+	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:973)
+	at jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl.lambda$doCall$0(JavacTaskImpl.java:104)
+	at jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl.handleExceptions(JavacTaskImpl.java:147)
+	at jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl.doCall(JavacTaskImpl.java:100)
+	at jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl.call(JavacTaskImpl.java:94)
+	at org.codehaus.plexus.compiler.javac.JavaxToolsCompiler.compileInProcess(JavaxToolsCompiler.java:126)
+	at org.codehaus.plexus.compiler.javac.JavacCompiler.performCompile(JavacCompiler.java:174)
+	at org.apache.maven.plugin.compiler.AbstractCompilerMojo.execute(AbstractCompilerMojo.java:1129)
+	at org.apache.maven.plugin.compiler.TestCompilerMojo.execute(TestCompilerMojo.java:181)
+	at org.apache.maven.plugin.DefaultBuildPluginManager.executeMojo(DefaultBuildPluginManager.java:134)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:208)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:154)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:146)
+	at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject(LifecycleModuleBuilder.java:117)
+	at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject(LifecycleModuleBuilder.java:81)
+	at org.apache.maven.lifecycle.internal.builder.singlethreaded.SingleThreadedBuilder.build(SingleThreadedBuilder.java:51)
+	at org.apache.maven.lifecycle.internal.LifecycleStarter.execute(LifecycleStarter.java:128)
+	at org.apache.maven.DefaultMaven.doExecute(DefaultMaven.java:309)
+	at org.apache.maven.DefaultMaven.doExecute(DefaultMaven.java:194)
+	at org.apache.maven.DefaultMaven.execute(DefaultMaven.java:107)
+	at org.apache.maven.cli.MavenCli.execute(MavenCli.java:955)
+	at org.apache.maven.cli.MavenCli.doMain(MavenCli.java:290)
+	at org.apache.maven.cli.MavenCli.main(MavenCli.java:194)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:567)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.launchEnhanced(Launcher.java:289)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.launch(Launcher.java:229)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.mainWithExitCode(Launcher.java:415)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.main(Launcher.java:356)
+[INFO] /home/travis/build/jdbi/jdbi/core/src/test/java/org/jdbi/v3/core/statement/TestTimingCollector.java: Some input files use or override a deprecated API.
+[INFO] /home/travis/build/jdbi/jdbi/core/src/test/java/org/jdbi/v3/core/statement/TestTimingCollector.java: Recompile with -Xlint:deprecation for details.
+[INFO] /home/travis/build/jdbi/jdbi/core/src/test/java/org/jdbi/v3/core/transaction/TestSerializableTransactionRunner.java: Some input files use unchecked or unsafe operations.
+[INFO] /home/travis/build/jdbi/jdbi/core/src/test/java/org/jdbi/v3/core/transaction/TestSerializableTransactionRunner.java: Recompile with -Xlint:unchecked for details.
+
+---------- BEGIN SOURCE ----------
+public class TestJdk12Regression {
+    @FunctionalInterface
+    interface HandleCallback<T, X extends Exception> {
+        T withHandle(Handle handle) throws X;
+    }
+    @FunctionalInterface
+    interface HandleConsumer<X extends Exception> {
+        void useHandle(Handle handle) throws X;
+    }
+
+    interface Handle {}
+
+    interface Jdbi {
+        <R, X extends Exception> R withHandle(HandleCallback<R, X> callback) throws X;
+        <X extends Exception> void useHandle(final HandleConsumer<X> callback) throws X;
+    }
+
+    interface ObjectAssert<ACTUAL> {
+        void isSameAs(ACTUAL t);
+    }
+
+    static <T> ObjectAssert<T> assertThat(T actual) {
+        return null;
+    }
+
+    private Jdbi jdbi;
+
+    public void nestedUseHandle() {
+        jdbi.withHandle(h1 -> {
+            jdbi.useHandle(h2 ->
+                assertThat(h1).isSameAs(h2));
+            return null;
+        });
+    }
+}
+
+---------- END SOURCE ----------
+
+FREQUENCY : always
+
+

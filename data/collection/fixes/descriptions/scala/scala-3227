@@ -1,0 +1,44 @@
+Consider this code:
+```scala
+object Texts{
+  def textL[T](list: List[T]) = {     
+    list match{                        
+      case List() => "Empty"              
+      case List(_) => "One"      
+      case List(_*) => "Many"
+    }
+  }
+
+  def textA[T](array: Array[T]) = {     
+    array match{                        
+      case Array() => "Empty"              
+      case Array(_) => "One"      
+      case Array(_*) => "Many"
+    }
+  }
+}
+
+implicit def array2list[T](array: Array[T]) = {
+  println(array.toList.size)
+  array.toList
+}
+```
+
+Their is something really strange going on:
+```scala
+Texts textL List(); Texts textL List(1); Texts textL List(1, 1);
+// ==> Empty; One; Many // Works!
+
+Texts textA Array(); Texts textA Array(1); Texts textA Array(1, 1);
+// ==> Empty; One; Many // Works!
+
+Texts textL Array(); Texts textL Array(1); Texts textL Array(1, 1);
+// ==> ONE???; One; Many // What is going on here?
+```
+
+Why is an empty Array implicitly converted to a List matched by List(_)?
+
+Checking the implicit conversion, both the Array is empty and the resulting List is empty.
+
+All three functions work correctly, but something in that implicit conversion goes terribly wrong.
+

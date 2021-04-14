@@ -1,0 +1,16 @@
+see: http://mail.openjdk.java.net/pipermail/compiler-dev/2017-April/010892.html
+
+JDK 9 changes how javac handles symlinks, and causes misleading diagnostics for public class declarations that don't match the name of the symlink target.
+
+$ echo 'public class Hello {}' > SOURCE
+$ ln -s SOURCE Hello.java
+
+$ javac -fullversion Hello.java
+javac full version "1.8.0_152-ea-b02"
+... OK
+
+$ javac -fullversion Hello.java
+javac full version "9-ea+163"
+Hello.java:1: error: class Hello is public, should be declared in a file named Hello.java
+
+The JDK 8 behaviour seems preferable, but if the more aggressive path canonicalization in JDK 9 is kept then the canonical path should also be used for the diagnostic.

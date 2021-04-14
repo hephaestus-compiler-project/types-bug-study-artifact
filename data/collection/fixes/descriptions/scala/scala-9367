@@ -1,0 +1,31 @@
+In the definition of `f` I should have at least proved that `R <: (Int, Int)`, if not `R <: (Int, Int) with Unit`, but that is not the case.  With 2.12.0-M1:
+
+```scala
+// Nussli.scala
+package nussli
+
+trait Base {
+  type R
+}
+
+trait A {self:A with B =>
+  type R <: (Int, Int)
+  def f(r:R) = r._1
+}
+
+trait B {
+  type R <: Unit
+}
+```
+
+yields
+
+```
+…/Nussli.scala:9: value _1 is not a member of A.this.R
+  def f(r:R) = r._1
+                 ^
+```
+
+Also affects 2.11.7, 2.10.5, 2.9.3.
+
+Found by Marc-Antoine Nüssli [in this scala-user post](https://groups.google.com/d/msg/scala-user/gyIjIeUxYd4/sVi6iM4KWjoJ), which contains a longer example of failing code.

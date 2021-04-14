@@ -1,0 +1,38 @@
+Sorry not minimized.  Is there a prize for the first RC2 crasher?  I didn't want to miss out for modesty.
+
+There was a different crash in my week-old trunk build.  Does it still count?
+
+```scala
+package testable
+
+case class Cell(s: String) {
+  import scala.language.postfixOps
+  import scala.util.Try
+  def isNumber: Boolean = Try { s.toInt } map (_ => true) recover { case _ => false } get
+}
+
+object Matchable {
+  case class MatchCase[A,B](a: ()=>A, b: ()=>B)
+  class MatchAssoc[A](val a: ()=>A) extends AnyVal {
+    @inline def -->[B](b: =>B): MatchCase[A,B] = MatchCase(a,() => b)
+  }
+  implicit def MatchAssoc[A,B](a: =>A) = new MatchAssoc(() => a)
+  implicit class Testable(val c: Cell) extends AnyVal {
+    def matching(cases: MatchCase[Boolean, Unit]*): Unit = {
+      cases find (_.a()) map (_.b()) getOrElse (throw new MatchError(Matchable))
+    }
+  }
+}
+
+object Test extends App {
+  val c = Cell("3")
+  val d = Cell("I heart Scala")
+  import Matchable._
+  def f(c: Cell) = c.matching (
+    (c.isNumber) --> (println(s"$c is a number")),
+    ( true ) --> (println(s"$c is something else"))
+  )
+  f(c)
+  f(d)
+}
+```

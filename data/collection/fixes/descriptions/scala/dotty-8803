@@ -1,0 +1,44 @@
+## Minimized code
+
+```Scala
+trait Foo
+trait Bar
+trait Qux[A]
+
+object Test {
+  implicit def fooToBar(x: Foo): Bar = ???
+
+  def f(bar: Bar): Unit = {}
+
+  def qux: Qux[Foo] = ???
+
+  def g[A](qux: Qux[A]): A = ???
+
+  f(g(qux))
+}
+```
+
+## Output
+
+```
+-- [E007] Type Mismatch Error: try/i8803.scala:14:6 ----------------------------
+14 |  f(g(qux))
+   |      ^^^
+   |      Found:    Qux[Foo]
+   |      Required: Qux[A]
+   |
+   |      where:    A is a type variable with constraint <: Bar
+```
+
+## Expectation
+
+The implicit conversion is applied.
+
+## Workarounds
+
+- Explicitly instantiate the type parameters:
+
+~~~ diff
+- f(g(qux)(baz))
++ f(g[Foo](qux)(baz))
+~~~

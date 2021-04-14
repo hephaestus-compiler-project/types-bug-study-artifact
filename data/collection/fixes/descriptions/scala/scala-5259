@@ -1,0 +1,30 @@
+With trunk as of 2.10.0.r26093-b20111130020250 compiling the following,
+
+```scala
+class A[T]
+class B {
+  def m(a: A[this.type] = new A[this.type]) { }
+}
+
+object DefaultArgBogusTypeMismatch {
+  def newB = new B
+
+  newB.m()
+
+  // this compiles
+  // val stableB = new B
+  // stableB.m()
+}
+```
+
+Results in the error report below,
+
+```scala
+t5259.scala:9: error: type mismatch;
+ found   : A[_2.type] where val _2: B
+ required: A[_1.type] where val _1: B
+  newB.m()
+       ^
+```
+
+Adriaan's comment is that it shouldn't be necessary to existentially abstract over the "this" reference, which is what's causing the problem here.

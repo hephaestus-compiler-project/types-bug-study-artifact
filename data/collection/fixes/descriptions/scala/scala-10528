@@ -1,0 +1,98 @@
+## Description ##
+
+The error shows itself when implicit resolution tried to find Aux pattern for a type that has parameter. The same case without Aux pattern or without type parameter compiles fine. I expect that more complicated example should also compile, but it fails.
+
+## Code ##
+
+### Error reproduction ###
+
+The error could be reproduced with the following code:
+
+    trait Holder[A]
+    trait NilHolder[A] extends Holder[A]
+
+    trait Solve[A, H <: Holder[A]] {
+      type Output <: Holder[A]
+    }
+    type SolveAux[A, H <: Holder[A], O <: Holder[A]] = Solve[A, H] {type Output = O}
+
+    implicit def nilSolve[A] = new Solve[A, NilHolder[A]] {
+      override type Output = NilHolder[A]
+    }
+
+    trait WrapSolve[A, H <: Holder[A]] {
+      type Output <: Holder[A]
+    }
+
+    implicit def wrapAux[A, H <: Holder[A], O <: Holder[A]](implicit one : SolveAux[A, H, O]) =
+      new WrapSolve[A, H] {
+        override type Output = O
+      }
+
+    val wrapped = implicitly[WrapSolve[String, NilHolder[String]]]
+
+### Error message ###
+
+    OutsideImplicitTree.scala:30: error: could not find implicit value for parameter e: Parametrized.WrapSolve[String,Parametrized.NilHolder[String]]
+      val wrapped = implicitly[WrapSolve[String, NilHolder[String]]]
+                              ^
+    one error found
+
+I tried to `-Xlog-implicits` and it showed quite useful info. `nilSolve` was successfully adopted as implicit argument, but typechecker suddenly failed to recognized its type:
+
+    OutsideImplicitTree.scala:30: nilSolve is not a valid implicit value for Parametrized.SolveAux[String,Parametrized.NilHolder[String],O] because:
+    type parameters weren't correctly instantiated outside of the implicit tree: inferred type arguments [this.Output] do not conform to method wrapAux's type parameter bounds [O <: Parametrized.Holder[A]]
+      val wrapped = implicitly[WrapSolve[String, NilHolder[String]]]
+                              ^
+
+### Workaround ###
+
+If you chose to abandon Aux pattern compiler recognizes types immediately:
+
+    implicit def wrapNoAux[A, H <: Holder[A]](implicit one : Solve[A, H]) =
+      new WrapSolve[A, H] {
+        override type Output = one.Output
+      }
+
+### When workaround does not work ###
+
+This workaround works but is not universally applicable. For example, what If I need to perform some transformation twice?
+
+    trait TwoTimes[A, H <: Holder[A]] {
+      type Output <: Holder[A]
+    }
+  
+    implicit def twoTimes[A, H <: Holder[A], O <: Holder[A]](implicit
+      one : SolveAux[A, H, O],
+      two : Solve[A, O]
+    ) = new TwoTimes[A, H] {
+      override type Output = two.Output
+    }
+
+### Comparing to simple type ###
+
+If the `Holder` type is not parametrized the entire thing works flawlessly:
+
+    trait Holder
+    trait NilHolder extends Holder
+  
+    trait Solve[A, H <: Holder] {
+      type Output <: Holder
+    }
+    type SolveAux[A, H <: Holder, O <: Holder] = Solve[A, H] {type Output = O}
+  
+    implicit def nilSolve[A] = new Solve[A, NilHolder] {
+      override type Output = NilHolder
+    }
+  
+    trait WrapSolve[A, H <: Holder] {
+      type Output <: Holder
+    }
+  
+    implicit def wrapAux[A, H <: Holder, O <: Holder](implicit one : SolveAux[A, H, O]) =
+      new WrapSolve[A, H] {
+        override type Output = O
+      }
+  
+    val wrapped = implicitly[WrapSolve[String, NilHolder]]
+

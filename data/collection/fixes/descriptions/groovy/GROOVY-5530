@@ -1,0 +1,32 @@
+The static type checker currently complains about constructors taking named parameters when a value is a GString for a field which is a String. It should coerce transparently.
+
+Here's an example showing the problem:
+{code}
+import groovy.transform.CompileStatic
+
+class User {
+    String login
+    String username
+    String domain
+    String firstName
+    String lastName
+}
+
+@CompileStatic
+class UserNamedParameterIssueWithStaticCompilation {
+    List<User> getUsers() {
+        [1, 2, 3].collect { Number num ->
+             new User(
+                    login:      "login$num",
+                    username:   "username$num",
+                    domain:     "domain$num",
+                    firstName:  "first$num",
+                    lastName:   "last$num"
+            )
+        }
+    }
+}
+
+def service = new UserNamedParameterIssueWithStaticCompilation()
+service.getUsers()
+{code}

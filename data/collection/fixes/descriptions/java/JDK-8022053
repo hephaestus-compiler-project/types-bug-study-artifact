@@ -1,0 +1,36 @@
+This code compiles correctly but generates a: Bad type on operand stack exception at run time:
+
+public class Test {
+    public static void main(final String args[]) {
+        class NamedLocal {
+            Object m() {
+                return args;
+            }
+            class NamedLocalSub extends NamedLocal {}
+        }
+        new NamedLocal().new NamedLocalSub();
+    }
+}
+
+after:
+
+$ javac Test.java
+$ java Test
+
+Exception in thread "main" java.lang.VerifyError: Bad type on operand stack
+Exception Details:
+  Location:
+    Test$1NamedLocal$NamedLocalSub.<init>(LTest$1NamedLocal;)V @7: getfield
+  Reason:
+    Type uninitializedThis (current frame, stack[1]) is not assignable to 'Test$1NamedLocal$NamedLocalSub'
+  Current Frame:
+    bci: @7
+    flags: { flagThisUninit }
+    locals: { uninitializedThis, 'Test$1NamedLocal' }
+    stack: { uninitializedThis, uninitializedThis }
+  Bytecode:
+    0000000: 2a2b b500 012a 2ab4 0002 b700 03b1     
+
+	at Test.main(Test.java:10)
+
+Original issue reported by jeremymanson@google.com

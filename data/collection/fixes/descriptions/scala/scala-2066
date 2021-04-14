@@ -1,0 +1,30 @@
+Try to compile the following code with Scala 2.7.5 final:
+
+```scala
+trait A {
+ def f[T[_]](x : T[Int]) : T[Any]
+}
+
+class B extends A {
+ def f[T[+_]](x : T[Int]) : T[Any] = x
+}
+
+class P[Y](var y : Y)
+```
+
+It is compiled without any errors. But then you can write:
+
+```scala
+val p = new P(1)
+val palias = (new B():A).f[P](p)
+palias.y = "hello"
+```
+
+Result:
+
+```scala
+java.lang.ClassCastException: java.lang.String cannot be cast to java.lang.Integer
+```
+
+
+So, this way of overriding is unsound.

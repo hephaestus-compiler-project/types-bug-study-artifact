@@ -1,0 +1,35 @@
+When Types.containsType encounters a capture variable, testing for containment by an upper-bounded wildcard, it tests that the capture variable's upper bound is a subtype of the wildcard bound.  This leads to incorrect inference results.
+
+E.g.,
+
+[CAP extends String] contained by [? extends alpha]
+becomes
+String <: alpha
+
+Here's an example that should compile but does not:
+
+  interface I<X1,X2> {}
+  class C<T> implements I<T,T> {}
+
+  <X> void m(I<? extends X, X> arg) {}
+
+  void test(C<?> arg) {
+    m(arg);
+  }
+
+Here's an example that should not compile, but does (see also JDK-8039210):
+
+  static class D<T> {
+    void inject(T arg) {}
+    static <T> D<T> make(Class<? extends T> c) { return new D<T>(); }
+  }
+
+  void test(Object o) {
+    D.make(o.getClass()).inject(o);
+  }
+
+javac behavior appears to be the same in 6, 7, and 8.
+
+The offending implementation code is in 'visitWildcardType', which maps 's' to its capture var upper bound.
+
+IMPORTANT: fixing this bug will break the build of jax-ws.  So JDK-8039210 must be resolved first.

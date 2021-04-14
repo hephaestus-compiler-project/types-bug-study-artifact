@@ -1,0 +1,41 @@
+Hi,
+
+I've got a case class hierarchy to encode some request and processing errors:
+
+
+```scala
+sealed trait OpError
+sealed trait RequestErrorType
+sealed trait ProcessingErrorType
+
+final case class InvalidEndpoint(reason: String) extends RequestErrorType
+final case class InvalidParameters(reason: String) extends RequestErrorType
+
+final case class InvalidFormat(response: String) extends ProcessingErrorType
+final case class EntityNotFound(id: Long) extends ProcessingErrorType
+
+final case class RequestError(errorType: RequestErrorType) extends OpError
+final case class ProcessingError(errorType: ProcessingErrorType) extends OpError
+```
+
+If I write a simple match across all patterns:
+
+```scala
+def printMatches(error: OpError): Unit = error match {
+  case RequestError(InvalidEndpoint(reason)) => //print something
+  case RequestError(InvalidParameters(reason)) => //print something
+  case ProcessingError(InvalidFormat(format)) => //print something
+  case ProcessingError(EntityNotFound(entityId)) => //print something
+}
+```
+
+
+the compiler gives me a warning about missing match:
+
+```scala
+match may not be exhaustive.
+ It would fail on the following input: ProcessingError(_)
+ def printMatches(error: OpError): Unit = error match {
+```
+
+ProcessingError takes in a ProcessingErrorType with only two extensions: InvalidFormat and EntityNotFound, both which are accounted for in the pattern match.

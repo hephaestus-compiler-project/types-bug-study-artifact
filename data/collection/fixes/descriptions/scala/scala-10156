@@ -1,0 +1,54 @@
+Having defined a simple method with an implicit argument, e.g.
+```scala
+trait A
+
+def x(implicit a: A) = a
+```
+we can easily make the compiler to fail with stack overflow using (possibly errornous, but nevertheless) converting of an unapplied function to a function value:
+```scala
+val z = x _
+```
+
+Stack trace is
+```
+java.lang.StackOverflowError
+        at scala.reflect.internal.Types$Type.isError(Types.scala:298)
+        at scala.reflect.internal.Types$SimpleTypeProxy.isError(Types.scala:141)
+        at scala.reflect.internal.Types$SimpleTypeProxy.isError$(Types.scala:141)
+        at scala.reflect.internal.Types$SingletonType.isError(Types.scala:1088)
+        at scala.reflect.internal.tpe.TypeMaps$ErroneousCollector$.traverse(TypeMaps.scala:1093)
+        at scala.reflect.internal.tpe.TypeMaps$TypeTraverser.apply(TypeMaps.scala:300)
+        at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:123)
+        at scala.reflect.internal.tpe.TypeMaps$ErroneousCollector$.traverse(TypeMaps.scala:1094)
+        at scala.reflect.internal.tpe.TypeMaps$TypeTraverser.apply(TypeMaps.scala:300)
+        at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:123)
+        at scala.reflect.internal.tpe.TypeMaps$ErroneousCollector$.traverse(TypeMaps.scala:1094)
+        at scala.reflect.internal.tpe.TypeMaps$TypeTraverser.apply(TypeMaps.scala:300)
+        at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:110)
+        at scala.reflect.internal.tpe.TypeMaps$ErroneousCollector$.traverse(TypeMaps.scala:1094)
+        at scala.reflect.internal.tpe.TypeMaps$TypeCollector.collect(TypeMaps.scala:312)
+        at scala.reflect.internal.Types$Type.isErroneous(Types.scala:301)
+        at scala.tools.nsc.typechecker.Typers$Typer.$anonfun$applyImplicitArgs$2(Typers.scala:172)
+        at scala.collection.immutable.List.foreach(List.scala:378)
+        at scala.tools.nsc.typechecker.Typers$Typer.applyImplicitArgs(Typers.scala:166)
+        at scala.tools.nsc.typechecker.Typers$Typer.$anonfun$adapt$2(Typers.scala:850)
+        at scala.tools.nsc.typechecker.Typers$Typer.silent(Typers.scala:703)
+        at scala.tools.nsc.typechecker.Typers$Typer.$anonfun$adapt$1(Typers.scala:849)
+        at scala.tools.nsc.typechecker.Typers$Typer.withCondConstrTyper(Typers.scala:482)
+        at scala.tools.nsc.typechecker.Typers$Typer.adaptToImplicitMethod$1(Typers.scala:847)
+        at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1197)
+        at scala.tools.nsc.typechecker.Typers$Typer.typedEta$1(Typers.scala:4523)
+        at scala.tools.nsc.typechecker.Typers$Typer.typedTyped$1(Typers.scala:5224)
+        at scala.tools.nsc.typechecker.Typers$Typer.typedInAnyMode$1(Typers.scala:5469)
+        at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5483)
+        at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5519)
+        at scala.tools.nsc.typechecker.Typers$Typer.typedInternal(Typers.scala:5549)
+        at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5493)
+        at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5497)
+        at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5594)
+        at scala.tools.nsc.typechecker.Typers$Typer.$anonfun$adapt$3(Typers.scala:867)
+        at scala.tools.nsc.typechecker.Typers$SilentResult.orElse(Typers.scala:77)
+        at scala.tools.nsc.typechecker.Typers$Typer.$anonfun$adapt$1(Typers.scala:854)
+        at scala.tools.nsc.typechecker.Typers$Typer.withCondConstrTyper(Typers.scala:482)
+```
+etc...

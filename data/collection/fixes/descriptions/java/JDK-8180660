@@ -1,0 +1,63 @@
+If this test case is compiled:
+
+import java.util.*;
+
+public class Test {
+    void foo() {
+        List<String> l = null;
+        String first = null;
+        try {
+            first = l.get(0);
+        } finally{
+            if (first != null) {
+                System.out.println("finalizer");
+            }
+        }
+    }
+}
+
+the LNT generate by javac for method foo(), showed along with the code:
+
+void foo();
+    descriptor: ()V
+    flags: (0x0000)
+    Code:
+      stack=2, locals=4, args_size=1
+         0: aconst_null
+         1: astore_1
+         2: aconst_null
+         3: astore_2
+         4: aload_1
+         5: iconst_0
+         6: invokeinterface #2,  2            // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+        11: checkcast     #3                  // class java/lang/String
+        14: astore_2
+        15: aload_2
+        16: ifnull        45
+        19: getstatic     #4                  // Field java/lang/System.out:Ljava/io/PrintStream;
+        22: ldc           #5                  // String finalizer
+        24: invokevirtual #6                  // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+        27: goto          45
+        30: astore_3
+        31: aload_2
+        32: ifnull        43
+        35: getstatic     #4                  // Field java/lang/System.out:Ljava/io/PrintStream;
+        38: ldc           #5                  // String finalizer
+        40: invokevirtual #6                  // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+        43: aload_3
+        44: athrow
+        45: return
+      Exception table:
+         from    to  target type
+             4    15    30   any
+      LineNumberTable:
+        line 5: 0
+        line 6: 2
+        line 8: 4
+        line 10: 15
+        line 11: 19
+        line 10: 30
+        line 11: 35
+        line 14: 45
+
+should contain an entry pointing to bytecode instruction 43

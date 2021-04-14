@@ -1,0 +1,24 @@
+The fix for #8324 left behind a `isEffectivelyFinal` that should have been turned into a `isEffectivelyFinalOrNotOverridden`, causing this warning to appear:
+
+```scala
+package outer
+
+package inner {
+
+  private[inner] class A
+
+  // the class is final, there should be no warning
+  private[outer] final class B {
+    def doWork(a: A): A = a
+  }
+}
+```
+```scala
+% scalac -Xlint test.scala
+test.scala:10: warning: method doWork in class B references private[inner] class A.
+Classes which cannot access A may be unable to override doWork.
+    def doWork(a: A): A = a
+        ^
+```
+
+There is no way `doWork` can be overridden, the class is final.

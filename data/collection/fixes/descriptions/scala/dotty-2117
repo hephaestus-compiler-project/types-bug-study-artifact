@@ -1,0 +1,13 @@
+When typechecking
+
+`
+class A {
+  C.super.foo()
+}
+`
+
+the typer throws with the following stacktrace: http://pastebin.com/arjFaB0Z
+The issue is an unguarded pattern matching in TypeAssigner: https://github.com/lampepfl/dotty/blob/d0621108bad55f9fc66c1c5ade9a0b7edb3117e7/compiler/src/dotty/tools/dotc/typer/TypeAssigner.scala#L294
+
+The fix (I think) is to simply handle the case where the qualifier has type ErrorType and bail out early.
+

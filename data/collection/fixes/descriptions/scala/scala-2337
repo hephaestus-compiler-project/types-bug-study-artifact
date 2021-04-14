@@ -1,0 +1,55 @@
+Not sure if this is a known limitation, an existing bug, or a new bug in 2.8.
+
+I have a value 'element' of runtime type:
+```scala
+class ScTypeParameterImpl extends 
+  (trait ScTypeParam extends 
+    (trait ScPolymorphicElement extends ScNamedElement)))
+
+trait ScNamedElement extends ... {
+   // abstract defs
+   // implementations
+}
+```
+It was fed into the pattern match. I expected it to match x: !ScNamedElement. Instead, it matched the default case. I added an explicit case for 'x: !ScTypeParam' as a workaround.
+
+```scala
+    val name = element match {
+      case RealPsiClass(c) => c.getQualifiedName
+      case x: PsiMethod => PsiFormatUtil.formatMethod(x, PsiSubstitutor.EMPTY,
+        PsiFormatUtilBase.SHOW_NAME | PsiFormatUtilBase.SHOW_PARAMETERS,
+        PsiFormatUtilBase.SHOW_TYPE) + " of " + getDescriptiveName(x.getContainingClass)
+      case x: PsiVariable => x.getName
+      case x: PsiFile => x.getName
+
+      case x: ScNamedElement => x.getName // todo This line should match, but doesn't.
+      case x: ScTypeParam => (x: ScNamedElement).getName // todo Should even compile! Previous pattern should match!
+
+      case _ => element.getText
+    }
+    Option(name) getOrElse "anonymous"
+  }
+```
+
+Taking a closer look with the debugger, it appears, at least from a Java perspective, that the class literal !ScNamedElement.class refers to the class containing the method definitions from trait !ScNamedElement, rather than its abstract interface.
+
+Debugger:
+```scala
+element.getClass() = class org.jetbrains.plugins.scala.lang.psi.impl.statements.params.ScTypeParamImpl
+
+element.getClass().getInterfaces()r1.getInterfaces()r1.getInterfaces()r2 = {java.lang.Class@10972}"interface org.jetbrains.plugins.scala.lang.psi.api.toplevel.ScNamedElement"
+
+ScNamedElement.class = {java.lang.Class@10978}"class org.jetbrains.plugins.scala.lang.psi.api.toplevel.ScNamedElement$$class"
+
+ScNamedElement.class.isAssignableFrom(element.getClass()) == false
+
+Class.forName("org.jetbrains.plugins.scala.lang.psi.api.toplevel.ScNamedElement").isAssignableFrom(element.getClass()) = true
+```
+
+My brief attempt to isolate this to a small testcase were unsuccessful. If this isn't enough to pinpoint the problem, and it really is a bug, I'll spend some more time at this.
+
+Tested against r18650
+
+thanks,
+
+-jason

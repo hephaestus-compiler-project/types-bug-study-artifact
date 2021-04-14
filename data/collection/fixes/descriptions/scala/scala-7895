@@ -1,0 +1,49 @@
+It's SO TEDIOUS.
+```scala
+class A {
+  def booboo = bong + booble + bippity - bazingo
+
+  def f(x: Any) = x match {
+    case Shmist(a, b, c) => a :: b :: c :: Nil
+    case Goop(a, b, c)   => s"$a $b $c $d $e"
+  }
+}
+```
+Here are the useful unknown identifiers to report, and all of them should be reported: bong, booble, bippity, bazingo, Shmist, Goop. That's it. All of those, and only those.
+
+Instead it somehow manages to report both too few and too many. How? Why? I've tried a hundred things to get it to shut up before it starts reporting the pattern variables. God I hate the error code so much.
+
+Here is what it does report, as of 2.10.3:
+```scala
+a.scala:2: error: not found: value bong
+  def booboo = bong + booble + bippity - bazingo
+               ^
+a.scala:5: error: not found: value Shmist
+    case Shmist(a, b, c) => a :: b :: c :: Nil
+         ^
+a.scala:5: error: not found: value a
+    case Shmist(a, b, c) => a :: b :: c :: Nil
+                            ^
+a.scala:5: error: not found: value b
+    case Shmist(a, b, c) => a :: b :: c :: Nil
+                                 ^
+a.scala:6: error: not found: value Goop
+    case Goop(a, b, c)   => s"$a $b $c $d $e"
+         ^
+a.scala:6: error: not found: value a
+    case Goop(a, b, c)   => s"$a $b $c $d $e"
+                               ^
+6 errors found
+```
+The good news is we expected 6 errors and got 6 errors, and the bad news is that only half of them are the right errors. Why does it go two deep reporting bogus identifiers for Shmist, and only one deep for Goop? Who can divine these mysteries?
+
+The bogus pattern variable errors contribute a HUGE amount of noise to what should be minor compilation errors. The failure to report all the missing identifiers in the non-pattern case means one will periodically have to do this for no reason whatsoever:
+```scala
+scalac a.scala
+<edit>
+scalac a.scala
+<edit>
+scalac a.scala
+<edit>
+DAMMIT SCALAC STOP RATIONING AND TELL ME ALL THE MEANINGFUL UNKNOWN IDENTS
+```

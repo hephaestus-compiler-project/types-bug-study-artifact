@@ -1,0 +1,30 @@
+# Summary
+
+This is an addition to KT-27799 where we decided to forbid references to type parameters in annotation arguments:
+
+```
+inline fun <reified T> test(): Any {
+    return (@A(T::class) object {})  // error as per KT-27799
+}
+```
+
+Not only do we have the problem with `T::class` (if `T` is a _type parameter_) when generating bytecode here, but also with arrays of type parameters, such as `Array<T>::class`, `Array<Array<T>>::class`, etc. Therefore, we'd like to prohibit these values as well, with exactly the same rationale: the compiler cannot generate anything sensible into the bytecode for such annotation arguments.
+
+```
+    return (@A(Array<T>::class) object {})  // error!
+```
+
+# Existing behavior
+
+_Please see KT-27799 for the full explanation_
+
+# Proposed behavior
+
+In addition to prohibiting `T::class` (where `T` refers to a type parameter) in annotation arguments, the proposal is to prohibit also arrays of type parameters of any dimensions such as `Array<T>::class`, `Array<Array<T>>::class`, `Array<Array<Array<T>>>::class`, etc.
+
+Usages outside of annotation arguments are not affected.
+
+# Affected versions 
+
+* 1.3.x: report warning on `Array<T>::class`, etc. in annotation arguments
+* 1.4, 1.3.x-progressive: report error

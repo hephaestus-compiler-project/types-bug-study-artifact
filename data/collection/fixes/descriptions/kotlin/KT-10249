@@ -1,0 +1,27 @@
+I expect the following code to work but I am getting type `Any?` instead of `O` in the extension function `B<out O>.e`
+
+```kotlin
+open class O {
+}
+class Z : O()
+
+class B<T: O>(val o: T) {
+    fun take(): T = o
+    fun with(block: (T) -> Unit) {
+        block(o)
+    }
+}
+
+fun B<out O>.e() {
+    take() // returns O
+    with { val o: O = it } // lambda's `it` is Any?
+}
+
+fun main(args: Array<String>) {
+    B(O()).e()
+    B(Z()).e()
+
+    B(Z()).with { val z: Z = it }
+    B(O()).with { val o: O = it }
+}
+```

@@ -1,0 +1,39 @@
+```scala
+trait BaseUniverse {
+  type Foo
+
+  val Foo: FooExtractor
+
+  abstract class FooExtractor {
+    def apply(x: Int): Foo
+  }
+}
+
+trait ApiUniverse extends BaseUniverse {
+  def Foo(x: String): Foo
+}
+
+object universe extends ApiUniverse {
+  case class Foo(x: Int)
+  object Foo extends FooExtractor
+
+  def Foo(x: String) = Foo(x.toInt)
+}
+
+object Test extends App {
+  val u: ApiUniverse = universe
+  u.Foo(10)
+  u.Foo.apply(10)
+}
+```
+
+```scala
+C:\Projects\Kepler\sandbox @ master>myke compile Test.scala
+Test.scala:25: error: ambiguous reference to overloaded definition,
+both method Foo in trait ApiUniverse of type (x: String)Test.u.Foo
+and  value Foo in trait BaseUniverse of type => Test.u.FooExtractor
+match expected type ?
+  u.Foo.apply(10)
+    ^
+one error found
+```

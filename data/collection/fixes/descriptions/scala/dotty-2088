@@ -1,0 +1,47 @@
+This doesn't compile, as expected:
+```scala
+class Base {
+  type A = {
+    val m: A
+  }
+}
+```
+```scala
+2 |  type A = {
+  |       ^
+  |illegal cyclic reference: alias Object{m: Base.this.A} of type A refers back to the type itself
+```
+But this crashes instead of giving an error:
+```scala
+class Base {
+  type A = {
+    val m: Foo.A
+  }
+}
+
+object Foo extends Base
+```
+```scala
+        at dotty.tools.dotc.core.Types$TypeAccumulator.foldOver(Types.scala:3644)
+        at dotty.tools.dotc.typer.VarianceChecker$Validator$$anonfun$apply$2.apply(VarianceChecker.scala:100)
+        at dotty.tools.dotc.typer.VarianceChecker$Validator$$anonfun$apply$2.apply(VarianceChecker.scala:84)
+        at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:136)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+        at dotty.tools.dotc.typer.VarianceChecker$Validator$.apply(VarianceChecker.scala:83)
+        at dotty.tools.dotc.typer.VarianceChecker$Validator$$anonfun$apply$2.apply(VarianceChecker.scala:89)
+        at dotty.tools.dotc.typer.VarianceChecker$Validator$$anonfun$apply$2.apply(VarianceChecker.scala:84)
+        at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:136)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+        at dotty.tools.dotc.typer.VarianceChecker$Validator$.apply(VarianceChecker.scala:83)
+        at dotty.tools.dotc.typer.VarianceChecker$Validator$.apply(VarianceChecker.scala:27)
+        at dotty.tools.dotc.core.Types$TypeAccumulator.foldOver(Types.scala:3644)
+        at dotty.tools.dotc.typer.VarianceChecker$Validator$$anonfun$apply$2.apply(VarianceChecker.scala:100)
+        at dotty.tools.dotc.typer.VarianceChecker$Validator$$anonfun$apply$2.apply(VarianceChecker.scala:84)
+        at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:136)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+        at dotty.tools.dotc.typer.VarianceChecker$Validator$.apply(VarianceChecker.scala:83)
+        at dotty.tools.dotc.typer.VarianceChecker$Validator$$anonfun$apply$2.apply(VarianceChecker.scala:89)
+        at dotty.tools.dotc.typer.VarianceChecker$Validator$$anonfun$apply$2.apply(VarianceChecker.scala:84)
+        at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:136)
+...
+```

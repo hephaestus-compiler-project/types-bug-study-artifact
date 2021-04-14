@@ -1,0 +1,20 @@
+https://docs.oracle.com/javase/specs/jls/se8/html/jls-9.html#jls-9.4.1.2 :
+It is a compile-time error if a default method is override-equivalent with a non-private method of the class Object, because any class implementing the interface will inherit its own implementation of the method.
+
+JVM8 can load such classes, but methods inherited from Object (or from a superclass) hide default methods from a super-interface.
+{code lang=java}
+// Pseudo-Java, bytecode generated manually
+public interface WithDefaultToString {
+    default String toString() { return "DEFAULT"; }
+}
+
+public class A implements WithDefaultToString {}
+
+public class Main {
+    public static void main(...) {
+        System.out.println(new A().toString()); // A@6f539caf
+    }
+}
+{code}
+
+Since this will cause different behavior for JVM 6 and JVM 8, this should be an error in Kotlin 1.0, too.

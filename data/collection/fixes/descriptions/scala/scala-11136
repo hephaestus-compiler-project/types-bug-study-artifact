@@ -1,0 +1,34 @@
+scala/bug#10853 caused extraneous bridge methods to be generated, causing certain methods in the new collections to be unable to be marked final (otherwise, the bridge would override a final method). That was fixed in 2.13.0-M5.
+
+Now comes a second complication:
+
+```scala
+// names changed and type parameters removed to protect the innocent
+trait IO {
+  def c(x: Int): Int = ???
+}
+trait SO extends IO {
+  override final def c(x: Int): Int = ???
+}
+trait SOIO extends IO {
+  override def c(x: Int): Int = ???
+}
+trait SOSO extends SOIO with SO
+abstract class AS extends SO
+class L extends AS with SOSO
+```
+
+which, on 2.13.0-M5, produces a `java.lang.VerifyError: class L overrides final method c.(I)I`.
+
+So we still can't make them final, after all.
+
+This may be almost by design; removing the extra layer of `SOSO` causes the compiler to complain with
+```scala
+       class L extends AS with SOIO
+             ^
+<pastie>:17: error: overriding method c in trait SO of type (x: Int)Int;
+         method c in trait SOIO of type (x: Int)Int cannot override final member
+There were compilation errors!
+```
+
+Gonna look at the spec and see if this is `should-not-compile` or not. (`should-not-compile` on the 2.13 collections, 🙀...)

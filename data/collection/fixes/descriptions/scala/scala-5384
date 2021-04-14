@@ -1,0 +1,98 @@
+Reduced by Paul:
+```scala
+class A(x: String, y: Int)(implicit o: String)
+class B(implicit o: String) extends A(y = 5, x = "a")
+```
+
+Original bug report:
+```scala
+class A[E: Manifest](val x: Unit = (), y: Unit)
+class B[E: Manifest] extends A[E](y = ())
+```
+
+Crash:
+```scala
+exception when typing B.this.o
+value o in class B cannot be accessed in B in file null
+scala.reflect.internal.Types$TypeError: value o in class B cannot be accessed in B
+	at scala.tools.nsc.typechecker.Contexts$Context.issue(Contexts.scala:363)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedSelect$1(Typers.scala:4324)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:4903)
+	at scala.tools.nsc.transform.Erasure$Eraser.typed1(Erasure.scala:751)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5015)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$66.apply(Typers.scala:2650)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedArg(Typers.scala:2650)
+	at scala.tools.nsc.typechecker.Typers$Typer.loop$1(Typers.scala:2669)
+	at scala.tools.nsc.typechecker.Typers$Typer.loop$1(Typers.scala:2672)
+	at scala.tools.nsc.typechecker.Typers$Typer.loop$1(Typers.scala:2672)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedArgs(Typers.scala:2675)
+	at scala.tools.nsc.typechecker.Typers$Typer.doTypedApply(Typers.scala:2916)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedApply$1(Typers.scala:4110)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:4842)
+	at scala.tools.nsc.transform.Erasure$Eraser.typed1(Erasure.scala:751)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5015)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedBlock(Typers.scala:2135)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$typed1$3.apply(Typers.scala:4695)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:4694)
+	at scala.tools.nsc.transform.Erasure$Eraser.typed1(Erasure.scala:751)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5015)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStat$1(Typers.scala:2540)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$64$$anonfun$65.apply(Typers.scala:2636)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$64$$anonfun$65.apply(Typers.scala:2636)
+	at scala.collection.immutable.List.loop$1(List.scala:163)
+	at scala.collection.immutable.List.mapConserve(List.scala:179)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$64.apply(Typers.scala:2636)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:2635)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedBlock(Typers.scala:2134)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$typed1$3.apply(Typers.scala:4695)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:4694)
+	at scala.tools.nsc.transform.Erasure$Eraser.typed1(Erasure.scala:751)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5015)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5073)
+	at scala.tools.nsc.typechecker.Typers$Typer.typePrimaryConstrBody(Typers.scala:1319)
+	at scala.tools.nsc.typechecker.Typers$Typer.parentTypes(Typers.scala:1414)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$43.apply(Typers.scala:1579)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedClassDef(Typers.scala:1578)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:4654)
+	at scala.tools.nsc.transform.Erasure$Eraser.typed1(Erasure.scala:751)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5015)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStat$1(Typers.scala:2540)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$64$$anonfun$65.apply(Typers.scala:2636)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$64$$anonfun$65.apply(Typers.scala:2636)
+	at scala.collection.immutable.List.loop$1(List.scala:163)
+	at scala.collection.immutable.List.mapConserve(List.scala:179)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$64.apply(Typers.scala:2636)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:2635)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:4650)
+	at scala.tools.nsc.transform.Erasure$Eraser.typed1(Erasure.scala:751)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5015)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5073)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anonfun$transform$2.apply(Erasure.scala:1146)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer.transform(Erasure.scala:1142)
+	at scala.tools.nsc.ast.Trees$Transformer.transformUnit(Trees.scala:228)
+	at scala.tools.nsc.transform.Transform$Phase.apply(Transform.scala:30)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:432)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:398)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:392)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:697)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1124)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:392)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1336)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1309)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1303)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1436)
+	at scala.tools.nsc.Driver.doCompile(Driver.scala:31)
+	at scala.tools.nsc.Main$.doCompile(Main.scala:81)
+	at scala.tools.nsc.Driver.process(Driver.scala:52)
+	at scala.tools.nsc.Driver.main(Driver.scala:65)
+	at scala.tools.nsc.Main.main(Main.scala)
+error: unrecoverable error
+exception when typing B.super.<init>("a", 5, B.this.o)
+exception when typing {
+  val x$1: Int(5) = 5;
+  val x$2: String("a") = "a";
+  B.super.<init>("a", 5, B.this.o)
+}
+exception when typing {
+...
+```

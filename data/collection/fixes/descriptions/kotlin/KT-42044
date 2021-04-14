@@ -1,0 +1,25 @@
+Given the code (from https://youtrack.jetbrains.com/issue/KT-22960#focus=Comments-27-4400457.0-0)
+```
+import kotlin.contracts.*
+
+class Smth {
+    val whatever: Int // MUST_BE_INITIALIZED_OR_BE_ABSTRACT
+
+    init {
+        calculate({ whatever = it }) // CAPTURED_MEMBER_VAL_INITIALIZATION
+    }
+
+    @OptIn(ExperimentalContracts::class)
+    private inline fun calculate(block: (Int) -> Unit) {
+        contract {
+            callsInPlace(block, InvocationKind.EXACTLY_ONCE)
+        }
+        block(0)
+    }
+}
+```
+```
+[MUST_BE_INITIALIZED_OR_BE_ABSTRACT] Property must be initialized or be abstract
+
+[CAPTURED_MEMBER_VAL_INITIALIZATION] Captured member values initialization is forbidden due to possible reassignment
+```

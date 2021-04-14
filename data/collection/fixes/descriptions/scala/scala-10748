@@ -1,0 +1,40 @@
+Assuming the package `doesntExist` does not exist, the following crashes the compiler:
+
+```scala
+type B[A] <: Array[Byte]
+
+def uhOh[A]: C[A] = new C[A]
+
+private[doesntExist] final class C[A](val dummy: Boolean = true) extends AnyVal {
+  def apply[F[_]](value: F[Array[Byte]]): F[B[A]] = value.asInstanceOf[F[B[A]]]
+}
+
+<pastie>:15: error: doesntExist is not an enclosing class
+private[doesntExist] final class C[A](val dummy: Boolean = true) extends AnyVal {
+                                 ^
+java.lang.AssertionError: assertion failed: C
+        at scala.reflect.internal.Symbols$Symbol.info(Symbols.scala:1511)
+        at scala.reflect.internal.Symbols$Symbol.initialize(Symbols.scala:1678)
+        at scala.tools.nsc.typechecker.Namers$Namer.$anonfun$addDefaultGetters$9(Namers.scala:1508)
+        at scala.tools.nsc.typechecker.Namers$Namer.$anonfun$addDefaultGetters$7(Namers.scala:1506)
+        at scala.tools.nsc.typechecker.Namers$Namer.$anonfun$addDefaultGetters$5(Namers.scala:1475)
+        at scala.tools.nsc.typechecker.Namers$Namer.addDefaultGetters(Namers.scala:1471)
+...
+```
+
+However, this throws an error properly (Credits to @hrhino for telling me to try this):
+
+```scala
+type B[A] <: Array[Byte]
+
+def uhOh[A]: C[A] = new C[A]
+
+object C
+
+private[doesntExist] final class C[A](val dummy: Boolean = true) extends AnyVal {
+  def apply[F[_]](value: F[Array[Byte]]): F[B[A]] = value.asInstanceOf[F[B[A]]]
+}
+
+<pastie>:17: error: doesntExist is not an enclosing class
+private[doesntExist] final class C[A](val dummy: Boolean = true) extends AnyVal {
+```

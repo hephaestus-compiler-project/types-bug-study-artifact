@@ -1,0 +1,24 @@
+Following the fix for JDK-8071291, some operations for union types started to behave strangely; for instance the following code should be rejected by javac:
+
+interface Foo<X> { }
+
+class A extends Exception implements Foo<A> { }
+class B extends Exception implements Foo<B> { }
+
+interface D { }
+
+class Test {
+	<Z> void test(boolean cond) {
+		try {
+			if (cond) {         
+				throw new A();
+			} else {
+				throw new B();
+			}
+		} catch (A | B ex) {
+                         Foo<Integer> fa = (Foo<Integer>)ex;
+              }     
+	}
+}
+
+Following the fix, this code started to pass (this was failing in JDK 7 and was crashing in 8).

@@ -1,0 +1,28 @@
+Follow up to GROOVY-7691.  When getter generated for property is used, return type check fails.
+
+{code:groovy}
+            import groovy.transform.*
+
+            @CompileStatic
+            @TupleConstructor(includeFields=true)
+            abstract class A<N extends Number> {
+                final N number
+            }
+
+            @CompileStatic
+            class C<L extends Long> extends A<L> {
+                C(L longNumber) {
+                    super(longNumber)
+                }
+
+                L getValue() {
+                    return getNumber() // property method stubbed by StaticTypeCheckingVisitor
+                }
+            }
+
+            assert new C<Long>(42L).value == 42L
+{code}
+
+"[Static type checking] - Cannot return value of type N on method returning type L"
+
+StaticTypeCheckingVisitor has set the wrong declaring class for {{getNumber}} and so generics resolution from N to Long fails.

@@ -1,0 +1,59 @@
+Try to compile this:
+
+```scala
+class A {
+  super.+("")
+}
+```
+
+and you'll get this:
+
+```scala
+Exception in thread "main" java.lang.Error: Unexpected tree in genLoad: A.super at: source-../scala/test/files/neg/supper-to-breakfast.scala,line-2,offset=12
+	at scala.tools.nsc.symtab.SymbolTable.abort(SymbolTable.scala:33)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:941)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadArguments(GenICode.scala:1030)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:742)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadQualifier(GenICode.scala:981)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:739)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genStat(GenICode.scala:183)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genStat$1.apply(GenICode.scala:155)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genStat$1.apply(GenICode.scala:155)
+	at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:123)
+	at scala.collection.immutable.List.foldLeft(List.scala:45)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genStat(GenICode.scala:155)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:868)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:126)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:81)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:81)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:61)
+	at scala.collection.immutable.List.foreach(List.scala:45)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:81)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:148)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:100)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:81)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:81)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:61)
+	at scala.collection.immutable.List.foreach(List.scala:45)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:81)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:91)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:77)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.apply(GenICode.scala:73)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$applyPhase$1.apply(Global.scala:288)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$applyPhase$1.apply(Global.scala:288)
+	at scala.tools.nsc.reporters.Reporter.withSource(Reporter.scala:47)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:288)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:260)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:260)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:631)
+	at scala.collection.mutable.ListBuffer$$anon$1.foreach(ListBuffer.scala:304)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:260)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.run(GenICode.scala:66)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:761)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:842)
+	at scala.tools.nsc.Main$.process(Main.scala:106)
+	at scala.tools.nsc.Main$.main(Main.scala:120)
+	at scala.tools.nsc.Main.main(Main.scala)
+```
+
+The problem is specific to the `+(String)` method, and involves implicit view any2stringadd applied on A.super, as if super was not as the reserved word it is.

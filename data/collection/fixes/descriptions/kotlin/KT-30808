@@ -1,0 +1,29 @@
+```
+// J.java
+
+public class J {
+	public J(String... objects) {}
+}
+
+// main.kt
+
+fun main() {
+    val array: Array<String>? = null
+    
+    // [USELESS_ELVIS_RIGHT_IS_NULL] Right operand of elvis operator (?:) is useless if it is null
+    // but no [SPREAD_OF_NULLABLE] The spread operator (*foo) may not be applied to an argument of nullable type
+    J(*array ?: null)
+}
+```
+
+Result of running `main`:
+
+```
+Exception in thread "main" java.lang.NullPointerException
+	at AKt.main(A.kt:6)
+	at AKt.main(A.kt)
+```
+
+Reproduced with 1.3.30-eap-125, failed to reproduce with 1.3.40-dev-1364. Looks like it was (accidentally?) fixed in 1.3.40, a regression test should probably be added.
+
+Note: simple case without USELESS_ELVIS_RIGHT_IS_NULL is already reported in 1.3.30 after https://github.com/JetBrains/kotlin/commit/7f48897e21663c6838fe51234f4d6a96ce5b660b.

@@ -1,0 +1,74 @@
+== Case 1 ==
+
+`NoClassDefFoundError` when calling a no-arg  `copy(t1 = default)`:
+
+```
+interface Copiable<T>  {
+    fun copy(t1: T): Any
+}
+
+data class SomeData(val t1: String) : Copiable<String>
+
+fun main(args: Array<String>) {
+    SomeData("abc").copy()
+}
+```
+[https://try.kotlinlang.org/#/UserProjects/2nlfcf0i04nr7pptj5d80tq3k9/d470suodorko3nrqlheii316t9 (demo)]
+
+`Exception in thread "main" java.lang.NoClassDefFoundError: Copiable$DefaultImpls
+	at HelloWorldKt.main(helloWorld.kt:14)
+Caused by: java.lang.ClassNotFoundException: Copiable$DefaultImpls`
+
+_______________________________________
+
+== Case 2 ==
+
+`VerifyError` when calling  `copy(t1, t2)` with only one argument:
+
+```
+interface Copiable2<T1, T2>  {
+    fun copy(t1: T1, t2: T2): Any
+}
+
+data class SomeData2(val t1: Int, val t2: String) : Copiable2<Int, String>
+
+fun main(args: Array<String>) {
+    SomeData2(123, "def").copy(0)
+}
+```
+[https://try.kotlinlang.org/#/UserProjects/di30o4uo8mc9br924cll37ch16/7ubcmq489sth8775fhfliios7v (demo)]
+
+`java.lang.VerifyError: Bad type on operand stack
+Exception Details:
+  Location:
+    HelloWorldKt.main([Ljava/lang/String;)V @22: invokestatic
+  Reason:
+    Type integer (current frame, stack[1]) is not assignable to 'java/lang/Object'
+  Current Frame:
+    bci: @22
+    flags: { }
+    locals: { '[Ljava/lang/String;' }
+    stack: { 'SomeData2', integer, 'java/lang/String', integer, null }
+  Bytecode:
+    0x0000000: 2a12 09b8 000f bb00 1159 107b 1213 b700
+    0x0000010: 1703 1219 0401 b800 1fc0 0011 57b1     
+
+	at java.lang.Class.getDeclaredMethods0(Native Method)`
+
+_______________________________________
+
+== Case 3 (no fail at runtime, just strange behavior) ==
+
+```
+interface DefaultCopy {
+    fun copy(i: Int = 123, j: Int = 456): Any = this
+}
+
+data class Data(val i: Int, val j: Int): DefaultCopy
+
+fun main(args: Array<String>) {
+    val d1 = Data(0, 0)
+    val d2 = d1.copy()
+    println(d2) // Data(i=123, j=456)
+}
+```

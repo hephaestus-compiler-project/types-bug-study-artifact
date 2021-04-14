@@ -1,0 +1,11 @@
+# Reproducing
+
+Open [FlowPlaysScrabbleOpt](https://github.com/Kotlin/kotlinx.coroutines/blob/master/benchmarks/src/jmh/kotlin/benchmarks/flow/scrabble/FlowPlaysScrabbleOpt.kt) file of kotlinx.coroutines and see to `buildHistoOnScore` function. `Rewrite at slice` exception will be thrown.
+
+I found it on 1.3.50-eap-5, but seems like that bug was first introduced in 1.3.40
+
+# Description
+
+In fix of #KT-31620 there was introduced same `InferenceSession` for analyzing of all statements. We analyze array set expression, results of one analysis are wrote in common trace, and second into temporary trace (see `ExpressionTypingVisitorForStatements.visitAssignment`, lines `339` and `340`). But since #KT-31620 both analysis uses one inference session, so resolved calls for array get expression are pushed into it twice (in mehtod `KotlinToResolvedCallTransformer.forwardCallToInferenceSession`), so inside session we try to write in same slice two different resolved calls and fail with exception
+
+Writing in slice is happend in `BasicExpressionTypingVisitor.resolveArrayAccessSpecialMethod`

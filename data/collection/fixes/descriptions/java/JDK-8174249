@@ -1,0 +1,38 @@
+This code stopped compiling after the fix for JDK-8078093:
+
+import java.util.ArrayList;
+import java.util.Collection;
+
+public class Foo {
+    static <T> T foo(Class<T> c, Collection<? super T> baz) {
+	return null;
+    }
+
+    static void bar(String c) {
+
+    }
+
+    @SuppressWarnings("unchecked")
+    public static void main(String[] args) {
+	// this works
+	bar(foo(String.class, new ArrayList<String>()));
+
+	// this works with a warning
+	String s = foo(String.class, new ArrayList());
+	bar(s);
+
+	// this causes an error on JDK9
+	bar(foo(String.class, new ArrayList()));
+    }
+}
+
+Moreover, the error issued is weird-looking:
+
+Foo.java:23: error: method bar in class Foo cannot be applied to given types;
+                bar(foo(String.class, new ArrayList()));
+                ^
+  required: String
+  found: String
+  reason: argument mismatch; Object cannot be converted to String
+1 error
+

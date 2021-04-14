@@ -1,0 +1,32 @@
+Dotty thinks that every package compiled by Scala 2 has the `eq` method in it. This gives two consequences.
+
+---
+
+First, **strange code compiles**. Considering as an example, you have `cats` library in dependencies, you have
+```scala
+val z = cats.eq(new Object) // Compiles!
+```
+
+---
+
+Second, all `object`s that have name `eq` in such packages, **become unavailable**. Considering, for example, you have `cats-laws` library in dependencies, this code
+```scala
+import cats.laws.discipline.eq._
+```
+
+fails with
+
+```
+[error] -- Error: dotty-eq-bug/src/main/scala/dottyeq/tst-pos.scala:4:28 
+[error] 4 |import cats.laws.discipline.eq._
+[error]   |       ^^^^^^^^^^^^^^^^^^^^^^^
+[error]   |       Object => Boolean is not stable
+```
+
+---
+
+This error appears both in pure dotty mode and in dotty's scala 2 compatibility mode.
+
+---
+
+The minimal project showing both errors can be found [here](https://github.com/lampepfl/dotty/files/3047681/dotty-eq-bug.zip).

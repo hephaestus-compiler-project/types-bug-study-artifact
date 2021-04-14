@@ -1,0 +1,89 @@
+Java produces enum's without class objects and some kotlin code does not expect this behaviour.
+
+{code}
+//foo.kt
+fun main(args: Array<String>) {
+    val c: Type
+    when (c)  {
+
+    }
+}
+{code}
+
+{code}
+//Type.java
+public enum Type {
+    TYPE,
+    NO_TYPE;
+}
+{code}
+
+Exception:
+
+5:00:36 PM AssertionError: null
+5:00:56 PM Throwable: java.lang.AssertionError
+	at org.jetbrains.jet.lang.cfg.WhenChecker.isWhenExhaustive(WhenChecker.java:48)
+	at org.jetbrains.jet.lang.cfg.JetControlFlowProcessor$CFPVisitor.visitWhenExpression(JetControlFlowProcessor.java:853)
+	at org.jetbrains.jet.lang.psi.JetWhenExpression.accept(JetWhenExpression.java:48)
+	at org.jetbrains.jet.lang.cfg.JetControlFlowProcessor$CFPVisitor.value(JetControlFlowProcessor.java:195)
+	at org.jetbrains.jet.lang.cfg.JetControlFlowProcessor$CFPVisitor.visitBlockExpression(JetControlFlowProcessor.java:647)
+	at org.jetbrains.jet.lang.psi.JetBlockExpression.accept(JetBlockExpression.java:45)
+	at org.jetbrains.jet.lang.cfg.JetControlFlowProcessor.generate(JetControlFlowProcessor.java:81)
+	at org.jetbrains.jet.lang.cfg.JetControlFlowProcessor.generatePseudocode(JetControlFlowProcessor.java:62)
+	at org.jetbrains.jet.lang.cfg.JetFlowInformationProvider.(JetFlowInformationProvider.java:65)
+	at org.jetbrains.jet.lang.resolve.ControlFlowAnalyzer.checkFunction(ControlFlowAnalyzer.java:96)
+	at org.jetbrains.jet.lang.resolve.ControlFlowAnalyzer.process(ControlFlowAnalyzer.java:65)
+	at org.jetbrains.jet.lang.resolve.BodyResolver.resolveBodies(BodyResolver.java:140)
+	at org.jetbrains.jet.lang.resolve.TopDownAnalyzer.doProcess(TopDownAnalyzer.java:134)
+	at org.jetbrains.jet.lang.resolve.TopDownAnalyzer.analyzeFiles(TopDownAnalyzer.java:259)
+	at org.jetbrains.jet.lang.resolve.java.AnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(AnalyzerFacadeForJVM.java:125)
+	at org.jetbrains.jet.lang.resolve.java.AnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(AnalyzerFacadeForJVM.java:106)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$1.invoke(KotlinToJVMBytecodeCompiler.java:316)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$1.invoke(KotlinToJVMBytecodeCompiler.java:312)
+	at org.jetbrains.jet.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.java:191)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.java:311)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyzeAndGenerate(KotlinToJVMBytecodeCompiler.java:291)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyzeAndGenerate(KotlinToJVMBytecodeCompiler.java:272)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModule(KotlinToJVMBytecodeCompiler.java:111)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules(KotlinToJVMBytecodeCompiler.java:132)
+	at org.jetbrains.jet.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.java:130)
+	at org.jetbrains.jet.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.java:54)
+	at org.jetbrains.jet.cli.common.CLICompiler.exec(CLICompiler.java:117)
+	at org.jetbrains.jet.cli.jvm.K2JVMCompiler.exec(K2JVMCompiler.java:179)
+	at org.jetbrains.jet.cli.jvm.K2JVMCompiler.exec(K2JVMCompiler.java:54)
+	at org.jetbrains.jet.cli.common.CLICompiler.exec(CLICompiler.java:47)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+	at java.lang.reflect.Method.invoke(Method.java:597)
+	at org.jetbrains.jet.plugin.compiler.CompilerUtils.invokeExecMethod(CompilerUtils.java:175)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler.execInProcess(JetCompiler.java:257)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler.access$000(JetCompiler.java:56)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler$1.invoke(JetCompiler.java:244)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler$1.invoke(JetCompiler.java:241)
+	at org.jetbrains.jet.plugin.compiler.CompilerUtils.outputCompilerMessagesAndHandleExitCode(CompilerUtils.java:314)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler.runInProcess(JetCompiler.java:241)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler.runCompiler(JetCompiler.java:141)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler.doCompile(JetCompiler.java:129)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler.compile(JetCompiler.java:104)
+	at com.intellij.compiler.impl.CompileDriver.a(CompileDriver.java:1960)
+	at com.intellij.compiler.impl.CompileDriver.a(CompileDriver.java:1283)
+	at com.intellij.compiler.impl.CompileDriver.a(CompileDriver.java:1003)
+	at com.intellij.compiler.impl.CompileDriver.a(CompileDriver.java:744)
+	at com.intellij.compiler.impl.CompileDriver.access$1100(CompileDriver.java:107)
+	at com.intellij.compiler.impl.CompileDriver$8.run(CompileDriver.java:656)
+	at com.intellij.compiler.progress.CompilerTask.run(CompilerTask.java:155)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl$TaskRunnable.run(ProgressManagerImpl.java:472)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl$2.run(ProgressManagerImpl.java:181)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.executeProcessUnderProgress(ProgressManagerImpl.java:221)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.runProcess(ProgressManagerImpl.java:172)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl$8.run(ProgressManagerImpl.java:381)
+	at com.intellij.openapi.application.impl.ApplicationImpl$6.run(ApplicationImpl.java:457)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:441)
+	at java.util.concurrent.FutureTask$Sync.innerRun(FutureTask.java:303)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:138)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.runTask(ThreadPoolExecutor.java:886)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:908)
+	at java.lang.Thread.run(Thread.java:662)
+	at com.intellij.openapi.application.impl.ApplicationImpl$1$1.run(ApplicationImpl.java:148)
+ (show balloon)

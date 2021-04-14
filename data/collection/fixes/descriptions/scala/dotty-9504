@@ -1,0 +1,57 @@
+## Minimized code
+
+```Scala
+trait Monad[F[_]] {
+  def foo[A](fa: F[A]): Unit = {}
+}
+
+class Bla[F[_], A]
+
+object Test {
+  type Id[A] = A
+
+  val bla: Bla[Id, Unit] = ???
+  implicit def blaMonad[F[_]: Monad, S]: Monad[({type L[X] = Bla[F, X]})#L] = ???
+
+  blaMonad.foo(bla)
+}
+```
+
+## Output
+
+With Dotty, the compiler runs for ~20 seconds before producing a giant error message:
+
+```scala
+-- Error: try/divloop.scala:19:10 ----------------------------------------------
+19 |  blaMonad.foo(bla)
+   |          ^
+   |no implicit argument of type Monad[([_$3] =>> Any)] was found for an implicit parameter of method blaMonad in object Test.
+   |I found:
+   |
+   |    Test.blaMonad[F, S](
+   |      Test.blaMonad[F, S](
+   |        Test.blaMonad[F, S](
+...
+```
+
+## Expectation
+
+With Scala 2, the compiler pretty much instantly stops with:
+```scala
+try/divloop.scala:19: error: diverging implicit expansion for type Monad[F]
+starting with method blaMonad in object Test
+  blaMonad.foo(bla)
+  ^
+```
+
+This is not just a problem for malformed code: if I add another implicit to have a base case:
+```scala
+  implicit def idMonad: Monad[Id] = ???
+```
+Then Dotty still fails in the same way whereas Scala 2 is able to correctly resolve:
+```scala
+blaMonad(idMonad).foo(bla)
+```
+I came across this while trying to see what happens if cats Monad used dotty's extension method syntax (https://github.com/lampepfl/dotty/issues/9480).
+
+Tentatively assigning to Miles since he wrote the divergence checker.

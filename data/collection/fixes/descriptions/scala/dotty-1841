@@ -1,0 +1,16 @@
+When compiling scalap with Dotty, I got these errors:
+```
+[error] -- Error: /data/rw/code/scala/compiler-benchmark/compilation/../corpus/scalap/scalax/rules/Result.scala 
+[error] 21 |case class ~[+A, +B](_1: A, _2: B) {
+[error]    |                     ^
+[error]    |                     value _1 is already defined as method _1: => A
+[error] -- Error: /data/rw/code/scala/compiler-benchmark/compilation/../corpus/scalap/scalax/rules/Result.scala 
+[error] 21 |case class ~[+A, +B](_1: A, _2: B) {
+[error]    |                            ^
+[error]    |                          value _2 is already defined as method _2: => B
+[error] 
+```
+  
+For some reason, Dotty recognises the class parameters as already defined methods in [this definition](https://github.com/scala/scala/blob/2.12.x/src/scalap/scala/tools/scalap/scalax/rules/Result.scala#L21). I've tried to reproduce in the REPL and failed. Off the top of my head I would bet that this is an error when completing the symbol of `~`... Maybe Dotty thinks it's a method because it's considered so at the call-site?
+  
+To reproduce, get the Scalap sources and compile them. I am using the flags `-usejavacp`, `-language:Scala2` and `nowarn` and my classpath contains the dotty library and the scala library 2.11.5 (same as REPL as far as I'm concerned).

@@ -1,0 +1,48 @@
+The following program crashes the JDK 9 javac. This appears to be a regression since JDK 8.
+
+===
+class Outer {
+  private static final class Foo$Bar {}
+
+  private static final class Foo {
+    private static final class Bar {}
+  }
+}
+===
+
+$ javac -fullversion T.java 
+javac full version "1.8.0_152-ea-b05"
+T.java:5: error: duplicate class: Outer.Foo$Bar
+    private static final class Bar {}
+                         ^
+
+$ javac -fullversion T.java
+javac full version "9+181"
+An exception has occurred in the compiler (9). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.AssertionError: Outer.Foo
+	at jdk.compiler/com.sun.tools.javac.util.Assert.error(Assert.java:162)
+	at jdk.compiler/com.sun.tools.javac.util.Assert.check(Assert.java:104)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.visitClassDef(Enter.java:426)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:774)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.classEnter(Enter.java:285)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.classEnter(Enter.java:300)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.visitClassDef(Enter.java:498)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:774)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.classEnter(Enter.java:285)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.classEnter(Enter.java:300)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.visitClassDef(Enter.java:498)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:774)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.classEnter(Enter.java:285)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.classEnter(Enter.java:300)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.visitTopLevel(Enter.java:383)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCCompilationUnit.accept(JCTree.java:529)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.classEnter(Enter.java:285)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.classEnter(Enter.java:300)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.complete(Enter.java:570)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.main(Enter.java:554)
+	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.enterTrees(JavaCompiler.java:1052)
+	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:923)
+	at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:302)
+	at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:162)
+	at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:57)
+	at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:43)

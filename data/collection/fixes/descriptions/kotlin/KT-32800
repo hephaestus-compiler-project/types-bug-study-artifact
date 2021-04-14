@@ -1,0 +1,47 @@
+The problem is that IDEA does not detect an error in one specific case. This is manifested in the case when I use inline getValue with reified generics to return different objects. Looks like IDEA doesn't check what type will be actually returned.
+
+```kt
+import kotlin.reflect.KProperty
+
+open class A
+class A1 : A()
+class A2 : A()
+
+open class B(val size: Int)
+class B1(size: Int) : B(size)
+class B2(size: Int) : B(size)
+
+class ADelegate {
+    inline operator fun <reified T : A> getValue(obj: Any, property: KProperty<*>): T = when (T::class) {
+        A1::class -> A1() as T
+        A2::class -> A2() as T
+        else -> throw IllegalStateException()
+    }
+}
+
+class BDelegate(val size: Int) {
+    inline operator fun <reified T : B> getValue(obj: Any, property: KProperty<*>): T = when (T::class) {
+        B1::class -> B1(size) as T
+        B2::class -> B2(size) as T
+        else -> throw IllegalStateException()
+    }
+}
+
+class DelegateTest {
+    val arg1: A1 by ADelegate()
+    val arg2: B1 by BDelegate(1)
+    val arg3: A1 by BDelegate(1)//Error here
+    val arg4: B1 by ADelegate()//and here
+}
+
+```
+
+ IDEA does not detect the problem, but if I try to compile I get following messages(It is correct):
+
+`Error:(30, 21) Kotlin: Property delegate must have a 'getValue(DelegateTest, KProperty<*>)' method. None of the following functions is suitable: 
+public final inline operator fun <reified T : B> getValue(obj: Any, property: KProperty<*>): ??? defined in BDelegate`
+
+`Error:(31, 21) Kotlin: Property delegate must have a 'getValue(DelegateTest, KProperty<*>)' method. None of the following functions is suitable: 
+public final inline operator fun <reified T : A> getValue(obj: Any, property: KProperty<*>): ??? defined in ADelegate`
+
+I think that IDEA analyzer needs fix to it can detect this problem.

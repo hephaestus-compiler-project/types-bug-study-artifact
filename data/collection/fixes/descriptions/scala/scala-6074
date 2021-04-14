@@ -1,0 +1,52 @@
+Spec:
+
+```
+ Views are applied in three situations.
+ [...]
+ 2. In a selection e.m with e of type T, if the selector m does not denote a member of T.
+     In this case, a view v is searched [...]
+```
+
+However, the implementation also searches for an implicit conversion when m denotes a
+non-accessible member of T:
+
+
+```scala
+  scala> class A { protected def f = 101 }
+  scala> class B { def f = "duckflow" }
+  scala> object T {
+       |   implicit def a2b(a: A): B = new B
+       | 
+       |   def t = (new A).f
+       | }
+  scala> T.t
+  res0: String = duckflow
+```
+
+Even worse, the same happens for constructors! An expression "new T()" is represented
+as a tree Apply(Selelct(New(T), <init>), ())
+
+If the constructor is private, an conversion to "?{def <init>: ?}" is searched! This generates
+invalid trees and crashes later phases, e.g. NamesDefaults, #5231, but also GenICode,
+as in the following example:
+
+```scala
+  scala> class A private () { }
+  scala> class B { }
+  scala> object T {
+       |   implicit def a2b(a: A): B = null
+       |   def t = new A()
+       | }
+  
+  Unexpected New(TypeTree(class $read$$iw$$iw$A)/$line7.$read$$iw$$iw$A) received in icode.
+  [...]
+    at scala.reflect.internal.SymbolTable.abort(SymbolTable.scala:43)
+    at scala.tools.nsc.Global.abort(Global.scala:228)
+    at scala.tools.nsc.interpreter.IMain$$anon$1.scala$tools$nsc$interpreter$ReplGlobal$$super$abort(IMain.scala:277)
+    at scala.tools.nsc.interpreter.ReplGlobal$class.abort(ReplGlobal.scala:21)
+    at scala.tools.nsc.interpreter.IMain$$anon$1.abort(IMain.scala:277)
+    at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:708)
+    at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1201)
+    at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1199)
+    at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:111)
+```

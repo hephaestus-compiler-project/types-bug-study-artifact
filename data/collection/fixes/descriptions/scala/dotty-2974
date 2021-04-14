@@ -1,0 +1,34 @@
+The Dotty resolution algorithm was recently ported to scalac by @milessabin in https://github.com/scala/scala/pull/6037#discussion_r133001639 where this came up:
+```scala
+trait Foo[-T]
+
+trait Bar[-T] extends Foo[T]
+
+object Test {
+  implicit val fa: Foo[Any] = ???
+  implicit val ba: Bar[Int] = ???
+
+  def test: Unit = {
+    implicitly[Foo[Int]]
+  }
+}
+```
+
+This fails because `Bar[Int]` is not considered more specific than `Foo[Any]`, because the variance-flipping we do in `isAsSpecificValueType` is not thorough enough:
+```scala
+[log frontend] ==> isSubType Bar[Int] <:< Foo[Any]?
+[log frontend]   ==> isSubType Bar[Int] <:< Foo?
+[log frontend]     ==> isSubType Foo <:< Foo?
+[log frontend]     <== isSubType Foo <:< Foo = true
+[log frontend]   <== isSubType Bar[Int] <:< Foo = true
+[log frontend]   ==> hasMatchingMember(Bar[Int] . Foo$$T :?  =+ Any), mbr:  =- Int?
+[log frontend]     ==> isSubType  =- Int <:<  =+ Any?
+[log frontend]       ==> isSubType Any <:< Int?
+[log frontend]       <== isSubType Any <:< Int = false
+[log frontend]     <== isSubType  =- Int <:<  =+ Any = false
+[log frontend]   <== hasMatchingMember(Bar[Int] . Foo$$T :?  =+ Any), mbr:  =- Int = false
+[log frontend] <== isSubType Bar[Int] <:< Foo[Any] = false
+```
+
+`hasMatchingMember` returns the original member `T` in `Bar` where the variance is not flipped (`=- Int`). We could add a special case in `hasMatchingMember` but then we might miss some other cases.
+Personally, I've never really been convinced by the rationale for flipping only at the top-level, so I think the simplest solution would be to flip at all levels, then we could use a global mode.

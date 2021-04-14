@@ -1,0 +1,69 @@
+Let's consider the following macro:
+```scala
+import scala.quoted._
+import scala.tasty.Tasty
+
+object Macro {
+  class StringContextOps(sc: => StringContext) {
+    rewrite def ff(args: => Any*): String = ~Macro.impl('(sc), '(args))
+  }
+  implicit rewrite def XmlQuote(sc: => StringContext): StringContextOps = new StringContextOps(sc)
+  def impl(sc: Expr[StringContext], args: Expr[Seq[Any]])(implicit tasty: Tasty): Expr[String] = {
+    import tasty._
+
+    println(sc.toTasty.show)
+    println(args.toTasty.show)
+    '("")
+  }
+}
+```
+In the following use case:
+```scala
+class Test {
+  import Macro._
+  def test = ff"Hello World ${1}!"
+}
+```
+the `Macro.impl` sees the receiver `sc` as
+```scala
+Macro.impl(
+  scala.quoted.Expr.apply[StringContext](
+    {
+      _root_.scala.StringContext.apply(
+        ["Hello World ","!" : String]: String*
+      )
+    }
+  ),
+  scala.quoted.Expr.apply[Any*](
+    {
+      [1 : Any]: Any*
+    }
+  )
+)
+```
+as expected.
+
+But now if my interpolator has no splice:
+```scala
+class Test {
+  import Macro._
+  def test = ff"Hello World"
+}
+```
+the receiver is lifted out and I only see a reference to it:
+```scala
+val $1$: Macro.StringContextOps = ...
+
+Macro.impl(
+  scala.quoted.Expr.apply[StringContext](
+    {
+      $1$
+    }.inline$sc
+  ),
+  scala.quoted.Expr.apply[Any*](
+    {
+      [ : Any]: Any*
+    }
+  )
+)
+```

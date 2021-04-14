@@ -1,0 +1,35 @@
+## reproduction steps
+
+using Scala 2.13.4, I have a case class with an additional custom unapply method. 
+
+```scala
+final case class Foo(value: String)
+
+object Foo {
+  def unapply(str: String): Option[Foo] = Some(Foo(str))
+
+  def extract(id: Foo): String =
+    id match {
+      case Foo(a) => a
+    }
+}
+```
+
+## problem
+
+Gives a warning: 
+
+```
+match may not be exhaustive.
+[warn] It would fail on the following input: Foo(_)
+[warn]     id match {
+[warn]     ^
+```
+
+Adding a further unapply method as suggested here #12232 did make the warning go away: 
+
+```scala
+def unapply(arg: Foo): Some[String] = Some(arg.value)
+```
+
+However, the discussion on that issue seemed to point to not using case classes as the root of the problem. It seems like a bit of a gotcha that adding another unapply method breaks the out-of-the-box pattern matching for case classes.

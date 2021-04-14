@@ -1,0 +1,23 @@
+The following did compile with 2.10 but now "type mismatch" is reported:
+
+```scala
+import language.higherKinds
+
+trait EL[+N] extends Equals with Serializable
+type  ELI[N] = EL[N]
+
+trait P  [N, +E[X<:N] <: EL[X]]
+trait PIn[N, +E[X<:N] <: EL[X]] extends P[N,E]
+
+trait EI [N, +E[X<:N] <: EL[X]] extends PIn[N,E]
+case class NI[N](value: N) extends PIn[N, Nothing]
+
+def seqToP[N, E[X <: N] <: ELI[X]](s: Seq[N]): Seq[PIn[N, E]] = s map {
+  _ match {
+    case e: EL[N] with EI[N,E] => e
+    case n => NI(n)
+  }
+}
+```
+
+For me it would suffice to adequately alter the method definition without any change in signatures.

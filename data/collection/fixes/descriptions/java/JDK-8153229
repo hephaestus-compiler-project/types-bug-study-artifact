@@ -1,0 +1,56 @@
+The easiest way to reproduce is to build some annotation-processing-heavy project, like JMH:
+
+$ hg clone http://hg.openjdk.java.net/code-tools/jmh/ jmh
+$ cd jmh
+$ mvn clean install -pl jmh-core-it -DskipTests
+
+Time to compile:
+  jdk9b111: 18.979 s
+  8u66: 6.426 s
+
+Massive regression! Profiling jdk9b111 case yields this very hot branch:
+ |  +-  10.080   (9%)    org.openjdk.jmh.generators.annotations.APGeneratorDestinaton.newClass(java.lang.String)
+ |  |  +-  10.060   (9%)    com.sun.tools.javac.processing.JavacFiler.createSourceFile(java.lang.CharSequence, javax.lang.model.element.Element[])
+ |  |  |  +-  10.060   (9%)    com.sun.tools.javac.processing.JavacFiler.createSourceOrClassFile(boolean, java.lang.String)
+ |  |  |    +-  10.030   (9%)    com.sun.tools.javac.processing.JavacFiler.checkFileReopening(javax.tools.FileObject, boolean)
+ |  |  |    |  +-  9.990   (8%)    com.sun.tools.javac.file.JavacFileManager.isSameFile(javax.tools.FileObject, javax.tools.FileObject)
+ |  |  |    |  |  +-  9.990   (8%)    com.sun.tools.javac.file.PathFileObject.isSameFile(com.sun.tools.javac.file.PathFileObject)
+ |  |  |    |  |    +-  9.990   (8%)    java.nio.file.Files.isSameFile(java.nio.file.Path, java.nio.file.Path)
+ |  |  |    |  |      +-  9.990   (8%)    sun.nio.fs.UnixFileSystemProvider.isSameFile(java.nio.file.Path, java.nio.file.Path)
+ |  |  |    |  |        +-  7.080   (6%)    sun.nio.fs.UnixFileAttributes.get(sun.nio.fs.UnixPath, boolean)
+ |  |  |    |  |        |  +-  7.080   (6%)    sun.nio.fs.UnixNativeDispatcher.stat(sun.nio.fs.UnixPath, sun.nio.fs.UnixFileAttributes)
+ |  |  |    |  |        |    +-  6.700   (6%)    sun.nio.fs.UnixNativeDispatcher.stat0(long, sun.nio.fs.UnixFileAttributes)
+ |  |  |    |  |        |    |  +-  2.750   (2%)    sun.nio.fs.UnixException.<init>(int)
+ |  |  |    |  |        |    |    +-  2.750   (2%)    java.lang.Exception.<init>()
+ |  |  |    |  |        |    |      +-  2.750   (2%)    java.lang.Throwable.<init>()
+ |  |  |    |  |        |    |        +-  2.740   (2%)    java.lang.Throwable.fillInStackTrace()
+ |  |  |    |  |        |    |          +-  2.740   (2%)    java.lang.Throwable.fillInStackTrace(int)
+
+The relevant code is:
+
+    private void checkFileReopening(FileObject fileObject, boolean addToHistory) throws FilerException {
+        for (FileObject veteran : fileObjectHistory) {
+            if (fileManager.isSameFile(veteran, fileObject)) {
+                if (lint)
+                    log.warning("proc.file.reopening", fileObject.getName());
+                throw new FilerException("Attempt to reopen a file for path " + fileObject.getName());
+            }
+        }
+        if (addToHistory)
+            fileObjectHistory.add(fileObject);
+    }
+
+In other words, when doing isSameFile, we are stat0-ing the arguments, get the -1 error from stat if file does not exist, which throws an exception from native back to NIO to handle. Since checkFileReopening does the linear search through the history, if we *did not* yet created the fileObject, it does not exist, and we are getting all the exceptions for each comparison.
+
+A trivial change, adding the exists check in checkFileReopening:
+
+    private void checkFileReopening(FileObject fileObject, boolean addToHistory) throws FilerException {
+        if (fileObject instanceof PathFileObject) {
+            if (!Files.exists(((PathFileObject) fileObject).getPath())) {
+                if (addToHistory)
+                    fileObjectHistory.add(fileObject);
+                return;
+            }
+        }
+
+...drops the compilation time back to almost normal levels: 7.946 s

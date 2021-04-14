@@ -1,0 +1,69 @@
+This is related to JDK-8210483, JDK-8203679.
+
+```
+import java.util.Optional;
+import java.util.stream.Stream;
+
+abstract class T {
+
+  abstract void f(long c); 
+
+  interface I { 
+    I g(String o); 
+  }
+
+  private void test(Stream<I> is, Optional<String> o) {
+    f(  
+        is.map(
+                i -> {
+                  o.ifPresent(i::g);
+                  return null;
+                })  
+            .count());
+  }
+}
+```
+
+```
+An exception has occurred in the compiler (12-ea). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.AssertionError
+        at jdk.compiler/com.sun.tools.javac.util.Assert.error(Assert.java:155)
+        at jdk.compiler/com.sun.tools.javac.util.Assert.check(Assert.java:46)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$2$1.setOverloadKind(DeferredAttr.java:175)
+        at jdk.compiler/com.sun.tools.javac.comp.ArgumentAttr.visitReference(ArgumentAttr.java:284)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMemberReference.accept(JCTree.java:2264)
+        at jdk.compiler/com.sun.tools.javac.comp.ArgumentAttr.attribArg(ArgumentAttr.java:199)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:662)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribArgs(Attr.java:764)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitApply(Attr.java:2185)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1707)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribExpr(Attr.java:715)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitExec(Attr.java:1863)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1517)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:737)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStats(Attr.java:756)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitBlock(Attr.java:1307)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:1026)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:737)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStats(Attr.java:756)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitBlock(Attr.java:1307)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:1026)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:664)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr.attribSpeculative(DeferredAttr.java:501)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr.attribSpeculative(DeferredAttr.java:484)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr.attribSpeculativeLambda(DeferredAttr.java:459)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredAttrNode$StructuralStuckChecker.canLambdaBodyCompleteNormally(DeferredAttr.java:903)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredAttrNode$StructuralStuckChecker.visitLambda(DeferredAttr.java:881)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCLambda.accept(JCTree.java:1880)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredAttrNode$StructuralStuckChecker.complete(DeferredAttr.java:835)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredType.check(DeferredAttr.java:338)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredAttrNode.process(DeferredAttr.java:782)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredAttrContext.complete(DeferredAttr.java:629)
+        at jdk.compiler/com.sun.tools.javac.comp.Infer.instantiateMethod(Infer.java:214)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.rawInstantiate(Resolve.java:603)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.selectBest(Resolve.java:1561)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.findMethodInScope(Resolve.java:1731)
+```

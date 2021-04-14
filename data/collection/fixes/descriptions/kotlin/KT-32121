@@ -1,0 +1,31 @@
+The code in question:
+
+```
+    val testKit: akka.testkit.javadsl.TestKit = TODO()
+    val expectedMsgs: Array<Any> = TODO()
+    testKit.expectMsgAllOf(*expectedMsgs)
+```
+
+is shown in red, with the following message:
+
+```
+Type mismatch:
+Required: Seq<TypeVariable(T)!>!
+Found: Array<Any>
+```
+
+The code compiles just fine.
+
+Note that there are 5 overloads:
+
+```
+  public <T> java.util.List<T> expectMsgAllOf(T...);
+  public <T> java.util.List<T> expectMsgAllOf(scala.concurrent.duration.FiniteDuration, T...);
+  public <T> java.util.List<T> expectMsgAllOf(scala.collection.Seq<T>);
+  public <T> java.util.List<T> expectMsgAllOf(scala.concurrent.duration.FiniteDuration, scala.collection.Seq<T>);
+  public <T> java.util.List<T> expectMsgAllOf(java.time.Duration, scala.collection.Seq<T>);
+```
+
+Looks like Kotlin's type inference somehow rules out the vararg variant.
+
+I'm using Kotlin `1.3.40-release-IJ2019.1-1` and Scala plugin v2019.1.8 (I didn't check with the plugin disabled). TestKit comes from `com.typesafe.akka:akka-testkit_2.12:2.5.18`.

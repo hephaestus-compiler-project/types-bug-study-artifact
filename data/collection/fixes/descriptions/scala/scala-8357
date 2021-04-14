@@ -1,0 +1,44 @@
+Apparently structural types and implicit conversions don't play along very well; see the following repro (directly runnable on the Scala console):
+
+```scala
+scala> type Structural = { def size: Int }
+defined type alias Structural
+
+scala> import scala.collection.GenTraversableOnce
+import scala.collection.GenTraversableOnce
+
+scala> implicit def genericTraversableOnce2HasSize[ T ]( gto: T )( implicit ev: T => GenTraversableOnce[_] ): Structural = ev( gto )
+warning: there were 1 feature warning(s); re-run with -feature for details
+genericTraversableOnce2HasSize: [T](gto: T)(implicit ev: T => scala.collection.GenTraversableOnce[_])Structural
+
+scala> def test( v: Structural ) { println( v.size ) }
+warning: there were 1 feature warning(s); re-run with -feature for details
+test: (v: Structural)Unit
+
+scala> test( Some( 1 ) )
+java.lang.StackOverflowError
+	at .genericTraversableOnce2HasSize(<console>:9)
+	at .genericTraversableOnce2HasSize(<console>:9)
+	at .genericTraversableOnce2HasSize(<console>:9)
+	at .genericTraversableOnce2HasSize(<console>:9)
+	at .genericTraversableOnce2HasSize(<console>:9)
+	at .genericTraversableOnce2HasSize(<console>:9)
+	at .genericTraversableOnce2HasSize(<console>:9)
+	at .genericTraversableOnce2HasSize(<console>:9)
+	at .genericTraversableOnce2HasSize(<console>:9)
+	at .genericTraversableOnce2HasSize(<console>:9)
+```
+
+I couldn't tell you why, but this works around the problem:
+
+```scala
+scala> implicit def genericTraversableOnce2HasSize[ T ]( gto: T )( implicit ev: T => GenTraversableOnce[_] ): Structural =
+     |   if ( ev == conforms ) gto.asInstanceOf[ Structural ] else ev( gto )
+warning: there were 1 feature warning(s); re-run with -feature for details
+genericTraversableOnce2HasSize: [T](gto: T)(implicit ev: T => scala.collection.GenTraversableOnce[_])Structural
+
+scala> test( Some( 1 ) )
+1
+```
+
+This makes no sense though, because the `conforms` call should result in exactly the same behavior. Any help would be appreciated...

@@ -1,0 +1,149 @@
+ADDITIONAL SYSTEM INFORMATION :
+Dell Latitude 7490 running Windows 10. This reproduces on the most recent releases of JDK 14, 15, and 16-ea. It does not reproduce on the most recent JDK 13 release.
+
+A DESCRIPTION OF THE PROBLEM :
+Attempting to compile this simple Java file results in a compiler exception: java.lang.AssertionError: isSubtype UNKNOWN. Full stack trace below.
+
+package com.labkey;
+
+import java.sql.ResultSet;
+import java.util.Iterator;
+import java.util.function.Function;
+import java.util.stream.Stream;
+
+public class Main
+{
+    public static void main(String[] args)
+    {
+    }
+
+    public <T> Stream<T> stream(Class<T> clazz)
+    {
+        return stream(rs->{
+            if (null != clazz)
+            {
+                return new Iterator<>()
+                {
+                    @Override
+                    public boolean hasNext()
+                    {
+                        return true;
+                    }
+
+                    @Override
+                    public T next()
+                    {
+                        return null;
+                    }
+                };
+            }
+            else
+            {
+                return new Iterator<>()
+                {
+                    @Override
+                    public boolean hasNext()
+                    {
+                        return true;
+                    }
+
+                    @Override
+                    public T next()
+                    {
+                        return null;
+                    }
+                };
+            }
+        });
+    }
+
+    private static <T> Stream<T> stream(Function<ResultSet, Iterator<T>> function)
+    {
+        return null;
+    }
+}
+
+
+REGRESSION : Last worked in version 13
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Execute "javac Main.java" on the source code file above
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+A successful compilation (or appropriate error)
+ACTUAL -
+An exception has occurred in the compiler (15). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program, the following diagnostic, and the parameters passed to the Java compiler in your report. Thank you.
+java.lang.AssertionError: isSubtype UNKNOWN
+        at jdk.compiler/com.sun.tools.javac.code.Types$4.visitType(Types.java:1123)
+        at jdk.compiler/com.sun.tools.javac.code.Types$4.visitType(Types.java:1100)
+        at jdk.compiler/com.sun.tools.javac.code.Type.accept(Type.java:227)
+        at jdk.compiler/com.sun.tools.javac.code.Types$DefaultTypeVisitor.visit(Types.java:4862)
+        at jdk.compiler/com.sun.tools.javac.code.Types.isSubtype(Types.java:1096)
+        at jdk.compiler/com.sun.tools.javac.code.Types.isSubtypeUncheckedInternal(Types.java:1022)
+        at jdk.compiler/com.sun.tools.javac.code.Types.isSubtypeUnchecked(Types.java:1008)
+        at jdk.compiler/com.sun.tools.javac.code.Types.isConvertible(Types.java:607)
+        at jdk.compiler/com.sun.tools.javac.code.Types.isAssignable(Types.java:2327)
+        at jdk.compiler/com.sun.tools.javac.comp.Check$1.compatible(Check.java:569)
+        at jdk.compiler/com.sun.tools.javac.comp.Check.checkType(Check.java:610)
+        at jdk.compiler/com.sun.tools.javac.comp.Check.checkType(Check.java:597)
+        at jdk.compiler/com.sun.tools.javac.comp.Annotate.attributeAnnotationValues(Annotate.java:476)
+        at jdk.compiler/com.sun.tools.javac.comp.Annotate.attributeAnnotation(Annotate.java:432)
+        at jdk.compiler/com.sun.tools.javac.comp.Annotate.annotateNow(Annotate.java:341)
+        at jdk.compiler/com.sun.tools.javac.comp.Annotate.lambda$annotateLater$0(Annotate.java:267)
+        at jdk.compiler/com.sun.tools.javac.comp.Annotate.flush(Annotate.java:191)
+        at jdk.compiler/com.sun.tools.javac.comp.Annotate.unblockAnnotations(Annotate.java:144)
+        at jdk.compiler/com.sun.tools.javac.comp.TypeEnter.complete(TypeEnter.java:217)
+        at jdk.compiler/com.sun.tools.javac.code.Symbol.complete(Symbol.java:681)
+        at jdk.compiler/com.sun.tools.javac.code.Symbol$ClassSymbol.complete(Symbol.java:1409)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitClassDef(Attr.java:957)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:790)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:665)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:739)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitAnonymousClassDefinition(Attr.java:2794)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.lambda$visitAnonymousClassDefinition$20(Attr.java:2752)
+        at jdk.compiler/com.sun.tools.javac.comp.InferenceContext.notifyChange(InferenceContext.java:266)
+        at jdk.compiler/com.sun.tools.javac.comp.InferenceContext.notifyChange(InferenceContext.java:257)
+        at jdk.compiler/com.sun.tools.javac.comp.Infer.instantiateMethod(Infer.java:242)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.rawInstantiate(Resolve.java:610)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.checkMethod(Resolve.java:649)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.checkMethod(Attr.java:4618)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.checkIdInternal(Attr.java:4410)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.checkMethodIdInternal(Attr.java:4311)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.checkId(Attr.java:4300)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitIdent(Attr.java:4050)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCIdent.accept(JCTree.java:2419)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:665)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitApply(Attr.java:2401)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1745)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:665)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitReturn(Attr.java:2262)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCReturn.accept(JCTree.java:1657)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:665)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:739)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStats(Attr.java:757)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitBlock(Attr.java:1435)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:1047)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:665)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:739)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitMethodDef(Attr.java:1225)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:893)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:665)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:739)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:5270)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribClass(Attr.java:5161)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribClass(Attr.java:5001)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attrib(Attr.java:4946)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1344)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:973)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:317)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:176)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:59)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:45)
+
+CUSTOMER SUBMITTED WORKAROUND :
+Switching both "Iterator<>" references to "Iterator<T>" in the code results in a successful compilation
+
+FREQUENCY : always
+
+

@@ -1,0 +1,85 @@
+Hi!
+
+I stumbled upon the following easily reproducible bug in the scala interpreter: Typing 
+`var List(a, b, c*) = List("a", "b", "c")`
+on the interpreter prompt results in the following (compiler) crash:
+
+```
+<console>:7: warning: No binding
+       var List(a, b, c*) = List("a", "b", "c")
+                      ^
+java.lang.Error: symbol value c does not exist in $line1.$read$$iw$$iw.<init>
+        at scala.tools.nsc.symtab.SymbolTable.abort(SymbolTable.scala:34)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1027)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1226)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1224)
+        at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:111)
+        at scala.collection.immutable.List.foldLeft(List.scala:45)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadArguments(GenICode.scala:1224)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:834)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1053)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadIf(GenICode.scala:373)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:665)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1053)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadIf(GenICode.scala:373)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:665)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1053)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadIf(GenICode.scala:373)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:665)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1053)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genStat(GenICode.scala:163)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genStat$1.apply(GenICode.scala:143)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genStat$1.apply(GenICode.scala:143)
+        at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:111)
+        at scala.collection.immutable.List.foldLeft(List.scala:45)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genStat(GenICode.scala:143)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1052)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:114)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+        at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+        at scala.collection.immutable.List.foreach(List.scala:45)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:69)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:136)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:88)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+        at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+        at scala.collection.immutable.List.foreach(List.scala:45)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:69)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:79)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:65)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.apply(GenICode.scala:61)
+        at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:329)
+        at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:297)
+        at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:297)
+        at scala.collection.Iterator$class.foreach(Iterator.scala:660)
+        at scala.collection.mutable.ListBuffer$$anon$1.foreach(ListBuffer.scala:316)
+        at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:297)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.run(GenICode.scala:54)
+        at scala.tools.nsc.Global$Run.compileSources(Global.scala:953)
+        at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compileAndSaveRun(IMain.scala:756)
+        at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compile(IMain.scala:731)
+        at scala.tools.nsc.interpreter.IMain$Request.compile(IMain.scala:873)
+        at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:576)
+        at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:543)
+        at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:694)
+        at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:745)
+        at scala.tools.nsc.interpreter.ILoop.command(ILoop.scala:651)
+        at scala.tools.nsc.interpreter.ILoop.processLine$1(ILoop.scala:542)
+        at scala.tools.nsc.interpreter.ILoop.loop(ILoop.scala:550)
+        at scala.tools.nsc.interpreter.ILoop.process(ILoop.scala:822)
+        at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:67)
+        at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:80)
+        at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:89)
+        at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+
+That entry seems to have slain the compiler.  Shall I replay
+your session? I can re-run each line except the last one.
+[y/n]
+```
+
+Although I don't really understand what that line of code actually means it seems to crash the interpreter. 
+
+Regards, 
+Matthias Böhm

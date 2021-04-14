@@ -1,0 +1,41 @@
+With 2.11.3-SNAPSHOT, compiling the following,
+
+```scala
+trait Base {                                                                                                                         
+  type C
+  type P
+}
+ 
+trait Layer extends Base {
+  trait Unapply {
+    def unapply(c: C): Option[P]
+  }
+}
+ 
+object Demo {
+  object Module extends Layer {
+    type C = CC
+    type P = (Int, String)
+ 
+    trait Companion extends Unapply {
+      // This is OK
+      //def unapply(c: C): Option[(Int, String)] = Some((c.i, c.s))
+ 
+      // This fails with,
+      // too many patterns for trait Companion offering Boolean: expected 0, found 2
+      //   val CC(i, s) = cc
+      //       ^
+      def unapply(c: C): Option[P] = Some((c.i, c.s))
+    }
+  }
+ 
+  class CC(val i: Int, val s: String)
+  object CC extends Module.Companion
+ 
+  val cc = new CC(23, "foo")
+  val CC(i, s) = cc // failure here
+}
+```
+results in the error "too many patterns for trait Companion offering Boolean: expected 0, found 2" at the position indicated above. Manually expanding the type alias allow compilation as expected.
+
+Both variants compile as expected in 2.11.2, so this is a regression.

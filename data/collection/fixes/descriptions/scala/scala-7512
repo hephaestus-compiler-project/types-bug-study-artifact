@@ -1,0 +1,32 @@
+I had hoped the fix for #7369 would handle this, but apparently not:
+
+```scala
+Welcome to Scala version 2.10.2-RC1 (Java HotSpot(TM) 64-Bit Server VM, Java 1.7.0_21).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala>   type Tagged[U] = { type Tag = U }
+defined type alias Tagged
+
+scala>   trait Tag
+defined trait Tag
+
+scala>   def tag(a: String) = a.asInstanceOf[String with Tagged[Tag]]
+tag: (a: String)String with Tagged[Tag]
+
+scala>   val X = tag("foo")
+X: String with Tagged[Tag] = foo
+
+scala>   val O = tag("bar")
+O: String with Tagged[Tag] = bar
+
+scala>   def classify(input: String with Tagged[Tag]): String = {
+     |     input match {
+     |       case X => "x"
+     |       case O => "o"
+     |     }
+     |   }
+<console>:15: warning: unreachable code
+             case O => "o"
+                       ^
+```

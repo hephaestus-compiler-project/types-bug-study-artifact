@@ -1,0 +1,135 @@
+The following code snippet causes 2.9.2 compiler to crash:
+
+```scala
+object Test extends App {
+  private class Matcher[T](aParam: Option[T] = None) extends (AnyVal => String) {
+    def apply(t: AnyVal) = "foo"
+  }
+  private val stringMatcher = new Matcher[String]
+}
+```
+
+It's the param that's seems to be the problem.
+
+```scala
+> last compile:compile
+[debug] 
+[debug] Initial source changes: 
+[debug] 	removed:Set()
+[debug] 	added: Set()
+[debug] 	modified: Set(/Users/viktor/dev/projects/typeparampatterntest/src/main/scala/InvalidGetter.scala)
+[debug] Removed products: Set(/Users/viktor/dev/projects/typeparampatterntest/target/scala-2.9.2/classes/Test$.class, /Users/viktor/dev/projects/typeparampatterntest/target/scala-2.9.2/classes/Test$Matcher.class, /Users/viktor/dev/projects/typeparampatterntest/target/scala-2.9.2/classes/Test$delayedInit$body.class, /Users/viktor/dev/projects/typeparampatterntest/target/scala-2.9.2/classes/Test.class)
+[debug] Modified external sources: Set()
+[debug] Modified binary dependencies: Set()
+[debug] Initial directly invalidated sources: Set(/Users/viktor/dev/projects/typeparampatterntest/src/main/scala/InvalidGetter.scala)
+[debug] 
+[debug] Sources indirectly invalidated by:
+[debug] 	product: Set(/Users/viktor/dev/projects/typeparampatterntest/src/main/scala/InvalidGetter.scala)
+[debug] 	binary dep: Set()
+[debug] 	external source: Set()
+[debug] Initially invalidated: Set(/Users/viktor/dev/projects/typeparampatterntest/src/main/scala/InvalidGetter.scala)
+[info] Compiling 1 Scala source to /Users/viktor/dev/projects/typeparampatterntest/target/scala-2.9.2/classes...
+[debug] Running cached compiler 5a2611a6, interfacing (CompilerInterface) with Scala compiler version 2.9.2
+[debug] Calling Scala compiler with arguments  (CompilerInterface):
+[debug] 	-d
+[debug] 	/Users/viktor/dev/projects/typeparampatterntest/target/scala-2.9.2/classes
+[debug] 	-bootclasspath
+[debug] 	/System/Library/Java/JavaVirtualMachines/1.6.0.jdk/Contents/Classes/jsfd.jar:/System/Library/Java/JavaVirtualMachines/1.6.0.jdk/Contents/Classes/classes.jar:/System/Library/Frameworks/JavaVM.framework/Frameworks/JavaRuntimeSupport.framework/Resources/Java/JavaRuntimeSupport.jar:/System/Library/Java/JavaVirtualMachines/1.6.0.jdk/Contents/Classes/ui.jar:/System/Library/Java/JavaVirtualMachines/1.6.0.jdk/Contents/Classes/laf.jar:/System/Library/Java/JavaVirtualMachines/1.6.0.jdk/Contents/Classes/sunrsasign.jar:/System/Library/Java/JavaVirtualMachines/1.6.0.jdk/Contents/Classes/jsse.jar:/System/Library/Java/JavaVirtualMachines/1.6.0.jdk/Contents/Classes/jce.jar:/System/Library/Java/JavaVirtualMachines/1.6.0.jdk/Contents/Classes/charsets.jar:/Users/viktor/.sbt/0.12.0/boot/scala-2.9.2/lib/scala-library.jar
+[debug] 	-classpath
+[debug] 	/Users/viktor/dev/projects/typeparampatterntest/target/scala-2.9.2/classes:/Users/viktor/.ivy2/cache/scala_2.9.2/sbt_0.12/com.typesafe.sbteclipse/sbteclipse-plugin/jars/sbteclipse-plugin-2.1.0.jar:/Users/viktor/.ivy2/cache/scala_2.9.2/sbt_0.12/com.typesafe.sbteclipse/sbteclipse-core/jars/sbteclipse-core-2.1.0.jar:/Users/viktor/.ivy2/cache/org.scalaz/scalaz-core_2.9.2/jars/scalaz-core_2.9.2-6.0.4.jar
+java.lang.AssertionError: assertion failed: Invalid getter Test$Matcher for module in class object Test
+	at scala.tools.nsc.transform.Mixin$MixinTransformer.mkInnerClassAccessorDoubleChecked$1(Mixin.scala:839)
+	at scala.tools.nsc.transform.Mixin$MixinTransformer$$anonfun$12.apply(Mixin.scala:900)
+	at scala.tools.nsc.transform.Mixin$MixinTransformer$$anonfun$12.apply(Mixin.scala:861)
+	at scala.collection.TraversableLike$$anonfun$map$1.apply(TraversableLike.scala:233)
+	at scala.collection.TraversableLike$$anonfun$map$1.apply(TraversableLike.scala:233)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:76)
+	at scala.collection.TraversableLike$class.map(TraversableLike.scala:233)
+	at scala.collection.immutable.List.map(List.scala:76)
+	at scala.tools.nsc.transform.Mixin$MixinTransformer.addCheckedGetters$1(Mixin.scala:861)
+	at scala.tools.nsc.transform.Mixin$MixinTransformer.addNewDefs(Mixin.scala:1023)
+	at scala.tools.nsc.transform.Mixin$MixinTransformer.scala$tools$nsc$transform$Mixin$MixinTransformer$$postTransform(Mixin.scala:1169)
+	at scala.tools.nsc.transform.Mixin$MixinTransformer$$anonfun$23.apply(Mixin.scala:1262)
+	at scala.tools.nsc.transform.Mixin$MixinTransformer$$anonfun$23.apply(Mixin.scala:1262)
+	at scala.tools.nsc.symtab.SymbolTable.atPhase(SymbolTable.scala:95)
+	at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:1262)
+	at scala.tools.nsc.ast.Trees$Transformer.transformTemplate(Trees.scala:875)
+	at scala.tools.nsc.ast.Trees$Transformer$$anonfun$transform$2.apply(Trees.scala:767)
+	at scala.tools.nsc.ast.Trees$Transformer$$anonfun$transform$2.apply(Trees.scala:766)
+	at scala.tools.nsc.ast.Trees$Transformer.atOwner(Trees.scala:899)
+	at scala.tools.nsc.ast.Trees$Transformer.transform(Trees.scala:765)
+	at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:1261)
+	at scala.tools.nsc.ast.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:891)
+	at scala.tools.nsc.ast.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:889)
+	at scala.collection.immutable.List.loop$1(List.scala:148)
+	at scala.collection.immutable.List.mapConserve(List.scala:164)
+	at scala.tools.nsc.ast.Trees$Transformer.transformStats(Trees.scala:889)
+	at scala.tools.nsc.ast.Trees$Transformer$$anonfun$transform$1.apply(Trees.scala:761)
+	at scala.tools.nsc.ast.Trees$Transformer$$anonfun$transform$1.apply(Trees.scala:761)
+	at scala.tools.nsc.ast.Trees$Transformer.atOwner(Trees.scala:899)
+	at scala.tools.nsc.ast.Trees$Transformer.transform(Trees.scala:760)
+	at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:1261)
+	at scala.tools.nsc.ast.Trees$Transformer.transformUnit(Trees.scala:892)
+	at scala.tools.nsc.transform.Transform$Phase.apply(Transform.scala:30)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:329)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:297)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:297)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:772)
+	at scala.collection.mutable.ListBuffer$$anon$1.foreach(ListBuffer.scala:318)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:297)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:953)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1041)
+	at xsbt.CachedCompiler0.run(CompilerInterface.scala:90)
+	at xsbt.CachedCompiler0.liftedTree1$1(CompilerInterface.scala:72)
+	at xsbt.CachedCompiler0.run(CompilerInterface.scala:72)
+	at xsbt.CompilerInterface.run(CompilerInterface.scala:26)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+	at java.lang.reflect.Method.invoke(Method.java:597)
+	at sbt.compiler.AnalyzingCompiler.call(AnalyzingCompiler.scala:73)
+	at sbt.compiler.AnalyzingCompiler.compile(AnalyzingCompiler.scala:35)
+	at sbt.compiler.AnalyzingCompiler.compile(AnalyzingCompiler.scala:29)
+	at sbt.compiler.AggressiveCompile$$anonfun$4$$anonfun$compileScala$1$1.apply$mcV$sp(AggressiveCompile.scala:71)
+	at sbt.compiler.AggressiveCompile$$anonfun$4$$anonfun$compileScala$1$1.apply(AggressiveCompile.scala:71)
+	at sbt.compiler.AggressiveCompile$$anonfun$4$$anonfun$compileScala$1$1.apply(AggressiveCompile.scala:71)
+	at sbt.compiler.AggressiveCompile.sbt$compiler$AggressiveCompile$$timed(AggressiveCompile.scala:101)
+	at sbt.compiler.AggressiveCompile$$anonfun$4.compileScala$1(AggressiveCompile.scala:70)
+	at sbt.compiler.AggressiveCompile$$anonfun$4.apply(AggressiveCompile.scala:88)
+	at sbt.compiler.AggressiveCompile$$anonfun$4.apply(AggressiveCompile.scala:60)
+	at sbt.inc.IncrementalCompile$$anonfun$doCompile$1.apply(Compile.scala:24)
+	at sbt.inc.IncrementalCompile$$anonfun$doCompile$1.apply(Compile.scala:22)
+	at sbt.inc.Incremental$.cycle(Incremental.scala:39)
+	at sbt.inc.Incremental$.compile(Incremental.scala:26)
+	at sbt.inc.IncrementalCompile$.apply(Compile.scala:20)
+	at sbt.compiler.AggressiveCompile.compile2(AggressiveCompile.scala:96)
+	at sbt.compiler.AggressiveCompile.compile1(AggressiveCompile.scala:44)
+	at sbt.compiler.AggressiveCompile.apply(AggressiveCompile.scala:31)
+	at sbt.Compiler$.apply(Compiler.scala:79)
+	at sbt.Defaults$$anonfun$compileTask$1.apply(Defaults.scala:571)
+	at sbt.Defaults$$anonfun$compileTask$1.apply(Defaults.scala:571)
+	at sbt.Scoped$$anonfun$hf2$1.apply(Structure.scala:578)
+	at sbt.Scoped$$anonfun$hf2$1.apply(Structure.scala:578)
+	at scala.Function1$$anonfun$compose$1.apply(Function1.scala:49)
+	at sbt.Scoped$Reduced$$anonfun$combine$1$$anonfun$apply$12.apply(Structure.scala:311)
+	at sbt.Scoped$Reduced$$anonfun$combine$1$$anonfun$apply$12.apply(Structure.scala:311)
+	at sbt.$tilde$greater$$anonfun$$u2219$1.apply(TypeFunctions.scala:40)
+	at sbt.std.Transform$$anon$5.work(System.scala:71)
+	at sbt.Execute$$anonfun$submit$1$$anonfun$apply$1.apply(Execute.scala:232)
+	at sbt.Execute$$anonfun$submit$1$$anonfun$apply$1.apply(Execute.scala:232)
+	at sbt.ErrorHandling$.wideConvert(ErrorHandling.scala:18)
+	at sbt.Execute.work(Execute.scala:238)
+	at sbt.Execute$$anonfun$submit$1.apply(Execute.scala:232)
+	at sbt.Execute$$anonfun$submit$1.apply(Execute.scala:232)
+	at sbt.ConcurrentRestrictions$$anon$4$$anonfun$1.apply(ConcurrentRestrictions.scala:159)
+	at sbt.CompletionService$$anon$2.call(CompletionService.scala:30)
+	at java.util.concurrent.FutureTask$Sync.innerRun(FutureTask.java:303)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:138)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:439)
+	at java.util.concurrent.FutureTask$Sync.innerRun(FutureTask.java:303)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:138)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.runTask(ThreadPoolExecutor.java:886)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:908)
+	at java.lang.Thread.run(Thread.java:680)
+```

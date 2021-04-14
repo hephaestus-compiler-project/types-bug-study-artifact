@@ -1,0 +1,25 @@
+If I have the following code:
+
+{code}
+@groovy.transform.CompileStatic
+class MyClass {
+
+   public <T> void someMethod (java.lang.Class<T> clazz, T object) {}
+
+   void method() {
+      List<String> list = null
+      someMethod(java.util.List.class, list)  
+   }
+}
+
+new MyClass().method()
+}
+{code}
+
+it throws this error [Static type checking] - Cannot call MyClass#someMethod(java.lang.Class <T>, java.lang.Object <T>) with arguments [java.lang.Class <java.util.List>, java.util.List <String>]
+
+
+The issue here is that T is being inferred as List<String>, therefore it expects to have a Class<List<String>> (which cannot be constructed).
+If instead T becomes just List, a raw type will be used in the second argument, and it should work.
+
+As an additional note, this example used to work in Groovy 2.0.0

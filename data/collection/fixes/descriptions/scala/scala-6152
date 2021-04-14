@@ -1,0 +1,17 @@
+The code below (from https://github.com/paulp/scala/blob/e66bce29889365c74040a8bfe5d0b7cb89ccae6e/test/files/neg/unchecked.scala) should give an unreachability warning but doesn't. A scrutinee of type `List[Cov[List[Int]]]` is matched against type `Seq[Cov[Seq[Any]]]`, which is a supertype; hence `co1`'s body should ideally become simply `true` and an unreachability warning should be given.
+
+```scala
+$ ~/opt/scala-2.10.0-M5/bin/scala -feature -unchecked -Xfatal-warnings
+[REPL greetings omitted]
+scala>  class Cov[+T] { }
+defined class Cov
+
+scala>   def co1(x: List[Cov[List[Int]]]) = x match {
+     |     case _: Seq[Cov[Seq[Any]]] => true  // okay
+     |     case _                     => false
+     |   }
+co1: (x: List[Cov[List[Int]]])Boolean
+
+scala> implicitly[List[Cov[List[Int]]] <:< Seq[Cov[Seq[Any]]]]
+res0: <:<[List[Cov[List[Int]]],Seq[Cov[Seq[Any]]]] = <function1>
+```

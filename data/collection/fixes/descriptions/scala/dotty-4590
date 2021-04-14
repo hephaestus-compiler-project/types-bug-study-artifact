@@ -1,0 +1,70 @@
+Regression in community build introduced in #4468 
+
+```scala
+class ArrayDeque {
+  inline def isResizeNecessary(len: Int) = len > ArrayDeque.StableSize
+}
+
+object ArrayDeque {
+  private val StableSize = 256
+}
+```
+```scala
+class List {
+  inline def foo(x: List.Cons): Unit = {
+    x.next = this
+  }
+}
+object List {
+  case class Cons(head: Int, private[List] var next: List)
+}
+```
+```
+Exception in thread "main" java.lang.AssertionError: assertion failed: symbol (method inline_set$next) entered the scope of non-class owner val <none>
+	at scala.Predef$.assert(Predef.scala:219)
+	at dotty.tools.dotc.core.Symbols$Symbol.entered(Symbols.scala:533)
+	at dotty.tools.dotc.transform.AccessProxies$Insert.newAccessorSymbol(AccessProxies.scala:61)
+	at dotty.tools.dotc.transform.AccessProxies$Insert.newAccessorSymbol$(AccessProxies.scala:59)
+	at dotty.tools.dotc.typer.Inliner$InlineAccessors$MakeInlineable.newAccessorSymbol(Inliner.scala:41)
+	at dotty.tools.dotc.transform.AccessProxies$Insert.$anonfun$useAccessor$2(AccessProxies.scala:83)
+	at dotty.tools.dotc.core.Symbols$Symbol.orElse(Symbols.scala:559)
+	at dotty.tools.dotc.transform.AccessProxies$Insert.useAccessor(AccessProxies.scala:82)
+	at dotty.tools.dotc.transform.AccessProxies$Insert.useAccessor$(AccessProxies.scala:69)
+	at dotty.tools.dotc.typer.Inliner$InlineAccessors$MakeInlineable.useAccessor(Inliner.scala:41)
+	at dotty.tools.dotc.transform.AccessProxies$Insert.accessorIfNeeded(AccessProxies.scala:104)
+	at dotty.tools.dotc.transform.AccessProxies$Insert.accessorIfNeeded$(AccessProxies.scala:96)
+	at dotty.tools.dotc.typer.Inliner$InlineAccessors$MakeInlineable.accessorIfNeeded(Inliner.scala:41)
+	at dotty.tools.dotc.typer.Inliner$InlineAccessors$MakeInlineable.transform(Inliner.scala:58)
+	at dotty.tools.dotc.ast.Trees$Instance$TreeMap.transform(Trees.scala:1154)
+	at dotty.tools.dotc.typer.Inliner$InlineAccessors$MakeInlineable.transform(Inliner.scala:58)
+	at dotty.tools.dotc.typer.Inliner$InlineAccessors.makeInlineable(Inliner.scala:75)
+	at dotty.tools.dotc.typer.Inliner$.$anonfun$registerInlineInfo$1(Inliner.scala:98)
+	at dotty.tools.dotc.core.Annotations$LazyBodyAnnotation.tree(Annotations.scala:79)
+	at dotty.tools.dotc.typer.Inliner$.bodyToInline(Inliner.scala:114)
+	at dotty.tools.dotc.typer.Typer.inlineExpansion(Typer.scala:1923)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1888)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1915)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typedClassDef$1(Typer.scala:1526)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+	at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1449)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1768)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1827)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1859)
+	at dotty.tools.dotc.reporting.trace$.op1$3(trace.scala:32)
+	at dotty.tools.dotc.reporting.trace$.apply(trace.scala:33)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1855)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1867)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1886)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1915)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typedPackageDef$1(Typer.scala:1634)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+	at dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:1627)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1807)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1828)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1859)
+	at dotty.tools.dotc.reporting.trace$.op1$3(trace.scala:32)
+	at dotty.tools.dotc.reporting.trace$.apply(trace.scala:33)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1855)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1867)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:1926)
+```

@@ -1,0 +1,63 @@
+ADDITIONAL SYSTEM INFORMATION :
+win 10
+After jdk9
+
+A DESCRIPTION OF THE PROBLEM :
+If the path contains Chinese encoding, the compilation will not complete correctly.
+
+REGRESSION : Last worked in version JDK 9b108
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+1.Create source file X:\æµè¯\Test.javaï¼this path contains Chinese characters;
+2.Start the windows command line to the current directory :  X:\æµè¯;
+3.Enter the following compile command:
+    dir /s /b *.java > source
+    javac @source
+4. Then we can see a error message.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Generate the Test.class file.
+ACTUAL -
+Generated the following error message:
+
+åçè¾å¥/è¾åºéè¯¯ã
+æå³è¯¦ç»ä¿¡æ¯, è¯·åéä»¥ä¸å æ è·è¸ªã
+java.nio.charset.MalformedInputException: Input length = 1
+        at java.base/java.nio.charset.CoderResult.throwException(CoderResult.java:281)
+        at java.base/sun.nio.cs.StreamDecoder.implRead(StreamDecoder.java:339)
+        at java.base/sun.nio.cs.StreamDecoder.read(StreamDecoder.java:178)
+        at java.base/java.io.InputStreamReader.read(InputStreamReader.java:185)
+        at java.base/java.io.BufferedReader.fill(BufferedReader.java:161)
+        at java.base/java.io.BufferedReader.read(BufferedReader.java:182)
+        at jdk.compiler/com.sun.tools.javac.main.CommandLine$Tokenizer.<init>(CommandLine.java:143)
+        at jdk.compiler/com.sun.tools.javac.main.CommandLine.loadCmdFile(CommandLine.java:129)
+        at jdk.compiler/com.sun.tools.javac.main.CommandLine.appendParsedCommandArgs(CommandLine.java:71)
+        at jdk.compiler/com.sun.tools.javac.main.CommandLine.parse(CommandLine.java:102)
+        at jdk.compiler/com.sun.tools.javac.main.CommandLine.parse(CommandLine.java:123)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:208)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:162)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:57)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:43)
+
+---------- BEGIN SOURCE ----------
+// X:\æµè¯\Test.java
+
+public class Test {
+    public static void main(String[] args) {
+        System.out.println("Hello");
+    }
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+1. After replacing the JDK version to JDK8, everything works fine.
+2. Still using JDK9~JDK11, you can avoid the error in the following ways:
+2.1. Replace the Chinese characters in the path with English characters. For example, replace the X:\ æµè¯ with X:\test, and then compile normally.
+2.2. Enter the path where the source is located directly on the command line, then compile, For example:
+  javac X:\æµè¯\Test.java
+
+FREQUENCY : always
+
+

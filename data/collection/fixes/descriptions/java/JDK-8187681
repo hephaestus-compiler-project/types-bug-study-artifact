@@ -1,0 +1,15 @@
+The jsr166 project likes to build for target 9 while using --patch-module to modify some system classes.  This works well for javac9, but for javac10 we get:
+(JSR166_JAR="$HOME/jsr166/pristine/build/jsr166.jar" JDK10="$HOME/jdk/jdk10"; $JDK10/bin/javac --patch-module java.base="$JSR166_JAR" -source 9 -target 9 Main.java)
+warning: [options] bootstrap class path not set in conjunction with -source 1.9
+1 warning
+
+Is it even possible to set a bootstrap class path with -source 9?  There are no bootstrap jars any more.
+
+We can suppress the warning with -Xlint all:-options, but would prefer not to.
+
+If we try to switch to using --release, we get:
+
+ $ (JSR166_JAR="$HOME/jsr166/pristine/build/jsr166.jar" JDK10="$HOME/jdk/jdk10"; $JDK10/bin/javac --patch-module java.base="$JSR166_JAR" --release 9 Main.java)
+error: patching system module java.base is not allowed in combination with --release
+
+We can use javac9 to build the jsr166 jar, but javac10 is supposed to be a "better javac9"

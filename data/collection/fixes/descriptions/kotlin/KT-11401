@@ -1,0 +1,114 @@
+In the following example
+
+```
+class TestClass {
+    inline operator fun <T> invoke(task: () -> T) = task()
+}
+class TestCase {
+    fun <T> test(value: T): T {
+        val test = TestClass()
+        val x = test {
+            return value
+        }
+        println(x)
+        return value
+    }
+}
+fun main(args: Array<String>) {
+    TestCase().test(42)
+}
+```
+
+we have the following run-time exception:
+
+```
+Error:(10, 31) Kotlin: [Internal Error] org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: Error type encountered: [ERROR : Type for test {
+            return value
+        }] (ErrorTypeImpl).
+Cause: Error type encountered: [ERROR : Type for test {
+            return value
+        }] (ErrorTypeImpl).
+File being compiled and position: (10,31) in C:/Users/Mikhail.Glukhikh/Projects/SysKotlin/src/main/java/ru/spbstu/sysk/core/SysStateFunction.kt
+PsiElement: {
+        val test = TestClass()
+        val x = test {
+            return value
+        }
+        println(x)
+        return value
+    }
+The root cause was thrown at: JetTypeMapper.java:436
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:301)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genStatement(ExpressionCodegen.java:341)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:311)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.returnExpression(ExpressionCodegen.java:1887)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$FunctionDefault.doGenerateBody(FunctionGenerationStrategy.java:50)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$CodegenBased.generateBody(FunctionGenerationStrategy.java:72)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:365)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:204)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:139)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.gen(FunctionCodegen.java:114)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genFunctionOrProperty(MemberCodegen.java:180)
+	at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateDeclaration(ClassBodyCodegen.java:124)
+	at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateBody(ClassBodyCodegen.java:74)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:117)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:231)
+	at org.jetbrains.kotlin.codegen.PackageCodegen.generateClassOrObject(PackageCodegen.java:147)
+	at org.jetbrains.kotlin.codegen.PackageCodegen.generateFile(PackageCodegen.java:98)
+	at org.jetbrains.kotlin.codegen.PackageCodegen.generate(PackageCodegen.java:61)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.generatePackage(KotlinCodegenFacade.java:99)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.doGenerateFiles(KotlinCodegenFacade.java:77)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.compileCorrectFiles(KotlinCodegenFacade.java:44)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.kt:376)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules(KotlinToJVMBytecodeCompiler.kt:121)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:173)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:49)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:181)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:138)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execAndOutputXml(CLICompiler.java:63)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$remoteIncrementalCompile$1.invoke(CompileServiceImpl.kt:246)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$remoteIncrementalCompile$1.invoke(CompileServiceImpl.kt:69)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$1$1.invoke(CompileServiceImpl.kt:420)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$1$1.invoke(CompileServiceImpl.kt:69)
+	at org.jetbrains.kotlin.daemon.common.WallAndThreadAndMemoryTotalProfiler.withMeasure(PerfUtils.kt:187)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.checkedCompile(CompileServiceImpl.kt:453)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.access$checkedCompile(CompileServiceImpl.kt:69)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$1.invoke(CompileServiceImpl.kt:419)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$1.invoke(CompileServiceImpl.kt:69)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.ifAlive(CompileServiceImpl.kt:559)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.ifAlive$default(CompileServiceImpl.kt:524)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.doCompile(CompileServiceImpl.kt:410)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.remoteIncrementalCompile(CompileServiceImpl.kt:243)
+	at sun.reflect.GeneratedMethodAccessor45.invoke(Unknown Source)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:497)
+	at sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:323)
+	at sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:568)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:826)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$256(TCPTransport.java:683)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:682)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+Caused by: java.lang.IllegalStateException: Error type encountered: [ERROR : Type for test {
+            return value
+        }] (ErrorTypeImpl).
+	at org.jetbrains.kotlin.codegen.state.JetTypeMapper.mapType(JetTypeMapper.java:436)
+	at org.jetbrains.kotlin.codegen.state.JetTypeMapper.mapType(JetTypeMapper.java:386)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.asmType(ExpressionCodegen.java:405)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.getVariableType(ExpressionCodegen.java:1575)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.putLocalVariableIntoFrameMap(ExpressionCodegen.java:1607)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.putDescriptorIntoFrameMap(ExpressionCodegen.java:1592)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.generateBlock(ExpressionCodegen.java:1539)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.generateBlock(ExpressionCodegen.java:1499)
+	at org.jetbrains.kotlin.codegen.CodegenStatementVisitor.visitBlockExpression(CodegenStatementVisitor.java:56)
+	at org.jetbrains.kotlin.codegen.CodegenStatementVisitor.visitBlockExpression(CodegenStatementVisitor.java:22)
+	at org.jetbrains.kotlin.psi.KtBlockExpression.accept(KtBlockExpression.java:44)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:282)
+	... 56 more
+```

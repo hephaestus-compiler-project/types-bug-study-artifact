@@ -1,0 +1,25 @@
+This seems related to #900, but a different issue.
+
+I was trying to match on a case object in a for comprehension, but it kept matching all elements. I managed to reduce it to the following test case. It seems that even identifiers starting with a capital letter, or surrounded by back-ticks are treated as free variables. (There is no `What` identifier  defined at all).
+
+```scala
+scala> case object Test
+defined object Test
+
+scala> for (Test <- List(1 ,2, 3)) println(Test)
+1
+2
+3
+
+scala> for (What <- List(1, 2, 3)) println(What)
+1
+2
+3
+
+scala> for (`What` <- List(1, 2, 3)) println(What)
+1
+2
+3
+```
+
+I expected these to behave as in a regular pattern match. I get the same result in 2.11.5, 2.11.6, and 2.12.0-M1.

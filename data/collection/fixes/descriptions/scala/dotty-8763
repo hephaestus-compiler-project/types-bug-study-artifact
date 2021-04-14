@@ -1,0 +1,35 @@
+## Minimized code
+
+```Scala
+import cats.syntax.all._
+
+trait AAA[T]
+
+object Test {
+  implicit def aaaShow[T](implicit showT: cats.Show[T]): cats.Show[AAA[T]] = ???
+  
+  ("Enforcing union type": Int | Unit) //This will give a Type Mismatch Error
+}
+```
+My build.sbt:
+```
+libraryDependencies += ("org.typelevel" %% "cats-core" % "2.2.0-M1").withDottyCompat(scalaVersion.value)
+scalaVersion := "0.23.0-RC1"
+```
+https://github.com/FabioPinheiro/cats-money/tree/dotty-working-hard
+
+## Output
+Expect the `Type Mismatch Error` almost immediately.
+
+## Expectation
+The compilation should not take more than a few seconds!
+
+If we replace the `implicit def` (that is a valid scala2 code) with:
+```
+given aaaShow[T](using cats.Show[T]) as cats.Show[AAA[T]] = ???
+```
+The compilation takes around 45 seconds (also very slow)
+
+Also, there is not any to stop compilation
+After a `SIGINT` the sbt prints: `[warn] Canceling execution...` but it never ends.
+I don't know where to report this. I have to send a `SIGKILL` to sbt and to bloop/metals

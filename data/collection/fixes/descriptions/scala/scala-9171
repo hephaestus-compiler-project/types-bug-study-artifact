@@ -1,0 +1,27 @@
+I have encountered this problem when using scopt 3.3.0.
+Here is the minimal test case that reproduces consistently.
+
+```scala
+object FailToCompileApp extends App {
+  case class Options(window: Int = 30)
+  val parser = new scopt.OptionParser[Options]("FailToCompileApp") {
+    opt[Int]('w', "window") action { (w, options) =>
+      options.copy(window = w)
+    }
+  }
+
+  val options = parser.parse(args, Options()).get
+  val window = options.window
+}
+```
+
+```scala
+[info] Compiling 1 Scala source to /Users/alexbool/Documents/IdeaProjects/myproject/target/scala-2.11/classes...
+[error] /Users/alexbool/Documents/IdeaProjects/myproject/src/main/scala/me/alexbool/myproject/apps/FailToCompileApp.scala:7: not found: value w
+[error]       options.copy(window = w)
+[error]                             ^
+[error] one error found
+[error] (compile:compile) Compilation failed
+```
+
+The most exciting thing is when I remove the last line ("val window = options.window"), it compiles OK.

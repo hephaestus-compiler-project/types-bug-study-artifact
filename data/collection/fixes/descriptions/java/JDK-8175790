@@ -1,0 +1,49 @@
+The following program crashes javac 9-ea+157.
+
+===
+import java.util.List;
+import java.util.function.Function;
+
+abstract class T {
+
+  interface R {}
+  interface A {}
+  interface S {}
+
+  abstract <I, O> Function<I, O> p(final Function<I, O> function);
+  abstract <I, O> List<O> t(Function<? super I, ? extends O> function);
+
+  public void f() {
+    t(
+        p(
+            new Function<A, Object>() {
+              public List<Object> apply(A a) throws Exception {
+                return t(
+                    (Function<R, S>)
+                        input -> {
+                          return t(p((Function<Boolean, S>) i -> null), null);
+                        });
+              }
+            }));
+  }
+}
+===
+
+$ javac -fullversion T.java
+javac full version "9-ea+157"
+An exception has occurred in the compiler (9-ea). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.NullPointerException
+	at jdk.compiler/com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.validateAnnotatedType(Attr.java:4781)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.visitVarDef(Attr.java:4699)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCVariableDecl.accept(JCTree.java:950)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.visitLambda(TreeScanner.java:260)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCLambda.accept(JCTree.java:1801)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.visitTypeCast(TreeScanner.java:288)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.visitTypeCast(Attr.java:4709)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCTypeCast.accept(JCTree.java:2012)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.visitApply(TreeScanner.java:238)

@@ -1,0 +1,33 @@
+We could construct `AppliedType`s from Java whose arguments do not conform to type bound. When the type is used in Dotty, it is not checked. 
+
+## minimized code
+
+
+
+`S.scala`
+```scala
+class A
+
+class D[T >: A](v: T) {
+  def getV(): T = v // ensure T is correctly inferred
+}
+
+object S {
+  // J.getDS() : D[String] is inferred but not checked
+  val dv: String = J.getDS().getV()
+}
+```
+
+`J.java`
+```java
+public class J {
+  // for java, D is D<T extends Object>
+  public static D<String> getDS() {
+    return new D<String>("DS");
+  }
+}
+```
+
+## expectation
+
+I expected to see a type error at `J.getDS()` in `S.scala`, since `String` does not conform to lower bound `A`. However, this test passed. I also test the same code in scalac 2.13, and it also compiled.

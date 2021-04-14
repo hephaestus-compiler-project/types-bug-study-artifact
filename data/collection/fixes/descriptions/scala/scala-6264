@@ -1,0 +1,92 @@
+The following code:
+```scala
+class Foo {  
+  def foo(x: AnyRef): Unit = {
+    x.isInstanceOf[Tuple2[_, Tuple1[_]]]
+    ()
+  }
+}
+```
+
+crashes on latest 2.10.x branch (including 2.10.0-M7):
+
+```scala
+     while compiling: Test.scala
+        during phase: typer
+     library version: version 2.10.0-20120820-123254-1ab4994990
+    compiler version: version 2.10.0-20120820-123254-1ab4994990
+  reconstructed args: -d sandbox/
+
+  last tree to typer: Ident(_$2)
+              symbol: type _$2 (flags: <deferred> <synthetic> <existential>)
+   symbol definition: type _$2
+                 tpe: _$2
+       symbol owners: type _$2 -> method foo -> class Foo -> package <empty>
+      context owners: method foo -> class Foo -> package <empty>
+
+== Enclosing template or block ==
+
+ExistentialTypeTree(
+  AppliedTypeTree(
+    "Tuple1"
+    "_$2" // type _$2, tree.tpe=_$2
+  )
+  List(
+    TypeDef( // type _$2
+      <deferred> <synthetic> <existential/mixedin>
+      "_$2"
+      []
+      TypeBoundsTree(
+        "_root_"."scala"."Nothing" // final abstract class Nothing extends Any in package scala, tree.tpe=Nothing
+        "_root_"."scala"."Any" // abstract class Any extends  in package scala, tree.tpe=Any
+      )
+    )
+  )
+)
+
+== Expanded type of tree ==
+
+AbstractTypeRef(AbstractType(type _$2))
+
+uncaught exception during compilation: scala.MatchError
+error: scala.MatchError: Tuple1[_] (of class scala.reflect.internal.Types$ExistentialType)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.scala$tools$nsc$typechecker$Infer$Inferencer$$checkArg$1(Infer.scala:1376)
+	at scala.tools.nsc.typechecker.Infer$Inferencer$$anonfun$scala$tools$nsc$typechecker$Infer$Inferencer$$check$2$2.apply(Infer.scala:1403)
+	at scala.tools.nsc.typechecker.Infer$Inferencer$$anonfun$scala$tools$nsc$typechecker$Infer$Inferencer$$check$2$2.apply(Infer.scala:1403)
+	at scala.reflect.internal.util.Collections$class.forall2(Collections.scala:182)
+	at scala.reflect.internal.SymbolTable.forall2(SymbolTable.scala:12)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.scala$tools$nsc$typechecker$Infer$Inferencer$$check$2(Infer.scala:1403)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.checkCheckable(Infer.scala:1414)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTypeApply(Typers.scala:3730)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTypeApply$1(Typers.scala:5170)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5272)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5410)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:2672)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$53.apply(Typers.scala:2766)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$53.apply(Typers.scala:2766)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:2766)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedBlock(Typers.scala:2252)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5264)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5410)
+	at scala.tools.nsc.typechecker.Typers$Typer.transformedOrTyped(Typers.scala:5609)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedDefDef(Typers.scala:2081)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5261)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5410)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:2672)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$53.apply(Typers.scala:2766)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$53.apply(Typers.scala:2766)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:2766)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1789)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedClassDef(Typers.scala:1651)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5307)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5410)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:2672)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$53.apply(Typers.scala:2766)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$53.apply(Typers.scala:2766)
+```
+
+It works on 2.10.0-M6 and 2.9.2 so I mark this as critical because it's a regression.

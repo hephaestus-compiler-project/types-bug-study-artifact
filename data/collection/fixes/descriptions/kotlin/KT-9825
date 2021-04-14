@@ -1,0 +1,34 @@
+The following code:
+
+{code lang=kt}
+class Test {                                                                                                                           
+  fun foo () {                                                                                                                         
+    var exn :RuntimeException? = null                                                                                                  
+    try {                                                                                                                              
+      try {                                                                                                                            
+        bar ()                                                                                                                         
+      } catch (ex :RuntimeException) {                                                                                                 
+        exn = ex                                                                                                                       
+      }                                                                                                                                
+    } finally {                                                                                                                        
+      try {                                                                                                                            
+        baz ()                                                                                                                         
+      } catch (ex :RuntimeException) {                                                                                                 
+        exn = ex                                                                                                                       
+      }                                                                                                                                
+    }                                                                                                                                  
+    if (exn != null) throw exn                                                                                                         
+  }                                                                                                                                    
+                                                                                                                                       
+  fun bar () {}                                                                                                                        
+  fun baz () {}                                                                                                                        
+}                                                                                                                                      
+{code}
+
+reports:
+
+Test.kt:14:9: warning: the value 'ex' assigned to 'var exn: java.lang.RuntimeException? defined in Test.foo' is never used
+        exn = ex
+        ^
+
+but the variable is used, after the finally block.

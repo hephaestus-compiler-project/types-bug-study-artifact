@@ -1,0 +1,23 @@
+Excerpts from Brian's memo:
+
+// ---
+We had two main motivations for the denotations V.val and V.box:
+
+ - We need a way to denote "QV", if only for interop with erased generics;
+ - Types migrated from classes to value classes are going to have uses in the wild whose nullability is "reversed", and we needed a way to denote the non-nullable / flattened variant.
+
+Since then, we realized that the val/box notation is confusing to users; it suggests there are boxes, but in the VM we have, there really are not.  So it encourages the wrong mental model.
+
+Separately, since then, we figured out a better story for migrating value-based classes to values.
+
+Where I think we are going to end up is:
+
+ - For an ordinary value class `V`, we translate `V` as `QV;`;
+ - If the user wants to denote "V or null", then can denote it as `V?`, and we translate as `LV;`
+ - For "special" value classes, including migrated classes, they are declared differently, and for such a value class `M`, we translate as `LM;`.  There is no way to say `QM;`, because these classes are nullable, and Q-anything means "non-nullable."
+
+So this would reduce our denotations from 3 (V, V.val, V.box) to 2 (V, V?).
+
+I assume that the first two bullets are mostly a parsing change, and little else, since the semantics and translation are the same as now, just with different denotations.  The third bullet is a new feature and so would require some new support.
+
+We are not quite ready to pull the trigger on this, but I wanted to get your read on this from an implementation perspective.

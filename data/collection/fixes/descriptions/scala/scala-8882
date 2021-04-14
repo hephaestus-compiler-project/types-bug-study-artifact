@@ -1,0 +1,30 @@
+The following code fails to compile due to what seems like incorrect type inference when two classes share a higher-kinded type ancestor.
+
+```scala
+import scala.language.higherKinds
+
+class A[T[_]]
+object B extends A[List]
+object C extends A[Option]
+
+// This compiles
+val values = Seq[Any](B, C) 
+// This doesn't
+val values = Seq(B, C)
+```
+
+The error:
+```
+<console>:11: error: type mismatch;
+ found   : B.type
+ required: A[_ >: Option with List <: Product]
+       val values = Seq(B, C)
+                        ^
+<console>:11: error: type mismatch;
+ found   : C.type
+ required: A[_ >: Option with List <: Product]
+       val values = Seq(B, C)
+                           ^
+```
+
+The expected behaviour, I would think, would be to infer the type of Any, as it would for Seq(B, 42).

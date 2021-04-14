@@ -1,0 +1,62 @@
+This is very similar to JDK-8171322, but it still affects 11-ea+20.
+
+=== 
+import java.util.Set; 
+import javax.annotation.processing.AbstractProcessor; 
+import javax.annotation.processing.RoundEnvironment; 
+import javax.annotation.processing.SupportedAnnotationTypes; 
+import javax.lang.model.SourceVersion; 
+import javax.lang.model.element.TypeElement; 
+
+@SupportedAnnotationTypes("*") 
+public class SimpleProcessor extends AbstractProcessor { 
+
+  @Override 
+  public SourceVersion getSupportedSourceVersion() { 
+    return SourceVersion.latestSupported(); 
+  } 
+
+  @Override 
+  public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) { 
+    return false; 
+  } 
+} 
+=== 
+
+=== 
+import java.lang.annotation.Annotation;
+
+class Test<Override extends Annotation> {
+  Test(@Override String foo) {}
+}
+=== 
+
+$ javac SimpleProcessor.java 
+$ javac -processor SimpleProcessor Test.java 
+An exception has occurred in the compiler (11-ea). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.AssertionError: Only on ClassSymbol
+        at jdk.compiler/com.sun.tools.javac.util.Assert.error(Assert.java:162)
+        at jdk.compiler/com.sun.tools.javac.code.Symbol$TypeSymbol.getAnnotationTypeMetadata(Symbol.java:828)
+        at jdk.compiler/com.sun.tools.javac.code.TypeAnnotations.annotationTargets(TypeAnnotations.java:152)
+        at jdk.compiler/com.sun.tools.javac.code.TypeAnnotations.annotationTargetType(TypeAnnotations.java:175)
+        at jdk.compiler/com.sun.tools.javac.code.TypeAnnotations$TypeAnnotationPositions.separateAnnotationsKinds(TypeAnnotations.java:305)
+        at jdk.compiler/com.sun.tools.javac.code.TypeAnnotations$TypeAnnotationPositions.visitMethodDef(TypeAnnotations.java:1171)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:866)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at jdk.compiler/com.sun.tools.javac.code.TypeAnnotations$TypeAnnotationPositions.scan(TypeAnnotations.java:283)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+        at jdk.compiler/com.sun.tools.javac.code.TypeAnnotations$TypeAnnotationPositions.visitClassDef(TypeAnnotations.java:1122)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:774)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at jdk.compiler/com.sun.tools.javac.code.TypeAnnotations$TypeAnnotationPositions.scan(TypeAnnotations.java:283)
+        at jdk.compiler/com.sun.tools.javac.code.TypeAnnotations.lambda$organizeTypeAnnotationsSignatures$0(TypeAnnotations.java:123)
+        at jdk.compiler/com.sun.tools.javac.comp.Annotate.flush(Annotate.java:197)
+        at jdk.compiler/com.sun.tools.javac.comp.Annotate.unblockAnnotations(Annotate.java:144)
+        at jdk.compiler/com.sun.tools.javac.comp.Annotate.enterDone(Annotate.java:157)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.enterDone(JavaCompiler.java:1741)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.enterTrees(JavaCompiler.java:1068)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:937)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:311)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:170)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:57)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:43)

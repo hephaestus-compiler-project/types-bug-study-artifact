@@ -1,0 +1,125 @@
+```scala
+import scala.reflect.runtime.universe._
+
+object Test extends App {
+  reify {
+    case class M[A](value: A) {
+      def bind[B](k: A => M[B]): M[B] =  k(value)
+      def map[B](f: A => B): M[B] =  bind(x => unitM(f(x)))
+      def flatMap[B](f: A => M[B]): M[B] = bind(f)
+    }
+
+    def unitM[A](a: A): M[A] = M(a)
+
+    def showM(m: M[Value]): String = m.value.toString();
+
+    type Name = String
+
+    trait Term;
+    case class Var(x: Name) extends Term
+    case class Con(n: Int) extends Term
+    case class Add(l: Term, r: Term) extends Term
+    case class Lam(x: Name, body: Term) extends Term
+    case class App(fun: Term, arg: Term) extends Term
+
+    trait Value
+    case object Wrong extends Value {
+     override def toString() = "wrong"
+    }
+    case class Num(n: Int) extends Value {
+      override def toString() = n.toString()
+    }
+    case class Fun(f: Value => M[Value]) extends Value {
+      override def toString() = "<function>"
+    }
+
+    type Environment = List[Pair[Name, Value]]
+
+    def lookup(x: Name, e: Environment): M[Value] = e match {
+      case List() => unitM(Wrong)
+      case Pair(y, b) :: e1 => if (x == y) unitM(b) else lookup(x, e1)
+    }
+
+    def add(a: Value, b: Value): M[Value] = Pair(a, b) match {
+      case Pair(Num(m), Num(n)) => unitM(Num(m + n))
+      case _ => unitM(Wrong)
+    }
+
+    def apply(a: Value, b: Value): M[Value] = a match {
+      case Fun(k) => k(b)
+      case _ => unitM(Wrong)
+    }
+
+    def interp(t: Term, e: Environment): M[Value] = t match {
+      case Var(x) => lookup(x, e)
+      case Con(n) => unitM(Num(n))
+      case Add(l, r) => for (a <- interp(l, e);
+           b <- interp(r, e);
+           c <- add(a, b))
+                        yield c
+      case Lam(x, t) => unitM(Fun(a => interp(t, Pair(x, a) :: e)))
+      case App(f, t) => for (a <- interp(f, e);
+           b <- interp(t, e);
+           c <- apply(a, b))
+            yield c
+    }
+
+    def test(t: Term): String =
+      showM(interp(t, List()))
+
+    val term0 = App(Lam("x", Add(Var("x"), Var("x"))), Add(Con(10), Con(11)))
+    val term1 = App(Con(1), Con(2))
+
+    println(test(term0))
+    println(test(term1))
+  }.eval
+}
+```
+
+```scala
+reify_simpleinterpreter.scala:4: error: exception during macro expansion: 
+scala.MatchError: immutable.this.List.unapplySeq[(Name, Value)] (of class scala.reflect.internal.Trees$TypeApply)
+  at scala.reflect.reify.phases.Reshape$$anon$1.extractExtractor$1(Reshape.scala:76)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:85)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:24)
+  at scala.reflect.api.Trees$Transformer.transform(Trees.scala:796)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:91)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:24)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transformCaseDefs$1.apply(Trees.scala:880)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transformCaseDefs$1.apply(Trees.scala:880)
+  at scala.collection.immutable.List.loop$1(List.scala:163)
+  at scala.collection.immutable.List.mapConserve(List.scala:179)
+  at scala.reflect.api.Trees$Transformer.transformCaseDefs(Trees.scala:880)
+  at scala.reflect.api.Trees$Transformer.transform(Trees.scala:818)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:91)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:24)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transform$5.apply(Trees.scala:780)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transform$5.apply(Trees.scala:778)
+  at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:893)
+  at scala.reflect.api.Trees$Transformer.transform(Trees.scala:777)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:91)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:24)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$2.apply(Trees.scala:886)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$2.apply(Trees.scala:884)
+  at scala.collection.immutable.List.loop$1(List.scala:163)
+  at scala.collection.immutable.List.mapConserve(List.scala:179)
+  at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:884)
+  at scala.reflect.api.Trees$Transformer.transform(Trees.scala:794)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:91)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:24)
+  at scala.reflect.reify.Phases$$anonfun$mkReificationPipeline$1.apply(Phases.scala:26)
+  at scala.reflect.reify.Phases$$anonfun$mkReificationPipeline$1.apply(Phases.scala:16)
+  at scala.reflect.reify.Reifier.liftedTree1$1(Reifier.scala:69)
+  at scala.reflect.reify.Reifier.reification(Reifier.scala:54)
+  at scala.reflect.reify.package$.reifyTree(package.scala:38)
+  at scala.reflect.makro.runtime.Reifiers$class.reifyTree(Reifiers.scala:22)
+  at scala.reflect.makro.runtime.Context.reifyTree(Context.scala:6)
+  at scala.reflect.reify.Taggers$$anonfun$1.apply(Taggers.scala:78)
+  at scala.reflect.reify.Taggers$$anonfun$1.apply(Taggers.scala:78)
+  at scala.reflect.reify.Taggers.translatingReificationErrors(Taggers.scala:84)
+  at scala.reflect.reify.Taggers.materializeExpr(Taggers.scala:78)
+
+  reify {
+        ^
+one error found
+```

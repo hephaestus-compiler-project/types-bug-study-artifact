@@ -1,0 +1,38 @@
+The following code compiles using Scala:
+
+```scala
+object test { 
+    trait A 
+    trait B 
+    trait Wrapper[T] 
+   
+    trait Relation[T, U] 
+    implicit def relation[T <: Wrapper[U], U]: Relation[T, U] = ??? 
+   
+    def test(implicit ev: Relation[Wrapper[A] with Wrapper[B], B]) = ??? 
+    test 
+  }
+```
+
+Dotty produces the following compiler error:
+
+```
+10 |    test
+   |        ^
+   |no implicit argument of type test.Relation[test.Wrapper[test.A] & test.Wrapper[test.B], test.B] was found for parameter ev of method test in object test.
+   |I found:
+   |
+   |    test.relation[Nothing, Nothing]
+   |
+   |But method relation in object test does not match type test.Relation[test.Wrapper[test.A] & test.Wrapper[test.B], test.B].
+```
+
+Notably, using
+```scala
+def test(implicit ev: Relation[Wrapper[A] with Wrapper[B], A]) = ??? 
+```
+instead of
+```scala
+def test(implicit ev: Relation[Wrapper[A] with Wrapper[B], B]) = ??? 
+```
+works fine (i.e., the implicit value is successfully resolved).

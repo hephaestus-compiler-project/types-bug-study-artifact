@@ -1,0 +1,42 @@
+Remove the Manifest bound and the following code compiles, inferring the type argument to A to be Int.  With the Manifest bound, it does not compile because the type argument to A is inferred to be Nothing.
+
+```scala
+object Test {
+ case class A[T: Manifest](t: String)
+ case class V[T](t: T)
+ case class B[T](a: A[T]) { def x(v: V[T]): C[T] = C(a,v) }
+ case class C[T](a: A[T], v: V[T])
+
+ implicit def aToB[T](a: A[T]): B[T] = B(a)
+
+ A("a") x V(3)
+}
+```
+
+The error message is:
+```scala
+error: value x is not a member of test.A[Nothing]
+	A("a") x V(3)
+               ^
+one error found
+```
+
+Changing Manifest to be another type constructor with an implicit in scope compiles:
+```scala
+object Test {
+  case class Z[T](t: T)
+  implicit def qq: Z[Int] = new Z(4)
+
+  case class A[T: Z](t: String)
+  ...
+}
+```
+
+as does making the type parameter to A and V covariant:
+```scala
+case class A[+T: Manifest](t: String)
+case class V[+T](t: T)
+case class B[T](a: A[T]) { def x[T1 >: T](v: V[T1]): C[T1] = C(a,v) }
+```
+
+Unfortunately, I cannot make the type parameter for A covariant in the actual code.

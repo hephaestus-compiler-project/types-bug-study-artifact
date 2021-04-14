@@ -1,0 +1,25 @@
+My code is somewhat similar to:
+```Kotlin
+data class MainClass(val subClass: SubClass)
+data class SubClass(val something: Something)
+data class Something(val value: String)
+
+class MyViewModel : ViewModel() {
+  val mainClassValue = MutableLiveData<MainClass>().apply {
+    value = MainClass(SubClass(Something("Test")))
+  }
+
+  private val subClassValue: LiveData<SubClass> = Transformations.map(mainClassValue) { it?.subClass }
+
+  private val somethingValue: LiveData<Something> = Transformations.distinctUntilChanged(Transformations.map(subClassValue) { it?.something } )
+}
+```
+Android Studio doesn't show any issues with the above, but compiler throws the following error:
+_Type inference failed. Expected type mismatch: inferred type is LiveData<Something?> but LiveData<Something> was expected_
+
+Everything works fine once I change line 12 to
+```Kotlin
+  private val somethingValue: LiveData<Something> = Transformations.distinctUntilChanged(Transformations.map<SubClass, Something>(subClassValue) { it?.something })
+```
+
+Happens with 1.3.40 and 1.3.41.

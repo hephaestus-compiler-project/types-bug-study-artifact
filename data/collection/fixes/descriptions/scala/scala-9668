@@ -1,0 +1,34 @@
+File `Test.scala`:
+
+```scala
+package bug
+
+package object testing {
+  type Foo = String
+  // alternatives:
+  // trait Foo extends Serializable
+  // type Foo <: String
+
+  object Foo
+}
+
+object Test {
+  def main(args: Array[String]): Unit = {
+    // This should not display scala.Serializable
+    println(testing.Foo.getClass.getInterfaces().mkString(", "))
+
+    // This should not even compile:
+    println(testing.Foo: Serializable)
+  }
+}
+```
+
+Compile and run:
+
+```scala
+doeraene@lamppc37:~/projects/temp/scalac-bug-serializable-companion$ ~/opt/scala-2.11.2/bin/scalac Test.scala
+doeraene@lamppc37:~/projects/temp/scalac-bug-serializable-companion$ ~/opt/scala-2.11.2/bin/scala -cp . bug.Test
+interface scala.Serializable
+```
+
+This can be particularly annoying in Scala.js, because it makes it impossible to declare a type alias whose companion is a JavaScript type (since JavaScript types cannot extend non-JS types such as `Serializable`). See https://github.com/scala-js/scala-js/issues/2244#issuecomment-187107533

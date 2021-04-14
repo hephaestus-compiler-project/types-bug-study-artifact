@@ -1,0 +1,21 @@
+javac requires a directory on the module path to exist, and fails with an error if it doesn't:
+$ /d/binaries/jdk/jdk-9-ea+151/bin/javac Foo.java && echo "success"
+success
+$ /d/binaries/jdk/jdk-9-ea+151/bin/javac --module-path modules Foo.java && echo "success"
+error: illegal argument for --module-path: modules
+$ mkdir modules && /d/binaries/jdk/jdk-9-ea+151/bin/javac --module-path modules Foo.java && echo "success"
+success
+
+It is different from java launcher's behavior (which allows non-existing module path entries) and from how class path is handled.
+
+Equivalent call to StandardJavaFileManager::setLocation throws an unspecified IllegalArgumentException, so in case of API it's a conformance issue:
+
+jshell> import javax.tools.*;
+
+jshell> ToolProvider.getSystemJavaCompiler().getStandardFileManager(null, null, null).setLocation(StandardLocation.MODULE_PATH, List.of(new File("modules/")))
+|  java.lang.IllegalArgumentException thrown: modules
+|        at Locations$ModulePathLocationHandler.checkValidModulePathEntry (Locations.java:1001)
+|        at Locations$ModulePathLocationHandler.setPaths (Locations.java:963)
+|        at Locations.setLocation (Locations.java:1654)
+|        at JavacFileManager.setLocation (JavacFileManager.java:916)
+|        at (#6:1)

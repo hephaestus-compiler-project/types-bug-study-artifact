@@ -1,0 +1,93 @@
+Compiling the following code:
+```scala
+class Test {
+
+  case class A( value: Double ) {
+    def *( o: A ) = A( value * o.value )
+  }
+
+  implicit def doubleToA( d: Double ) = A( d )
+  implicit def listToA( in: List[A] ): A = in.head
+
+  val result: A = List( A( 1 ) ) map { 2.0 * _ } //this line causes the compiler to crash
+}
+```
+
+Stacktrace:
+```
+error: java.lang.NullPointerException
+        at scala.tools.nsc.transform.Mixin$MixinTransformer.scala$tools$nsc$transform$Mixin$MixinTransformer$$postTransform(Mixin.scala:1132)
+        at scala.tools.nsc.transform.Mixin$MixinTransformer$$anonfun$transform$1.apply(Mixin.scala:1239)
+        at scala.tools.nsc.transform.Mixin$MixinTransformer$$anonfun$transform$1.apply(Mixin.scala:1239)
+        at scala.reflect.internal.SymbolTable.enteringPhase(SymbolTable.scala:242)
+        at scala.reflect.internal.SymbolTable.exitingPhase(SymbolTable.scala:263)
+        at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:1239)
+        at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:468)
+        at scala.reflect.internal.Trees$class.itransform(Trees.scala:1340)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+        at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+        at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:1236)
+        at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:468)
+        at scala.reflect.internal.Trees$$anonfun$itransform$2.apply(Trees.scala:1356)
+        at scala.reflect.internal.Trees$$anonfun$itransform$2.apply(Trees.scala:1354)
+        at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+        at scala.reflect.internal.Trees$class.itransform(Trees.scala:1353)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+        at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+        at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:1236)
+        at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:468)
+        at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2589)
+        at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2587)
+        at scala.collection.immutable.List.loop$1(List.scala:172)
+        at scala.collection.immutable.List.mapConserve(List.scala:188)
+        at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2587)
+        at scala.reflect.internal.Trees$class.itransform(Trees.scala:1397)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+        at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+        at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:1236)
+        at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:468)
+        at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2563)
+        at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1401)
+        at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1400)
+        at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+        at scala.reflect.internal.Trees$class.itransform(Trees.scala:1399)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+        at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+        at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:1236)
+        at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:468)
+        at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2589)
+        at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2587)
+        at scala.collection.immutable.List.loop$1(List.scala:172)
+        at scala.collection.immutable.List.mapConserve(List.scala:188)
+        at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2587)
+        at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1419)
+        at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1419)
+        at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+        at scala.reflect.internal.Trees$class.itransform(Trees.scala:1418)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+        at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+        at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:1236)
+        at scala.tools.nsc.transform.Mixin$MixinTransformer.transform(Mixin.scala:468)
+        at scala.tools.nsc.ast.Trees$Transformer.transformUnit(Trees.scala:147)
+        at scala.tools.nsc.transform.Transform$Phase.apply(Transform.scala:30)
+        at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:430)
+        at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:397)
+        at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:397)
+        at scala.collection.Iterator$class.foreach(Iterator.scala:743)
+        at scala.collection.AbstractIterator.foreach(Iterator.scala:1174)
+        at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:397)
+        at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1625)
+        at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1610)
+        at scala.tools.nsc.Global$Run.compileSources(Global.scala:1605)
+        at scala.tools.nsc.Global$Run.compile(Global.scala:1703)
+        at scala.tools.nsc.Driver.doCompile(Driver.scala:34)
+        at scala.tools.nsc.MainClass.doCompile(Main.scala:23)
+        at scala.tools.nsc.Driver.process(Driver.scala:55)
+        at scala.tools.nsc.Driver.main(Driver.scala:68)
+        at scala.tools.nsc.Main.main(Main.scala)
+```

@@ -1,0 +1,84 @@
+Problem
+---
+
+The current definition of the "--release" option in JDK N is:
+    --release N : "noop" - anything that is in the system image is available
+    --release M, M < N: only public supported API of release M is available
+
+With this definition, for JDK 10, we would record supported APIs for JDK 9, which would not include jdk.unsupported, incubating modules or any packages that are not exported. This would cause an inconsistency in behavior of "--release 9" between JDK 9 and JDK 10. Examples:
+
+Case I)  /jdk.unsupported/
+---Test.java
+public class Test {
+     sun.misc.Unsafe unsafe;
+}
+---
+
+$ <jdk9>/javac --release 9 Test.java
+Test.java:2: warning: Unsafe is internal proprietary API and may be removed in a future release
+     sun.misc.Unsafe unsafe;
+             ^
+1 warning
+
+$ <jdk10>/javac --release 9 Test.java
+Test.java:2: error: package sun.misc does not exist
+     sun.misc.Unsafe unsafe;
+             ^
+1 error
+
+(because jdk.unsupported would not be recorded as JDK 9 API in JDK 10)
+
+Case II)  /internal packages/
+---Test.java
+public class Test {
+     jdk.internal.misc.Unsafe unsafe;
+}
+---
+
+$ <jdk9>/javac --release 9 --add-exports java.base/jdk.internal.misc=ALL-UNNAMED Test.java
+//ok, no warning
+
+$ <jdk10>/javac --release 9 --add-exports java.base/jdk.internal.misc=ALL-UNNAMED Test.java
+Test.java:2: error: package jdk.internal.misc does not exist
+     jdk.internal.misc.Unsafe unsafe;
+                       ^
+1 error
+
+(because internal packages of java.base would not be recorded as JDK 9 API in JDK 10)
+
+Case III)  /incubating modules/
+---Test.java
+public class Test {
+     jdk.incubator.http.HttpClient httpClient;
+}
+---
+
+$ <jdk9>/javac --release 9 --add-modules ALL-SYSTEM Test.java
+warning: using incubating module(s): jdk.incubator.httpclient
+1 warning
+
+$ <jdk10>/javac --release 9 --add-exports java.base/jdk.internal.misc=ALL-UNNAMED Test.java
+error: module not found: jdk.incubator.httpclient
+1 error
+
+(because the incubating module would not be recorded as JDK 9 API in JDK 10)
+
+Solution
+---
+
+For each of these examples/cases, there are the following possible approaches to addressing the inconsistency:
+a) don't do anything - with --release 9, allow the access in JDK 9, and not allow it in JDK 10 and accept the inconsistency
+b) record the necessary data as JDK 9 APIs in JDK 10, so --release 9 would allow the access in both cases
+c) prevent the access with --release 9 on JDK 9
+
+
+The overall proposal here is to get make --release 9 work consistently between JDK 9 and the (anticipated) JDK 10, even at the cost of a possible different behavior of commands like:
+$ <jdk9>/javac Test.java
+$ <jdk9>/javac --release 9 Test.java
+
+Which should be acceptable, given the intents of --release - allow to compile code using supported APIs for the given JDK release. This is more work, but brings the benefit of causing less confusion to the user in the long term.
+
+In particular the proposal is to:
+-limits observable system modules to a predefined list of modules for --release 9. The predefined list includes modules with API from the JDK, and any imported modules
+-prevents use of --add-exports, -add-reads and --patch-module for system modules in combination with --release (any version)
+-prevents use of --system and --upgrade-module-path in combination with --release (any version)

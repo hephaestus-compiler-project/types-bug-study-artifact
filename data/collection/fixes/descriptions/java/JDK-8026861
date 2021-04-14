@@ -1,0 +1,22 @@
+Consider this source code:
+-----
+package test;
+
+public class LambdaLNT {
+    public static void main(String... args) {
+        Runnable r = () -> {
+            int i = args.length;
+        };
+        r.run();
+    }
+}
+-----
+
+When compiled with -g, the LineNumberTable for the lambda method looks like this:
+      LineNumberTable:
+        line 1: 0
+        line 7: 3
+
+That is undoubtedly wrong: the first statement of the lambda does not start at line 1. As a consequence, debuggers would likely misbehave.
+
+This appears to be caused by a missing TreeMaker.at in LambdaToMethod.visitVarDef.

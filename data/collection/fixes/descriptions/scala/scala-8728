@@ -1,0 +1,34 @@
+```scala
+object Bug {
+	class A {};
+	class B extends A{};
+	class C extends A{};
+}
+
+class Bug {
+	import Bug._
+	
+	def show : Unit = {
+		var result = "";
+		var base = new A();		
+		
+		//compiles
+		val answer = base match {
+			case b : B => "b";
+			case c : C => "c";
+			case _ => "";
+		};
+		
+		result += answer;
+		
+		//does not compile		
+		result += base match {
+			case b : B => "b";
+			case c : C => "c";
+			case _ => "";
+		};		 
+	}
+}
+```
+
+There are usually multiple incorrect error warnings on each case line, in the variant that does not compile. The common error warning goes like this: ??scrutinee is incompatible with pattern type; found : X required: Unit??

@@ -1,0 +1,52 @@
+scalac compiles but dotc crashes.
+In particular, scalac-2.11 gives one warning but 2.9 gives none.
+
+
+$ cat abc.scala
+```
+object Test {
+  def f(g: { val update: Unit }) = g.update
+  def main(update: Array[String]) = {}
+}
+```
+
+$ dotc abc.scala
+```
+exception while typing g.update of class class dotty.tools.dotc.ast.Trees$Select # 75
+exception while typing def f(g: Object{update: Unit}): Unit = g.update of class class dotty.tools.dotc.ast.Trees$DefDef # 102
+exception while typing @scala.annotation.internal.SourceFile("abc.scala") final module class Test$()
+   extends
+ Object() {
+  def f(g: Object{update: Unit}): Unit = g.update
+  def main(update: Array{scala$Array$$T = String}): Unit =
+    {
+      ()
+    }
+} of class class dotty.tools.dotc.ast.Trees$TypeDef # 115
+exception while typing package <empty> {
+  final lazy module val Test: Test$ = new Test$()
+  @scala.annotation.internal.SourceFile("abc.scala") final module class Test$()
+     extends
+   Object() {
+    def f(g: Object{update: Unit}): Unit = g.update
+    def main(update: Array{scala$Array$$T = String}): Unit =
+      {
+        ()
+      }
+  }
+} of class class dotty.tools.dotc.ast.Trees$PackageDef # 116
+
+exception occurred while compiling abc.scala
+Exception in thread "main" java.lang.AssertionError: NoDenotation.owner
+	at dotty.tools.dotc.core.SymDenotations$NoDenotation.owner(SymDenotations.scala:1854)
+	at dotty.tools.dotc.transform.Erasure$Typer.mapOwner$1(Erasure.scala:358)
+	at dotty.tools.dotc.transform.Erasure$Typer.typedSelect(Erasure.scala:362)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1470)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1534)
+	at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:96)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1553)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1551)
+	at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:136)
+	at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+<...>
+```

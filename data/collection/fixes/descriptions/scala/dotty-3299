@@ -1,0 +1,121 @@
+If we modify https://github.com/lampepfl/dotty/blob/master/tests/pos/extractor-types.scala#L3 a little bit, by changing
+
+`object Foo { val Ex(_) = null }`
+
+to
+
+`object Foo { val Ex(_) = ??? }`
+
+then the test still compiles, but Ycheck fails (see error below).
+
+Here's a minimized example:
+```scala
+object Main {
+  object Id {
+    def unapply(v: Int): Option[Int] = Some(4)
+  }
+  val Id(n) = ???
+}
+```
+
+Stacktrace:
+```scala
+checking tests/pos/extractor-types.scala after phase TreeTransform:{tryCatchPatterns, patternMatcher, explicitOuter, explicitSelf, shortcutImplicits, crossCast, splitter}
+exception while typing x1.ne of class class dotty.tools.dotc.ast.Trees$Select # 203
+exception while typing x1.ne(null) of class class dotty.tools.dotc.ast.Trees$Apply # 205
+exception while typing if x1.ne(null) then 
+  {
+    case val x2: Option[_ <: Int] = p1.Ex.unapply(x1)
+    if x2.isEmpty.unary_! then 
+      {
+        case val x3: Int = x2.get
+        ()
+      }
+     else case1()
+  }
+ else case1() of class class dotty.tools.dotc.ast.Trees$If # 219
+exception while typing {
+  case val x1: Nothing @unchecked = ???: Nothing @unchecked
+  def case1(): Unit = throw new MatchError(x1)
+  if x1.ne(null) then 
+    {
+      case val x2: Option[_ <: Int] = p1.Ex.unapply(x1)
+      if x2.isEmpty.unary_! then 
+        {
+          case val x3: Int = x2.get
+          ()
+        }
+       else case1()
+    }
+   else case1()
+} of class class dotty.tools.dotc.ast.Trees$Block # 221
+exception while typing @scala.annotation.internal.SourceFile("tests/pos/extractor-types.scala") 
+  final module
+ class Foo() extends Object() { 
+  {
+    case val x1: Nothing @unchecked = ???: Nothing @unchecked
+    def case1(): Unit = throw new MatchError(x1)
+    if x1.ne(null) then 
+      {
+        case val x2: Option[_ <: Int] = p1.Ex.unapply(x1)
+        if x2.isEmpty.unary_! then 
+          {
+            case val x3: Int = x2.get
+            ()
+          }
+         else case1()
+      }
+     else case1()
+  }
+} of class class dotty.tools.dotc.ast.Trees$TypeDef # 223
+exception while typing package p1 {
+  final lazy module val Ex: p1.Ex = new p1.Ex()
+  @scala.annotation.internal.SourceFile("tests/pos/extractor-types.scala") 
+    final module
+   class Ex() extends Object() { 
+    def unapply(p: Any): Option[_ <: Int] = null
+  }
+  final lazy module val Foo: p1.Foo = new p1.Foo()
+  @scala.annotation.internal.SourceFile("tests/pos/extractor-types.scala") 
+    final module
+   class Foo() extends Object() { 
+    {
+      case val x1: Nothing @unchecked = ???: Nothing @unchecked
+      def case1(): Unit = throw new MatchError(x1)
+      if x1.ne(null) then 
+        {
+          case val x2: Option[_ <: Int] = p1.Ex.unapply(x1)
+          if x2.isEmpty.unary_! then 
+            {
+              case val x3: Int = x2.get
+              ()
+            }
+           else case1()
+        }
+       else case1()
+    }
+  }
+} of class class dotty.tools.dotc.ast.Trees$PackageDef # 224
+*** error while checking tests/pos/extractor-types.scala after phase splitter ***
+
+exception occurred while compiling tests/pos/extractor-types.scala
+Exception in thread "main" java.lang.AssertionError: assertion failed: symbols differ for x1.ne
+was                 : method ne
+alternatives by type:  of types 
+qualifier type      : Nothing @unchecked(x1)
+tree type           : ((x$0: Object): Boolean)(x1.ne) of class class dotty.tools.dotc.core.Types$CachedTermRef
+	at scala.Predef$.assert(Predef.scala:219)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedSelect(TreeChecker.scala:340)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1612)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1677)
+	at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:94)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedUnadapted(TreeChecker.scala:272)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1695)
+	at dotty.tools.dotc.reporting.Reporting.traceIndented(Reporter.scala:140)
+	at dotty.tools.dotc.reporting.Reporting.traceIndented$(Reporter.scala:139)
+	at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1691)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typed(TreeChecker.scala:257)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:1752)
+
+```

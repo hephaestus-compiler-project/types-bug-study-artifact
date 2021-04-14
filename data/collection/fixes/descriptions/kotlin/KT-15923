@@ -1,0 +1,20 @@
+```
+interface Iface<M, T>
+
+interface IfaceProvider<M : Iface<M, *>>
+
+class C<T> : Iface<C<*>, T>
+class D<T> : Iface<D<*>, T>
+
+class CProvider : IfaceProvider<C<*>>
+
+fun <M : Iface<M, *>, T> withProvider(provider: IfaceProvider<M>, block: () -> Iface<M, T>) {}
+
+fun main(args: Array<String>) {
+    withProvider(CProvider()) { D<Int>() } // Mis-use, the block returns `D<Int>` with a `CProvider` passed.
+}
+```
+
+The mis-use of `withProvider` is not reported properly, it is an internal error:
+
+!image.png!

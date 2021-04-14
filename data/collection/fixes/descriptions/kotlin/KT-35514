@@ -1,0 +1,27 @@
+(Probably could be narrowed down to a smaller example)
+
+Type inference is confused when the same expression is surrounded by `if`.
+
+Given:
+```
+sealed class Foo
+
+object Valid : Foo()
+object Empty : Foo()
+```
+
+Works fine:
+```
+fun doSomething(): Result<Foo> {
+    return Result.failure<Valid>(Exception()).recover { Empty }
+}
+```
+
+Type mismatch error:
+```
+fun doSomething(): Result<Foo> {
+    return Result.failure<Valid>(Exception()).recover { if (true) Empty else Valid }
+}
+```
+
+Note: Seems to be fixed in new type inference, with `'-XXLanguage:+NewInference'` enabled.

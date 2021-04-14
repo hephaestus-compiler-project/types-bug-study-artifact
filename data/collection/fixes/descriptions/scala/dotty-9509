@@ -1,0 +1,42 @@
+## Minimized code
+
+```Scala
+enum AList[+A] {
+  case Cons(head: A, tail: AList[A])
+  case Nil
+}
+
+object AList {
+  extension [A](l: AList[A]) def sum(using numeric: Numeric[A]): A = l match {
+    case Cons(x, xs) => numeric.plus(x, xs.sum(using numeric))
+    case Nil         => numeric.zero
+  }
+}
+```
+
+## Output
+Compiler error at line 10:
+```
+Found:    (numeric : Numeric[A])
+Required: Numeric[A$1]
+
+where:    A   is a type in method extension_sum with bounds >: A$1
+          A$1 is a type in method extension_sum with bounds <: A
+```
+
+Dropping the explicit parameter list when calling sum recursively results in the error:
+```
+value sum is not a member of AList[A$1].
+An extension method was tried, but could not be fully constructed:
+
+    AList.extension_sum[A$1](xs)(numeric)
+
+where:    A$1 is a type in method extension_sum with bounds <: A
+```
+[Scastie repro to demonstrate both](https://scastie.scala-lang.org/3vriHlLjQtGniQTzSJBDyg).
+
+## Expectation
+Expect that this should compile and allow (explicitly or not) the given `numeric` instance to be used for the recursive call.
+From chat with @smarter [here](https://gitter.im/lampepfl/dotty?at=5f2c7e86028fac5e4d9ed9ca):
+> yeah type inference is being too eager and instantiating the type parameter of sum before typing the second argument
+so it ends up choosing the pattern-bound A$1 instead of A

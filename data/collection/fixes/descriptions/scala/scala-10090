@@ -1,0 +1,33 @@
+As reported [on the ML](https://groups.google.com/d/msg/scala-internals/RuUCMwTNK3A/klFDTKBrCwAJ). Also [SO](http://stackoverflow.com/questions/31007147/play-2-4-0-java-lang-nullpointerexception-on-all-http-requests).
+
+```
+Welcome to Scala 2.11.8 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_111).
+Type in expressions for evaluation. Or try :help.
+
+scala> object X { implicit class Y(self: String) } // or object X { def Y(s: String): Int = 42 }
+defined object X
+
+scala> (null: Any) match { case X.Y.Z() => }
+java.lang.NullPointerException
+    at scala.tools.nsc.transform.patmat.ScalacPatternExpanders$ScalacPatternExpander$class.applyMethodTypes(ScalacPatternExpanders.scala:65)
+    at scala.tools.nsc.transform.patmat.ScalacPatternExpanders$alignPatterns$.applyMethodTypes(ScalacPatternExpanders.scala:97)
+    at scala.tools.nsc.transform.patmat.ScalacPatternExpanders$alignPatterns$.apply(ScalacPatternExpanders.scala:136)
+    at scala.tools.nsc.transform.patmat.ScalacPatternExpanders$alignPatterns$.apply(ScalacPatternExpanders.scala:159)
+    at scala.tools.nsc.transform.patmat.MatchTranslation$MatchTranslator$ExtractorCall$.apply(MatchTranslation.scala:384)
+
+or without parens a different crash:
+
+scala> object X { implicit class Y(self: String) }
+defined object X
+
+scala> (null: Any) match { case X.Y.Z => }
+java.lang.NullPointerException
+    at scala.tools.nsc.ast.TreeInfo$ValueClass$$anonfun$valueUnbox$1.apply(TreeInfo.scala:45)
+    at scala.tools.nsc.ast.TreeInfo$ValueClass$$anonfun$valueUnbox$1.apply(TreeInfo.scala:45)
+    at scala.reflect.internal.SymbolTable.enteringPhase(SymbolTable.scala:235)
+    at scala.tools.nsc.ast.TreeInfo$ValueClass$.valueUnbox(TreeInfo.scala:45)
+    at scala.tools.nsc.ast.TreeInfo$ValueClass$Unbox$.unapply(TreeInfo.scala:50)
+    at scala.tools.nsc.ast.TreeInfo$ValueClass$BoxAndUnbox$.unapply(TreeInfo.scala:63)
+    at scala.tools.nsc.transform.PostErasure$PostErasureTransformer.transform(PostErasure.scala:37)
+    at scala.tools.nsc.transform.PostErasure$PostErasureTransformer.transform(PostErasure.scala:22)
+```

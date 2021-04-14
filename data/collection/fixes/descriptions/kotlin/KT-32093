@@ -1,0 +1,53 @@
+I have an abstract class like this:
+```kotlin
+abstract class BaseIdEntity<ID> : BaseEntity(), Persistable<ID>, Identifiable<ID>, Comparable<ID> where ID : Serializable, ID : Comparable<ID> {
+
+    override fun compareTo(other: ID) = id?.compareTo(other) ?: 0
+
+    override fun equals(other: Any?): Boolean {
+        if (other === this) return true
+
+        if (other !is BaseIdEntity<*>) return false
+
+        return id == other.getId()
+    }
+}
+```
+The compiler can compile successfully.
+
+But when I upgraded to version 1.3.40, the code became like this through the code cleanup function of the IDE:
+```kotlin
+abstract class BaseIdEntity<ID> : BaseEntity(), Persistable<ID>, Identifiable<ID>, Comparable<ID> where ID : Serializable, ID : Comparable<ID> {
+
+    override fun compareTo(other: ID) = id?.compareTo(other) ?: 0
+
+    override fun equals(other: Any?): Boolean {
+        if (other === this) return true
+
+        if (other !is BaseIdEntity<*>) return false
+
+        return id == other.id
+    }
+}
+```
+The main difference is that `return id == other.getId()` becomes `return id == other.id`, and the compile failed.
+Exception log:
+```
+> Task :kaptGenerateStubsKotlin FROM-CACHE
+> Task :kaptKotlin FROM-CACHE
+> Task :processResources UP-TO-DATE
+> Task :processTestResources UP-TO-DATE
+
+> Task :compileKotlin
+e: D:\IdeaProjects\ERP\src\main\kotlin\com\xhstormr\erp\domain\model\entity\BaseIdEntity.kt: (26, 28): Type parameter bound for ID in val <ID : Serializable> BaseIdEntity<ID>.id: ID? where ID : Comparable<ID>
+ is not satisfied: inferred type CapturedTypeConstructor(*) is not a subtype of Comparable<*>
+
+> Task :compileKotlin FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleKotlinCompilerWork
+   > Compilation error. See log for more details
+```

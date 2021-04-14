@@ -1,0 +1,60 @@
+- Scala version: 2.12.3
+- Steps to reproduce:
+
+```scala
+// save as Test.scala
+package com.example {
+  object X {
+    def bar: Int = (new Value(42)).foo
+  }
+}
+
+package com.example {
+  class Value(val value: Int) extends AnyVal {
+    def foo: Int = value + 1
+  }
+}
+
+object Main {
+  import com.example._
+
+  def main(args: Array[String]): Unit = {
+    println(X.bar)
+  }
+}
+```
+
+```bash
+$ scalac Test.scala
+$ scala Main
+java.lang.NoSuchMethodError: com.example.Value$.foo$extension(I)I
+	at com.example.X$.bar(Test.scala:3)
+	at Main$.main(Test.scala:17)
+	at Main.main(Test.scala)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at scala.reflect.internal.util.ScalaClassLoader.$anonfun$run$2(ScalaClassLoader.scala:98)
+	at scala.reflect.internal.util.ScalaClassLoader.asContext(ScalaClassLoader.scala:32)
+	at scala.reflect.internal.util.ScalaClassLoader.asContext$(ScalaClassLoader.scala:30)
+	at scala.reflect.internal.util.ScalaClassLoader$URLClassLoader.asContext(ScalaClassLoader.scala:129)
+	at scala.reflect.internal.util.ScalaClassLoader.run(ScalaClassLoader.scala:98)
+	at scala.reflect.internal.util.ScalaClassLoader.run$(ScalaClassLoader.scala:90)
+	at scala.reflect.internal.util.ScalaClassLoader$URLClassLoader.run(ScalaClassLoader.scala:129)
+	at scala.tools.nsc.CommonRunner.run(ObjectRunner.scala:22)
+	at scala.tools.nsc.CommonRunner.run$(ObjectRunner.scala:21)
+	at scala.tools.nsc.ObjectRunner$.run(ObjectRunner.scala:39)
+	at scala.tools.nsc.CommonRunner.runAndCatch(ObjectRunner.scala:29)
+	at scala.tools.nsc.CommonRunner.runAndCatch$(ObjectRunner.scala:28)
+	at scala.tools.nsc.ObjectRunner$.runAndCatch(ObjectRunner.scala:39)
+	at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:66)
+	at scala.tools.nsc.MainGenericRunner.run$1(MainGenericRunner.scala:85)
+	at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:96)
+	at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:101)
+	at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+```
+
+- This issue seems to be related to #9922 .
+- If I remove `extends AnyVal`, the issue disappears.
+- If I swap the order of two packaage blocks, the issue disappears too.

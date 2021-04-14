@@ -1,0 +1,35 @@
+This compiles, but shouldn't:
+
+```Scala
+sealed trait Expr[+T]
+final case class FooExpr() extends Expr[1 | 2]
+
+object Test {
+  def foo[T](x: Expr[T]): T = x match {
+    case x: FooExpr =>
+      3
+  }
+
+  val x: 1 | 2 = foo(FooExpr())
+}
+```
+
+I think the problem is that when a union type is on the lhs, we can infer sufficient constraints regardless of whether we're in GadtConstraintInference mode or not, for example:
+https://github.com/lampepfl/dotty/blob/b5a171536a8ce4294c2107770f47cb97dfc148f5/compiler/src/dotty/tools/dotc/core/TypeComparer.scala#L450
+If I rewrite this to:
+```scala
+          isSubType(tp1.widenSingletons, tp2, approx.addLow)
+```
+Then the example above doesn't compile anymore:
+```scala
+-- [E007] Type Mismatch Error: try/gadtx.scala:7:6 -----------------------------
+7 |      3
+  |      ^
+  |  Found:    (3 : Int)
+  |  Required: T
+  |
+  |  where:    T is a type in method foo with bounds >: (1 : Int) | (2 : Int)
+```
+But I haven't checked what other consequences this would have or if there are other cases that would need to be changed like this too.
+
+/cc @odersky 

@@ -1,0 +1,59 @@
+ The following program crashes javac. The classpath is incomplete, but the missing classes two.C and two.C$D are referenced from the class file for one.A.
+
+I reproduced with 9-ea+161, and it also affects recent JDK 8 releases.
+
+=== ./one/A.java
+package one;
+public class A {
+  public A(two.C.D x) {}
+}
+=== ./T.java
+import one.A;
+class T {
+  {
+    System.err.println(two.C.D.g());
+  }
+}
+=== ./two/C.java
+package two;
+public class C {
+  public static class D {
+    public static int g() {
+      return 1;
+    }
+  }
+}
+===
+
+$ javac T.java
+$ rm two/*.class
+$ javac T.java -sourcepath :
+An exception has occurred in the compiler (9-ea). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.NullPointerException
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitApply(Flow.java:1233)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1628)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:393)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.visitExec(TreeScanner.java:213)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1446)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:393)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitBlock(Flow.java:995)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:1014)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:393)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitClassDef(Flow.java:897)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:774)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:393)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.analyzeTree(Flow.java:1325)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.analyzeTree(Flow.java:1315)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow.analyzeTree(Flow.java:213)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1410)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1384)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:980)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:302)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:162)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:55)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:41)

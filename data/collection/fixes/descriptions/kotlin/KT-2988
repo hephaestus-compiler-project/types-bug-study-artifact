@@ -1,0 +1,30 @@
+this code now fails for me in the kool.io project (you can clone it here https://github.com/koolio/kool)
+{code}
+package somthing
+
+import java.util.ArrayList
+
+public class Cheese<T>(val collection: List<T>) {
+    private val listeners = ArrayList<T>()
+
+    public fun doSomething(): Int {
+        var count = 0
+        for (listener in listeners) {
+            count += 1
+        }
+        return count
+    }
+}
+{code}
+The 'listener' expression in the for loop is highlighted in IDEA too with the same error as you get with the maven build:
+{code}
+ERROR: /workspace/java/kool/kool-stream/src/main/kotlin/io/kool/collection/Cheese.kt: (10, 26) None of the hasNext() functions is applicable for iterator() of type 'jet.MutableIterator<T>?'
+ERROR: /workspace/java/kool/kool-stream/src/main/kotlin/io/kool/collection/Cheese.kt: (10, 26) None of the next() functions is applicable for iterator() of type 'jet.MutableIterator<T>?'
+{code}
+to fix this code if you add an explicit type of MutableList<T> to the val...
+{code}
+    private val listeners: MutableList<T> = ArrayList<T>()
+{code}
+it then compiles again. What is very strange though is, I can't get this same code to fail to compile in the kotlin project itself - have tried everything I can think of to make it fail. So something really odd is going on for this bug! :) 
+
+Any ideas? Fails on the project using 0.1-SNAPSHOT or 0.4.68. No idea why I can't get the code to fail inside the kotlin project though!

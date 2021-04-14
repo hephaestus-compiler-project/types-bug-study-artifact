@@ -1,0 +1,109 @@
+scalac can compile but dotc crashes.
+
+$ cat abc.scala
+```
+import scala.reflect.runtime.universe._
+import scala.reflect.runtime.{currentMirror => cm}
+object Test extends App {
+  val mutant = new { val x = 2 }
+  val c = cm.classSymbol(mutant.getClass)
+  !=(c)
+  println(c.fullName)
+  c.info.toString.lines
+    .filter(_ != "  private var bitmap$init$0: Boolean") foreach println
+}
+```
+
+
+$ dotc abc.scala
+```
+exception while transforming Test.!=(Test.c) of class class dotty.tools.dotc.ast.Trees$Apply # 285
+exception while transforming () extends Object() with App {
+  val mutant: Object =
+    {
+      final class $anon() extends Object() {
+        val x: Int = 2
+      }
+      new Object{...}(): Object
+    }
+  val c: scala.reflect.runtime.package.universe.ClassSymbol =
+    scala.reflect.runtime.currentMirror.classSymbol(Test.mutant.getClass())
+  Test.!=(Test.c)
+  println(Test.c.fullName)
+  augmentString(Test.c.info.toString()).lines.filter(
+    {
+      def $anonfun(_$1: String): Boolean = _$1.!=("  private var bitmap$init$0: Boolean")
+      closure($anonfun)
+    }
+  ).foreach[Unit^](
+    {
+      def $anonfun(x: Any): Unit^ = println(x)
+      closure($anonfun)
+    }
+  )
+} of class class dotty.tools.dotc.ast.Trees$Template # 306
+exception while transforming @scala.annotation.internal.SourceFile("abc.scala") final module class Test$() extends Object() with App {
+  val mutant: Object =
+    {
+      final class $anon() extends Object() {
+        val x: Int = 2
+      }
+      new Object{...}(): Object
+    }
+  val c: scala.reflect.runtime.package.universe.ClassSymbol =
+    scala.reflect.runtime.currentMirror.classSymbol(Test.mutant.getClass())
+  Test.!=(Test.c)
+  println(Test.c.fullName)
+  augmentString(Test.c.info.toString()).lines.filter(
+    {
+      def $anonfun(_$1: String): Boolean = _$1.!=("  private var bitmap$init$0: Boolean")
+      closure($anonfun)
+    }
+  ).foreach[Unit^](
+    {
+      def $anonfun(x: Any): Unit^ = println(x)
+      closure($anonfun)
+    }
+  )
+} of class class dotty.tools.dotc.ast.Trees$TypeDef # 307
+exception while transforming package <empty> {
+  final lazy module val Test: Test$ = new Test$()
+  @scala.annotation.internal.SourceFile("abc.scala") final module class Test$() extends Object() with App {
+    val mutant: Object =
+      {
+        final class $anon() extends Object() {
+          val x: Int = 2
+        }
+        new Object{...}(): Object
+      }
+    val c: scala.reflect.runtime.package.universe.ClassSymbol =
+      scala.reflect.runtime.currentMirror.classSymbol(Test.mutant.getClass())
+    Test.!=(Test.c)
+    println(Test.c.fullName)
+    augmentString(Test.c.info.toString()).lines.filter(
+      {
+        def $anonfun(_$1: String): Boolean = _$1.!=("  private var bitmap$init$0: Boolean")
+        closure($anonfun)
+      }
+    ).foreach[Unit^](
+      {
+        def $anonfun(x: Any): Unit^ = println(x)
+        closure($anonfun)
+      }
+    )
+  }
+} of class class dotty.tools.dotc.ast.Trees$PackageDef # 308
+
+exception occurred while compiling abc.scala
+Exception in thread "main" scala.MatchError: Ident($bang$eq) (of class dotty.tools.dotc.ast.Trees$Ident)
+        at dotty.tools.dotc.transform.InterceptedMethods.qual$lzycompute$1(InterceptedMethods.scala:99)
+        at dotty.tools.dotc.transform.InterceptedMethods.qual$1(InterceptedMethods.scala:99)
+        at dotty.tools.dotc.transform.InterceptedMethods.transformApply(InterceptedMethods.scala:106)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.goApply(TreeTransform.scala:602)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformUnnamed(TreeTransform.scala:1005)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer$$anonfun$transform$2.apply(TreeTransform.scala:1179)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer$$anonfun$transform$2.apply(TreeTransform.scala:1171)
+        at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:132)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+<snipped>
+```

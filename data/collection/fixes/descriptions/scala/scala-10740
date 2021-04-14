@@ -1,0 +1,15 @@
+Compiles in dotty:
+```scala
+  def diff1[A](xs: Set[A], ys: Set[_ <: A]) = xs -- ys
+  def diff2[A](xs: Set[_ >: A], ys: Set[A]) = xs -- ys
+  def diff3[A](xs: Set[_ >: A], ys: Set[_ <: A]) = xs -- ys
+  val xs = Set(Option(42))
+  val ys = Set(Some(42))
+  diff1(xs, ys)
+  diff2(xs, ys) // type mismatch: A is inferred as Option[Int]
+  diff3(xs, ys)
+```
+Adapted from https://github.com/scala/bug/issues/5559#issuecomment-292403446
+
+Cause is similar to #10686 - when solving type variables the order of constraints matters.
+Variables being solved here come from `ExistentialType.withTypeVars`.

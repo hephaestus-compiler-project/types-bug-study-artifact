@@ -1,0 +1,22 @@
+This is currently failing a lot of jobs in JPRT. Here is what I have observed so far:
+
+On some JPRT Linux machines (typically newer ones installed by PDIT), we get the usable disk space in /scratch. JPRT is traditionally in installed in /opt/jprt. On these machines we create a symlink "/opt/jprt -> /scratch/opt/jprt" to handle this.
+
+When JPRT runs Jib, it redirects the local data dir to /opt/jprt/jib-data (which is then actually /scratch/opt/jprt/jib-data on these machines) so the paths jib gives to configure all start with /opt. One of these is:
+
+--with-import-modules=/opt/jprt/jib-data/install/java/re/javafx/9/promoted/all/159/bundles/linux-x86/javafx-exports.zip
+
+which is then used to construct a part of a very long --module-source-path for javac:
+
+--module-source-path "/scratch/opt/jprt/jprtadm/erik/s/build/linux-x86-debug/support/gensrc/*:/opt/jprt/jib-data/install/java/re/javafx/9/promoted/all/159/bundles/linux-x86/javafx-exports.zip/modules_src/*:...
+
+Note that the source path part that points to the installed module_src does not start with /scratch because we haven't eliminated symlinks for this in configure/make (which we do for some other paths, including the top dir of the forest). This causes javac to not be able to find module-info.java for jdk.packager.services on the module source path:
+
+/opt/jprt/jib-data/install/java/re/javafx/9/promoted/all/159/bundles/linux-x86/javafx-exports.zip/modules_src/jdk.packager.services/module-info.java:27: error: module not found on module source path
+module jdk.packager.services {
+^
+1 error
+
+If I rewrite the module source path argument, adding /scratch for the javafx element, the problem goes away.
+
+One possible solution for this would be to have configure rewrite these paths to eliminate symlinks. A better solution imo would be to fix javac to handle paths with symlinks in them.

@@ -1,0 +1,75 @@
+FULL PRODUCT VERSION :
+$ java -version
+java version  " 1.8.0-ea " 
+Java(TM) SE Runtime Environment (build 1.8.0-ea-b97)
+Java HotSpot(TM) 64-Bit Server VM (build 25.0-b39, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+OS X 10.8.4
+
+$ uname -a
+Darwin lahaina.local 12.4.0 Darwin Kernel Version 12.4.0: Wed May  1 17:57:12 PDT 2013; root:xnu-2050.24.15~1/RELEASE_X86_64 x86_64
+
+
+A DESCRIPTION OF THE PROBLEM :
+There is a problem with line number debug information with class files compiled with 1.8.0-ea-b97. The compiler misses to include certain lines in some source file. I provided a simple reproducer below.
+
+Background information: I'm the author of the JaCoCo code coverage tool. Currently I'm working on a Java 8 version of JaCoCo. This tool relies on line number debug information within class files to provide code coverage highlighting. We have a regression test suite which uncovered the defect reported here.
+
+REGRESSION.  Last worked in version 7u25
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile the source file provided with the latest JDK8 build (1.8.0-ea-b97).
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+The compiled class files has a LineNumberTable entry for the method invocation b() in line 10.
+ACTUAL -
+There is no separate LineNumberTable entry for the invocation of b(). So b() appears to be invoked in line 8 instead of 10. See javap output below:
+
+  static void m(boolean);
+    descriptor: (Z)V
+    flags: ACC_STATIC
+    Code:
+      stack=1, locals=1, args_size=1
+         0: iload_0
+         1: ifeq          10
+         4: invokestatic  #2                  // Method a:()V
+         7: goto          13
+        10: invokestatic  #3                  // Method b:()V
+        13: return
+      LineNumberTable:
+        line 7: 0
+        line 8: 4
+        line 12: 13
+      StackMapTable: number_of_entries = 2
+           frame_type = 10 /* same */
+           frame_type = 2 /* same */
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+/**
+ * Reproducer for Java 8 compiler issue where wrong line numbers are reported..
+ */
+public class Target01 {
+
+static void m(boolean flag) {
+if (flag) {
+a();
+} else {
+b(); // Wrong line number for this invocation (8 instead of 10)
+}
+}
+
+static void a() {
+}
+
+static void b() {
+}
+
+}
+
+---------- END SOURCE ----------

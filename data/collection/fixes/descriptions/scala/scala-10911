@@ -1,0 +1,84 @@
+Using this type of code
+```
+object OfFor {top =>
+	trait Something
+	trait Tag[X]
+	trait Template[T] {
+		type Repr
+		trait Tag extends top.Tag[Repr]
+	}
+	type OfFor[T, _Repr] = Template[T] {
+		type Repr = _Repr
+	}
+
+	implicit def something[T : Tag]: Something = ???
+	implicit def hkTag[T, Repr[X]]: OfFor[T, Repr[T]]#Tag = ???
+	implicitly[Something]
+}
+```
+I get a stack overflow with the compiler:
+```
+Error:scalac: Error: org.jetbrains.jps.incremental.scala.remote.ServerException
+java.lang.StackOverflowError
+	at scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:764)
+	at scala.reflect.internal.tpe.TypeMaps$SubstSymMap.apply(TypeMaps.scala:825)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:102)
+	at scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:764)
+	at scala.reflect.internal.tpe.TypeMaps$SubstSymMap.apply(TypeMaps.scala:825)
+	at scala.reflect.internal.tpe.TypeMaps$SubstSymMap.apply(TypeMaps.scala:798)
+	at scala.collection.immutable.List.loop$1(List.scala:176)
+	at scala.collection.immutable.List.mapConserve(List.scala:200)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOverArgs(TypeMaps.scala:206)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:173)
+	at scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:764)
+	at scala.reflect.internal.tpe.TypeMaps$SubstSymMap.apply(TypeMaps.scala:825)
+	at scala.reflect.internal.Types$Type.substSym(Types.scala:745)
+	at scala.reflect.internal.Symbols$Symbol.$anonfun$substInfo$1(Symbols.scala:1565)
+	at scala.reflect.internal.Symbols$Symbol.modifyInfo(Symbols.scala:1558)
+	at scala.reflect.internal.Symbols$Symbol.substInfo(Symbols.scala:1565)
+	at scala.reflect.internal.Symbols.$anonfun$deriveSymbols$1(Symbols.scala:3589)
+	at scala.reflect.internal.util.Collections.mapList(Collections.scala:52)
+	at scala.reflect.internal.util.Collections.mapList$(Collections.scala:51)
+	at scala.reflect.internal.SymbolTable.mapList(SymbolTable.scala:16)
+	at scala.reflect.internal.Symbols.deriveSymbols(Symbols.scala:3589)
+	at scala.reflect.internal.Symbols.deriveSymbols$(Symbols.scala:3587)
+	at scala.reflect.internal.SymbolTable.deriveSymbols(SymbolTable.scala:16)
+	at scala.reflect.internal.Symbols.cloneSymbols(Symbols.scala:3649)
+	at scala.reflect.internal.Symbols.cloneSymbols$(Symbols.scala:3648)
+	at scala.reflect.internal.SymbolTable.cloneSymbols(SymbolTable.scala:16)
+	at scala.reflect.internal.Symbols.cloneSymbolsAndModify(Symbols.scala:3667)
+	at scala.reflect.internal.Symbols.cloneSymbolsAndModify$(Symbols.scala:3659)
+	at scala.reflect.internal.SymbolTable.cloneSymbolsAndModify(SymbolTable.scala:16)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:242)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:232)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:155)
+	at scala.reflect.internal.Types$$anon$6.apply(Types.scala:1491)
+	at scala.reflect.internal.Types$$anon$6.apply(Types.scala:1488)
+	at scala.collection.immutable.List.map(List.scala:283)
+	at scala.reflect.internal.Types.defineBaseTypeSeqOfCompoundType(Types.scala:1500)
+	at scala.reflect.internal.Types.defineBaseTypeSeqOfCompoundType$(Types.scala:1471)
+	at scala.reflect.internal.SymbolTable.defineBaseTypeSeqOfCompoundType(SymbolTable.scala:16)
+	at scala.reflect.internal.Types$CompoundType.baseTypeSeq(Types.scala:1379)
+	at scala.reflect.internal.Types.defineBaseTypeSeqOfCompoundType(Types.scala:1500)
+	at scala.reflect.internal.Types.defineBaseTypeSeqOfCompoundType$(Types.scala:1471)
+	at scala.reflect.internal.SymbolTable.defineBaseTypeSeqOfCompoundType(SymbolTable.scala:16)
+	at scala.reflect.internal.Types$CompoundType.baseTypeSeq(Types.scala:1379)
+	at scala.reflect.internal.Types.defineBaseTypeSeqOfCompoundType(Types.scala:1500)
+	at scala.reflect.internal.Types.defineBaseTypeSeqOfCompoundType$(Types.scala:1471)
+	at scala.reflect.internal.SymbolTable.defineBaseTypeSeqOfCompoundType(SymbolTable.scala:16)
+	at scala.reflect.internal.Types$CompoundType.baseTypeSeq(Types.scala:1379)
+	at scala.reflect.internal.Types.defineBaseTypeSeqOfCompoundType(Types.scala:1500)
+	at scala.reflect.internal.Types.defineBaseTypeSeqOfCompoundType$(Types.scala:1471)
+	at scala.reflect.internal.SymbolTable.defineBaseTypeSeqOfCompoundType(SymbolTable.scala:16)
+	at scala.reflect.internal.Types$CompoundType.baseTypeSeq(Types.scala:1379)
+	at scala.reflect.internal.Types.defineBaseTypeSeqOfCompoundType(Types.scala:1500)
+	at scala.reflect.internal.Types.defineBaseTypeSeqOfCompoundType$(Types.scala:1471)
+	at scala.reflect.internal.SymbolTable.defineBaseTypeSeqOfCompoundType(SymbolTable.scala:16)
+	at scala.reflect.internal.Types$CompoundType.baseTypeSeq(Types.scala:1379)
+	at scala.reflect.internal.Types.defineBaseTypeSeqOfCompoundType(Types.scala:1500)
+	at scala.reflect.internal.Types.defineBaseTypeSeqOfCompoundType$(Types.scala:1471)
+	at scala.reflect.internal.SymbolTable.defineBaseTypeSeqOfCompoundType(SymbolTable.scala:16)
+...
+```
+
+using Scala 2.12.6 with Java 1.8.0_171 x64 (using intelliJ, but that basically crashes the same using sbt).

@@ -1,0 +1,51 @@
+
+The following kotlin code compiles without any errors and was expecting to work fine. I removed the explicit type definiftion for properties getter as it's supported in kotlin 1.1 (Shorter syntax for properties). 
+
+{code:lang=kotlin|title=Code}
+val Byte.hex get() = Integer.toHexString(toInt() and 0xFF or 0x100).substring(1, 3).toUpperCase()
+val ByteArray.hex get() = map(Byte::hex).joinToString(" ")
+val String.hex get() = toByteArray(Charsets.UTF_8).hex
+
+
+fun main(args: Array<String>) {
+    println("hello".hex)
+}{code}
+
+But it throws `Recursive dependency] (DeferredType)` error at runtime.
+
+{code}
+}Error:Kotlin: [Internal Error] org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: Failed to generate property hex
+Cause: Error type encountered: [ERROR : Recursive dependency] (DeferredType).
+File being compiled and position: (8,1) in /.../test.kt
+PsiElement: val String.hex get() = toByteArray(Charsets.UTF_8).hex
+The root cause was thrown at: KotlinTypeMapper.java:147
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genSimpleMember(MemberCodegen.java:213)
+	at org.jetbrains.kotlin.codegen.PackagePartCodegen.generateBody(PackagePartCodegen.java:98)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:127)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateFile(PackageCodegenImpl.java:133)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generate(PackageCodegenImpl.java:66)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.generatePackage(KotlinCodegenFacade.java:99)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.doGenerateFiles(KotlinCodegenFacade.java:77)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.compileCorrectFiles(KotlinCodegenFacade.java:44)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.kt:417)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules(KotlinToJVMBytecodeCompiler.kt:151)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:170)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:55)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:191)
+....
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+Caused by: java.lang.IllegalStateException: Error type encountered: [ERROR : Recursive dependency] (DeferredType).
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$1.processErrorType(KotlinTypeMapper.java:147)
+	at org.jetbrains.kotlin.load.kotlin.TypeSignatureMappingKt.mapType(typeSignatureMapping.kt:113)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.mapType(KotlinTypeMapper.java:466)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.mapReturnType(KotlinTypeMapper.java:417)
+
+	... 49 more
+{code}
+
+{code}
+IntelliJ IDEA 2017.1 EAP
+JRE: 1.8.0_112-release-736-b10 x86_64
+Kotlin : 1.1.1
+{code}

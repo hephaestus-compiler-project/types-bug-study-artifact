@@ -1,0 +1,76 @@
+FULL PRODUCT VERSION :
+java version "1.9.0-ea"
+Java(TM) SE Runtime Environment (build 1.9.0-ea-b76)
+Java HotSpot(TM) 64-Bit Server VM (build 1.9.0-ea-b76, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux x86_64 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+The fix for JDK-7101822 (Compiling depends on order of imports) [1][2] introduced a bug that makes compilation depend on the order of source files. Compiling the included test program succeeds or fails depend on the order of sources passed to javac.
+
+[1] http://hg.openjdk.java.net/jdk9/dev/langtools/rev/9d2192f36e53
+[2] https://bugs.openjdk.java.net/browse/JDK-7101822
+
+REGRESSION.  Last worked in version 8u51
+
+ADDITIONAL REGRESSION INFORMATION: 
+java version "1.8.0_51"
+Java(TM) SE Runtime Environment (build 1.8.0_51-b16)
+Java HotSpot(TM) 64-Bit Server VM (build 25.51-b03, mixed mode)
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+$ javac pkg/A.java pkg/B.java pkg/C.java
+# succeeds
+
+$ javac pkg/C.java pkg/A.java pkg/B.java
+pkg/C.java:5: error: cannot find symbol
+public class C implements B.One {
+                           ^
+  symbol:   class One
+  location: class B
+1 error
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+I expected the compilation result to not depend on the order of source files passed to javac.
+ACTUAL -
+The compilation result depended on the order of source files passed to javac.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+pkg/C.java:5: error: cannot find symbol
+public class C implements B.One {
+                           ^
+  symbol:   class One
+  location: class B
+1 error
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+=== pkg/A.java ===
+package pkg;
+
+public class A {
+  public interface One {}
+}
+=== pkg/B.java ===
+package pkg;
+
+import pkg.A;
+
+public class B extends A {
+  public static interface Two {
+  }
+}
+=== pkg/C.java ===
+package pkg;
+
+import pkg.B.Two;
+
+public class C implements B.One {
+}
+===
+---------- END SOURCE ----------
+

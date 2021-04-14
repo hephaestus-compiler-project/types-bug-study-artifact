@@ -1,0 +1,56 @@
+Code to reproduce it https://gist.github.com/rcano/14c1b3af9bec4b9dadbc7ba2fd097fd3
+(Note, requires javafx which comes bundled with Oracle's JDK or you can install with to openjdk)
+
+The error looks like this:
+
+```
+error when pickling type T
+error when pickling type javafx.scene.control.ComboBox[T]
+error when pickling tree javafx.scene.control.ComboBox[T]
+error when pickling tree val cb: javafx.scene.control.ComboBox[T] = 
+  Dsl.BorderPaneBuilder(this).right[javafx.scene.control.ComboBox[T]](
+    Dsl.combobox[T](Test.this.planets: Planet*)
+  )
+error when pickling tree (planets: scala.collection.Seq[Planet] @scala.annotation.internal.Repeated())
+   extends
+ javafx.scene.layout.BorderPane() { $: Test => 
+  private[this] val planets: scala.collection.Seq[Planet] @Repeated
+  val cb: javafx.scene.control.ComboBox[T] = 
+    Dsl.BorderPaneBuilder(this).right[javafx.scene.control.ComboBox[T]](
+      Dsl.combobox[T](Test.this.planets: Planet*)
+    )
+  Test.this.cb.getSelectionModel().selectLast()
+}
+error when pickling tree @scala.annotation.internal.SourceFile(
+  "/home/randa/Development/testdotty/src/main/scala/Main.scala"
+) class Test(
+  planets: scala.collection.Seq[Planet] @scala.annotation.internal.Repeated()
+) extends javafx.scene.layout.BorderPane() { $: Test => 
+  private[this] val planets: scala.collection.Seq[Planet] @Repeated
+  val cb: javafx.scene.control.ComboBox[T] = 
+    Dsl.BorderPaneBuilder(this).right[javafx.scene.control.ComboBox[T]](
+      Dsl.combobox[T](Test.this.planets: Planet*)
+    )
+  this.cb.getSelectionModel().selectLast()
+}
+error when pickling tree package <empty> {
+  import javafx.scene.Node
+  import javafx.scene.control._
+  import javafx.scene.layout._
+  import Dsl._
+  @scala.annotation.internal.SourceFile(
+    "/home/randa/Development/testdotty/src/main/scala/Main.scala"
+  ) class Test(
+    planets: scala.collection.Seq[Planet] @scala.annotation.internal.Repeated()
+  ) extends javafx.scene.layout.BorderPane() { $: Test => 
+    private[this] val planets: scala.collection.Seq[Planet] @Repeated
+    val cb: javafx.scene.control.ComboBox[T] = 
+      Dsl.BorderPaneBuilder(this).right[javafx.scene.control.ComboBox[T]](
+        Dsl.combobox[T](Test.this.planets: Planet*)
+      )
+    this.cb.getSelectionModel().selectLast()
+  }
+}
+```
+
+The orphan type T gets leaked even to the "presentation compiler" exposed through the language server.

@@ -1,0 +1,37 @@
+The following code produces a runtime error due to incorrect flow typing inference:
+
+{code}
+import groovy.transform.*
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target([ElementType.FIELD])
+@interface Ann1 {}
+@Retention(RetentionPolicy.RUNTIME)
+@Target([ElementType.FIELD])
+@interface Ann2 {}
+
+            class A {
+                @Ann2
+                String field
+            }
+            
+            @CompileStatic
+            def doit(obj, String propName) {
+                def field = obj.getClass().getDeclaredField propName
+                println field
+                if(field) {
+                    def annotation = field.getAnnotation Ann1
+                    if(true) {
+                        annotation = field.getAnnotation Ann2
+                    }
+                    return annotation
+                }
+                return null
+            }
+            
+            println doit(new A(), "field")
+{code}

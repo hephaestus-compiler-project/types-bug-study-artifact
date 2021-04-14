@@ -1,0 +1,39 @@
+There seems to be a bug with named arguments and the typer. The following crashes the REPL and produces a compilation error:
+
+```scala
+object Foo {
+  import synth._
+  import ugen._
+
+  SynthGraph {
+    val a   = FreeVerb.ar(1, mix = 0, room = 40, damp = 0)
+    val b   = a ring3 -1
+    val c   = Klang.ar(specs = a, freqScale = 37, freqOffset = b)
+    val d   = Constant(0).max(c)
+    val e   = Ball.ar(DC.ar(0), g = 46, damp = 1, friction = 0)
+    val mix = Mix(Seq(e, d))
+  }
+}
+```
+
+To build:
+
+```scala
+scalaVersion := "2.11.6"
+libraryDependencies += "de.sciss" % "scalacollider" % "1.17.2"
+```
+
+The compiler error is as follows:
+```scala
+Error:(15, 9) recursive value a needs type
+    val x   = Klang.ar(specs = a, freqScale = 37, freqOffset = b)
+        ^
+Warning:(13, 34) failed to determine if 'mix = ...' is a named argument or an assignment expression.
+an explicit type is required for the definition mentioned in the error message above.
+    val a   = FreeVerb.ar(1, mix = 0, room = 40, damp = 0)
+                                 ^
+```
+
+The REPL crashes as attached.
+
+If I rename `val mix =` into `val foo =`, the crash disappears. Also if the type is annotated `val mix: GE =`. The explanation being that `mix` is an argument name of the first method call `FreeVerb.ar`.

@@ -1,0 +1,45 @@
+```scala
+trait TreesBase {
+  type Tree
+
+  type Apply <: Tree
+
+  val Apply: ApplyExtractor
+
+  abstract class ApplyExtractor {
+    def apply(x: Int): Apply
+    def unapply(apply: Apply): Option[Int]
+  }
+}
+
+trait TreesApi extends TreesBase {
+  def Apply(x: String)
+}
+
+class Universe extends TreesApi {
+  abstract class Tree
+  case class Apply(x: Int) extends Tree
+  object Apply extends ApplyExtractor
+  def Apply(x: String) = Apply(x.toInt)
+}
+
+object Test extends App {
+  def foo(tapi: TreesApi) {
+    import tapi._
+    def bar(tree: Tree) {
+      val Apply(x) = tree
+    }
+  }
+}
+```
+
+```scala
+C:\Projects\Kepler\sandbox @ topic/reflectionstarr>myke compile Test.scala
+Test.scala:29: error: value Apply of type (x: String)Unit <and> => tapi.ApplyExtractor cannot be applied to (Any)
+      val Apply(x) = tree
+          ^
+Test.scala:29: error: Could not typecheck extractor call: case class Apply with arguments List((x @ _))
+      val Apply(x) = tree
+               ^
+two errors found
+```

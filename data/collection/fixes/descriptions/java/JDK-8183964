@@ -1,0 +1,42 @@
+Colleague Tobias Thierer reports:
+
+---
+
+There seems to be a behavior change / bug in the javadoc tool in OpenJDK 9 relative to OpenJDK 8 when the backslash character \ occurs in javadoc.
+
+For example, in java.io.File, the javadoc:
+
+ *      directory, or <code>"\\\\"</code>&nbsp;for a Microsoft Windows UNC pathname, and
+
+becomes [Java 8 docs]:
+https://docs.oracle.com/javase/8/docs/api/java/io/File.html
+
+   directory, or "\\\\" for a Microsoft Windows UNC pathname, and
+
+vs. [Java 9 docs]:
+http://download.java.net/java/jdk9/docs/api/java/io/File.html
+
+   directory, or "\\\" for a Microsoft Windows UNC pathname, and
+
+(with an obvious and unintended change in meaning)
+
+----
+
+Where the \ appears at the end of the line, then the following line's '*' gets erroneously included in the .html. For example, in java.util.Properties, the javadoc:
+
+     * fruits                           apple, banana, pear, \
+     *                                  cantaloupe, watermelon, \
+     *                                  kiwi, mango
+
+becomes [Java 8 docs]
+https://docs.oracle.com/javase/8/docs/api/java/util/Properties.html
+
+ fruits                           apple, banana, pear, \
+                                  cantaloupe, watermelon, \
+                                  kiwi, mango
+vs. [Java 9 docs]:
+http://download.java.net/java/jdk9/docs/api/java/util/Properties.html
+
+ fruits                           apple, banana, pear, \
+     *                                  cantaloupe, watermelon, \
+     *                                  kiwi, mango

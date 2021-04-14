@@ -1,0 +1,76 @@
+The Java Virtual Machine Specification gives the following definition
+for FP-strict methods:
+
+--- excerpt-from-JVMS ---
+2.8.2 Floating-Point Modes
+Every method has a floating-point mode, which is either FP-strict or not
+FP-strict. The floating-point mode of a method is determined by the
+setting of the ACC_STRICT flag of the access_flags item of the
+method_info structure (§4.6) defining the method. A method for which
+this flag is set is FP-strict; otherwise,the method is not FP-strict.
+--- end-of-excerpt-from-JVMS ---
+
+Also there are a number of related assertions in Java Language
+Specification:
+
+--- excerpt-from-JLS ---
+8.1.1.3 strictfp Classes
+The effect of the strictfp modifier is to make all float or double
+expressions within the class declaration (including within instance
+variable initializers, instance initializers, static initializers, and
+constructors) be explicitly FP-strict (§15.4). This implies that all
+methods declared in the class, and all nested types declared in the
+class, are *implicitly* strictfp.
+...
+
+9.1.1.2 strictfp Interfaces
+The effect of the strictfp modifier is to make all float or double
+expressions within the interface declaration be explicitly FP-strict
+(§15.4). This implies that all nested types declared in the interface
+are *implicitly* strictfp.
+...
+
+15.4 FP-strict Expressions
+...
+If a class, interface, or method, X, is declared strictfp, then X and
+any class, interface, method, constructor, instance initializer, static
+initializer or variable initializer within X is said to be FP-strict.
+Note that an annotation (§9.7) element value (§9.6) is always FP-strict,
+because it is always a compile-time constant (§15.28).
+It follows that an expression is not FP-strict if and only if it is not
+a compiletime constant expression and it does not appear within any
+declaration that has the strictfp modifier.
+...
+--- end-of-excerpt-from-JLS ---
+
+Please notice that if outer class is (JLS) FP-strict then Oracle's javac
+sets ACC_STRICT bit for any appropriate (outer/inner) method,
+constructor, instance initializer, but does not set it for <clinit>.
+
+$ cat A.java
+strictfp class A {
+    static {}
+    A(){}
+    void m(){}
+
+    class B {
+        B(){}
+        void m(){}
+    }
+}
+
+$ javac A.java
+
+$ javap -private A.class
+class A {
+  strictfp A();
+  strictfp void m();
+  static {};
+}
+
+$ javap -private A\$B.class
+class A$B {
+  final A this$0;
+  strictfp A$B(A);
+  strictfp void m();
+}

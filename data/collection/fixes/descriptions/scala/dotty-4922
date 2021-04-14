@@ -1,0 +1,27 @@
+```scala
+class SQ {
+  val isEmpty = false
+  val get = Array(1)
+}
+object A {
+  def unapplySeq(a: Int): SQ = new SQ
+}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val seq: Seq[Int] = 2 match {
+      case A(xs: _*) => xs
+    }
+  }
+}
+```
+
+```
+➜  sandbox git:(typo) dotc Test.scala
+undefined: x3.<none> # 814: TermRef(TermRef(NoPrefix,val x3),<none>) at pruneErasedDefs
+one error found
+```
+
+https://github.com/lampepfl/dotty/blob/652092b07c4058201909effc4a8ffde469e37a75/compiler/src/dotty/tools/dotc/typer/Applications.scala#L105
+
+`.elemType` works for Seqs but also arrays. there's no check that the getTp is a Seq.

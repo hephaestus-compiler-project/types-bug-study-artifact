@@ -1,0 +1,23 @@
+In addition to the correctness failure, the error message is inadequate. It is written as if "protected" is the only thing which matters, but the "qualified" part is equally important. It should continue "and neither it is a member of package nest".
+```scala
+// S.scala
+package s {
+  class J { protected[s] def m() = 5 }
+  package nest {
+    // narrows access to protected[nest], shutting out package s
+    class S1 extends J { override protected[nest] def m() = 10 }
+  }
+  object Runner {
+    def f1(x: J): Int       = x.m() // ok
+    def f2(x: nest.S1): Int = x.m() // fails
+    def f3(x: nest.S1): Int = f1(x) // ok
+  }
+  // ./a.scala:10: error: method m in class S1 cannot be accessed in s.nest.S1
+  //  Access to protected method m not permitted because
+  //  enclosing object Runner in package s is not a subclass of
+  //  class S1 in package nest where target is defined
+  //     def f2(x: nest.S1): Int = x.m() // fails
+  //                                 ^
+  // one error found
+}
+```

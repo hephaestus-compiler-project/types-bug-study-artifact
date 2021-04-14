@@ -1,0 +1,24 @@
+I am upgrading the community build to use the bootstrapped Dotty version and I'm hitting on an ambiguous reference error in the squants project, see https://travis-ci.org/dotty-staging/squants/builds/230324795#L561
+
+```scala
+-- [E048] Reference Error: /Users/ollie/dev/squants/shared/src/main/scala/squants/energy/Power.scala:29:24
+29 |    with TimeDerivative[Energy]
+   |                        ^^^^^^
+   |                        reference to `Energy` is ambiguous
+   |                        it is both imported by import squants._
+   |                        and defined subsequently in module class energ
+```
+
+I had similar errors when upgrading scalatest to use the bootstrapped dotty version. Changing `import squants._` to `import squants.{Energy => _, _}` does fix the error. However, `squants.Energy` is a type alias to `squants.energy.Energy` so I think the ambiguous reference error should not be reported. The original code compiles with dotty 20170412 as well as scalac 2.x. 
+
+I tried to find a minimal repro in https://github.com/dotty-staging/squants/pull/4/commits/d459a3b8842cdff844ff3a5ed63af45ce2c29592 but with no luck. There must be something I'm missing, help would be very much appreciated. To reproduce 
+
+```
+git clone https://github.com/olafurpg/squants.git
+cd squants
+git checkout d459a3b8842cdff844ff3a5ed63af45ce2c29592
+sbt squantsJVM/compile
+```
+
+My efforts to minimize the example are in the `shared/src/main/scala/foo/` directory.
+

@@ -1,0 +1,47 @@
+Compile the following program with -Xprint:typer -Ycheck:typer. 
+
+```scala
+class C {
+  def f(v: => Int, b: Boolean = true) = 0
+}
+
+object t {
+  (new C).f(1)
+}
+```
+
+You'll get an error at the check phase.
+```
+
+[...]
+
+    {
+      val qual$1: C = new C();
+      val x$1: () => Int(1) = (() => 1);
+      val x$2: Boolean = qual$1.f$default$2;
+      qual$1.f(1, x$2)
+    }
+  }
+}
+
+[Now checking: typer]
+test.scala:6: error: 
+**** ERROR DURING INTERNAL CHECKING ****
+type mismatch;
+ found   : () => Int
+ required: () => Int(1)
+  (new C).f(1)
+            ^
+one error found
+new-host:sandbox luc$ 
+```
+
+The problem is that there is a closure generated 
+```scala
+      val x$1: () => Int(1) = (() => 1);
+```
+which is not typable (because of the constant type in the result type). The closure is also useless, it will never be called. If you write a closure such as 
+```scala
+()=> 34
+```
+the problem does not arise; the return type is Int, instead of Int(34).

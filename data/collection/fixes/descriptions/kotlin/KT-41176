@@ -1,0 +1,44 @@
+```
+// implementation group: 'com.google.code.gson', name: 'gson', version: '2.7'
+import com.google.gson.Gson
+import com.google.gson.JsonSyntaxException
+import com.google.gson.reflect.TypeToken
+import java.lang.reflect.Type
+import java.util.*
+
+fun main() {
+    Foo().foo()
+}
+
+class Foo {
+    fun foo() {
+        val emptyResult = toListOfStrings(emptyArrayJson)
+        emptyResult?.size
+    }
+
+    companion object {
+        const val emptyArrayJson = "[]"
+
+        @JvmStatic
+        val listOfStringType: Type = object : TypeToken<ArrayList<String>>() {}.type
+
+        @JvmStatic
+        fun toListOfStrings(json: String?): List<String>? {
+            return json?.let {
+                try {
+                    Gson().fromJson(it, listOfStringType)
+                } catch (e: JsonSyntaxException) {
+                    null
+                }
+            }
+        }
+    }
+}
+```
+```
+Exception in thread "main" java.lang.ClassCastException: java.util.ArrayList cannot be cast to java.lang.Void
+	at Foo$Companion.toListOfStrings(main.kt:28)
+	at Foo.foo(main.kt:14)
+	at MainKt.main(main.kt:9)
+	at MainKt.main(main.kt)
+```

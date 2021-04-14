@@ -1,0 +1,16 @@
+Hi, the new static analysis warning IMPLICIT_NOTHING_AS_TYPE_PARAMETER incorrectly warns on calls to helper functions that *only* throw exceptions (i.e. helper functions with inferred return type `Nothing`).
+
+Repro:
+```
+val fail = { throw RuntimeException("foo") } // inferred type: () -> Nothing
+val s: String? = null
+val test = s ?: fail() // will have new warning on this line: "One of the type variables was implicitly inferred to Nothing. Please, specify type arguments explicitly to hide this warning"
+```
+
+This pattern is used in the existing kotlin docs: https://kotlinlang.org/docs/reference/exceptions.html#checked-exceptions
+
+The warning appeared on our existing code that was following this pattern (helper functions that only throw an exception, some that take no args, some that take additional exception details, etc).
+
+My guess is that the static analysis treats the `Nothing` returned by a `throw` expression specially, but it only does static analysis 1 level deep (to avoid having to solve the halting problem / constrain static analysis time) - i.e. as soon as the `throw` is inside a helper function / lambda, the static analysis just knows that the function returns `Nothing` and can't apply the special `throw` expression logic.
+
+Is the warning correct? Could either the static analysis or the docs be updated?

@@ -1,0 +1,26 @@
+The improved overload resolution for pattern-matching function literals in 2.13.0-M2 fails for certain types. Consider:
+
+```scala
+class IM[T] {
+  def map[B, U](f: ((Int, T)) => (B, U)): Int = 1
+  def map[U](f: ((Int, T)) => (Int, U)): String = "a"
+}
+
+abstract class BTypes { trait Foo }
+
+class C[BT <: BTypes](val bt: BT) {
+  import bt.Foo
+  new IM[String].map { case (i, x) => (i+1, x) }
+  new IM[Foo].map { case (i, x) => (i+1, x) }
+}
+```
+
+This compiles for `IM[String]` but the `IM[Foo]` case fails with:
+
+```
+[error] IntMapTest.scala:15: missing parameter type for expanded function
+[error] The argument types of an anonymous function must be fully known. (SLS 8.5)
+[error] Expected type was: ((Int, ?#Foo)) => ?
+[error]   new IM[Foo].map { case (i, x) => (i+1, x) }
+[error]                   ^
+```

@@ -1,0 +1,38 @@
+The JVM crashes at runtime when loading `example.BadTest.Bad` because the `given Foo[A]` is encoded as a final field on an interface that has no value, whereas with implicit evidence, or an explicit name it is encoded as a method.
+
+```scala
+package example
+
+type Box[A] = A
+
+trait Foo[A]
+
+implied [A] for Foo[A]
+
+object OkTest {
+  trait Ok[A: Foo] extends Foo[Box[A]] {}
+  implied [A] given Foo[A] for Ok[A]
+
+  def test: Unit = {
+    println(the[Ok[Box[Unit]]])
+  }
+}
+
+object OkTest2 {
+  trait Ok[A] given (f: Foo[A]) extends Foo[Box[A]] {}
+  implied [A] given Foo[A] for Ok[A]
+
+  def test: Unit = {
+    println(the[Ok[Box[Unit]]])
+  }
+}
+
+object BadTest {
+  trait Bad[A] given Foo[A] extends Foo[Box[A]] {}
+  implied [A] given Foo[A] for Bad[A]
+
+  def test: Unit = {
+    println(the[Bad[Box[Unit]]])
+  }
+}
+```

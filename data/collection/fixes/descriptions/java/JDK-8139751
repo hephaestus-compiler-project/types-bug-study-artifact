@@ -1,0 +1,60 @@
+Consider this code:
+---
+public class StringNotFoldingCrash {
+     private void test() {
+         ("a" + "b").length();
+     }
+}
+---
+
+Compile it with -XDallowStringFolding=false:
+$ javac -XDallowStringFolding=false StringNotFoldingCrash.java
+
+This leads to this crash:
+---
+An exception has occurred in the compiler (1.9.0-ea). Please file a bug at the Java Bug Database (http://bugreport.java.com/bugreport/) after checking the database for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.NullPointerException
+        at com.sun.tools.javac.comp.Attr$ResultInfo.attr(Attr.java:494)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:632)
+        at com.sun.tools.javac.comp.Attr.visitParens(Attr.java:3105)
+        at com.sun.tools.javac.tree.JCTree$JCParens.accept(JCTree.java:1811)
+        at com.sun.tools.javac.comp.Attr$ResultInfo.attr(Attr.java:494)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:632)
+        at com.sun.tools.javac.comp.Attr.visitSelect(Attr.java:3355)
+        at com.sun.tools.javac.tree.JCTree$JCFieldAccess.accept(JCTree.java:2069)
+        at com.sun.tools.javac.comp.Attr$ResultInfo.attr(Attr.java:494)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:632)
+        at com.sun.tools.javac.comp.Attr.visitApply(Attr.java:1880)
+        at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1598)
+        at com.sun.tools.javac.comp.Attr$ResultInfo.attr(Attr.java:494)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:632)
+        at com.sun.tools.javac.comp.Attr.attribExpr(Attr.java:678)
+        at com.sun.tools.javac.comp.Attr.visitExec(Attr.java:1647)
+        at com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1416)
+        at com.sun.tools.javac.comp.Attr$ResultInfo.attr(Attr.java:494)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:632)
+        at com.sun.tools.javac.comp.Attr.attribStat(Attr.java:701)
+        at com.sun.tools.javac.comp.Attr.attribStats(Attr.java:720)
+        at com.sun.tools.javac.comp.Attr.visitBlock(Attr.java:1173)
+        at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:984)
+        at com.sun.tools.javac.comp.Attr$ResultInfo.attr(Attr.java:494)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:632)
+        at com.sun.tools.javac.comp.Attr.attribStat(Attr.java:701)
+        at com.sun.tools.javac.comp.Attr.visitMethodDef(Attr.java:1064)
+        at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:836)
+        at com.sun.tools.javac.comp.Attr$ResultInfo.attr(Attr.java:494)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:632)
+        at com.sun.tools.javac.comp.Attr.attribStat(Attr.java:701)
+        at com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:4436)
+        at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4343)
+        at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4272)
+        at com.sun.tools.javac.comp.Attr.attrib(Attr.java:4247)
+        at com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1232)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:871)
+        at com.sun.tools.javac.main.Main.compile(Main.java:254)
+        at com.sun.tools.javac.main.Main.compile(Main.java:142)
+        at com.sun.tools.javac.Main.compile(Main.java:56)
+        at com.sun.tools.javac.Main.main(Main.java:42)
+---
+
+This is caused by JavacParser.foldStrings returning null when allowStringFolding == false

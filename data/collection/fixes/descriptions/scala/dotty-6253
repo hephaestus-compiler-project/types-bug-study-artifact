@@ -1,0 +1,40 @@
+```scala
+import scala.quoted._
+import scala.tasty.Reflection
+object Macros {
+  def impl(self: Expr[StringContext]) given Reflection: Expr[String] = self match {
+    case '{ StringContext() } => '{""}
+    case '{ StringContext($part1) } => part1
+    case '{ StringContext($part1, $part2) } => '{ $part1 + $part2 }
+    case '{ StringContext($parts: _*) } => '{ $parts.mkString }
+  }
+}
+```
+Crashes with
+
+```
+java.lang.Error: internal error: type of quoted pattern selector ? is not fully defined, pos = [344..350] while compiling tests/run-with-compiler/quote-matcher-string-interpolator/quoted_1.scala
+Exception in thread "main" java.lang.Error: internal error: type of quoted pattern selector ? is not fully defined, pos = [344..350]
+	at dotty.tools.dotc.typer.Inferencing$.fullyDefinedType(Inferencing.scala:43)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typedSplice$1(Typer.scala:1990)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:37)
+	at dotty.tools.dotc.typer.Typer.typedSplice(Typer.scala:1982)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:2111)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2125)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:2159)
+	at dotty.tools.dotc.reporting.TraceSyntax.apply(trace.scala:56)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2152)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2171)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2247)
+	at dotty.tools.dotc.typer.Typer.typedWildcardStarArgExpr$1(Typer.scala:583)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typedTyped$3(Typer.scala:597)
+	at dotty.tools.dotc.typer.Typer.cases$1(Typer.scala:566)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typedTyped$1(Typer.scala:595)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:37)
+	at dotty.tools.dotc.typer.Typer.typedTyped(Typer.scala:552)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:2075)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2125)
+	...
+```
+
+Note that in this particular case the type of `parts` should be `Expr[Seq[String]]`

@@ -1,0 +1,14 @@
+The kotlin type inference appears to be loosing the annotations on expected types when resolving function calls where the parameter is a complex block.  This is a recent regression, as this appears to have worked in Kotlin 1.4.21 but is broken in 1.4.30-RC.
+
+Example:
+```
+fun bar(p: @Composable ()->Unit) {}
+@Composable fun foo(){}
+bar(if(true) { { foo() } } else { { } })
+```
+
+When type resolution is performed in `FunctionTypingVisitor.visitLambdaExpression`, the `ExpressionTypingContext` should have an expected type of `[@androidx.compose.runtime.Composable] Function0<Unit>` but it actually has type type of `Function0<Unit>`.
+
+Interestingly, both `val v: @Composable ()->Unit = if(true) { { foo() } } else { { } }` and `bar({ foo() })` resolve correctly, which actually makes me think it's not just a matter of the `if` statement throwing off the type inference, nor is it the call throwing off the type inference, but is in fact the combination of the two together.
+
+cc @Stanislav.Erokhin @ager

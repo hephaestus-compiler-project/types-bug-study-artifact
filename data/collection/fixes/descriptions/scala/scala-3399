@@ -1,0 +1,96 @@
+With 2.8.0.r21826.  From the call to transpose in the stack trace, it might be related to #3397.  The fix for that doesn't help, though.  Speculating, it might be because transpose is being called on an irregular "matrix".
+
+The code:
+```scala
+object Nats {
+    sealed trait Nat {
+        // fold right on N, N-1, ..., 1
+        type FoldR[Init <: Type, Type, F <: Fold[Nat, Type]] <: Type
+    }
+    sealed trait _0 extends Nat {
+        type FoldR[Init <: Type, Type, F <: Fold[Nat, Type]] = Init
+    }
+    sealed trait Succ[N <: Nat] extends Nat {
+        type FoldR[Init <: Type, Type, F <: Fold[Nat, Type]] =
+          F#Apply[Succ[N], N#FoldR[Init, Type, F]]
+    }
+    
+    type Add[A <: Nat, B <: Nat] = A#FoldR[B, Nat, Inc]
+    trait Fold[-Elem, Value] {
+        type Apply[N <: Elem, Acc <: Value] <: Value
+    }
+    type Inc = Fold[Any, Nat] {
+        type Apply[N <: Any, Acc <: Nat] = Succ[Acc]
+    }
+    
+    type _1 = Succ[_0]
+    implicitly[ Add[_1, _1] =:= _1]
+}
+```
+
+First part of the exception (can provide the full trace if it is useful)
+```scala
+
+java.lang.IndexOutOfBoundsException: 1                                                                                                             
+        at scala.collection.immutable.Vector.checkRangeConvert(Vector.scala:105)                                                                   
+        at scala.collection.immutable.Vector.apply(Vector.scala:95)                                                                                
+        at scala.collection.generic.GenericTraversableTemplate$$$$anonfun$$transpose$$1$$$$anonfun$$apply$$1.apply(GenericTraversableTemplate.scala:115)   
+        at scala.collection.generic.GenericTraversableTemplate$$$$anonfun$$transpose$$1$$$$anonfun$$apply$$1.apply(GenericTraversableTemplate.scala:114)   
+        at scala.collection.LinearSeqOptimized$$class.foreach(LinearSeqOptimized.scala:62)                                                          
+        at scala.collection.immutable.List.foreach(List.scala:46)                                                                                  
+        at scala.collection.generic.GenericTraversableTemplate$$$$anonfun$$transpose$$1.apply(GenericTraversableTemplate.scala:114)                    
+        at scala.collection.generic.GenericTraversableTemplate$$$$anonfun$$transpose$$1.apply(GenericTraversableTemplate.scala:112)                    
+        at scala.collection.LinearSeqOptimized$$class.foreach(LinearSeqOptimized.scala:62)                                                          
+        at scala.collection.immutable.List.foreach(List.scala:46)                                                                                  
+        at scala.collection.generic.GenericTraversableTemplate$$class.transpose(GenericTraversableTemplate.scala:112)                               
+        at scala.collection.immutable.List.transpose(List.scala:46)                                                                                
+        at scala.tools.nsc.symtab.Types$$class.mergePrefixAndArgs(Types.scala:5092)                                                                 
+        at scala.tools.nsc.symtab.SymbolTable.mergePrefixAndArgs(SymbolTable.scala:14)                                                             
+        at scala.tools.nsc.symtab.Types$$class.lubList(Types.scala:4721)                                                                            
+        at scala.tools.nsc.symtab.Types$$class.lubBaseTypeSeq(Types.scala:4727)                                                                     
+        at scala.tools.nsc.symtab.Types$$class.lub0$$1(Types.scala:4880)                                                                             
+        at scala.tools.nsc.symtab.Types$$class.lub(Types.scala:4942)                                                                                
+        at scala.tools.nsc.symtab.SymbolTable.lub(SymbolTable.scala:14)                                                                            
+        at scala.tools.nsc.symtab.Types$$class.solveOne$$1(Types.scala:4674)                                                                         
+        at scala.tools.nsc.symtab.Types$$$$anonfun$$solve$$1.apply(Types.scala:4683)                                                                   
+        at scala.tools.nsc.symtab.Types$$$$anonfun$$solve$$1.apply(Types.scala:4682)                                                                   
+        at scala.collection.LinearSeqOptimized$$class.foreach(LinearSeqOptimized.scala:62)                                                          
+        at scala.collection.immutable.List.foreach(List.scala:46)                                                                                  
+        at scala.tools.nsc.symtab.Types$$class.solve(Types.scala:4682)                                                                              
+        at scala.tools.nsc.symtab.SymbolTable.solve(SymbolTable.scala:14)                                                                          
+        at scala.tools.nsc.typechecker.Infer$$class.solvedTypes(Infer.scala:153)                                                                    
+        at scala.tools.nsc.Global$$analyzer$$.solvedTypes(Global.scala:291)                                                                          
+        at scala.tools.nsc.typechecker.Infer$$Inferencer.exprTypeArgs(Infer.scala:464)                                                              
+        at scala.tools.nsc.typechecker.Infer$$Inferencer.inferExprInstance(Infer.scala:1158)                                                        
+        at scala.tools.nsc.typechecker.Typers$$Typer.instantiate(Typers.scala:1003)                                                                 
+        at scala.tools.nsc.typechecker.Typers$$Typer.adapt(Typers.scala:939)                                                                        
+        at scala.tools.nsc.typechecker.Typers$$Typer.adapt(Typers.scala:800)                                                                        
+        at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.typedImplicit0(Implicits.scala:459)                                                
+        at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.typedImplicit(Implicits.scala:354)                                                 
+        at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.tryImplicit$$1(Implicits.scala:604)                                                 
+        at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$addAppInfos$$1$$1.apply(Implicits.scala:612)                                
+        at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$addAppInfos$$1$$1.apply(Implicits.scala:609)                                
+        at scala.collection.LinearSeqOptimized$$class.foreach(LinearSeqOptimized.scala:62)                                                          
+        at scala.collection.immutable.List.foreach(List.scala:46)                                                                                  
+        at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.addAppInfos$$1(Implicits.scala:609)                                                 
+        at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$applicableInfos$$1.apply(Implicits.scala:621)                              
+        at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$applicableInfos$$1.apply(Implicits.scala:621)                              
+        at scala.collection.LinearSeqOptimized$$class.foreach(LinearSeqOptimized.scala:62)                                                          
+        at scala.collection.immutable.List.foreach(List.scala:46)                                                                                  
+        at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.applicableInfos(Implicits.scala:621)                                               
+        at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.searchImplicit(Implicits.scala:645)                                                
+        at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.implicitManifestOrOfExpectedType(Implicits.scala:862)                              
+        at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.bestImplicit(Implicits.scala:887)                                                  
+        at scala.tools.nsc.typechecker.Implicits$$class.inferImplicit(Implicits.scala:52)                                                           
+        at scala.tools.nsc.Global$$analyzer$$.inferImplicit(Global.scala:291)                                                                        
+        at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$applyImplicitArgs$$1.apply(Typers.scala:188)                                           
+        at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$applyImplicitArgs$$1.apply(Typers.scala:183)                                           
+        at scala.collection.LinearSeqOptimized$$class.foreach(LinearSeqOptimized.scala:62)                                                          
+        at scala.collection.immutable.List.foreach(List.scala:46)                                                                                  
+        at scala.tools.nsc.typechecker.Typers$$Typer.applyImplicitArgs(Typers.scala:183)                                                            
+        at scala.tools.nsc.typechecker.Typers$$Typer.adapt(Typers.scala:822)                                                                        
+        at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:4051)                                                                       
+        at scala.tools.nsc.typechecker.Typers$$Typer.typedStat$$1(Typers.scala:2036)                                                                 
+        at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$20.apply(Typers.scala:2104)                                                           
+        at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$20.apply(Typers.scala:2104)
+```

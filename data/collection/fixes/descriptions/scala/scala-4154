@@ -1,0 +1,39 @@
+This is a case where the implicit resolution and the compilation fails because M is contravariant.
+
+```scala
+object ImplicitResolutionTest {
+
+  trait M[-A]
+
+  case class Bar(i:Int)
+
+  object Bar {
+    implicit val barIsM:M[Bar] = new M[Bar]{}
+  }
+
+  trait Foo[-X]
+
+  object Foo {
+    implicit def fooIsM[A](implicit m:M[A]):M[Foo[A]] = new M[Foo[A]]{}
+  }
+
+  def resolve[X](implicit m:M[X]):M[X] = m
+  
+  def main(args : Array[String]) : Unit = {
+	resolve[Bar]                       // ok
+        resolve[Foo[Bar]](Foo.fooIsM[Bar]) // ok
+	resolve[Foo[Bar]]                  //error
+  }
+}
+```
+
+I'd expect that Foo.fooIsM is a valid implicit value but instead I get:
+
+```scala
+   [scalac] ImplicitResolutionTest.this.Foo.fooIsM is not a valid implicit value for pkg.ImplicitResolutionTest.M[pkg.ImplicitResolutionTest.Foo[pkg.ImplicitResolutionTest.Bar]] because:
+   [scalac] could not find implicit value for parameter m: pkg.ImplicitResolutionTest.M[A]
+```
+
+Scala:2.8.1/Windows
+
+Cheers!

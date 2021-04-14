@@ -1,0 +1,32 @@
+[scalafiddle](https://scalafiddle.io/sf/8J50apv/3); repros in 2.12.8 and 2.13.0.
+
+```scala
+sealed trait A[+T]
+ case class A1[+T](t: T) extends A[T]
+
+sealed trait            B[+T] { type AA[+U] <: A[U] }
+type Aux[+_A[+U], +T] = B[ T] { type AA[+U] = _A[U] } 
+
+val b: Aux[A1, Int] = ???
+(   b: Aux[A1, Int]): Aux[A, Int]
+    b               : Aux[A, Int]  // 🚫
+```
+
+```
+ScalaFiddle.scala:9: error: type mismatch;
+ found   : ScalaFiddle.this.B[scala.this.Int]{type AA[+U] = ScalaFiddle.this.A1[U]}
+ required: ScalaFiddle.this.Aux[ScalaFiddle.this.A,scala.this.Int]
+    (which expands to)  ScalaFiddle.this.B[scala.this.Int]{type AA[+U] = ScalaFiddle.this.A[U]}
+      b               : Aux[A, Int]  // 🚫
+      ^
+```
+
+Redundantly casting `b: Aux[A1, Int]` is required for the subsequent cast to `Aux[A, Int]` to compile.
+
+Changing the `Aux` alias to use `<:` instead of `=` lets it compile:
+
+```scala
+type Aux[+_A[+U], +T] = B[ T] { type AA[+U] <: _A[U] } 
+```
+
+Seems like the first way should work, though.

@@ -1,0 +1,44 @@
+## minimized code
+
+```Scala
+class A {
+  override def toString: String = "A"
+}
+
+class B(a: A) {
+  export a._
+}
+```
+
+```Scala
+6 |  export a._
+  |           ^
+  |         error overriding method toString in class Any of type (): String;
+  |           method toString of type => String needs override modifier
+one error found
+```
+
+
+## expectation
+
+The line `export a._` should not export the method `A.toString`.
+
+The specification says:
+
+```
+A member is eligible if all of the following holds:
+
+- its owner is not a base class of the class(*) containing the export clause,
+- it is accessible at the export clause,
+- it is not a constructor, nor the (synthetic) class part of an object,
+- it is a given instance (or an old-style implicit value) if and only if the export is tagged with given.
+```
+
+Maybe the first clause can be strengthened:
+
+```
+(1) its owner is not a base class of the class(*) containing the export clause
+    - if the member overrides a method "m" in a base class, 
+      then perform the same check (1) for "m".
+```
+

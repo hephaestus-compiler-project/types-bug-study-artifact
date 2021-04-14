@@ -1,0 +1,28 @@
+It seems that c.inferImplicitValue is ignoring the silent property, because no exception is thrown when the implicit is not available:
+
+```scala
+scala> import language.experimental.macros
+import language.experimental.macros
+
+scala> import reflect.macros.Context
+import reflect.macros.Context
+
+scala> def fImpl(c: Context): c.Expr[Unit] = {
+     | import c.mirror._
+     | import c.universe._
+     | 
+     | if (c.inferImplicitValue(typeOf[Int], false) == EmptyTree)
+     |   c.abort(c.enclosingPosition, "silent=false is not working") 
+     | 
+     | reify( () )
+     | }
+fImpl: (c: scala.reflect.macros.Context)c.Expr[Unit]
+
+scala> def f = macro fImpl
+f: Unit
+
+scala> f
+<console>:12: error: silent=false is not working
+              f
+              ^
+```

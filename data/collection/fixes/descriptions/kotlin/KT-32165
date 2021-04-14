@@ -1,0 +1,36 @@
+This issue is two fold; first is that IDEA (the kotlin plugin for IDEA, but I will refere to it simply as IDEA) does not display any issues regarding this; 
+
+The second is that just because one of the type arguments are "null" / akk contains no related type information (other than beeing null), othere might carry this information, and as such the whole expression should be pretty easy to infer (??)
+
+Shortest example i have so far.
+```kotlin
+inline fun <reified T : Enum<T>> enumFromOrNull(ifNotFound: T? = null,
+                                                findAction: Function1<T, Boolean>): T? {
+    return enumValues<T>().find(findAction) ?: ifNotFound
+}
+
+inline fun <reified T : Enum<T>> enumFromOr(ifNotFound: T,
+                                            findAction: Function1<T, Boolean>): T {
+    return enumFromOrNull(null, findAction) ?: ifNotFound
+}
+```
+
+When compiling the error is (as the title suggests) "Cannot use 'Nothing' as reified type parameter". Which would make sence if there was no second parameter for the "enumFromOrNull" function, but since there are , you can decuce T to be that of the findAction, thus Function1<T, Boolean> (where T is actually presented).
+
+The workaround is to specify the type as shown below.
+
+```Kotlin
+inline fun <reified T : Enum<T>> enumFromOr(ifNotFound: T,
+                                            findAction: Function1<T, Boolean>): T {
+    return enumFromOrNull<T>(null, findAction) ?: ifNotFound
+}
+```
+
+However this is also marked as not nessary by IDEA, presenting to "remove" it, thus causing a compiler issue.
+
+So the potential fixes I see are 
+
+1) make the compiler understand these cases better
+2) make IDEA understand these cases better 
+
+Either way, I hope this is sufficient information.

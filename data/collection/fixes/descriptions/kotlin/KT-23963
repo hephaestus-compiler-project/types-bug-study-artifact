@@ -1,0 +1,17 @@
+We are currently using the new IR backend to compile simple Android applications, but we're forced to use the compiler CLI instead of gradle, because using gradle causes the compiler to throw a few errors.  We use gradle with AndroidStudio, so our inability to build simple projects with gradle+IR makes it difficult for us to test new experimental features in AndroidStudio.
+
+The first problem I ran into was:
+` e: java.lang.AssertionError: No primary constructor for annotation class Lazy Java class android.support.annotation.CallSuper`
+which we mitigated by commenting out the offending line.
+
+The second problem was:
+`e: java.lang.IllegalArgumentException: Collection has more than one element.`
+which appears to be a simple bug resulting from the fact that kotlin's internal builtins somehow appear twice on the classpath when using gradle+KotlinIR, which we mitigated by calling `first()` instead of `single()`.
+
+The third problem was:
+`e: null cannot be cast to non-null type org.jetbrains.kotlin.descriptors.ClassDescriptor`
+which appears to be a bug related to the fact that `kotlin.reflect.jvm.internal` is for some reason unavailable.  I wasn't sure how to hack around this one, so I'm not sure what comes after it.
+
+Since the compiler works without gradle, the issue is presumably a couple of little bugs rather than a large unimplemented feature.  If we could squash these bugs, it would be helpful for the engineers on our end.
+
+I have attached a simple Android application for your reference, so you can see my gradle configuration for instance.

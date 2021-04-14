@@ -1,0 +1,18 @@
+Sjavac tries to size its working size depending on available memory and if it's running in a 32 bit or 64 bit jvm. The detection for 32bit is flawed and misses several cases. With this patch it's covering a lot more cases:
+
+diff -r ec434cfd2752 src/share/classes/com/sun/tools/sjavac/CompileJavaPackages.java 
+--- a/src/share/classes/com/sun/tools/sjavac/CompileJavaPackages.java 
++++ b/src/share/classes/com/sun/tools/sjavac/CompileJavaPackages.java 
+@@ -136,7 +136,9 @@ 
+         // for each compile..... 
+         int kbPerFile = 175; 
+         String osarch = System.getProperty("os.arch"); 
+- if (osarch.equals("i386")) { 
++ String dataModel = System.getProperty("sun.arch.data.model"); 
++ if (dataModel.equals("32") || osarch.equals("i386") 
++ || osarch.equals("x86") || osarch.equals("sparc")) { 
+             // For 32 bit platforms, assume it is slightly smaller 
+             // because of smaller object headers and pointers. 
+             kbPerFile = 119; 
+
+Adding this is required for sjavac to function properly on several platforms in jprt.

@@ -1,0 +1,64 @@
+I wanted the definition of `equals`, `toString`, etc from case class, but I also wanted to insure that this object could be used as a unique key.
+
+This class also depends on an implicit argument. When the compiler generates the apply method for the companion object, it conflicts with my custom version of the apply method.
+
+```scala
+object CaseClassOverload {
+
+  class Format
+
+  case class X private[CaseClassOverload] (unique: String)(implicit format: Format)
+
+  object X {
+
+    private var registered: Map[String, X] = Map()
+
+    private[CaseClassOverload] def apply(unique: String)(implicit format: Format): X = {
+      synchronized {
+        require(!(registered contains unique), s"$unique already registered")
+        val uniqueX = new X(unique)(format)
+        registered += unique -> uniqueX
+        uniqueX
+      }
+    }
+  }
+
+  val error = X("a")(new Format)  // compile error
+}
+```
+
+```
+scala> object CaseClassOverload {
+     |
+     |   class Format
+     |
+     |   case class X private[CaseClassOverload] (unique: String)(implicit format: Format)
+     |
+     |   object X {
+     |
+     |     private var registered: Map[String, X] = Map()
+     |
+     |     private[CaseClassOverload] def apply(unique: String)(implicit format: Format): X = {
+     |       synchronized {
+     |         require(!(registered contains unique), s"$unique already registered")
+     |         val uniqueX = new X(unique)(format)
+     |         registered += unique -> uniqueX
+     |         uniqueX
+     |       }
+     |     }
+     |   }
+     |
+     |   val error = X("a")(new Format)  // compile error
+     | }
+<console>:27: error: ambiguous reference to overloaded definition,
+both method apply in object X of type (unique: String)(implicit format: CaseClassOverload.Format)CaseClassOverload.X
+and  method apply in object X of type (unique: String)(implicit format: CaseClassOverload.Format)CaseClassOverload.X
+match argument types (String)
+         val error = X("a")(new Format)
+                     ^
+<console>:11: error: method apply is defined twice
+  conflicting symbols both originated in file '<console>'
+         case class X private[CaseClassOverload] (unique: String)(implicit format: Format)
+```
+
+I thought that the case class definition of apply would not be generated if my custom version had the same signature.

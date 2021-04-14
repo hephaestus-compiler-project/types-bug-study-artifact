@@ -1,0 +1,47 @@
+The following compiles and works:
+```
+data class Event(val id: Int)
+
+val stringToEvent: (String) -> Event = { s -> Event(s.toInt()) }
+val dummyToEvent: (Document) -> Event = { _ -> Event(1) }
+val jsonToEvent: (JsonNode) -> Event = { j -> Event(j.get("id").asInt()) }
+
+fun elementGen(opt: String): Any {
+    return when (opt) {
+        "string" -> "1"
+        "json" -> {
+           val mapper = ObjectMapper()
+           mapper.readTree("{\"id\": 1 }")
+        }
+        "xml" -> {
+            val xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<id>1</id>"
+            val src = ByteArrayInputStream(xml.toByteArray())
+            DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(src)
+        }
+        else -> throw RuntimeException("Option not supported")
+    }
+}
+
+fun main(args: Array<String>) {
+    val parser = when (args[0]) {
+        "json" -> jsonToEvent
+        "xml" -> dummyToEvent
+        else -> throw RuntimeException("Option not supported")
+    }
+    print(parser(elementGen(args[0])))
+}
+```
+However, if I add a case to handle an input of type `string`, doing as follows:
+```
+fun main(args: Array<String>) {
+    val parser = when (args[0]) {
+        "string" -> stringToEvent
+        "json" -> jsonToEvent
+        "xml" -> dummyToEvent
+        else -> throw RuntimeException("Option not supported")
+    }
+    print(parser(elementGen(args[0])))
+}
+```
+I get `Out-projected type 'Function1<*, Event>' prohibits the use of 'public abstract operator fun invoke(p1: P1): R defined in kotlin.Function1'`
+The union type of `Document & JsonNode` is still equivalent to *, just like `Document & JsonNode & String`, so I think the code should not compile in either case.

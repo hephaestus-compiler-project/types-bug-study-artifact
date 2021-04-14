@@ -1,0 +1,19 @@
+New type inference does not perform SAM conversion for java classes with type parameters which are instantiated in java, in contrast to the old type inference. For example:
+```java
+public class A<T> {
+  public void add(T x) {}
+  public static class B extends A<Runnable> {}
+}
+```
+```kotlin
+fun test(x: A.B) {
+  x.add { }
+}
+```
+Fails with
+```
+test.kt:2:9: error: type mismatch: inferred type is () -> Unit but Runnable! was expected
+  x.add { }
+        ^
+```
+with new inference, but compiles without errors with old inference.

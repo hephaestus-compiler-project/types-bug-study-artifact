@@ -1,0 +1,30 @@
+Scala has an elegant way to match the first element of a list, but not the last one. Doing it currently seems fairly awkward:
+
+```scala
+List(1,2,3) match {
+  case l: List[_] if l.last == 3 => println("last is 3")
+}
+```
+
+Instead, Apache ESME has defined the following extractor to be able to match the last element of the list:
+
+```scala
+object ::> {
+  def unapply[A] (l: List[A]) = l match {
+    case Nil => None
+    case _ => Some( (l.init, l.last) )
+  }
+}
+```
+
+Now one can simply do this
+
+```scala
+List(1,2,3) match {
+  case _ ::> 3 => println("last is 3")
+}
+```
+
+Does it make sense to include something like this in the standard library? Perhaps one could think of a more appropriate object name.
+
+This feature request is definitely not of high priority.

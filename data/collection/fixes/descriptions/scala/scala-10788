@@ -1,0 +1,49 @@
+This appears to go way back ... it's present in 2.13.x, 2.12, 2.11 and 2.10 at least. Whilst literal types in 2.13.x provide more opportunities for manifesting it, the underlying problem is orthogonal to literal types. Related to https://github.com/scala/bug/issues/8564 (the fix reported there as being in the literal types PR clearly wasn't thorough enough) and possibly also to https://github.com/scala/bug/issues/10340.
+
+No output is produced when the following is run,
+```scala
+object Test {
+  class Box[T](t: T) {
+    def foo: T = {
+      println("effect")
+      t
+    }
+  }
+
+  object Box {
+    def apply(x: String): Box[x.type] = new Box[x.type](x)
+  }
+
+  def main(args: Array[String]): Unit = {
+    val bar = Box("foo").foo
+  }
+}
+```
+If we look at the trees following typer we can see why,
+```scala
+object Test extends scala.AnyRef {
+  class Box[T] extends scala.AnyRef {
+    <paramaccessor> private[this] val t: T = _;
+    def foo: T = {
+      scala.Predef.println("effect");
+      Box.this.t
+    }
+  };
+  object Box extends scala.AnyRef {
+    def apply(x: String): Test.Box[x.type] = new Test.Box[x.type](x)
+  };
+  def main(args: Array[String]): Unit = {
+    val bar: String = "foo";
+    ()
+  }
+}
+```
+The definition of `bar`,
+```scala
+val bar = Box("foo").foo
+```
+has been transformed to,
+```scala
+val bar: String = "foo";
+```
+The cause of the problem is that the `Box` value is created with its type parameter `T` instantiated as `x.type` which is computed as the (internal) `ConstantType(Literal("foo"))`. This results in the subsequent application of `foo` also being seen as having a constant type and so being eligible to be inlined as the constant value, eliding the object creation, method call and effect.

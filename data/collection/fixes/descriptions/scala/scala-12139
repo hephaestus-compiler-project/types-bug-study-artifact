@@ -1,0 +1,36 @@
+Forgive me if this is a duplicate, but there are cases where the scala compiler will infer `Nothing` where it is unexpected. This came up in https://github.com/playframework/playframework/pull/10442. I was able to reproduce with 2.10.7, 2.11.11, 2.12.12 and 2.13.3.
+
+## reproduction steps
+
+create a java file Foo.java:
+```java
+public class Foo {
+  void foo(Foo foo) {}
+  void foo(java.util.Optional<Foo> foo) {}
+}
+```
+create a scala file Bar.scala:
+```scala
+object Bar {
+  Foo.foo(java.util.Optional.empty())
+}
+```
+compile the project
+
+## problem
+
+```
+sbt:overload> compile
+[info] Compiling 1 Scala source and 1 Java source to /Users/ethanatkins/work/scratch/overload/target/scala-2.12/classes ...
+[error] /Users/ethanatkins/work/scratch/overload/src/main/scala/Bar.scala:2:7: overloaded method value foo with alternatives:
+[error]   (foo: java.util.Optional[Foo])Unit <and>
+[error]   (foo: Foo)Unit
+[error]  cannot be applied to (java.util.Optional[Nothing])
+[error]   Foo.foo(java.util.Optional.empty());
+[error]       ^
+[error] one error found
+[error] (Compile / compileIncremental) Compilation failed
+[error] Total time: 1 s, completed Sep 4, 2020 8:10:45 AM
+```
+
+If I remove the overloaded `foo` method that takes a `Foo`, it does compile.

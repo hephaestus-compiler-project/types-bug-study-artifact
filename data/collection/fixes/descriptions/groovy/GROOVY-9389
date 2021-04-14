@@ -1,0 +1,26 @@
+The following code works in Groovy 2.5.8 but fails compilation in 3.0.0:
+{code:java}
+@groovy.transform.CompileStatic
+class MyProp {
+    Integer myInt = 0
+    Integer getMyInt() { return myInt }    // Custom getter
+    void setMyInt(Integer i) { myInt = i } // Custom setter
+}
+
+@groovy.transform.CompileStatic
+class BugInGroovy300 {
+    static void main() {
+        new MyProp().myInt++ // This line cannot compile in Groovy 3.0.0
+    }
+}
+{code}
+The error is:
+{noformat}
+[Static type checking] - Cannot find matching method java.lang.Object#next(). Please check if the declared type is correct and if the method exists.
+ @ line 13, column 21.
+           new MyProp().myInt++ // This line cannot compile in Groovy 3.0.0{noformat}
+If using the decrement operator (--), the type checker looks for a "#previous()" method instead.
+
+The code works in 3.0.0 if using CompileDynamic instead. Relying on the generated accessor methods by Groovy also works.
+
+ 

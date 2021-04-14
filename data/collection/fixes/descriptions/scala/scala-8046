@@ -1,0 +1,47 @@
+In the situation where you have
+
+a) an abstract type
+b) a type alias which dealiases to the abstract type
+c) an environment where the abstract type has been implemented concretely
+
+Then the type alias should be equivalent to the concrete class which implements the abstract type. It isn't because substitution is broken. Observe the unimplemented type includes T1 and R, which are Function1's type parameters completely escaping.
+
+If the type alias definition is moved from One into Two, then this compiles as given.
+```scala
+trait One {
+  type Op[A]
+  type Alias[A] = Op[A]
+}
+
+trait Two extends One {
+  trait Op[A] extends (A => A)
+
+  // This compiles
+  class View1 extends Op[Int] { def apply(xs: Int) = xs }
+
+  // ??? base class View2 not found in basetypes of class View2
+  // ./a.scala:9: error: class View2 needs to be abstract, since \
+  //   method apply in trait Function1 of type (v1: T1)R is not defined
+  // (Note that T1 does not match Int)
+  //   class View2 extends Alias[Int] { def apply(xs: Int) = xs }
+  //         ^
+  // one error found
+  class View2 extends Alias[Int] { def apply(xs: Int) = xs }
+}
+```
+Here is another angle on it. f1, f2, f3 all compile. The fact that f2 compiles tells you some trivial substitution is taking place, but it is missing (at least) parents and bounds.
+```scala
+trait Three extends One {
+  trait Op[A] extends (A => A)
+
+  def f1(f: Op[Int])            = f(5)
+  def f2(f: Alias[Int])         = f(5)
+  def f3[T <: Op[Int]](f: T)    = f(5)
+  def f4[T <: Alias[Int]](f: T) = f(5)
+  // ./a.scala:12: error: type mismatch;
+  //  found   : Int(5)
+  //  required: T1
+  //   def f4[T <: Alias[Int]](f: T) = f(5)
+  //                                     ^
+}
+```

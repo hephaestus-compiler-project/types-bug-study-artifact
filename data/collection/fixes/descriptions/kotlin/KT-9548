@@ -1,0 +1,38 @@
+``` kotlin
+interface A {
+    fun <T : Comparable<T>> foo(y: List<T>)
+}
+
+interface B {
+    fun <T : Comparable<T>> foo(y: List<T>)
+}
+
+fun <S> bar(z: S, y: List<String>) where S : A, S : B {
+    // Cannot choose among the following candidates without completing type inference: 
+    //    public abstract fun <T : kotlin.Comparable<kotlin.String>> foo(y: kotlin.List<kotlin.String>): kotlin.Unit defined in A
+    //    public abstract fun <T : kotlin.Comparable<kotlin.String>> foo(y: kotlin.List<kotlin.String>): kotlin.Unit defined in B
+    z.foo(y)
+}
+```
+
+This should not be an error, because any instance of any type satisfying constrains for `S` will necessary have an implementation of `foo` that overrides both abstract declarations in `A` and in `B`, so in effect they must unify.
+
+Compare with the following Java code that compiles fine as expected:
+``` java
+import java.util.List;
+
+interface A {
+    <T extends Comparable<T>> void foo(List<T> y);
+}
+
+interface B {
+    <T extends Comparable<T>> void foo(List<T> y);
+}
+
+class X {
+    <S extends A & B> void bar(S z, List<String> y) {
+      z.foo(y);
+    }
+}
+```
+

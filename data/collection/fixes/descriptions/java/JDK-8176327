@@ -1,0 +1,40 @@
+This bug was originally reported as javadoc bug, but it is reproducible
+with javac as well.
+When javadoc tool asks for the module of the type element, using the following
+ModuleElement mdle = toolEnv.elements.getModuleOf(getPackageOf(klass));
+In the above case, for klass = "m2pub.A" module m1 is returned instead of m2.
+
+Here is a javac reproducer:
+=================
+./src/m2/m2pub/A.java
+=================
+package m2pub;
+public class A {}
+
+
+=================
+./src/m2/module-info.java
+=================
+module m2 {
+    exports m2pub;
+}
+
+
+=================
+./src/m1/m1pub/A.java
+=================
+package m1pub;
+public class A {}
+
+
+=================
+./src/m1/module-info.java
+=================
+module m1 {
+    exports m1pub;
+}
+
+% $JAVA_HOME/bin/javac -d out --source-path src/m1 src/m2/m2pub/A.java
+
+% $JAVA_HOME/bin/javap -v out/module-info.class | egrep 'module m'
+module m1 <---- Note: m2 maybe, but definitely not m1. 

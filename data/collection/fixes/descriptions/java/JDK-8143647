@@ -1,0 +1,45 @@
+FULL PRODUCT VERSION :
+
+
+A DESCRIPTION OF THE PROBLEM :
+Javac shouldn't allow referencing a method that is out of scope.  Either it should produce a compile-time error or it should desugar as in the lambda equivalent.
+
+
+
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+1) Create default-scoped abstract class with concrete method
+2) Create a concrete public class extending the above class in the same package
+3) Use a method reference to this inherited method in a class outside of the package
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Either
+A) compiles the same as map(y -> y.getX())
+B) compile-time error
+ACTUAL -
+IllegalAccessError at runtime
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+package x;
+abstract class X {
+public String getX() { return "x";}
+
+package x;
+public class Y extends X {}
+
+package z;
+public class Z {
+public static void main (String[] args) {
+  Arrays.asList(new Y()).stream().map(Y::getX).forEach(System.out::println);
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Use lambda form
+

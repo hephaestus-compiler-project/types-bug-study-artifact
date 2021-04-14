@@ -1,0 +1,24 @@
+Copied from java.lang.annotation.Target's API documentation:
+
+> If an @Target meta-annotation is not present on an annotation type T, then an annotation of type T may be written as a modifier for any declaration except a type parameter declaration.
+
+As "module declarations" are not listed in the exception above, the following minimal modular example should compile:
+
+  `A.java`
+  | package test;
+  | public @interface A {}
+
+  `module-info.java`
+  | @test.A
+  | module test {}
+
+The error message reads:
+
+javac -d classes --module-source-path . --module test
+
+  | ./test/module-info.java:1: error: annotation type not applicable to this kind of declaration
+  | @test.A
+  | ^
+  | 1 error
+
+Find the _not-compiling_ source code of the example here: https://github.com/sormuras/sandbox/tree/master/java-annotation-on-module

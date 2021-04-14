@@ -1,0 +1,23 @@
+```scala
+import scala.reflect.runtime.universe._
+
+object Test {
+  object Bippy {
+    def unapply(x: Apply with Select) = Some(x.qualifier)
+  }
+  def main(args: Array[String]): Unit = {
+    val x = Apply(EmptyTree, Nil)
+    // Direct invocation correctly disallowed
+    // Bippy.unapply(x)
+    //
+    // Pattern matcher allows, unsoundly
+    x match { case Bippy(_) => () }
+  }
+}
+// and...
+//
+// java.lang.ClassCastException: scala.reflect.internal.Trees$Apply cannot be cast to scala.reflect.api.Trees$SelectApi
+//   at Test$Bippy$.unapply(a.scala:5)
+//   at Test$.main(a.scala:13)
+//   at Test.main(a.scala)
+```

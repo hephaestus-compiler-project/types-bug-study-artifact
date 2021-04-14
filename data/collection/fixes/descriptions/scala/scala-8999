@@ -1,0 +1,42 @@
+When compiling the Scala.js linker (aka the tools), the pattern matcher analysis runs out of memory:
+
+```scala
+Caused by: java.lang.OutOfMemoryError: GC overhead limit exceeded
+    at scala.collection.immutable.HashMap$HashTrieMap.updated0(HashMap.scala:330)
+    at scala.collection.immutable.HashMap$HashTrieMap.updated0(HashMap.scala:322)
+    at scala.collection.immutable.HashMap.$plus(HashMap.scala:60)
+    at scala.collection.immutable.HashMap.$plus(HashMap.scala:37)
+    at scala.tools.nsc.transform.patmat.Solving$Solver$$anonfun$expandUnassigned$1$1$$anonfun$apply$2.force$1(Solving.scala:178)
+    at scala.tools.nsc.transform.patmat.Solving$Solver$$anonfun$expandUnassigned$1$1$$anonfun$apply$2.apply(Solving.scala:180)
+    at scala.tools.nsc.transform.patmat.Solving$Solver$$anonfun$expandUnassigned$1$1$$anonfun$apply$2.apply(Solving.scala:176)
+    at scala.collection.mutable.ResizableArray$class.foreach(ResizableArray.scala:59)
+    at scala.collection.mutable.ArrayBuffer.foreach(ArrayBuffer.scala:48)
+    at scala.tools.nsc.transform.patmat.Solving$Solver$class.expandUnassigned$1(Solving.scala:173)
+    at scala.tools.nsc.transform.patmat.Solving$Solver$class.findAllModels$1(Solving.scala:209)
+    at scala.tools.nsc.transform.patmat.Solving$Solver$class.findAllModelsFor(Solving.scala:217)
+    at scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.findAllModelsFor(PatternMatching.scala:89)
+    at scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.findAllModelsFor(PatternMatching.scala:89)
+    at scala.tools.nsc.transform.patmat.MatchAnalysis$MatchAnalyzer$class.exhaustive(MatchAnalysis.scala:523)
+    at scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.exhaustive(PatternMatching.scala:89)
+    at scala.tools.nsc.transform.patmat.MatchAnalysis$MatchAnalyzer$class.analyzeCases(MatchAnalysis.scala:783)
+    at scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.analyzeCases(PatternMatching.scala:89)
+    at scala.tools.nsc.transform.patmat.MatchTreeMaking$TreeMakers$class.combineCasesNoSubstOnly(MatchTreeMaking.scala:576)
+    at scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.combineCasesNoSubstOnly(PatternMatching.scala:89)
+    at scala.tools.nsc.transform.patmat.MatchTreeMaking$TreeMakers$class.combineCases(MatchTreeMaking.scala:533)
+    at scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.combineCases(PatternMatching.scala:89)
+    at scala.tools.nsc.transform.patmat.MatchTranslation$MatchTranslator$class.translateMatch(MatchTranslation.scala:235)
+    at scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.translateMatch(PatternMatching.scala:89)
+    at scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:62)
+    at scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:57)
+    at scala.reflect.internal.Trees$$anonfun$itransform$1.apply(Trees.scala:1350)
+    at scala.reflect.internal.Trees$$anonfun$itransform$1.apply(Trees.scala:1349)
+    at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:25)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:17)
+[error] java.util.concurrent.ExecutionException: java.lang.OutOfMemoryError: GC overhead limit exceeded
+```
+
+To reproduce (if it works on your machine), checkout [Scala.js](https://github.com/scala-js/scala-js) and issue `sbt ++2.11.4 tools/compile` or alternatively `sbt ++2.11.4 partest/compile`.
+
+Originated in [scala-js/scala-js#1204](https://github.com/scala-js/scala-js/issues/1204).

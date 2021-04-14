@@ -1,0 +1,69 @@
+I have a simple `CleaningDelegate` that I use with tests to clean up test artifacts. With the new type inference algorithm, I'm receiving an error. I am able to hide the error if I disable the setting in the IDE, but since it is on its way to be the default, I want to find a better long term solution.
+
+
+Here is an example of usage that works and one that fails.
+```
+//This compiles fine
+var thing: TestHolder by CleaningDelegate(testHolder, cleanupBlocks = cleanUpBlocks, block = {println("cleaning up $it")})
+//This doesn't compile
+var thing2: TestHolder by cleanup(testHolder) {println("cleaning up $it") }		
+```
+
+Error is:
+```
+Property delegate must have a 'setValue(Nothing?, KProperty*>, CleanupTestExample.TestHolder)' method. None of the following functions is suitable.
+setValue(Any?, KProperty<*>, Nothing) defined in com.example.demo.CleanupTestExample.CleaningDelegate
+```
+
+Complete code that triggers the failure is here: (I can upload to Github if that is helpful)
+```
+    class CleanupTestExample {
+	val cleanUpBlocks: MutableList<Pair<Any, (Any) -> Unit>> = mutableListOf()
+
+	class CleaningDelegate<T : Any?>(initialValue: T? = null,
+									 val cleanupBlocks: MutableList<Pair<Any, (Any) -> Unit>>,
+									 val block: (T) -> Unit) : ReadWriteProperty<Any?, T> {
+		private var value: T? = initialValue
+
+		init {
+			addCleanupBlock(initialValue)
+		}
+
+		override fun getValue(thisRef: Any?, property: KProperty<*>): T {
+			return value ?: throw IllegalStateException("Property ${property.name} should be initialized before get.")
+		}
+
+		@Suppress("UNCHECKED_CAST")
+		override fun setValue(thisRef: Any?, property: KProperty<*>, value: T) {
+			addCleanupBlock(value)
+			this.value = value
+		}
+
+		fun addCleanupBlock(value: T?) {
+			if (value != null) {
+				@Suppress("UNCHECKED_CAST")
+				cleanupBlocks.add((value to block) as Pair<Any, (Any) -> Unit>)
+			}
+
+		}
+	}
+
+	data class TestHolder(val num: Int)
+	fun <T : Any?> cleanup(initialValue:T? = null, block: (T) -> Unit) = CleaningDelegate(initialValue, cleanUpBlocks, block)
+
+	@Test
+	fun testWithCleanup() {
+		val testHolder = TestHolder(1)
+
+		var thing: TestHolder by CleaningDelegate(testHolder, cleanupBlocks = cleanUpBlocks, block = {println("cleaning up $it")})
+		var thing2: TestHolder by cleanup(testHolder) {println("cleaning up $it") }
+		println("Hey!")
+
+	}
+
+	@After
+	fun cleanup() {
+		cleanUpBlocks.forEach{(key, value) -> value(key)}
+	}
+  }
+```

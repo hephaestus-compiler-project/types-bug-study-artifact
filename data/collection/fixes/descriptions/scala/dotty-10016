@@ -1,0 +1,79 @@
+## Minimized code
+
+```scala
+def f(init: Int ?=> Int) : Int = 1
+def f(s: String)(init: Int ?=> Int) : Int = 1
+
+@main def main() =
+  f((x:Int) ?=> x)
+```
+
+## Output
+
+Compilation with Dotty 0.27.0-RC1 fails with the following error:
+
+```scala
+[error] -- [E134] Type Mismatch Error: C:\Git\Overload\src\main\scala\Main.scala:5:2 ---
+[error] 5 |  f((x:Int) ?=> x)
+[error]   |  ^
+[error]   |  None of the overloaded alternatives of method f with types
+[error]   |   (s: String)(init: (Int) ?=> Int): Int
+[error]   |   (init: (Int) ?=> Int): Int
+[error]   |  match arguments ((Int) ?=> Int)
+[error] one error found
+[error] (Compile / compileIncremental) Compilation failed
+```
+
+## Expectation
+
+Compilation should succeed, with the method call in `main` being resolved to `f(init: Int ?=> Int)`.
+
+Note that compilation succeeds if the second definition of `f` is removed.
+
+
+## Additional test cases
+
+The following code, where only one of the overloaded methods has a context function argument, also fails to compile:
+
+```scala
+def f(init: Int ?=> Int) : Int = 1
+def f(s: String) : Int = 2
+
+@main def main() =
+  f((x:Int) ?=> x)
+```
+
+```scala
+[error] -- [E134] Type Mismatch Error: C:\Git\Overload\src\main\scala\Main.scala:5:2 ---
+[error] 5 |  f((x:Int) ?=> x)
+[error]   |  ^
+[error]   |  None of the overloaded alternatives of method f with types
+[error]   |   (s: String): Int
+[error]   |   (init: (Int) ?=> Int): Int
+[error]   |  match arguments ((Int) ?=> Int)
+[error] one error found
+[error] (Compile / compileIncremental) Compilation failed
+```
+
+Note too that the following slightly more complex code (more representative of what I was actually trying to use) also similarly fails to compile:
+
+```scala
+def f(init: Int ?=> Int)(using i : Int) : Int = init
+def f(s: String)(init: Int ?=> Int)(using i : Int) : Int = init
+
+@main def main() =
+  given Int = 10
+  f((x:Int) ?=> x)
+```
+
+```scala
+[error] -- [E134] Type Mismatch Error: C:\Git\Overload\src\main\scala\Main.scala:6:2 ---
+[error] 6 |  f((x:Int) ?=> x)
+[error]   |  ^
+[error]   |  None of the overloaded alternatives of method f with types
+[error]   |   (s: String)(init: (Int) ?=> Int)(using i: Int): Int
+[error]   |   (init: (Int) ?=> Int)(using i: Int): Int
+[error]   |  match arguments ((Int) ?=> Int)
+[error] one error found
+[error] (Compile / compileIncremental) Compilation failed
+```

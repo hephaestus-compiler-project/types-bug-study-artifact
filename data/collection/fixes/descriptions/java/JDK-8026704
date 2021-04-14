@@ -1,0 +1,60 @@
+The latest jdk8/tl forest fails to build with --enable-debug.
+
+This failure seems to be as a result of the changes for 8025998. I have not looked into the specifics of 8025998, but I have verified that winding back the four affected files (see below) to versions pre 8025998 resolves the issue.
+
+
+    langtools/src/share/classes/com/sun/tools/javac/jvm/Gen.java
+    langtools/src/share/classes/com/sun/tools/javac/code/Flags.java
+    langtools/src/share/classes/com/sun/tools/javac/comp/Flow.java
+    langtools/src/share/classes/com/sun/tools/javac/comp/LambdaToMethod.java
+---
+....
+Compiling 4 files for BUILD_BREAKITERATOR
+[Parsed DTD html32 in 155ms]
+Compiling 10107 files for BUILD_JDK
+An exception has occurred in the compiler (1.8.0-internal-fastdebug). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.AssertionError: Value of x -1
+        at com.sun.tools.javac.util.Assert.error(Assert.java:133)
+        at com.sun.tools.javac.util.Assert.check(Assert.java:94)
+        at com.sun.tools.javac.util.Bits.incl(Bits.java:186)
+        at com.sun.tools.javac.comp.Flow$AbstractAssignAnalyzer.initParam(Flow.java:1796)
+        at com.sun.tools.javac.jvm.Gen$LVTAssignAnalyzer.initParam(Gen.java:2858)
+        at com.sun.tools.javac.comp.Flow$AbstractAssignAnalyzer.visitTry(Flow.java:2083)
+        at com.sun.tools.javac.tree.JCTree$JCTry.accept(JCTree.java:1167)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:389)
+        at com.sun.tools.javac.comp.Flow$AbstractAssignAnalyzer.scan(Flow.java:1367)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+        at com.sun.tools.javac.comp.Flow$AbstractAssignAnalyzer.visitBlock(Flow.java:1815)
+        at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:903)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:389)
+        at com.sun.tools.javac.comp.Flow$AbstractAssignAnalyzer.scan(Flow.java:1367)
+        at com.sun.tools.javac.comp.Flow$AbstractAssignAnalyzer.visitMethodDef(Flow.java:1753)
+        at com.sun.tools.javac.jvm.Gen$LVTAssignAnalyzer.visitMethodDef(Gen.java:2911)
+        at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:772)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:389)
+        at com.sun.tools.javac.comp.Flow$AbstractAssignAnalyzer.scan(Flow.java:1367)
+        at com.sun.tools.javac.comp.Flow$AbstractAssignAnalyzer.visitClassDef(Flow.java:1705)
+        at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:687)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:389)
+        at com.sun.tools.javac.comp.Flow$AbstractAssignAnalyzer.scan(Flow.java:1367)
+        at com.sun.tools.javac.comp.Flow$AbstractAssignAnalyzer.analyzeTree(Flow.java:2370)
+        at com.sun.tools.javac.comp.Flow$AbstractAssignAnalyzer.analyzeTree(Flow.java:2353)
+        at com.sun.tools.javac.jvm.Gen.genClass(Gen.java:2517)
+        at com.sun.tools.javac.main.JavaCompiler.genCode(JavaCompiler.java:754)
+        at com.sun.tools.javac.main.JavaCompiler.generate(JavaCompiler.java:1554)
+        at com.sun.tools.javac.main.JavaCompiler.generate(JavaCompiler.java:1518)
+        at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:910)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:869)
+        at com.sun.tools.javac.main.Main.compile(Main.java:523)
+        at com.sun.tools.javac.main.Main.compile(Main.java:381)
+        at com.sun.tools.javac.main.Main.compile(Main.java:370)
+        at com.sun.tools.javac.main.Main.compile(Main.java:361)
+        at com.sun.tools.javac.Main.compile(Main.java:56)
+        at com.sun.tools.javac.Main.main(Main.java:42)
+gmake[2]: *** [/export/home/hg/repos/jdk8/tl/build/solaris-sparcv9-normal-server-fastdebug/jdk/classes/_the.batch] Error 4
+gmake[1]: *** [classes-only] Error 2
+make381: *** [jdk-only] Error 2

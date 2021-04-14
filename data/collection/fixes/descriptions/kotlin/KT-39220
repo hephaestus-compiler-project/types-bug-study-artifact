@@ -1,0 +1,34 @@
+It's OK if there isn't the first implicit parameter or type argument isn't generic with suitable upper bound .
+
+The code is:
+```
+import kotlin.reflect.KFunction2
+
+interface Foo {
+    fun resolve(var1: Int): String
+    fun resolve(var1: String): String
+}
+
+fun <T> bar(f: KFunction2<T, String, String>) {}
+
+fun <T : Foo> main() {
+    bar<T>(Foo::resolve) // OK in OI, Ambiguity in NI
+    bar<Foo>(Foo::resolve) // OK
+    bar(Foo::resolve) // OK
+}
+```
+
+```
+import kotlin.reflect.KFunction1
+
+fun resolve(x: Number, var1: Int) = 10
+fun resolve(x: Number, var1: String) = 10
+
+fun <T> bar(f: KFunction1<T, Int>) {}
+
+fun <T : Number> main() {
+    bar<T>(::resolve) // OK in OI, Ambiguity in NI
+    bar<Number>(::resolve) // OK
+    bar(::resolve) // OK
+}
+```

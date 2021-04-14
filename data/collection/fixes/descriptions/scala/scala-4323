@@ -1,0 +1,39 @@
+I can't figure out for sure from code or spec what is supposed to happen here, but I feel there must be a bug when "object X" is used as the accessible fallback to "X.type".
+```scala
+package privates {
+  object A { 
+    val b = B
+    val c = C
+  }
+  
+  // givn this way it correctly fails
+  // private object B
+  //
+  // privates.scala:4: error: private object B escapes its defining scope as part of type object privates.B
+  //     val b = B
+  //         ^
+  // one error found
+   
+  // Should this type be inferred for a public val in A?
+  // I would think not.  But then the fallback should be AnyRef, or ScalaObject.
+  private[privates] object B
+  object C
+}
+
+package other {
+  object C {
+    val b = privates.A.b
+    val c = privates.A.c
+  }
+}
+```
+This compiles, and look at the types of b and c as inferred in other.C.
+```scala
+// Decides privates.B.type is off limits, so infers "object B"
+scala> other.C.b _
+res0: () => object privates.B = <function0>
+
+// Doesn't mind inferring privates.C.type
+scala> other.C.c _
+res1: () => privates.C.type = <function0>
+```

@@ -1,0 +1,24 @@
+in Scala 2.10.2, this warns me about a non-exhaustive pattern match...
+```scala
+sealed trait Test
+case class TestA() extends Test
+case class TestB() extends Test
+
+object Tester {
+  val input : Test = TestA()
+  val x = input match {
+    case TestA() => 2
+  }
+}
+
+// But this does not:
+
+object Tester {
+  val input : Test = TestA()
+  val num = 3
+  val x = input match {
+    case TestA() if num == 3 => 2
+  }
+}
+```
+The compiler should be able to determine that a guard clause cannot increase exhaustivity.  While I can accept the decision not to make the exhaustivity search be pessimistic (which could result in some false warnings, if something always evaluates to true for some reason), it should at least be able to determine that the case of TestB() is not handled.

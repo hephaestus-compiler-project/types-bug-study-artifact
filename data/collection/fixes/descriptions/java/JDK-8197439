@@ -1,0 +1,53 @@
+The (lambda) analyzer crashes for anonymous class in anonymous class, if the nested one becomes unresolvable with the lambda conversion.
+
+To reproduce:
+---
+public class AnonymousInAnonymous {
+    static void s(I1 i) {}
+    static {
+        s(
+            new I1() {
+                public I2 get() {
+                    return new I2() {
+                    };
+                }
+            });
+    }
+    public static interface I1 {
+        public static class I2 { }
+        public I2 get();
+    }
+}
+---
+
+Leads to:
+---
+$ javac -XDfind=lambda AnonymousInAnonymous.java
+An exception has occurred in the compiler (10-internal). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.AssertionError: Analyzer error when processing: s(new I1(){
+    
+    () {
+        super();
+    }
+    
+    public I2 get() {
+        return new I2(){
+            
+            () {
+                super();
+            }
+        };
+    }
+});
+        at jdk.compiler/com.sun.tools.javac.util.Assert.error(Assert.java:162)
+        at jdk.compiler/com.sun.tools.javac.comp.Analyzer.doAnalysis(Analyzer.java:565)
+        at jdk.compiler/com.sun.tools.javac.comp.Analyzer$2.flush(Analyzer.java:536)
+        at jdk.compiler/com.sun.tools.javac.comp.Analyzer.flush(Analyzer.java:573)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1399)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1367)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:965)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:306)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:165)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:57)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:43)
+---

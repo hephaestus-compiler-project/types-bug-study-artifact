@@ -1,0 +1,37 @@
+After upgrading to groovy 3.0 this code fails to compile (can't pass type checker).
+{code:java}
+import groovy.transform.CompileStatic
+
+@CompileStatic
+trait StaticTrait {
+    static <T> T wrapClosure(Closure<T> callable) {
+        callable()
+    }
+}
+
+class ClassWithTrait implements StaticTrait {}
+
+@CompileStatic
+class ClassCaller {
+    void call() {
+        ClassWithTrait.wrapClosure {
+            println("fails to compile")
+            0
+        }
+    }
+}
+
+new ClassCaller().call()
+ {code}
+Error output:
+{code:java}
+% groovyc test1.groovy
+org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
+test1.groovy: 15: [Static type checking] - Cannot find matching method ClassWithTrait#wrapClosure(groovy.lang.Closure <java.lang.Integer>). Please check if the declared type is correct and if the method exists.
+ @ line 15, column 9.
+           ClassWithTrait.wrapClosure {
+           ^
+
+
+1 error {code}
+It compiles fine with 2.5.13.

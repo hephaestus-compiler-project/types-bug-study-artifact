@@ -1,0 +1,31 @@
+I don't know if this is the same as #5394 which refers to 2.10.0-M1 and says it compiles but silently drops optimization. I have a slightly different situation.
+
+```
+[error] /Users/hhrutz/Documents/devel/LucreSTM/src/main/scala/de/sciss/lucre/stm/LinkedList.scala:56: could not optimize @tailrec annotated method step: it contains a recursive call not in tail position
+[error]          @tailrec def step( v: S#Var[ Option[ Cell[ S, A ]]]) { v.get match {
+[error]                                                                   ^
+[error] /Users/hhrutz/Documents/devel/LucreSTM/src/main/scala/de/sciss/lucre/stm/LinkedList.scala:66: could not optimize @tailrec annotated method step: it contains a recursive call not in tail position
+[error]          @tailrec def step( v: S#Var[ Option[ Cell[ S, A ]]]) { v.get match {
+[error]                                                                   ^
+[error] /Users/hhrutz/Documents/devel/LucreSTM/src/main/scala/de/sciss/lucre/stm/LinkedList.scala:79: could not optimize @tailrec annotated method step: it contains a recursive call not in tail position
+[error]          @tailrec def step( v: S#Var[ Option[ Cell[ S, A ]]]) { v.get match {
+[error]                                                                   ^
+```
+
+So for example here is a code fragment which is rejected:
+
+```scala
+      final def append( elem: A )( implicit tx: S#Tx ) {
+         @tailrec def step( v: S#Var[ Option[ Cell[ S, A ]]]) { v.get match {
+            case None =>
+               v.set( Some( new Cell.New( tx, elem, None, peerSer )))
+            case Some( cell ) =>
+               step( cell.nextRef )
+{code}
+         step( headRef )
+      }
+```
+
+If I remove `-Yvirtpatmat`, it compiles without errors.
+
+To reproduce, you can clone the following project/branch: https://github.com/Sciss/LucreSTM/tree/scala-2.10.0-M2-test and run `sbt compile` (you need sbt-launch version from here: http://repo.typesafe.com/typesafe/ivy-snapshots/org.scala-tools.sbt/sbt-launch/0.11.3-20120130-052105/)

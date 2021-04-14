@@ -1,0 +1,20 @@
+{code}
+fun <T, R> foo(x: KFunction1<T, R>) {}
+
+class Sample {
+    fun bar() {}
+    fun bar(x: Int) {}
+}
+
+fun test() {
+    foo(Sample::bar) // error: TYPE_INFERENCE_PARAMETER_CONSTRAINT_ERROR
+    foo(String::toInt) // from original issue 
+}
+{code}
+
+Workaround is to specify type arguments: `foo<Sample, Unit>(Sample::bar)` or to use functional type instead of `KFunction1`:
+{code}
+fun <T, R> foo(x: (T) -> R) {}
+{code}
+
+Note that the original issue occurs in project https://github.com/npryce/hamkrest (see [https://github.com/npryce/hamkrest/blob/master/src/test/kotlin/com/natpryce/hamkrest/matching_tests.kt#L130 this line]) in `1.1` we added overload `String.toInt(radix: Int)` to our stdlib

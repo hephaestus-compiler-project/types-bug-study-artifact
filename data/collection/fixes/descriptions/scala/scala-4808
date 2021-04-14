@@ -1,0 +1,27 @@
+Writing an explicit companion object for a case class interferes with type inference for the auto-generated apply() method. Take the following code:
+
+```scala
+def f(g: (String, Int) => Any) = null
+
+case class A(x: String, y: Int)
+case class B(x: String, y: Int)
+object B
+
+val v1 = f(A.apply _)
+val v2 = f(A)
+val v3 = f(B.apply _)
+val v4 = f(B)
+```
+
+v1, v2, and v3 compile.
+
+v4 fails with:
+
+```scala
+error: type mismatch;
+ found   : this.B.type (with underlying type object this.B)
+ required: (String, Int) => Any
+val v4 = f(B)
+```
+
+It seems that the explicit companion object prevents the proper Function trait from being mixed in automatically.

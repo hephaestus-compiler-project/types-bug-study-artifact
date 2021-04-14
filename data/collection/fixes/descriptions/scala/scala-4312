@@ -1,0 +1,36 @@
+This appears specific to higher kinded types.
+```scala
+class Bop[A[_]]
+
+object Foo {
+  private val stToSK = new Bop[ScopedTaskKey]
+  private type ScopedTaskKey[T] = String
+}
+```
+```scala
+error: java.lang.Error: unexpected alias type: type ScopedTaskKey
+	at scala.tools.nsc.symtab.SymbolTable.abort(SymbolTable.scala:35)
+	at scala.tools.nsc.symtab.Symbols$$Symbol.existentialBound(Symbols.scala:970)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$39.apply(Typers.scala:2743)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$39.apply(Typers.scala:2738)
+	at scala.collection.TraversableLike$$$$anonfun$$map$$1.apply(TraversableLike.scala:241)
+	at scala.collection.TraversableLike$$$$anonfun$$map$$1.apply(TraversableLike.scala:241)
+	at scala.collection.LinearSeqOptimized$$class.foreach(LinearSeqOptimized.scala:61)  
+	at scala.collection.immutable.List.foreach(List.scala:45)
+	at scala.collection.TraversableLike$$class.map(TraversableLike.scala:241)
+	at scala.collection.immutable.List.map(List.scala:45)
+	at scala.tools.nsc.typechecker.Typers$$Typer.existentialTransform(Typers.scala:2738)
+	at scala.tools.nsc.typechecker.Typers$$Typer.packSymbols(Typers.scala:2763)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$checkNoEscaping$$.check(Typers.scala:354)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$checkNoEscaping$$.locals(Typers.scala:341)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedDefDef(Typers.scala:1690)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed1(Typers.scala:3807)
+```
+If stToSK is not private, we can see the potential issue it is investigating when it crashes.
+```scala
+0304.scala:9: error: private type ScopedTaskKey escapes its defining scope as part of type Bop[Foo.ScopedTaskKey]
+  val stToSK = new Bop[ScopedTaskKey]
+      ^
+one error found  
+```
+It compiles in 2.8.1, fails with r24371.

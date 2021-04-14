@@ -1,0 +1,21 @@
+For background, see JDK-8150051, JDK-8150049, and the detailed explanation in the comments.
+
+The signature of StandardJavaFileManager.setLocationFromPaths is
+    public void setLocationFromPaths(Location location, Iterable<? extends Path> searchpath)
+
+This was deliberately chosen to match the related method setLocation
+    public void setLocation(Location location, Iterable<? extends File> searchpath)
+
+The problem is that Path implements Iterable<Path>
+https://docs.oracle.com/javase/8/docs/api/java/nio/file/Path.html
+
+This means that it is way too easy for a client to accidentally pass a Path object to the method, instead of a singleton collection containing a Path.
+For example, if a user writes
+    Path p = Paths.get("a/b/c");
+    fm.setLocationFromPaths(locn, p);  // BAD
+instead of 
+    Path p = Paths.get("a/b/c");
+    fm.setLocationFromPaths(locn, Collections.singleton(p));  // GOOD
+then in the bad case, the code will still compile, but the search path will be set to the series of paths "a", "b", "c", instead of the single path "a/b/c", leading to a probable IllegalArgumentException at best, and silent and obscure malfunctioning in the worst case.
+
+Since it is too late to change Path implements Iterable<Path>, the recommendation has to be that we should avoid all use of Iterable<Path> or Iterable<? extends Path> in public API like StandardJavaFileManager.

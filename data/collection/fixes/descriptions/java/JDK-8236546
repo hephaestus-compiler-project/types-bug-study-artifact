@@ -1,0 +1,85 @@
+ADDITIONAL SYSTEM INFORMATION :
+Platform-independent, this problem can be reproduced in JDK13 and JDK14 on Windows and Linux.
+The test build is the latest version.
+
+A DESCRIPTION OF THE PROBLEM :
+Incomplete conditional judgment in "jdk.compiler / com.sun.tools.javac.comp.Flow$AssignAnalyzer#visitYield" caused the assertion to fail
+
+REGRESSION : Last worked in version 13.0.1
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Attempting to compile code with specific characteristics.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Compile normally.
+ACTUAL -
+java.lang.AssertionError
+        at jdk.compiler/com.sun.tools.javac.util.Assert.error(Assert.java:155)
+        at jdk.compiler/com.sun.tools.javac.util.Assert.check(Assert.java:46)
+        at jdk.compiler/com.sun.tools.javac.util.Bits.dup(Bits.java:164)
+        at jdk.compiler/com.sun.tools.javac.util.Bits.assign(Bits.java:156)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer$AssignPendingExit.<init>(Flow.java:1622)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.visitYield(Flow.java:2466)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCYield.accept(JCTree.java:1598)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:405)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.scan(Flow.java:1553)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.handleSwitch(Flow.java:2250)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.visitSwitchExpression(Flow.java:2224)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCSwitchExpression.accept(JCTree.java:1319)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:405)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.scan(Flow.java:1553)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.scanExpr(Flow.java:1809)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.visitReturn(Flow.java:2477)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCReturn.accept(JCTree.java:1649)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:405)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.scan(Flow.java:1553)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.visitBlock(Flow.java:2061)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:1030)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:405)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.scan(Flow.java:1553)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.visitMethodDef(Flow.java:1986)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:876)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:405)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.scan(Flow.java:1553)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.visitClassDef(Flow.java:1924)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:784)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:405)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.scan(Flow.java:1553)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.analyzeTree(Flow.java:2664)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow$AssignAnalyzer.analyzeTree(Flow.java:2646)
+        at jdk.compiler/com.sun.tools.javac.comp.Flow.analyzeTree(Flow.java:216)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1406)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1380)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:972)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:318)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:176)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:57)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:43)
+
+---------- BEGIN SOURCE ----------
+public class TestSwitchBug {
+	Object func(final String name) {
+		return switch (name) {
+			default -> name != null && name == name;
+		};
+	}
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+All "com.sun.tools.javac.comp.Flow.AssignAnalyzer#visitYield" should be checked for all case expressions.
+I can temporarily fix this by redirecting the "hasTag" method.
+
+
+FREQUENCY : always
+
+

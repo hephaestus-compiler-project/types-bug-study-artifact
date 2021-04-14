@@ -1,0 +1,45 @@
+In the REPL I first define:
+
+```scala
+trait Term
+case class FunctionalTerm[+T <: Term](t: T) extends Term;
+```
+
+Intuitively, the following method takes a Term and a FunctionalTerm, and returns something with type the least upper bound of the type of term passed and the argument type of the FunctionalTerm:
+
+```scala
+def ex1[T1 <: Term, T3 <: X, FunctionalTerm[T1] <: X, X <: R, R <: Term](t1: FunctionalTerm[T1], s: T3): R = sys.error("TODO")
+```
+
+So far so good in the REPL.
+
+Then I define ex2 as a convenience function that performs the same operation as ex1, but with the input arguments swapped:
+
+```scala
+def ex2[T2 <: Term, T3 <: X, FunctionalTerm[T2] <: X, X <: R, R <: Term](s: T3, t2: FunctionalTerm[T2]): R = ex1(t2, s)
+```
+
+Attempting to define ex2 in the REPL gives the following error:
+
+```scala
+error: inferred type arguments [T2,T3,FunctionalTerm,T3,T3] do not conform to method ex1's type parameter bounds [T1 <: Term,T3 <: X,FunctionalTerm[T1] <: X,X <: R,R <: Term]
+         ex1(t2,s)
+         ^
+error: type mismatch;
+ found   : FunctionalTerm[T2]
+ required: FunctionalTerm[T1]
+         ex1(t2,s)
+             ^
+error: type mismatch;
+ found   : T3(in method ex2)
+ required: T3(in method ex1)
+         ex1(t2,s)
+                ^
+error: type mismatch;
+ found   : R(in method ex1)
+ required: R(in method ex2)
+         ex1(t2,s)
+            ^
+```
+
+I believe this to be a bug due to the inferred types [T2,T3,FunctionalTerm,T3,T3], in particular FunctionalTerm. FunctionalTerm is a type constructor * -> * but the method expects a type * in this position.

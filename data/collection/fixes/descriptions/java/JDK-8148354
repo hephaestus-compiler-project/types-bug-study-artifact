@@ -1,0 +1,69 @@
+FULL PRODUCT VERSION :
+java version "1.8.0_72"
+Java(TM) SE Runtime Environment (build 1.8.0_72-b15)
+Java HotSpot(TM) 64-Bit Server VM (build 25.72-b15, mixed mode)
+
+
+A DESCRIPTION OF THE PROBLEM :
+Type inference fails for certain intersection types. See attached Java Code: the method consume is defined with a type variable
+
+<T extends Object & Serializable & Consumer<String>>
+
+(this definition is only for demonstration purposes, usually one would only declare
+
+<T extends Serializable & Consumer<String>>
+
+The method is called using a method reference
+
+consume(this::process, ...
+
+The compilation fails and (because of the exact declaration) says that the method reference is interpreted as Consumer<String> (which is correct in principle), but cannot be converted to "T extends Object,Serializable,Consumer<String>".
+
+The Eclipse compiler compiles and runs this code without problems.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+The intersection type should be automatically inferred from the method's type variable.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+GenericsTest.java:15: error: incompatible types: cannot infer type-variable(s) T
+        consume(this::process, "Hello World");
+               ^
+    (argument mismatch; Consumer<String> cannot be converted to INT#1)
+  where T is a type-variable:
+    T extends Object,Serializable,Consumer<String> declared in method <T>consume(T,String)
+  where INT#1 is an intersection type:
+    INT#1 extends Object,Serializable,Consumer<String>
+1 error
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import java.io.Serializable;
+import java.util.function.Consumer;
+
+public class GenericsTest {
+    public <T extends Object & Serializable & Consumer<String>> void consume(final T _cons,
+            final String _s) {
+        _cons.accept(_s);
+    }
+
+    public void process(final String _o) {
+        System.out.println(_o);
+    }
+
+    public void testCompile() {
+        consume(this::process, "Hello World");
+    }
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Adding a cast:
+
+        consume((Serializable & Consumer<String>) this::process, "Hello World");
+
+makes the code compile.
+

@@ -1,0 +1,89 @@
+I believe, this error is a side-effect of incorrect method resolution in KT-3189:
+
+{code}
+fun main(args:Array<String>) {
+  val test = Cached<Int,Int>({ it + 1 })  
+  println("Err:  ${ test(1) } = 1")
+
+}
+  
+class Cached<K, V>(private val generate: (K)->V): jet.Function1<K, V>() {
+    val store = java.util.HashMap<K, V>()
+
+    // Everything works just fine if 'invoke' method is renamed to, for example, 'get'
+    override fun invoke(p1: K) = store.getOrPut(p1) { generate(p1) }
+}
+{code}
+
+Class Cached may or may not extend jet.Function1 - error message is the same:
+
+org.jetbrains.jet.codegen.CompilationException: Back-end (JVM) Internal error: Error types are not allowed when classBuilderMode = FULL. For declaration null:null in null:null
+Cause: Error types are not allowed when classBuilderMode = FULL. For declaration null:null in null:null
+File being compiled and position: (10,53) in dummy.jet
+The root cause was thrown at: JetTypeMapper.java:265
+at org.jetbrains.jet.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:250)
+at org.jetbrains.jet.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:222)
+at org.jetbrains.jet.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:256)
+at org.jetbrains.jet.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:260)
+at org.jetbrains.jet.codegen.ExpressionCodegen.pushMethodArguments(ExpressionCodegen.java:2130)
+at org.jetbrains.jet.codegen.ExpressionCodegen.invokeMethodWithArguments(ExpressionCodegen.java:1944)
+at org.jetbrains.jet.codegen.ExpressionCodegen.invokeFunction(ExpressionCodegen.java:1801)
+at org.jetbrains.jet.codegen.ExpressionCodegen.visitCallExpression(ExpressionCodegen.java:1732)
+at org.jetbrains.jet.codegen.ExpressionCodegen.visitCallExpression(ExpressionCodegen.java:80)
+at org.jetbrains.jet.lang.psi.JetCallExpression.accept(JetCallExpression.java:45)
+at org.jetbrains.jet.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:240)
+at org.jetbrains.jet.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:222)
+at org.jetbrains.jet.codegen.ExpressionCodegen.visitDotQualifiedExpression(ExpressionCodegen.java:2255)
+at org.jetbrains.jet.codegen.ExpressionCodegen.visitDotQualifiedExpression(ExpressionCodegen.java:80)
+at org.jetbrains.jet.lang.psi.JetDotQualifiedExpression.accept(JetDotQualifiedExpression.java:37)
+at org.jetbrains.jet.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:240)
+at org.jetbrains.jet.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:222)
+at org.jetbrains.jet.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:256)
+at org.jetbrains.jet.codegen.ExpressionCodegen.returnExpression(ExpressionCodegen.java:1339)
+at org.jetbrains.jet.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:209)
+at org.jetbrains.jet.codegen.FunctionCodegen.generateMethodHeaderAndBody(FunctionCodegen.java:149)
+at org.jetbrains.jet.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:105)
+at org.jetbrains.jet.codegen.FunctionCodegen.gen(FunctionCodegen.java:85)
+at org.jetbrains.jet.codegen.MemberCodegen.genFunctionOrProperty(MemberCodegen.java:49)
+at org.jetbrains.jet.codegen.ClassBodyCodegen.generateDeclaration(ClassBodyCodegen.java:90)
+at org.jetbrains.jet.codegen.ImplementationBodyCodegen.generateDeclaration(ImplementationBodyCodegen.java:1476)
+at org.jetbrains.jet.codegen.ClassBodyCodegen.generateClassBody(ClassBodyCodegen.java:82)
+at org.jetbrains.jet.codegen.ClassBodyCodegen.generate(ClassBodyCodegen.java:63)
+at org.jetbrains.jet.codegen.MemberCodegen.genImplementation(MemberCodegen.java:86)
+at org.jetbrains.jet.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:140)
+at org.jetbrains.jet.codegen.NamespaceCodegen.generate(NamespaceCodegen.java:132)
+at org.jetbrains.jet.codegen.NamespaceCodegen.generate(NamespaceCodegen.java:95)
+at org.jetbrains.jet.codegen.state.GenerationStrategy.generateNamespace(GenerationStrategy.java:53)
+at org.jetbrains.jet.codegen.state.GenerationStrategy.compileCorrectFiles(GenerationStrategy.java:77)
+at org.jetbrains.webdemo.responseHelpers.CompileAndRunExecutor.getResult(CompileAndRunExecutor.java:85)
+at org.jetbrains.webdemo.sessions.HttpSession.sendExecutorResult(HttpSession.java:187)
+at org.jetbrains.webdemo.sessions.HttpSession.handle(HttpSession.java:68)
+at org.jetbrains.webdemo.handlers.ServerHandler.handle(ServerHandler.java:123)
+at org.jetbrains.webdemo.servlet.KotlinHttpServlet.service(KotlinHttpServlet.java:112)
+at javax.servlet.http.HttpServlet.service(HttpServlet.java:717)
+at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:290)
+at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:206)
+at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:233)
+at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:191)
+at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:127)
+at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:102)
+at org.apache.catalina.valves.AccessLogValve.invoke(AccessLogValve.java:554)
+at org.apache.catalina.connector.RemoteIpValve.invoke(RemoteIpValve.java:610)
+at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:109)
+at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:298)
+at org.apache.coyote.http11.Http11Processor.process(Http11Processor.java:859)
+at org.apache.coyote.http11.Http11Protocol$Http11ConnectionHandler.process(Http11Protocol.java:588)
+at org.apache.tomcat.util.net.JIoEndpoint$Worker.run(JIoEndpoint.java:489)
+at java.lang.Thread.run(Thread.java:662)
+Caused by: java.lang.IllegalStateException: Error types are not allowed when classBuilderMode = FULL. For declaration null:null in null:null
+at org.jetbrains.jet.codegen.state.JetTypeMapper.mapType(JetTypeMapper.java:265)
+at org.jetbrains.jet.codegen.state.JetTypeMapper.mapType(JetTypeMapper.java:212)
+at org.jetbrains.jet.codegen.state.JetTypeMapper.mapType(JetTypeMapper.java:192)
+at org.jetbrains.jet.codegen.ClosureCodegen.appendType(ClosureCodegen.java:287)
+at org.jetbrains.jet.codegen.ClosureCodegen.gen(ClosureCodegen.java:88)
+at org.jetbrains.jet.codegen.ExpressionCodegen.genClosure(ExpressionCodegen.java:1091)
+at org.jetbrains.jet.codegen.ExpressionCodegen.visitFunctionLiteralExpression(ExpressionCodegen.java:1080)
+at org.jetbrains.jet.codegen.ExpressionCodegen.visitFunctionLiteralExpression(ExpressionCodegen.java:80)
+at org.jetbrains.jet.lang.psi.JetFunctionLiteralExpression.accept(JetFunctionLiteralExpression.java:40)
+at org.jetbrains.jet.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:240)
+... 53 more

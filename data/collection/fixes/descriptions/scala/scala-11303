@@ -1,0 +1,63 @@
+When attempting to build FS2 for 2.13.0-M5, I've run in to the following two issues. First, there's an "Unexpected code path" warning followed by a stack overflow. I've tried with a stack size of up to 100M with the same result.
+
+```
+[info] Compiling 28 Scala sources to /Users/mpilquist/Development/oss/fs2/core/jvm/target/scala-2.13.0-M5/classes ...
+[warn] /Users/mpilquist/Development/oss/fs2/core/shared/src/main/scala/fs2/Pull.scala:182:25: compiler bug: Unexpected code path: testing two type variables for subtype relation:
+[warn]   ?F <:< ?F
+[warn] Please report bug at https://github.com/scala/bug/issues
+[warn]   private def mapOutput[F[_], O, O2, R](p: Pull[F, O, R])(f: O => O2): Pull[F, O2, R] =
+[warn]                         ^
+[error] ## Exception when compiling 28 sources to /Users/mpilquist/Development/oss/fs2/core/jvm/target/scala-2.13.0-M5/classes
+[error] null
+[error] scala.reflect.internal.Types$TypeBounds.$anonfun$mapOver$1(Types.scala:1516)
+[error] scala.reflect.internal.Types$TypeBounds.mapOver(Types.scala:1516)
+[error] scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:674)
+[error] scala.reflect.internal.tpe.TypeMaps$SubstSymMap.apply(TypeMaps.scala:735)
+[error] scala.reflect.internal.Types$Type.substSym(Types.scala:744)
+[error] scala.reflect.internal.Symbols$Symbol.$anonfun$substInfo$1(Symbols.scala:1564)
+[error] scala.reflect.internal.Symbols$Symbol.modifyInfo(Symbols.scala:1557)
+[error] scala.reflect.internal.Symbols$Symbol.substInfo(Symbols.scala:1564)
+[error] scala.reflect.internal.Symbols.$anonfun$deriveSymbols$1(Symbols.scala:3631)
+[error] scala.reflect.internal.Symbols.deriveSymbols(Symbols.scala:3631)
+[error] scala.reflect.internal.Symbols.deriveSymbols$(Symbols.scala:3629)
+[error] scala.reflect.internal.SymbolTable.deriveSymbols(SymbolTable.scala:17)
+[error] scala.reflect.internal.Symbols.cloneSymbols(Symbols.scala:3691)
+[error] scala.reflect.internal.Symbols.cloneSymbols$(Symbols.scala:3690)
+[error] scala.reflect.internal.SymbolTable.cloneSymbols(SymbolTable.scala:17)
+[error] scala.reflect.internal.Symbols.createFromClonedSymbols(Symbols.scala:3710)
+[error] scala.reflect.internal.Symbols.createFromClonedSymbols$(Symbols.scala:3709)
+[error] scala.reflect.internal.SymbolTable.createFromClonedSymbols(SymbolTable.scala:17)
+[error] scala.reflect.internal.tpe.TypeMaps$SubstMap.renameBoundSyms(TypeMaps.scala:640)
+[error] scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:674)
+[error] scala.reflect.internal.tpe.TypeMaps$SubstSymMap.apply(TypeMaps.scala:735)
+[error] scala.reflect.internal.Types$TypeVar.mapOver(Types.scala:3696)
+[error] scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:674)
+[error] scala.reflect.internal.tpe.TypeMaps$SubstSymMap.apply(TypeMaps.scala:735)
+[error] scala.reflect.internal.Types$Type.substSym(Types.scala:744)
+[error] scala.reflect.internal.Symbols.createFromClonedSymbols(Symbols.scala:3711)
+[error] scala.reflect.internal.Symbols.createFromClonedSymbols$(Symbols.scala:3709)
+...
+[error] java.lang.StackOverflowError
+[error] 	at scala.reflect.internal.Types$TypeBounds.$anonfun$mapOver$1(Types.scala:1516)
+[error] 	at scala.reflect.internal.Types$TypeBounds.mapOver(Types.scala:1516)
+[error] 	at scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:674)
+[error] 	at scala.reflect.internal.tpe.TypeMaps$SubstSymMap.apply(TypeMaps.scala:735)
+[error] 	at scala.reflect.internal.Types$Type.substSym(Types.scala:744)
+[error] 	at scala.reflect.internal.Symbols$Symbol.$anonfun$substInfo$1(Symbols.scala:1564)
+[error] 	at scala.reflect.internal.Symbols$Symbol.modifyInfo(Symbols.scala:1557)
+[error] 	at scala.reflect.internal.Symbols$Symbol.substInfo(Symbols.scala:1564)
+[error] 	at scala.reflect.internal.Symbols.$anonfun$deriveSymbols$1(Symbols.scala:3631)
+[error] 	at scala.reflect.internal.Symbols.deriveSymbols(Symbols.scala:3631)
+[error] 	at scala.reflect.internal.Symbols.deriveSymbols$(Symbols.scala:3629)
+[error] 	at scala.reflect.internal.SymbolTable.deriveSymbols(SymbolTable.scala:17)
+[error] 	at scala.reflect.internal.Symbols.cloneSymbols(Symbols.scala:3691)
+[error] 	at scala.reflect.internal.Symbols.cloneSymbols$(Symbols.scala:3690)
+...
+```
+
+To reproduce:
+(1) `git clone https://github.com/mpilquist/fs2`
+(2) `cd fs2 && git checkout topic/bug-in-2.13.0-M5`
+(3) `sbt ";project coreJVM;++ 2.13.0-M5;compile"`
+
+I have not been able to minimize this.

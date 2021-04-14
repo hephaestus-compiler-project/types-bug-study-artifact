@@ -1,0 +1,75 @@
+FULL PRODUCT VERSION :
+java version "1.6.0-rc"
+Java(TM) SE Runtime Environment (build 1.6.0-rc-b100)
+Java HotSpot(TM) Client VM (build 1.6.0-rc-b100, mixed mode, sharing)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+Microsoft Windows XP [Version 5.1.2600]
+
+A DESCRIPTION OF THE PROBLEM :
+The attached code compiles with no errors or warnings, but raises unexpected ClassCastException at runtime.  This behavior shows an "unsoundness" of the compiler (in terms of the implementation of generics in Java).
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+C:\WINDOWS\Temp>type B.java
+class A{
+        public int compareTo(Object o){
+                return 0;
+        }
+}
+
+class B extends A implements Comparable<B>{
+        public int compareTo(B b){
+                return 0;
+        }
+
+        public static void main(String[] argv){
+                System.out.println(new B().compareTo(new Object(){}));
+        }
+}
+
+C:\WINDOWS\Temp>c:\progra~1\java\jdk1.6.0\bin\javac.exe -Xlint B.java
+
+C:\WINDOWS\Temp>c:\progra~1\java\jdk1.6.0\bin\java.exe B
+Exception in thread "main" java.lang.ClassCastException: B$1 cannot be cast to B
+
+        at B.compareTo(B.java:7)
+        at B.main(B.java:13)
+
+C:\WINDOWS\Temp>
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+should be a compiler-time error, according to The Java Language Specification, Third Edition, page 227 (fourth item of the list)
+ACTUAL -
+runtime ClassCastException
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+Exception in thread "main" java.lang.ClassCastException: B$1 cannot be cast to B
+
+        at B.compareTo(B.java:7)
+        at B.main(B.java:13)
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+class A{
+        public int compareTo(Object o){
+                return 0;
+        }
+}
+
+class B extends A implements Comparable<B>{
+        public int compareTo(B b){
+                return 0;
+        }
+
+        public static void main(String[] argv){
+                System.out.println(new B().compareTo(new Object(){}));
+        }
+}
+
+---------- END SOURCE ----------

@@ -1,0 +1,124 @@
+Because they're (currently) encoded using refinements, dependent functions do not support inter-parameter dependencies (this encoding is also the root cause of https://github.com/lampepfl/dotty/issues/6357):
+```scala
+object Test {
+  val f: (x: String, y: x.type) => Any = ???
+}
+```
+```scala
+-- Error: try/df.scala:2:32 ---------------------------------------------------
+2 |  val f: (x: String, y: x.type) => Any = ???
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |(x: String, y: x.type): Any is an illegal function type because it has inter-parameter dependencies
+```
+
+However, we seem to be missing a similar check when eta-expanding a method type, and Typer gets very confused:
+```scala
+object Test {
+  def foo(x: String, y: x.type): Any = ???
+  val f = foo
+}
+```
+```scala
+-- [E007] Type Mismatch Error: try/df.scala:2:10 ------------------------------
+2  |  val f = foo
+   |          ^
+   |         Found:    x.type(y)
+   |         Required: String(x')
+   |         
+   |         where:    x  is a reference to a value parameter
+   |                   x' is a value in an anonymous function in object Test
+exception occurred while typechecking try/df.scala
+exception occurred while compiling try/df.scala
+java.lang.Error: internal error: cannot turn method type (x: String, y: x.type): Any into closure
+because it has internal parameter dependencies,
+position = <329..329>, raw type = MethodType(List(x, y), List(TypeRef(TermRef(ThisType(TypeRef(NoPrefix,module class scala)),module Predef),type String), TermParamRef(x)), TypeRef(TermRef(ThisType(TypeRef(NoPrefix,module class <root>)),module scala),class Any)) while compiling try/df.scala
+Exception in thread "main" java.lang.Error: internal error: cannot turn method type (x: String, y: x.type): Any into closure
+because it has internal parameter dependencies,
+position = <329..329>, raw type = MethodType(List(x, y), List(TypeRef(TermRef(ThisType(TypeRef(NoPrefix,module class scala)),module Predef),type String), TermParamRef(x)), TypeRef(TermRef(ThisType(TypeRef(NoPrefix,module class <root>)),module scala),class Any))
+        at dotty.tools.dotc.typer.Typer.typedClosure(Typer.scala:1001)
+        at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:2123)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2167)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2201)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2213)
+        at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2289)
+        at dotty.tools.dotc.typer.Typer.typedBlock(Typer.scala:704)
+        at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:2120)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2167)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2201)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2213)
+        at dotty.tools.dotc.typer.Typer.typedFunctionValue(Typer.scala:976)
+        at dotty.tools.dotc.typer.Typer.typedFunction(Typer.scala:798)
+        at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:2122)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2167)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2201)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2213)
+        at dotty.tools.dotc.typer.Typer.adaptNoArgsUnappliedMethod$2(Typer.scala:2738)
+        at dotty.tools.dotc.typer.Typer.adaptNoArgs$1(Typer.scala:2866)
+        at dotty.tools.dotc.typer.Typer.adapt1(Typer.scala:3077)
+        at dotty.tools.dotc.typer.Typer.adapt(Typer.scala:2499)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2201)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2213)
+        at dotty.tools.dotc.typer.Namer.typedAheadExpr$$anonfun$1(Namer.scala:1212)
+        at dotty.tools.dotc.typer.Namer.typedAhead(Namer.scala:1202)
+        at dotty.tools.dotc.typer.Namer.typedAheadExpr(Namer.scala:1212)
+        at dotty.tools.dotc.typer.Namer.rhsType$2(Namer.scala:1340)
+        at dotty.tools.dotc.typer.Namer.cookedRhsType$1(Namer.scala:1352)
+        at dotty.tools.dotc.typer.Namer.lhsType$1(Namer.scala:1353)
+        at dotty.tools.dotc.typer.Namer.inferredType$1(Namer.scala:1371)
+        at dotty.tools.dotc.typer.Namer.valOrDefDefSig(Namer.scala:1379)
+        at dotty.tools.dotc.typer.Namer$Completer.typeSig(Namer.scala:767)
+        at dotty.tools.dotc.typer.Namer$Completer.completeInCreationContext(Namer.scala:882)
+        at dotty.tools.dotc.typer.Namer$Completer.complete(Namer.scala:797)
+        at dotty.tools.dotc.core.SymDenotations$SymDenotation.completeFrom(SymDenotations.scala:237)
+        at dotty.tools.dotc.core.Denotations$Denotation.completeInfo$1(Denotations.scala:180)
+        at dotty.tools.dotc.core.Denotations$Denotation.info(Denotations.scala:182)
+        at dotty.tools.dotc.core.SymDenotations$SymDenotation.ensureCompleted(SymDenotations.scala:343)
+        at dotty.tools.dotc.typer.Typer.retrieveSym(Typer.scala:2065)
+        at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:2090)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2166)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2201)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2213)
+        at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:2232)
+        at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2278)
+        at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1676)
+        at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:2103)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2166)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2201)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2213)
+        at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:2232)
+        at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2278)
+        at dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:1795)
+        at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:2143)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2167)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2201)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2213)
+        at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2289)
+        at dotty.tools.dotc.typer.FrontEnd.typeCheck$$anonfun$1(FrontEnd.scala:61)
+        at dotty.runtime.function.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+        at dotty.tools.dotc.typer.FrontEnd.monitor(FrontEnd.scala:35)
+        at dotty.tools.dotc.typer.FrontEnd.typeCheck(FrontEnd.scala:65)
+        at dotty.tools.dotc.typer.FrontEnd.runOn$$anonfun$2(FrontEnd.scala:89)
+        at dotty.runtime.function.JProcedure1.apply(JProcedure1.java:15)
+        at dotty.runtime.function.JProcedure1.apply(JProcedure1.java:10)
+        at scala.collection.immutable.List.foreach(List.scala:392)
+        at dotty.tools.dotc.typer.FrontEnd.runOn(FrontEnd.scala:89)
+        at dotty.tools.dotc.Run.runPhases$4$$anonfun$4(Run.scala:158)
+        at dotty.runtime.function.JProcedure1.apply(JProcedure1.java:15)
+        at dotty.runtime.function.JProcedure1.apply(JProcedure1.java:10)
+        at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:36)
+        at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:33)
+        at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:198)
+        at dotty.tools.dotc.Run.runPhases$5(Run.scala:170)
+        at dotty.tools.dotc.Run.compileUnits$$anonfun$1(Run.scala:178)
+        at dotty.runtime.function.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+        at dotty.tools.dotc.util.Stats$.maybeMonitored(Stats.scala:102)
+        at dotty.tools.dotc.Run.compileUnits(Run.scala:185)
+        at dotty.tools.dotc.Run.compileSources(Run.scala:120)
+        at dotty.tools.dotc.Run.compile(Run.scala:104)
+        at dotty.tools.dotc.Driver.doCompile(Driver.scala:34)
+        at dotty.tools.dotc.Driver.process(Driver.scala:172)
+        at dotty.tools.dotc.Driver.process(Driver.scala:141)
+        at dotty.tools.dotc.Driver.process(Driver.scala:153)
+        at dotty.tools.dotc.Driver.main(Driver.scala:180)
+        at dotty.tools.dotc.Main.main(Main.scala)
+```

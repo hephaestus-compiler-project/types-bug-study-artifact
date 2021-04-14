@@ -1,0 +1,47 @@
+Scala 2.10.0-M2 introduces a bug with type unification (finding the most specific supertype). The following snippet from https://github.com/Sciss/LucreData/blob/5cf8d2c2a5fa578e0fbb04f74453ccd39e7d687e/txn-views/src/main/scala/de/sciss/collection/txn/view/HASkipListView.scala demonstrates the problem. The line that fails is:
+
+```scala
+Vert( bs = IndexedSeq( b, h ))
+```
+
+where the `bs` argument of `Vert` is of expected type `IndexedSeq[ Box ]`, and `b` is of type `NodeBox` which is a case class extending `Box`, and `h` is of type `Horiz` which also is a case class extending `Box`. So clearly `IndexedSeq( b, h )` should be inferred to fit the expected type of `IndexedSeq[ Box `. This behaves as expected in Scala 2.9.1, but in Scala 2.10.0-M2 the inferred type is `Product with Serializable`:
+
+```scala
+[error] /Users/hhrutz/Documents/devel/LucreData/mutable-views/src/main/scala/de/sciss/collection/mutable/view/HASkipListView.scala:56: type mismatch;
+[error]  found   : IndexedSeq[Product with Serializable]
+[error]  required: IndexedSeq[HASkipListView.this.Box]
+[error]          Vert( bs = IndexedSeq( b, h ))
+[error]                               ^
+```
+
+If you want to build this particular class, you need to clone https://github.com/Sciss/LucreSTM/tree/scala-2.10.0-M2-test and run `sbt publish-local`, then clone https://github.com/Sciss/LucreData/tree/scala-2.10.0-M2-test and run `sbt compile` (works with [nightly sbt](http://repo.typesafe.com/typesafe/ivy-snapshots/org.scala-tools.sbt/sbt-launch/0.11.3-20120130-052105/)).
+
+If I 'correct' the code by writing `IndexedSeq[Box](b,h)` I get a similar follow up error from
+
+```scala
+   private def buildBoxMap( n: Node[ S, A ], isRight: Boolean )( implicit tx: S#Tx ) : (Box, NodeBox) = {
+      ...
+      val b    = NodeBox( n, keys, chbo.map( _.map( _._2 )))  // NodeBox extends Box!!
+      val bb   = chbo match {
+         case Some( chbt ) =>
+            val chb  = chbt.map( _._1 )
+            val h    = Horiz( bs = chb )
+            Vert( bs = IndexedSeq[Box]( b, h ))   // Vert extends Box!!
+         case None => b
+      }
+
+      (bb, b)
+   }
+```
+
+The return value of `(bb, b)` is not accepted:
+
+```scala
+[error] /Users/hhrutz/Documents/devel/LucreData/txn-views/src/main/scala/de/sciss/collection/txn/view/HASkipListView.scala:60: type mismatch;
+[error]  found   : Product with Serializable
+[error]  required: HASkipListView.this.Box
+[error]       (bb, b)
+[error]        ^
+```
+
+So again I need to write {{val bb:Box   = chbo match { ... }}}, a type annotation not need in Scala 2.9.1.

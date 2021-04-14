@@ -1,0 +1,39 @@
+```scala
+sealed trait \/[+A, +B]
+
+sealed trait EitherT[F[+_], +A, +B]
+object EitherT {
+  def apply[F[+_], A, B](a: F[A \/ B]): EitherT[F, A, B] = new EitherT[F, A, B] { val run = a }
+}
+```
+
+compiled separately from:
+
+```scala
+import scala.language.higherKinds
+
+trait ClientTypes[M[+_]] {
+  final type Context[+A] = EitherT[M, String, A]
+  object Context {
+    def apply[A](ca: M[String \/ A]): Context[A] = EitherT[M, String, A](ca)
+  }
+
+  final type StatefulContext[+A] = EitherT[Context, String, A]
+  object StatefulContext {
+    def apply[A](state: Context[String \/ A]): StatefulContext[A] = ???
+  }
+}
+```
+
+triggers assertion:
+```scala
+  def transformMixinInfo(tp: Type): Type = tp match {
+    case ClassInfoType(parents, decls, clazz) =>
+      if (clazz.needsImplClass)
+        implClass(clazz setFlag lateINTERFACE) // generate an impl class
+
+      val parents1 = parents match {
+        case Nil      => Nil
+        case hd :: tl =>
+          assert(!hd.typeSymbol.isTrait, clazz) // KABLOEY
+```

@@ -1,0 +1,38 @@
+The new graph inference engine does not work properly when a nested generic call returns a wildcard parameterized type. For example, the following program (see JDK-8008200) fails to compile when graph inference is enabled.
+
+interface Int {
+    void main();
+}
+
+class MyInt implements Int {
+    public void main() {
+        System.out.println("Hello, world!");
+    }
+}
+
+class BasicUnit {
+    static <T extends Int> T factory(Class<T> c) throws Throwable {
+        return c.newInstance();
+    }
+    public static void main(String[] args) throws Throwable {
+        factory(Class.forName("MyInt").asSubclass(Int.class)).main();
+    }
+}
+
+Output:
+
+/Users/aurora/sandbox/testbase/test/java/lang/Class/asSubclass/BasicUnit.java:49: error: method factory in class BasicUnit cannot be applied to given types;
+        factory(Class.forName("MyInt").asSubclass(Int.class)).main();
+        ^
+  required: Class<T>
+  found: Class<CAP#1>
+  reason: cannot infer type-variable(s) T,U
+    (argument mismatch; Class<CAP#2> cannot be converted to Class<CAP#3>)
+  where T,U are type-variables:
+    T extends Int declared in method <T>factory(Class<T>)
+    U extends Object declared in method <U>asSubclass(Class<U>)
+  where CAP#1,CAP#2,CAP#3 are fresh type-variables:
+    CAP#1 extends Int from capture of ? extends Int
+    CAP#2 extends Int from capture of ? extends Int
+    CAP#3 extends Int from capture of ? extends Int
+1 error 

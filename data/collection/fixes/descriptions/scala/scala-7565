@@ -1,0 +1,25 @@
+In a linked-list structure with hetrogeneous values the type parameter used to reference the neighbouring link seems to deliver insufficient information to the compiler.  The result is that the compiler refuses to recognize that the structure can be traversed safely.
+
+Enclosed is a small class (Link.scala) that doesn't compile.  The problem is with line 13.
+
+```scala
+package rule
+
+case class Link[T, T2 <: Link[_,_]] (val value : T, val next : T2) {
+	
+	def cons [T3](value2 : T3) : Link[T3, Link[T, T2]] = {
+		val result = new Link(value2, this)
+		result
+	}
+	
+	def matches(other : Link[T, T2]) : Boolean = {
+			this.value == other.value &&
+			/* following line does not compile */
+		this.next.matches(other.next)
+	}
+}
+
+object End extends Link[Option[Nothing], Link[Option[Nothing],_]](None, null){
+	override def matches(other : this.type) = true
+}
+```

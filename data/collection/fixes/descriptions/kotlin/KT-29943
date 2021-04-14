@@ -1,0 +1,42 @@
+Consider this code:
+
+```
+package sample
+
+import kotlin.reflect.KProperty1
+
+class A {
+    val b: Any = Any()
+    fun b(a: Any): Any = Any()
+}
+
+fun <T, R> T.get(property: KProperty1<T, R>): R =
+    property.get(this)
+
+fun main() {
+    println(A().get(A::b))
+}
+```
+
+In the last line, an error is reported:
+
+> e: C:\Projects\foo\src\main\kotlin\A.kt: (14, 17): Type inference failed: `fun <T, R> T.get(property: KProperty1<T, R>): R`
+cannot be applied to
+receiver: `A`  arguments: `(KProperty1<A, Any>)`
+
+The error message is absolutely misleading, as the real error is resolution ambiguity between the error and the property. For example, modifying the last line as follows leads to a different error message:
+
+```
+println(A().get(A::b as KProperty1<A, Any>))
+```
+
+> e: C:\Projects\foo\src\main\kotlin\A.kt: (14, 17): Overload resolution ambiguity: 
+`public final val b: Any` defined in `sample.A`
+`public final fun b(a: Any): Any` defined in `sample.A`
+
+And the error can be completely resolved by first assigning the callable reference to a variable, providing an expected type:
+
+```
+val property: KProperty1<A, Any> = A::b
+println(A().get(property)) // OK!
+```

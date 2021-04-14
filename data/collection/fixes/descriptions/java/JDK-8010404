@@ -1,0 +1,62 @@
+When debugging a program that uses Lambda feature, then during stepping over an expression with nested Lambdas, there are extra steps in some cases. E.g. when Lambda is in an argument to a method call, like:
+
+44    private static void simpleIterateWithIndex(List<String> list) {
+45        eachWithIndex(list,
+46            (value, index) -> {
+47                String output = String.format("%d -> %s", index, value);
+48                System.out.println(output);
+49            }
+50        );
+51    }
+
+which compiles as
+
+  private static void simpleIterateWithIndex(java.util.List<java.lang.String>);
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: invokedynamic #14,  0             // InvokeDynamic #2:lambda:()Lcom/toy/anagrams/ui/LambdaExpressions$ItemWithIndexVisitor;
+         6: invokestatic  #12                 // Method eachWithIndex:(Ljava/util/List;Lcom/toy/anagrams/ui/LambdaExpressions$ItemWithIndexVisitor;)V
+         9: return
+      LineNumberTable:
+        line 45: 0
+        line 46: 1
+        line 45: 6
+        line 51: 9
+
+The reason can be seen in the LineNumberTable. First, program is paused at line 45 as expected. When we do step over, program is paused at line 46, where Lambda is being created. IMHO this pause is not necessary. Further step over then goes again to line 45. I consider this to be confusing. After next step, program is finally paused at line 51.
+
+Is a reason for these extra items in LineNumberTable?
+
+When I compare it to an inner class doing the same work as the Lambda, the stepping is much more smooth:
+
+53    private static void simpleIterateWithIndex2(List<String> list) {
+54        eachWithIndex(list,
+55            new ItemWithIndexVisitor() {
+56                @Override
+57                public void visit(Object value, int index) {
+58                    String output = String.format("%d -> %s", index, value);
+59                    System.out.println(output);
+60                }
+61            }
+62        );
+63    }
+
+which compiles to
+
+  private static void simpleIterateWithIndex2(java.util.List<java.lang.String>);
+    Code:
+      stack=3, locals=1, args_size=1
+         0: aload_0
+         1: new           #15                 // class com/toy/anagrams/ui/LambdaExpressions$1
+         4: dup
+         5: invokespecial #16                 // Method com/toy/anagrams/ui/LambdaExpressions$1."<init>":()V
+         8: invokestatic  #12                 // Method eachWithIndex:(Ljava/util/List;Lcom/toy/anagrams/ui/LambdaExpressions$ItemWithIndexVisitor;)V
+        11: return
+      LineNumberTable:
+        line 54: 0
+        line 63: 11
+
+It can be seen, that the step over goes from line 54 straight to line 63, over the method invocation.
+
+Can the LineNumberTable be simplified for Lambdas so that debugger stepping is more smooth?

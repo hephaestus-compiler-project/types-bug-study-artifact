@@ -1,0 +1,20 @@
+With `1.3.70` this worked, but with `1.4.21` I am getting `Tailrec is not allowed on open members`. 
+```
+  private tailrec fun <T> getStatisticWithRetries(
+    uri: URI,
+    attempt: Int = UPDATE_DOWNLOAD_COUNTRETRIES,
+    block: () -> T
+  ): T? {
+    try {
+      return block()
+    } catch (e: Exception) {
+      if (attempt <= 0) {
+        log.error("Downloads data processing failed. ('${uri.toURL()}') Message: ${e.message}")
+        return null
+      }
+    }
+    return getStatisticWithRetries(uri, attempt - 1, block)
+  }
+```
+
+Also IDE highlights it as `TAILREC_ON_VIRTUAL_MEMBER` inspection![](Screenshot 2021-01-11 at 13.05.02.png)

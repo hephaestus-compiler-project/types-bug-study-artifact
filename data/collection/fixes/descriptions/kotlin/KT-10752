@@ -1,0 +1,49 @@
+Assume the following declarations are present in Java package `j`:
+{code lang=Java}
+public interface JBase {
+    void foo();
+}
+
+public interface JDerived extends JBase {}
+
+/* package */ abstract class JDerivedImpl implements JDerived {
+    @Override public void foo() {}
+}
+
+public class JImpl1 extends JDerivedImpl {}
+public class JImpl2 extends JDerivedImpl {}
+public class JImpl3 extends JDerivedImpl {}
+
+public class Util {
+    public static JDerived JDerived = new JImpl3();
+    public static JBase JBase = new JImpl2();
+}
+{code}
+
+Then in Kotlin package `k`:
+{code lang=kt}
+package k
+
+import j.*
+
+val z: JBase? = Util.JBase
+
+fun main(args: Array<String>) {
+    var x = Util.JDerived;
+    if (x is JImpl3) {
+        val y = z
+        x = if (y is JImpl3) y
+        else if (y is JImpl2) y // <-- IAE
+//Exception in thread "main" java.lang.IllegalAccessError: tried to access class j.JDerivedImpl from class k.TestKt
+//	at k.TestKt.main(test.kt:12)
+        else if (y is JImpl1) x
+        else TODO()
+    }
+    x.foo()
+}
+{code}
+
+In the code above, `if (y is JImpl3)...` expression has type `JDerivedImpl` (package private class in `j`).
+Both instances of `y` under `if(y is ...)` are smart-cast to `JDerivedImpl`.
+Bytecode contains `CHECKCAST j/JDerivedImpl`, which actually causes the problem.
+If you add `as JDerived` to `y` in both branches, no IAE happens (although the cast is considered "useless").

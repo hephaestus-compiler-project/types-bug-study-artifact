@@ -1,0 +1,114 @@
+**What steps will reproduce the issue?**
+
+This code crashes with kotlin 1.4.0 and 1.4.20-M1. 
+It works fine with kotlin 1.3.72
+
+```kotlin
+fun <R : Parcelable> Intent.getExtraParcelableOrNull(key: String): R? =
+    extras?.run {
+        when {
+            containsKey(key) -> getParcelableExtra(key)
+            else -> null
+        }
+    }
+```
+
+
+**What is the expected result?**
+
+Prints "Foo(bar=Bar)"
+
+**What happens instead?**
+
+ClassCastException.
+```stacktrace
+E/AndroidRuntime: FATAL EXCEPTION: main
+    Process: com.example.classcastexceptionrepro, PID: 6695
+    java.lang.RuntimeException: Unable to start activity ComponentInfo{com.example.classcastexceptionrepro/com.example.classcastexceptionrepro.MainActivity}: java.lang.ClassCastException: com.example.classcastexceptionrepro.Foo cannot be cast to java.lang.Void
+        at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:3270)
+        at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:3409)
+        at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:83)
+        at android.app.servertransaction.TransactionExecutor.executeCallbacks(TransactionExecutor.java:135)
+        at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:95)
+        at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2016)
+        at android.os.Handler.dispatchMessage(Handler.java:107)
+        at android.os.Looper.loop(Looper.java:214)
+        at android.app.ActivityThread.main(ActivityThread.java:7356)
+        at java.lang.reflect.Method.invoke(Native Method)
+        at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:492)
+        at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:930)
+     Caused by: java.lang.ClassCastException: com.example.classcastexceptionrepro.Foo cannot be cast to java.lang.Void
+        at com.example.classcastexceptionrepro.MainActivityKt.getExtraParcelableOrNull(MainActivity.kt:48)
+        at com.example.classcastexceptionrepro.MainActivity.onCreate(MainActivity.kt:15)
+        at android.app.Activity.performCreate(Activity.java:7802)
+        at android.app.Activity.performCreate(Activity.java:7791)
+        at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1299)
+        at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:3245)
+        at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:3409) 
+        at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:83) 
+        at android.app.servertransaction.TransactionExecutor.executeCallbacks(TransactionExecutor.java:135) 
+        at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:95) 
+        at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2016) 
+        at android.os.Handler.dispatchMessage(Handler.java:107) 
+        at android.os.Looper.loop(Looper.java:214) 
+        at android.app.ActivityThread.main(ActivityThread.java:7356) 
+        at java.lang.reflect.Method.invoke(Native Method) 
+        at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:492) 
+        at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:930) 
+```
+
+
+Full code sample, paste this into a default "empty activity" android project:
+
+```
+import android.content.Intent
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.os.Parcel
+import android.os.Parcelable
+import android.os.Parcelable.Creator
+
+class MainActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        val intent =  Intent().putExtra("Foo", Foo("Bar"))
+        val foo = intent.getExtraParcelableOrNull<Foo>("Foo")
+        println(foo)
+    }
+}
+
+data class Foo(val bar: String?): Parcelable {
+    constructor(parcel: Parcel) : this(parcel.readString()) {
+    }
+
+    override fun writeToParcel(parcel: Parcel, flags: Int) {
+        parcel.writeString(bar)
+    }
+
+    override fun describeContents(): Int {
+        return 0
+    }
+
+    companion object CREATOR : Creator<Foo> {
+        override fun createFromParcel(parcel: Parcel): Foo {
+            return Foo(parcel)
+        }
+
+        override fun newArray(size: Int): Array<Foo?> {
+            return arrayOfNulls(size)
+        }
+    }
+
+}
+
+
+fun <R : Parcelable> Intent.getExtraParcelableOrNull(key: String): R? =
+    extras?.run {
+        when {
+            containsKey(key) -> getParcelableExtra(key)
+            else -> null
+        }
+    }
+```

@@ -1,0 +1,28 @@
+A property declared with a generic type in a superclass is not seen with the correct covariant type in a subclass narrowing the type:
+{code}
+abstract class AbstractNumberWrapper<S extends Number> {
+    protected final S number;
+
+    AbstractNumberWrapper(S number) {
+        this.number = number
+    }
+}
+class LongWrapper<S extends Long> extends AbstractNumberWrapper<S> {
+    LongWrapper(S longNumber) {
+        super(longNumber)
+    }
+
+    S getValue() {
+        return number;
+    }
+}
+assert new LongWrapper<Long>(42L).value == 42L
+{code}
+raises the following error when type checked:
+{noformat}
+[Static type checking] - Cannot return value of type java.lang.Number on method returning type S
+ @ line 15, column 28.
+                       return number;
+                              ^
+
+1 error{noformat}

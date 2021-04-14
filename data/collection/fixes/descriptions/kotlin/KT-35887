@@ -1,0 +1,220 @@
+The code is:
+```
+import kotlin.reflect.KProperty0
+import kotlin.reflect.KProperty1
+
+object A
+
+fun <T : Any, TProperty : Any?> property(property: KProperty1<T, TProperty>) = A
+
+fun <TProperty> property(property: KProperty0<TProperty>) = A
+
+val <K> K.key get() : A = property(Map.Entry<K, *>::key) // overload resolution ambiguity in the NI, OK in the OI
+```
+Interesting that it depends on names: if function name and callable reference name is the same then error will appear:
+```
+val <K> K.key1 get() : A = property(Map.Entry<K, *>::key) // it's OK in both OI and NI
+val <K> K.value get() : A = property(Map.Entry<K, *>::value) // error in NI
+```
+
+Also, if add property with the same name (and add candidates with the same name), we get exception on one of the calls:
+```
+import kotlin.reflect.KProperty0
+import kotlin.reflect.KProperty1
+
+object A
+object B
+
+fun <T : Any, TProperty : Any> property(property: KProperty1<T, TProperty>) = A
+fun <T : Any?, TProperty : Any> property(property: KProperty1<T, TProperty>) = B
+
+fun <TProperty> property(property: KProperty0<TProperty>) = A
+
+val <K: Any> K.key get() : B = property(Map.Entry<K, *>::key) // Not an exact function type: KProperty0
+val <K> K.key get() : A = property(Map.Entry<K, *>::key) // overload resolution ambiguity
+```
+
+Stack trace:
+~~~
+ERROR: Exception while analyzing expression at (12,32) in /Users/victor/IdeaProjects/kotlin-sandbox/src/test/kotlin/main.kt
+org.jetbrains.kotlin.utils.KotlinExceptionWithAttachments: Exception while analyzing expression at (12,32) in /Users/victor/IdeaProjects/kotlin-sandbox/src/test/kotlin/main.kt
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.logOrThrowException(ExpressionTypingVisitorDispatcher.java:244)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.lambda$getTypeInfo$0(ExpressionTypingVisitorDispatcher.java:222)
+	at org.jetbrains.kotlin.util.PerformanceCounter.time(PerformanceCounter.kt:101)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:162)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:133)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:145)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingServices.checkFunctionReturnType(ExpressionTypingServices.java:170)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingServices.checkFunctionReturnType(ExpressionTypingServices.java:153)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolveFunctionBody(BodyResolver.java:974)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolveFunctionBody(BodyResolver.java:923)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolvePropertyAccessors(BodyResolver.java:823)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolveProperty(BodyResolver.java:763)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolvePropertyDeclarationBodies(BodyResolver.java:793)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolveBehaviorDeclarationBodies(BodyResolver.java:118)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolveBodies(BodyResolver.java:243)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations(LazyTopDownAnalyzer.kt:225)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations$default(LazyTopDownAnalyzer.kt:60)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(TopDownAnalyzerFacadeForJVM.kt:112)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration$default(TopDownAnalyzerFacadeForJVM.kt:82)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$analyze$1.invoke(KotlinToJVMBytecodeCompiler.kt:555)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$analyze$1.invoke(KotlinToJVMBytecodeCompiler.kt:81)
+	at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.kt:107)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.kt:546)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt:176)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:163)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:51)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:85)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:43)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:104)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:82)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:50)
+	at org.jetbrains.kotlin.cli.common.CLITool$Companion.doMainNoExit(CLITool.kt:215)
+	at org.jetbrains.kotlin.cli.common.CLITool$Companion.doMain(CLITool.kt:207)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler$Companion.main(K2JVMCompiler.kt:261)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.main(K2JVMCompiler.kt)
+Caused by: java.lang.IllegalArgumentException: fromIndex(1) > toIndex(0)
+	at java.util.ArrayList.subListRangeCheck(ArrayList.java:1014)
+	at java.util.ArrayList.subList(ArrayList.java:1004)
+	at org.jetbrains.kotlin.builtins.FunctionTypesKt.getValueParameterTypesFromCallableReflectionType(functionTypes.kt:149)
+	at org.jetbrains.kotlin.resolve.calls.results.FlatSignature$Companion.createFromReflectionType(FlatSignature.kt:69)
+	at org.jetbrains.kotlin.resolve.calls.components.CallableReferenceOverloadConflictResolver$Companion.createFlatSignature(CallableReferenceResolver.kt:57)
+	at org.jetbrains.kotlin.resolve.calls.components.CallableReferenceOverloadConflictResolver$Companion.access$createFlatSignature(CallableReferenceResolver.kt:55)
+	at org.jetbrains.kotlin.resolve.calls.components.CallableReferenceOverloadConflictResolver$3.invoke(CallableReferenceResolver.kt:50)
+	at org.jetbrains.kotlin.resolve.calls.components.CallableReferenceOverloadConflictResolver$3.invoke(CallableReferenceResolver.kt:36)
+	at org.jetbrains.kotlin.resolve.calls.results.OverloadingConflictResolver.findMaximallySpecificCall(OverloadingConflictResolver.kt:208)
+	at org.jetbrains.kotlin.resolve.calls.results.OverloadingConflictResolver.findMaximallySpecific(OverloadingConflictResolver.kt:171)
+	at org.jetbrains.kotlin.resolve.calls.results.OverloadingConflictResolver.chooseMaximallySpecificCandidates(OverloadingConflictResolver.kt:102)
+	at org.jetbrains.kotlin.resolve.calls.components.CallableReferenceResolver.runRHSResolution(CallableReferenceResolver.kt:133)
+	at org.jetbrains.kotlin.resolve.calls.components.CallableReferenceResolver.processCallableReferenceArgument(CallableReferenceResolver.kt:77)
+	at org.jetbrains.kotlin.resolve.calls.components.EagerResolveOfCallableReferences.process(ResolutionParts.kt:375)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.processPart(ResolutionCandidate.kt:138)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.processPart$default(ResolutionCandidate.kt:134)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.processParts(ResolutionCandidate.kt:125)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.isSuccessful(ResolutionCandidate.kt:152)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$SuccessfulResultCollector.pushCandidates(TowerResolver.kt:332)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.processTowerData(TowerResolver.kt:277)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.access$processTowerData(TowerResolver.kt:77)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.process(TowerResolver.kt:158)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.process(TowerResolver.kt:167)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.run(TowerResolver.kt:199)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.run(TowerResolver.kt:96)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.runResolve(TowerResolver.kt:83)
+	at org.jetbrains.kotlin.resolve.calls.KotlinCallResolver.resolveCall(KotlinCallResolver.kt:87)
+	at org.jetbrains.kotlin.resolve.calls.tower.PSICallResolver.runResolutionAndInference(PSICallResolver.kt:99)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.doResolveCallOrGetCachedResults(CallResolver.java:581)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.lambda$computeTasksAndResolveCall$0(CallResolver.java:212)
+	at org.jetbrains.kotlin.util.PerformanceCounter.time(PerformanceCounter.kt:101)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:210)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:198)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.resolveFunctionCall(CallResolver.java:326)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getResolvedCallForFunction(CallExpressionResolver.kt:98)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfoWithoutFinalTypeCheck(CallExpressionResolver.kt:220)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfo(CallExpressionResolver.kt:197)
+	at org.jetbrains.kotlin.types.expressions.BasicExpressionTypingVisitor.visitCallExpression(BasicExpressionTypingVisitor.java:727)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.visitCallExpression(ExpressionTypingVisitorDispatcher.java:386)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher$ForDeclarations.visitCallExpression(ExpressionTypingVisitorDispatcher.java:45)
+	at org.jetbrains.kotlin.psi.KtCallExpression.accept(KtCallExpression.java:35)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.lambda$getTypeInfo$0(ExpressionTypingVisitorDispatcher.java:173)
+	... 33 more
+exception: org.jetbrains.kotlin.util.KotlinFrontEndException: Exception while analyzing expression at (12,32) in /Users/victor/IdeaProjects/kotlin-sandbox/src/test/kotlin/main.kt
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.logOrThrowException(ExpressionTypingVisitorDispatcher.java:251)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.lambda$getTypeInfo$0(ExpressionTypingVisitorDispatcher.java:222)
+	at org.jetbrains.kotlin.util.PerformanceCounter.time(PerformanceCounter.kt:101)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:162)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:133)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:145)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingServices.checkFunctionReturnType(ExpressionTypingServices.java:170)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingServices.checkFunctionReturnType(ExpressionTypingServices.java:153)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolveFunctionBody(BodyResolver.java:974)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolveFunctionBody(BodyResolver.java:923)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolvePropertyAccessors(BodyResolver.java:823)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolveProperty(BodyResolver.java:763)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolvePropertyDeclarationBodies(BodyResolver.java:793)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolveBehaviorDeclarationBodies(BodyResolver.java:118)
+	at org.jetbrains.kotlin.resolve.BodyResolver.resolveBodies(BodyResolver.java:243)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations(LazyTopDownAnalyzer.kt:225)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations$default(LazyTopDownAnalyzer.kt:60)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(TopDownAnalyzerFacadeForJVM.kt:112)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration$default(TopDownAnalyzerFacadeForJVM.kt:82)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$analyze$1.invoke(KotlinToJVMBytecodeCompiler.kt:555)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$analyze$1.invoke(KotlinToJVMBytecodeCompiler.kt:81)
+	at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.kt:107)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.kt:546)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt:176)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:163)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:51)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:85)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:43)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:104)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:82)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:50)
+	at org.jetbrains.kotlin.cli.common.CLITool$Companion.doMainNoExit(CLITool.kt:215)
+	at org.jetbrains.kotlin.cli.common.CLITool$Companion.doMain(CLITool.kt:207)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler$Companion.main(K2JVMCompiler.kt:261)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.main(K2JVMCompiler.kt)
+Caused by: java.lang.IllegalArgumentException: fromIndex(1) > toIndex(0)
+	at java.util.ArrayList.subListRangeCheck(ArrayList.java:1014)
+	at java.util.ArrayList.subList(ArrayList.java:1004)
+	at org.jetbrains.kotlin.builtins.FunctionTypesKt.getValueParameterTypesFromCallableReflectionType(functionTypes.kt:149)
+	at org.jetbrains.kotlin.resolve.calls.results.FlatSignature$Companion.createFromReflectionType(FlatSignature.kt:69)
+	at org.jetbrains.kotlin.resolve.calls.components.CallableReferenceOverloadConflictResolver$Companion.createFlatSignature(CallableReferenceResolver.kt:57)
+	at org.jetbrains.kotlin.resolve.calls.components.CallableReferenceOverloadConflictResolver$Companion.access$createFlatSignature(CallableReferenceResolver.kt:55)
+	at org.jetbrains.kotlin.resolve.calls.components.CallableReferenceOverloadConflictResolver$3.invoke(CallableReferenceResolver.kt:50)
+	at org.jetbrains.kotlin.resolve.calls.components.CallableReferenceOverloadConflictResolver$3.invoke(CallableReferenceResolver.kt:36)
+	at org.jetbrains.kotlin.resolve.calls.results.OverloadingConflictResolver.findMaximallySpecificCall(OverloadingConflictResolver.kt:208)
+	at org.jetbrains.kotlin.resolve.calls.results.OverloadingConflictResolver.findMaximallySpecific(OverloadingConflictResolver.kt:171)
+	at org.jetbrains.kotlin.resolve.calls.results.OverloadingConflictResolver.chooseMaximallySpecificCandidates(OverloadingConflictResolver.kt:102)
+	at org.jetbrains.kotlin.resolve.calls.components.CallableReferenceResolver.runRHSResolution(CallableReferenceResolver.kt:133)
+	at org.jetbrains.kotlin.resolve.calls.components.CallableReferenceResolver.processCallableReferenceArgument(CallableReferenceResolver.kt:77)
+	at org.jetbrains.kotlin.resolve.calls.components.EagerResolveOfCallableReferences.process(ResolutionParts.kt:375)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.processPart(ResolutionCandidate.kt:138)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.processPart$default(ResolutionCandidate.kt:134)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.processParts(ResolutionCandidate.kt:125)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.isSuccessful(ResolutionCandidate.kt:152)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$SuccessfulResultCollector.pushCandidates(TowerResolver.kt:332)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.processTowerData(TowerResolver.kt:277)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.access$processTowerData(TowerResolver.kt:77)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.process(TowerResolver.kt:158)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.process(TowerResolver.kt:167)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.run(TowerResolver.kt:199)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.run(TowerResolver.kt:96)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.runResolve(TowerResolver.kt:83)
+	at org.jetbrains.kotlin.resolve.calls.KotlinCallResolver.resolveCall(KotlinCallResolver.kt:87)
+	at org.jetbrains.kotlin.resolve.calls.tower.PSICallResolver.runResolutionAndInference(PSICallResolver.kt:99)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.doResolveCallOrGetCachedResults(CallResolver.java:581)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.lambda$computeTasksAndResolveCall$0(CallResolver.java:212)
+	at org.jetbrains.kotlin.util.PerformanceCounter.time(PerformanceCounter.kt:101)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:210)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:198)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.resolveFunctionCall(CallResolver.java:326)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getResolvedCallForFunction(CallExpressionResolver.kt:98)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfoWithoutFinalTypeCheck(CallExpressionResolver.kt:220)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfo(CallExpressionResolver.kt:197)
+	at org.jetbrains.kotlin.types.expressions.BasicExpressionTypingVisitor.visitCallExpression(BasicExpressionTypingVisitor.java:727)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.visitCallExpression(ExpressionTypingVisitorDispatcher.java:386)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher$ForDeclarations.visitCallExpression(ExpressionTypingVisitorDispatcher.java:45)
+	at org.jetbrains.kotlin.psi.KtCallExpression.accept(KtCallExpression.java:35)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.lambda$getTypeInfo$0(ExpressionTypingVisitorDispatcher.java:173)
+	... 33 more
+~~~
+
+BTW, it seems, it's relevant only for `kotlin.reflect.KPropertyN`:
+```
+import kotlin.reflect.KProperty
+
+interface KProperty0<out R> : KProperty<R>, () -> R
+
+interface KProperty1<T, out R> : KProperty<R>, (T) -> R
+
+object A
+object B
+
+fun <T : Any, TProperty : Any> property(property: KProperty1<T, TProperty>) = A
+fun <T : Any?, TProperty : Any> property(property: KProperty1<T, TProperty>) = B
+
+fun <TProperty> property(property: KProperty0<TProperty>) = A
+
+val <K: Any> K.key get() : B = property(Map.Entry<K, *>::key) // error in both NI and OI
+val <K> K.key get() : A = property(Map.Entry<K, *>::key) // error in both NI and OI
+```

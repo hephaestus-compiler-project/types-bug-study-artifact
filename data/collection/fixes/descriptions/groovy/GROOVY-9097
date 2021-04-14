@@ -1,0 +1,14 @@
+Follow up to GROOVY-6668.  Explicit {{getAt}} call produces different error from square-bracket version.  Could they both produce the same error?  I prefer "Cannot call ... with arguments [groovy.lang.GString]" over the recently introduced "Cannot find matching method ..."
+
+{code:groovy}
+@groovy.transform.CompileStatic
+void meth() {
+  def key = "${'key'}"
+  Map<String, String> map = [:]
+
+  map[key].toUpperCase() // Cannot find matching method java.lang.Object#toUpperCase(). Please check if the declared type is correct and if the method exists.
+  map.getAt(key).toUpperCase() // Cannot call <K,V> java.util.LinkedHashMap <java.lang.String, java.lang.String>#getAt(java.lang.String) with arguments [groovy.lang.GString] 
+}
+{code}
+
+It appears that the square-bracket version may have selected extension method {{static Object getAt(Object self, String property)}}.

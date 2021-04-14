@@ -1,0 +1,29 @@
+The following (adapted from Netbeans code in ResultSetJXTable) should compile, but does not after JDK-8033718.  The inferred type is correct -- an intersection CAP#1 & Cloneable -- but the error produced afterwards is wrong.
+
+interface RowFilter<X> {}
+
+<R extends Cloneable> void setRowFilter1(RowFilter<? super R> filter) {
+    setRowFilter2(filter); // expected: ok; actual: error
+}
+
+<T extends Cloneable> void setRowFilter2(RowFilter<? super T> filter) { }
+
+}
+
+---
+
+error: method setRowFilter2 in class RowFilterError cannot be applied to given types;
+    setRowFilter2(filter);
+    ^
+  required: RowFilter<? super T>
+  found: RowFilter<CAP#1>
+  reason: inferred type does not conform to upper bound(s)
+    inferred: INT#1
+    upper bound(s): CAP#1,Cloneable
+  where T,R are type-variables:
+    T extends Cloneable declared in method <T>setRowFilter2(RowFilter<? super T>)
+    R extends Cloneable declared in method <R>setRowFilter1(RowFilter<? super R>)
+  where CAP#1 is a fresh type-variable:
+    CAP#1 extends Object super: R from capture of ? super R
+  where INT#1 is an intersection type:
+    INT#1 extends CAP#1,Cloneable

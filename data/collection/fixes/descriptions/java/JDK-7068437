@@ -1,0 +1,95 @@
+Run the following program with JDK 6:
+
+---%<---
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.Writer;
+import java.util.Collections;
+import java.util.Set;
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.TypeElement;
+import javax.tools.Diagnostic.Kind;
+import javax.tools.JavaCompiler;
+import javax.tools.JavaCompiler.CompilationTask;
+import javax.tools.StandardLocation;
+import javax.tools.ToolProvider;
+public class Demo {
+    public static void main(String[] args) {
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        System.err.println("using " + compiler.getClass() + " from " + compiler.getClass().getProtectionDomain().getCodeSource());
+        CompilationTask task = compiler.getTask(null, null, null, Collections.singleton("-proc:only"), Collections.singleton("java.lang.Object"), null);
+        task.setProcessors(Collections.singleton(new Proc()));
+        System.err.println("success? " + task.call());
+        task = compiler.getTask(null, null, null, Collections.singleton("-proc:only"), Collections.singleton("java.lang.Object"), null);
+        task.setProcessors(Collections.singleton(new Proc()));
+        System.err.println("success? " + task.call());
+    }
+    @SupportedAnnotationTypes("*")
+    @SupportedSourceVersion(SourceVersion.RELEASE_6)
+    private static class Proc extends AbstractProcessor {
+        int count;
+        @Override public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+            if (roundEnv.processingOver() || count++ > 0) {
+                return false;
+            }
+            System.err.println("running Proc");
+            try {
+                processingEnv.getMessager().printMessage(Kind.NOTE, "found previous content of length " +
+                        processingEnv.getFiler().getResource(StandardLocation.SOURCE_OUTPUT, "p", "C.java").getCharContent(false).length());
+            } catch (FileNotFoundException x) {
+                processingEnv.getMessager().printMessage(Kind.NOTE, "not previously there");
+            } catch (IOException x) {
+                processingEnv.getMessager().printMessage(Kind.ERROR, "while reading: " + x);
+            }
+            try {
+                Writer w = processingEnv.getFiler().createSourceFile("p.C").openWriter();
+                w.write("/* hello! */ package p; class C {}");
+                w.close();
+                processingEnv.getMessager().printMessage(Kind.NOTE, "wrote new content");
+            } catch (IOException x) {
+                processingEnv.getMessager().printMessage(Kind.ERROR, "while writing: " + x);
+            }
+            return true;
+        }
+    }
+    private Demo() {}
+}
+---%<---
+
+I get:
+
+---%<---
+using class com.sun.tools.javac.api.JavacTool from (file:/.../jdk1.6.0_26/lib/tools.jar <no signer certificates>)
+running Proc
+Note: not previously there
+Note: wrote new content
+success? true
+running Proc
+Note: found previous content of length 34
+Note: wrote new content
+success? true
+---%<---
+
+as expected. Now running the same program on JDK 7:
+
+---%<---
+using class com.sun.tools.javac.api.JavacTool from (file:/.../jdk1.7.0-b146/lib/tools.jar <no signer certificates>)
+running Proc
+warning: Supported source version 'RELEASE_6' from annotation processor 'Demo$Proc' less than -source '1.7'
+Note: not previously there
+Note: wrote new content
+1 warning
+success? true
+running Proc
+warning: Supported source version 'RELEASE_6' from annotation processor 'Demo$Proc' less than -source '1.7'
+Note: not previously there
+Note: wrote new content
+1 warning
+success? true
+---%<---
+
+Note that Filer.getResource(SOURCE_OUTPUT, ...) is throwing FileNotFoundException even though the source file is in fact present.

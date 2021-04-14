@@ -1,0 +1,35 @@
+I have the following Groovy program.
+{code:groovy}
+interface I1<X, Y> {}
+
+interface I2 extends I1<Character, Character> {}
+
+class Foo<X, Y> implements I2 {
+  public void foo(X x, Y y) {}
+}
+
+class Bar<X, Y> extends Foo<X, Y> {}
+
+@groovy.transform.TypeChecked
+class Main {
+  public static void foo() {
+    new Bar<Float, Integer>().foo((Float) 1.4, -1)
+  }
+}
+
+{code}
+h2. Actual Behavior
+
+The program does not compile, and I get the following error.
+{code:java}
+org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
+Main.groovy: 14: [Static type checking] - Cannot find matching method Bar#foo(java.lang.Float, java.lang.Integer). Please check if the declared type is correct and if the method exists.
+ @ line 14, column 5.
+       new Bar<Float, Integer>().foo((Float) 1.4, -1)
+       ^
+
+1 error
+{code}
+h2. Expected Behavior
+
+Compile successfully.

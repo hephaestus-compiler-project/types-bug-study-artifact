@@ -1,0 +1,31 @@
+This is essentially #7753, which is probably #6161, but it seems like something to fix. It's really amazing how hard it is to use the language which is advertised in the brochure.
+
+One thing I noticed while debugging this is that the logic for comparing prefixes is completely borked. Watch isSameType assessing the equivalence of two types and rejecting them though they resolve to the same thing. Up close you can see it following logic with code like this:
+```scala
+trait Trait { type Foo }
+object Stable extends Trait { type Foo = Int }
+```
+*scala, thinking*: Is **Stable.Foo** the same type as **scala.Int** ? Hmm, Foo has prefix "Stable.type" but Int has prefix "scala.type". Verdict: **REJECT**
+
+This reduced manifestation:
+```scala
+trait Thing { type A }
+object IntThing extends Thing { type A = Int }
+
+// compiles
+package p1 {
+  class View(val in: Thing { type A = Int }) {          def f(p: in.A): in.A = p }
+  class SubView extends View(IntThing)       { override def f(p: in.A): in.A = p }
+}
+// does not compile
+package p2 {
+  class View[AIn](val in: Thing { type A = AIn }) {          def f(p: in.A): in.A = p }
+  class SubView extends View[Int](IntThing)       { override def f(p: in.A): in.A = p }
+}
+// c.scala:12: error: method f overrides nothing.
+// Note: the super classes of class SubView contain the following, non final members named f:
+// def f(p: AIn): AIn
+//   class SubView extends View[Int](IntThing)       { override def f(p: in.A): in.A = p }
+//                                                                  ^
+// one error found
+```

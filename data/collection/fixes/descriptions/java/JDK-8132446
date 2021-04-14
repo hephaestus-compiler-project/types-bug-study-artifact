@@ -1,0 +1,121 @@
+FULL PRODUCT VERSION :
+java version "1.9.0-ea"
+Java(TM) SE Runtime Environment (build 1.9.0-ea-b73)
+Java HotSpot(TM) 64-Bit Server VM (build 1.9.0-ea-b73, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+ x86_64 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+javac crashes with an assertionerror in ClassSymbol.setAnnotationTypeMetadata when an annotation processor generates a source file that declares an annotation with the same qualified name as an annotation that was already on the classpath.
+
+This issue bisects to the fix for JDK-8031744:
+
+* https://bugs.openjdk.java.net/browse/JDK-8031744
+* http://hg.openjdk.java.net/jdk9/dev/langtools/rev/62e285806e83
+
+REGRESSION.  Last worked in version 8u51
+
+ADDITIONAL REGRESSION INFORMATION: 
+java version "1.8.0_51"
+Java(TM) SE Runtime Environment (build 1.8.0_51-b16)
+Java HotSpot(TM) 64-Bit Server VM (build 25.51-b03, mixed mode)
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+$ javac Processor.java 
+$ javac -processor Processor Test.java 
+$ javac -processor Processor Test.java 
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+I was expecting javac to not crash.
+ACTUAL -
+javac crashed.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+An exception has occurred in the compiler (1.9.0-ea). Please file a bug at the Java Bug Database (http://bugreport.java.com/bugreport/) after checking the database for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.AssertionError
+	at com.sun.tools.javac.util.Assert.error(Assert.java:155)
+	at com.sun.tools.javac.util.Assert.check(Assert.java:46)
+	at com.sun.tools.javac.code.Symbol$ClassSymbol.setAnnotationTypeMetadata(Symbol.java:1241)
+	at com.sun.tools.javac.comp.TypeEnter$MembersPhase.finishClass(TypeEnter.java:901)
+	at com.sun.tools.javac.comp.TypeEnter$MembersPhase.doRunPhase(TypeEnter.java:882)
+	at com.sun.tools.javac.comp.TypeEnter$Phase.runPhase(TypeEnter.java:251)
+	at com.sun.tools.javac.comp.TypeEnter$Phase.runPhase(TypeEnter.java:265)
+	at com.sun.tools.javac.comp.TypeEnter$Phase.runPhase(TypeEnter.java:265)
+	at com.sun.tools.javac.comp.TypeEnter$Phase.runPhase(TypeEnter.java:265)
+	at com.sun.tools.javac.comp.TypeEnter.complete(TypeEnter.java:196)
+	at com.sun.tools.javac.code.Symbol.complete(Symbol.java:579)
+	at com.sun.tools.javac.code.Symbol$ClassSymbol.complete(Symbol.java:1074)
+	at com.sun.tools.javac.comp.Enter.complete(Enter.java:490)
+	at com.sun.tools.javac.comp.Enter.main(Enter.java:467)
+	at com.sun.tools.javac.main.JavaCompiler.enterTrees(JavaCompiler.java:952)
+	at com.sun.tools.javac.processing.JavacProcessingEnvironment$Round.enterTrees(JavacProcessingEnvironment.java:1003)
+	at com.sun.tools.javac.processing.JavacProcessingEnvironment$Round.<init>(JavacProcessingEnvironment.java:898)
+	at com.sun.tools.javac.processing.JavacProcessingEnvironment$Round.next(JavacProcessingEnvironment.java:916)
+	at com.sun.tools.javac.processing.JavacProcessingEnvironment.doProcessing(JavacProcessingEnvironment.java:1141)
+	at com.sun.tools.javac.main.JavaCompiler.processAnnotations(JavaCompiler.java:1141)
+	at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:832)
+	at com.sun.tools.javac.main.Main.compile(Main.java:253)
+	at com.sun.tools.javac.main.Main.compile(Main.java:141)
+	at com.sun.tools.javac.Main.compile(Main.java:56)
+	at com.sun.tools.javac.Main.main(Main.java:42)
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+=== Test.java ===
+@Deprecated
+@AutoAnnotation_Test
+public class Test {}
+===
+
+=== Processor.java ===
+import java.io.IOError;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Set;
+
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.TypeElement;
+import javax.tools.JavaFileObject;
+
+@SupportedAnnotationTypes("*")
+public class Processor extends AbstractProcessor {
+
+  @Override
+  public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+    if (!roundEnv.processingOver()) {
+      for (Element element : roundEnv.getRootElements()) {
+        String elementName = element.getSimpleName().toString();
+        if (elementName.startsWith("AutoAnnotation_")) {
+          continue;
+        }
+        String name = "AutoAnnotation_" + elementName;
+        JavaFileObject jfo;
+        try {
+          jfo = processingEnv.getFiler().createSourceFile(name, element);
+        } catch (IOException e) {
+          throw new IOError(e);
+        }
+        try (OutputStream os = jfo.openOutputStream()) {
+          String output = String.format("public @interface %s {}", name);
+          os.write(output.getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+          throw new IOError(e);
+        }
+      }
+    }
+    return false;
+  }
+}
+===
+---------- END SOURCE ----------
+

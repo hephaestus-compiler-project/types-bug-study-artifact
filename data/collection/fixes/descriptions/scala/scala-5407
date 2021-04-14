@@ -1,0 +1,58 @@
+```scala
+// PrivateVal.scala
+case class Foo(private val x: Int, y: Option[Int], z: Boolean)
+object PrivateVal extends App {
+  def foo(x: Foo) = x match {
+    case Foo(x, Some(y), z) => y
+    case Foo(x, y, z) => 0
+  }
+  val x = Foo(1, Some(2), false)
+  println(foo(x))
+}
+```
+
+Compiling using 2.10.0-M1 gives us:
+```
+PrivateVal.scala:3: error: isInstanceOf cannot test if value types are references.
+  def foo(x: Foo) = x match {
+                      ^
+one error found
+```
+
+if we change method foo to
+```scala
+def foo(x: Foo) = x match {
+  case Foo(x, Some(y), z) => y
+  case Foo(x, None, z) => 0
+}
+```
+
+the code compiles but throws CCE at runtime:
+```scala
+/scala PrivateVal
+java.lang.ClassCastException: java.lang.Boolean cannot be cast to scala.Option
+	at PrivateVal$.foo(PrivateVal.scala:4)
+	at PrivateVal$delayedInit$body.apply(PrivateVal.scala:9)
+```
+
+Ouch! If you compile it with -Xprint:cleanup you'll notice:
+```scala
+def foo(x: Foo): Int = {
+      <synthetic> val temp2: Foo = x;
+      if (temp2.ne(null))
+        {
+          <synthetic> val temp4: Boolean = temp2.z();
+          val y: Option = scala.Boolean.box(temp4).$asInstanceOf[Option]();
+          if (PrivateVal.this.gd1$1(y))
+...
+```
+
+Which means pattern matching is completely confused about the arity (and thus types) of our case class.
+
+Both definitions of foo this worked in 2.9.x so it's a regression. However, the whole idea of having private vals in case classes feels weird. We declare a member to be private but then we can access it through a pattern match (in 2.9.x). I think we should simply disallow private vals in case class's primary constructor. Proposed way to move forward:
+1. bring back questionable semantics of 2.9.x back to master
+2. Deprecate private vals in primary constructor of a case class
+3. Disallow it in the next major release of Scala
+
+PS. `-Yvirtpatmat` fails to handle private vals properly as well.
+PS2. The test-case has been extracted with blood and tears from specs2 by me and Nada Amin.

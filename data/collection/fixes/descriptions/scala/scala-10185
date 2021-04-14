@@ -1,0 +1,49 @@
+
+```scala
+sealed trait Foo[A, F[_ <: A]]
+case class Bar[A, F[_ <: A]]() extends Foo[A, F]
+
+class F[S <: String]
+
+object Test {
+  def f(foo: Foo[String, F]): Unit = foo match {
+    case Bar() => ()
+  }
+}
+```
+
+REPL output:
+
+```scala
+$ ~/scala-2.12.1/bin/scala
+Welcome to Scala 2.12.1 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_102).
+Type in expressions for evaluation. Or try :help.
+
+scala> :paste
+// Entering paste mode (ctrl-D to finish)
+
+import scala.language.higherKinds
+
+sealed trait Foo[A, F[_ <: A]]
+case class Bar[A, F[_ <: A]]() extends Foo[A, F]
+
+class F[S <: String]
+
+object Test {
+  def f(foo: Foo[String, F]): Unit = foo match {
+    case Bar() => ()
+  }
+}
+
+// Exiting paste mode, now interpreting.
+
+<console>:20: error: constructor cannot be instantiated to expected type;
+ found   : Bar[A,F(in class Bar)]
+ required: Foo[String,F(in object $iw)]
+           case Bar() => ()
+                ^
+
+scala> 
+```
+
+This might be related to #9394, but this one is more complicated (involves a higher-kinded type parameter with upper bounded parameter) and workarounds proposed in #9394 do not apply.

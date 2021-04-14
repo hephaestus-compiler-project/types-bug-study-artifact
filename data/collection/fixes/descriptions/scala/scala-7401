@@ -1,0 +1,17 @@
+Compile and run Maybe.scala (see the attachment).
+
+Expected result:
+some output (i.e text representation of Maybe(null) and its hashCode
+
+Actual result:
+a NullPointerException is thrown
+
+The reason is pretty clear. Maybe(null) is wrapped to an instance of actual Maybe. According to SIP-15, the hashCode is mirrored to the field `x`. However, the field is null at the moment.
+
+Note that the same probably applies to the equals method.
+
+We can consider this to be either a bug or a feature.
+a) Compiler should not generate a code that breaks hashCode contract. So this is a compiler bug.
+b) Compiler generates a code that delegates hashCode as documented. As a result, all value classes that can wrap a null break the contract. So it is probably an undesired feature.
+
+In both cases, the fix is probably trivial, a null check should be enough. (new Maybe(null)).hashCode can be any arbitrary value, e.g. 42.

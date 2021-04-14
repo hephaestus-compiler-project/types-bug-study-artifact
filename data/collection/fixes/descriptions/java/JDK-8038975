@@ -1,0 +1,65 @@
+FULL PRODUCT VERSION :
+javac 1.8.0
+
+A DESCRIPTION OF THE PROBLEM :
+The source code indicated below no longer compiles in jdk8, but jdk7u51 compiled successfully as expected.
+
+The reason is a wrong accessibility check on the method Inner.iterator() inherited from Iterable.iterator().
+As per JLS 6.6, Inner.iterator() is accessible from OuterImpl because:
+1. Inner.iterator() is public;
+2. Inner is accessible from OuterImpl because:
+2a. Inner is protected and declared by Outer;
+2b. OuterImpl is a subclass of Outer.
+
+REGRESSION.  Last worked in version 7u51
+
+ADDITIONAL REGRESSION INFORMATION: 
+javac 1.7.0_51
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile with the two versions of javac and notice the difference. Note: specifying -source 7 with javac version 8 does not work.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+The sources should compile normally.
+ACTUAL -
+The compilation fails with the following message:
+error: iterator() in Iterable is defined in an inaccessible class or interface
+            for (Something st : inner)
+  where T is a type-variable:
+    T extends Object declared in interface Iterable
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+// File a/Something.java
+package a;
+public class Something { }
+
+// File a/Outer.java
+package a;
+public class Outer {
+    protected abstract class Inner implements Iterable<Something> { }
+}
+
+// File b/Client.java
+package b;
+import a.*;
+public class Client {
+    private static class OuterImpl extends Outer {
+        public void method(Inner inner) {
+            for (Something st : inner)
+                System.out.println(st); // or anything else
+        }
+    }
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Workaround 1:
+Cast "inner" (after the colon in the enhancer for) to Iterable<Something>.
+
+Workaround 2:
+Manually desugar the enhanced for.
+

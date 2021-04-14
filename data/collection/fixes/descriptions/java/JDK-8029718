@@ -1,0 +1,33 @@
+"Potential compatibility" is specified as follows for a lambda expression:
+
+A lambda expression (15.27) is potentially compatible with a functional interface type (9.8) if all of the following are true:
+- The arity of the targeted type's function type is the same as the arity of the lambda expression.
+- If the targeted type's function type has a void return, then the lambda body is either a statement expression (14.8) or a void-compatible block (15.27.2).
+- If the targeted type's function type has a (non-void) return type, then the lambda body is either an expression or a value-compatible block (15.27.2).
+
+The current javac implementation seems to only take the lambda expression's arity into account, completely ignoring the lambda body.
+
+Example:
+
+ interface I { 
+  String foo(String [] x, String y); 
+ } 
+
+ interface J { 
+  void foo(int x, int y); 
+ } 
+
+ public class X { 
+     static void goo(J j) { 
+         System.out.println("goo(J)"); 
+     } 
+     static void goo(I i) { 
+         System.out.println("goo(I)"); 
+     } 
+     public static void main(String[] args) throws InterruptedException { 
+        goo((x, y) -> { return x[0] += 1; }); // expected: print goo(I); actual: ambiguity error
+     } 
+ }
+
+Originally reported on lambda-dev@openjdk.java.net:
+http://mail.openjdk.java.net/pipermail/lambda-dev/2013-November/011394.html

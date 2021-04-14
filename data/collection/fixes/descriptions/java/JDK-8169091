@@ -1,0 +1,86 @@
+FULL PRODUCT VERSION :
+java version "9-ea"
+Java(TM) SE Runtime Environment (build 9-ea+142)
+Java HotSpot(TM) 64-Bit Server VM (build 9-ea+142, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Darwin macbook-pro 16.1.0 Darwin Kernel Version 16.1.0: Thu Oct 13 21:26:57 PDT 2016; root:xnu-3789.21.3~60/RELEASE_X86_64 x86_64
+
+A DESCRIPTION OF THE PROBLEM :
+I have existing Java 8 source code that has static methods with generic parameters. In Java 8 it was possible to denote method references using these type parameters:
+
+static <T extends Comparable<? super T>> Comparator<T> comparator() {
+    return (Comparator<T> & Serializable) T::compareTo;
+}
+
+JDK 9 does not compile the code any more.
+
+REGRESSION.  Last worked in version 8u101
+
+ADDITIONAL REGRESSION INFORMATION: 
+java version "1.8.0_101"
+Java(TM) SE Runtime Environment (build 1.8.0_101-b13)
+Java HotSpot(TM) 64-Bit Server VM (build 25.101-b13, mixed mode)
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+1. Create the java class showed in 'Source code for an executable test case:' below.
+
+2. Compile the class using 'javac test/Example.java'
+
+3. Run the class using 'java test/Example'
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+The example should print 'true' to the console.
+ACTUAL -
+The java compiler of JDK 9 does abort compilation with an error. For details see Error Message(s)/Crash Logs below.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+test/Example.java:14: error: incompatible types: invalid method reference
+        return (Comparator<T> & Serializable) T::compareTo;
+                                              ^
+    method compareTo in interface Comparable<T#2> cannot be applied to given types
+      required: ? super T#1
+      found: T#1,T#1
+      reason: actual and formal argument lists differ in length
+  where T#1,T#2 are type-variables:
+    T#1 extends Comparable<? super T#1> declared in method <T#1>comparator()
+    T#2 extends Object declared in interface Comparable
+1 error
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+package test;
+
+import java.io.Serializable;
+import java.util.Comparator;
+
+interface Example {
+
+    static void main(String[] args) {
+        Comparator<String> comparator = comparator();
+        System.out.println(comparator.compare("a", "b") == -1);
+    }
+
+    static <T extends Comparable<? super T>> Comparator<T> comparator() {
+        return (Comparator<T> & Serializable) T::compareTo;
+    }
+
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+We can use a lambda expression instead of a method reference.
+
+The example provided here can be expressed like this:
+
+@SuppressWarnings("unchecked")
+static <T extends Comparable<? super T>> Comparator<T> comparator() {
+    return (Comparator<T> & Serializable) (o1, o2) -> ((Comparable<T>) o1).compareTo(o2);
+}
+
+

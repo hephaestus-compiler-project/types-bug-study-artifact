@@ -1,0 +1,25 @@
+The problem has appeared after https://github.com/JetBrains/kotlin/commit/ec4d9d2f1fd5463030190db15ddcf8acfaaadffd
+
+The code is:
+```
+interface I
+
+interface Foo<T> : I
+
+class Bar<T>(val x: Foo<T>) : Foo<T>
+
+fun <T, U : T> castToSubtype(obj: T) = obj as U
+
+fun <T> select(vararg x: T) = x[0]
+
+fun <T> materialize(): T = null as T
+
+fun main() {
+    select(
+        materialize<Foo<Any>>(),
+        Bar(
+            castToSubtype(materialize<I>()) // NI: "required – Foo<Any>, found – I" afther the commit, OI – OK
+        )
+    )
+}
+```

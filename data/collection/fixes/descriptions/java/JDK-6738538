@@ -1,0 +1,115 @@
+FULL PRODUCT VERSION :
+java version "1.6.0_10-rc"
+Java(TM) SE Runtime Environment (build 1.6.0_10-rc-b28)
+Java HotSpot(TM) Client VM (build 11.0-b15, mixed mode, sharing)
+
+ADDITIONAL OS VERSION INFORMATION :
+Microsoft Windows XP [Version 5.1.2600]
+Linux 2.6.22-14-generic i686 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+When trying to compile the two sample files attached to this case, javac crashes. The crash is probably caused while parsing the line "public T getObject()" in the class GraphNode<T> .
+
+Please note that this problem only happens when the classes and interfaces are distributed over two source files (as seen in the Workarounds section)
+
+This was tested with 1.6.0_03 (Windows + Linux) as well as with javac 1.6.0_10-rc (Windows)
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+1. Create the two files from the sample source code attached to this case
+2. javac *.java
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+The two files are compiled properly although I'm not too sure about this. It might also be a case that should lead to a compiler error.
+ACTUAL -
+javac crashes
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+An exception has occurred in the compiler (1.6.0_10-rc). Please file a bug at th
+e Java Developer Connection (http://java.sun.com/webapps/bugreport)  after check
+ing the Bug Parade for duplicates. Include your program and the following diagno
+stic in your report.  Thank you.
+java.lang.AssertionError: isSubtype 15
+        at com.sun.tools.javac.code.Types$5.visitType(Types.java:347)
+        at com.sun.tools.javac.code.Types$5.visitType(Types.java:328)
+        at com.sun.tools.javac.code.Types$DefaultTypeVisitor.visitWildcardType(T
+ypes.java:3163)
+        at com.sun.tools.javac.code.Type$WildcardType.accept(Type.java:416)
+        at com.sun.tools.javac.code.Types$DefaultTypeVisitor.visit(Types.java:31
+61)
+        at com.sun.tools.javac.code.Types.isSubtype(Types.java:324)
+        at com.sun.tools.javac.code.Types.isSubtype(Types.java:308)
+        at com.sun.tools.javac.code.Types.isSubtypeUnchecked(Types.java:288)
+        at com.sun.tools.javac.code.Types.isConvertible(Types.java:257)
+        at com.sun.tools.javac.code.Types.isAssignable(Types.java:1476)
+        at com.sun.tools.javac.code.Types.covariantReturnType(Types.java:2677)
+        at com.sun.tools.javac.code.Types.returnTypeSubstitutable(Types.java:266
+1)
+        at com.sun.tools.javac.comp.Check.checkOverride(Check.java:1120)
+        at com.sun.tools.javac.comp.Check.checkImplementations(Check.java:1540)
+        at com.sun.tools.javac.comp.Check.checkImplementations(Check.java:1515)
+        at com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:2693)
+        at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:2628)
+        at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:2564)
+        at com.sun.tools.javac.comp.Attr.attribBounds(Attr.java:442)
+        at com.sun.tools.javac.comp.MemberEnter.finishClass(MemberEnter.java:409
+)
+        at com.sun.tools.javac.comp.MemberEnter.finish(MemberEnter.java:1000)
+        at com.sun.tools.javac.comp.MemberEnter.complete(MemberEnter.java:967)
+        at com.sun.tools.javac.code.Symbol.complete(Symbol.java:386)
+        at com.sun.tools.javac.code.Symbol$ClassSymbol.complete(Symbol.java:758)
+
+        at com.sun.tools.javac.comp.Enter.complete(Enter.java:451)
+        at com.sun.tools.javac.comp.Enter.main(Enter.java:429)
+        at com.sun.tools.javac.main.JavaCompiler.enterTrees(JavaCompiler.java:81
+9)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:727)
+        at com.sun.tools.javac.main.Main.compile(Main.java:353)
+        at com.sun.tools.javac.main.Main.compile(Main.java:279)
+        at com.sun.tools.javac.main.Main.compile(Main.java:270)
+        at com.sun.tools.javac.Main.compile(Main.java:69)
+        at com.sun.tools.javac.Main.main(Main.java:54)
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+// File GraphNode.java
+
+interface IObjectNode
+{
+	Object getObject();
+}
+
+public class GraphNode<T> implements IObjectNode
+{
+	// The important line is the following one
+	public T getObject()
+	{
+		return null;
+	}
+}
+
+// File UnusedObject.java
+
+interface ISelectableNode
+{
+	boolean isSelected();
+}
+
+public class UnusedObject<NodeType extends GraphNode<?> & ISelectableNode>
+{
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+1. Use type "Object" instead of type "T" as the return method of getObject in class GraphNode<T>
+
+OR
+
+2. Change "class UnusedObject<NodeType extends GraphNode<?> & ISelectableNode>" to "class UnusedObject<NodeType extends GraphNode & ISelectableNode>"
+
+OR
+
+3. Move all interfaces and classes into the same file.

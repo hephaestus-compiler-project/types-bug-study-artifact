@@ -1,0 +1,80 @@
+public class Main {
+    interface F {void f();}
+
+    public static void main(String[] args) {
+        class Local {
+            public Local() {
+                F f = () -> new Local();
+            }
+        }
+    }
+}
+
+javac Main.java
+
+
+The system is out of resources.
+Consult the following stack trace for details.
+java.lang.StackOverflowError
+        at com.sun.tools.javac.tree.TreeInfo.name(TreeInfo.java:740)
+        at com.sun.tools.javac.comp.Lower$BasicFreeVarCollector.visitApply(Lower.java:250)
+        at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1459)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.tree.TreeScanner.visitExec(TreeScanner.java:175)
+        at com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1290)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+        at com.sun.tools.javac.tree.TreeScanner.visitBlock(TreeScanner.java:105)
+        at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:903)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.tree.TreeScanner.visitMethodDef(TreeScanner.java:91)
+        at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:772)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+        at com.sun.tools.javac.tree.TreeScanner.visitClassDef(TreeScanner.java:80)
+        at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:687)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.comp.LambdaToMethod$LambdaAnalyzerPreprocessor.captureLocalClassDefs(LambdaToMethod.java:1327)
+        at com.sun.tools.javac.comp.LambdaToMethod$LambdaAnalyzerPreprocessor$1.addFreeVars(LambdaToMethod.java:1308)
+        at com.sun.tools.javac.comp.Lower$BasicFreeVarCollector.visitNewClass(Lower.java:242)
+        at com.sun.tools.javac.tree.JCTree$JCNewClass.accept(JCTree.java:1510)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.tree.TreeScanner.visitLambda(TreeScanner.java:221)
+        at com.sun.tools.javac.tree.JCTree$JCLambda.accept(JCTree.java:1618)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.tree.TreeScanner.visitVarDef(TreeScanner.java:98)
+        at com.sun.tools.javac.tree.JCTree$JCVariableDecl.accept(JCTree.java:846)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+        at com.sun.tools.javac.tree.TreeScanner.visitBlock(TreeScanner.java:105)
+        at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:903)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.tree.TreeScanner.visitMethodDef(TreeScanner.java:91)
+        at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:772)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+        at com.sun.tools.javac.tree.TreeScanner.visitClassDef(TreeScanner.java:80)
+        at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:687)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.comp.LambdaToMethod$LambdaAnalyzerPreprocessor.captureLocalClassDefs(LambdaToMethod.java:1327)
+        at com.sun.tools.javac.comp.LambdaToMethod$LambdaAnalyzerPreprocessor$1.addFreeVars(LambdaToMethod.java:1308)
+        at com.sun.tools.javac.comp.Lower$BasicFreeVarCollector.visitNewClass(Lower.java:242) ...
+
+bitter_fox writes:
+
+It may be a cause that c.s.t.javac.comp.LambdaToMethod.LambdaAnalyzerPreprocessor#capturelocalClassDefs is called recursively.
+
+            void captureLocalClassDefs(Symbol csym, final LambdaTranslationContext lambdaContext) {
+                JCClassDecl localCDef = localClassDefs.get(csym);
+                if (localCDef != null && localCDef.pos < lambdaContext.tree.pos) {
+                    BasicFreeVarCollector fvc = lower.new BasicFreeVarCollector() {
+                        @Override
+                        void addFreeVars(ClassSymbol c) {
+                            captureLocalClassDefs(c, lambdaContext);
+                        }
+            // ...
+                    };
+                    fvc.scan(localCDef);
+                }
+        }
+

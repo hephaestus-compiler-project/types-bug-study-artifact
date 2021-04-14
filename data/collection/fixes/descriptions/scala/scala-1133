@@ -1,0 +1,8 @@
+Pattern matching multiple cases against extractors triggers a combination explosion that quickly overwhelms the maximum method size.  This has bitten me quite hard on my in-progress java to scala translator, as I use extractors against the JDT for parsing java source.  I have attached a demonstration.  You can make a minor tweak to the attached source and see the size of the bytecode drop in half (or double again, if FJBG wouldn't choke.)
+
+leaf:dfascala paulp$$ scalac *.scala
+Exception in thread "main" java.lang.Error: ch.epfl.lamp.fjbg.JCode$$OffsetTooBigException: offset too big to fit in 16 bits: 36580
+	at ch.epfl.lamp.fjbg.JFieldOrMethod.writeTo(JFieldOrMethod.java:114)
+[...]
+
+The disassembled bytecode reveals enormous nested if-else statements with massive duplicated code.

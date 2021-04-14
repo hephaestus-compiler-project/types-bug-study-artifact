@@ -1,0 +1,27 @@
+The following code compiles under `scalac` but not in dotty.
+```scala
+class Foo[+T](x: T) {
+  def fooArray: Foo[Array[String]] = new Foo(Array.empty)
+}
+```
+
+```scala
+-- Error: Foo.scala:3:56 -------------------------------------------------------
+3 |  def fooArray: Foo[Array[String]] = new Foo(Array.empty)
+  |                                                        ^
+  |                                         No ClassTag available for Nothing
+```
+It infers an imprecise type for the type parameter for `Foo` which leads to `empty` having a wrong type parameter
+```scala
+result of Foo.scala after frontend:
+package <empty> {
+  class Foo[T >: Nothing <: Any](x: T) extends Object() { 
+     +T
+    private[this] val x: T
+    def fooArray: Foo[Array[String]] = 
+      new Foo[Nothing](
+        Array.empty[Nothing](/* missing */implicitly[ClassTag[Nothing]])
+      )
+  }
+}
+```

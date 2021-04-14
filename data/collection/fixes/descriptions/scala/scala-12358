@@ -1,0 +1,69 @@
+## reproduction steps
+
+using Scala (2.13.5),
+
+```scala
+Welcome to Scala 2.13.5 (OpenJDK 64-Bit Server VM, Java 11.0.9.1).
+Type in expressions for evaluation. Or try :help.
+
+scala> def test(xs: Option[List[Int]]): Int = {
+     |  xs match {
+     |      case Some(Nil) | None => 0
+     |      case Some(l) if l.nonEmpty => l.length
+     |  }
+     | }
+       	xs match {
+       	^
+On line 2: warning: match may not be exhaustive.
+       It would fail on the following input: Some(List(_))
+def test(xs: Option[List[Int]]): Int
+
+scala> test(Some(List(2)))
+val res0: Int = 1
+
+scala> test(Some(List()))
+val res1: Int = 0
+
+scala> test(None)
+val res2: Int = 0
+```
+
+## problem
+
+In scala 2.13.3 it works well.
+```scala
+Welcome to Scala 2.13.3 (OpenJDK 64-Bit Server VM, Java 11.0.9.1).
+Type in expressions for evaluation. Or try :help.
+
+scala> def test(xs: Option[List[Int]]): Int = {
+     |  xs match {
+     |      case Some(Nil) | None => 0
+     |      case Some(l) if l.nonEmpty => l.length
+     |  }
+     | }
+def test(xs: Option[List[Int]]): Int
+
+scala> test(Some(List(2)))
+val res0: Int = 1
+
+scala> test(Some(List()))
+val res1: Int = 0
+
+scala> test(None)
+val res2: Int = 0
+```
+
+It seems that statements after `if` cant be considered fully. For example, in 2.13.5
+```scala
+scala> def t2(xs: List[Int]): Int = {
+     |  val b = xs.length > 1
+     |  xs match {
+     |      case x if b => 1
+     |     case x if !b => 2
+     |  }
+     | }
+       	xs match {
+       	^
+On line 3: warning: match may not be exhaustive.
+def t2(xs: List[Int]): Int
+```

@@ -1,0 +1,761 @@
+Kotlin version: 1.3.60-eap-76-IJ2019.3-1
+We have a flaky test in IDEA:
+Expected:
+```kotlin
+import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
+import reactor.core.scheduler.Schedulers
+import java.time.Duration
+ 
+@Suppress("UNUSED_VALUE")
+public class SchedulersTest {
+  fun simpleScheduler() {
+    Flux.just(1, 2, 3)
+      .publishOn(Schedulers.parallel())
+      .map {
+        Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>()
+        1
+      }
+  }
+ 
+  fun simpleSchedulerWithVariable() {
+    val f = Flux.just(1, 2, 3)
+      .publishOn(Schedulers.single())
+ 
+    f.map {
+      Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>()
+      10
+    }.subscribe()
+  }
+ 
+  fun ifs(b: Boolean) {
+    var f = Flux.just(1, 2, 3)
+ 
+    if (b) {
+      f = f.publishOn(Schedulers.newParallel("p"))
+    } else {
+      f = f.publishOn(Schedulers.elastic())
+    }
+ 
+    val ff = f
+      .map { it + 1 }
+      .map { it + 2 }
+ 
+ 
+    ff.map {
+      Flux.just(1, 2, 3).<warning descr="Inappropriate blocking method call">toIterable</warning>()
+    }
+  }
+ 
+  fun noInformation(b: Boolean) {
+    var f = Flux.just(1, 2, 3)
+ 
+    if (b) {
+      f = f.publishOn(Schedulers.elastic())
+    } else {
+      f = f.publishOn(Schedulers.immediate())
+    }
+ 
+    f.handle<Int> { i, sink ->
+      sink.next(Flux.just(10).blockLast()!!)
+    }
+  }
+ 
+  fun withLoop(b: Boolean) {
+    var f = Flux.just(1, 2).publishOn(Schedulers.newParallel("p"))
+ 
+    while (b) {
+      f = Flux.just(1, 2).publishOn(Schedulers.elastic())
+    }
+ 
+    f.handle<Int> { i, sink ->
+      sink.next(Flux.just(10).<warning descr="Inappropriate blocking method call">blockLast</warning>()!!)
+    }
+  }
+ 
+  fun then(): Flux<Int> {
+    val f = Flux.just(1, 2, 3)
+      .map { it + 1 }
+      .thenMany(Mono.just(1)
+          .publishOn(Schedulers.single())
+      );
+ 
+    return f.map {
+      Mono.just(it + 3).<warning descr="Inappropriate blocking method call">block</warning>()
+    }
+  }
+ 
+  fun rescheduling(b: Boolean) {
+    var f = Flux.just(1, 2, 3)
+ 
+    if (b) {
+      f = f.publishOn(Schedulers.single())
+    }
+ 
+    f = f.publishOn(Schedulers.elastic())
+ 
+    f.map {
+      Mono.just(1).block()
+    }
+      .subscribe()
+  }
+ 
+  fun subscribeOnCheck() {
+    val f = Mono.just(1)
+ 
+    f.map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+      .subscribeOn(Schedulers.parallel())
+      .subscribe()
+  }
+ 
+  fun subscribOnCheck2() {
+    val f = Flux.just(1, 2, 3)
+      .subscribeOn(Schedulers.parallel())
+ 
+    f.map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun subscribeOnCheckWithIf(b: Boolean) {
+    val f = if (b) Flux.just(1, 2, 3).subscribeOn(Schedulers.single())
+    else Flux.just(2, 3, 4).subscribeOn(Schedulers.elastic())
+ 
+    f.map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun subscribeOnInIf(b: Boolean) {
+    var m = Mono.just("1")
+      .map { Flux.just("1", "2").<warning descr="Inappropriate blocking method call">blockLast</warning>() }
+ 
+    if (b) {
+      m = m.subscribeOn(Schedulers.parallel())
+    } else {
+      m = m.subscribeOn(Schedulers.elastic())
+    }
+  }
+ 
+  fun subscribeOnInIf2(b: Boolean) {
+    var m = Mono.just("1")
+      .map { Flux.just("1", "2").<warning descr="Inappropriate blocking method call">blockLast</warning>() }
+ 
+    if (b) {
+      m = m.subscribeOn(Schedulers.elastic())
+    } else {
+      m = m.subscribeOn(Schedulers.parallel())
+    }
+  }
+ 
+  fun subscribeOnInIf3(b: Boolean) {
+    var m = Mono.just("1")
+      .map { Flux.just("1", "2").<warning descr="Inappropriate blocking method call">blockLast</warning>() }
+ 
+    m = if (b) {
+      m.subscribeOn(Schedulers.elastic())
+    } else {
+      m.subscribeOn(Schedulers.parallel())
+    }
+  }
+ 
+  @Suppress("NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS")
+  fun shadowingSubscribeOn() {
+    Mono.just(1)
+      .subscribeOn(Schedulers.parallel())
+      .handle<Int> { i, sink ->
+        sink.next(Mono.just(i).block())
+      }
+      .subscribeOn(Schedulers.elastic())
+  }
+ 
+  fun branchingShadowing(b: Boolean) {
+    var f = Flux.just(1, 2)
+      .subscribeOn(Schedulers.parallel())
+      .map { Mono.just(1).block() }
+ 
+    if (b) {
+      f = f.subscribeOn(Schedulers.immediate())
+    } else {
+      f = f.subscribeOn(Schedulers.elastic())
+    }
+  }
+ 
+  fun mixedScheduling(b: Boolean) {
+    var f = Flux.just(1, 2, 3)
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+ 
+    if (b) {
+      f = f.subscribeOn(Schedulers.parallel())
+    } else {
+      f = f.subscribeOn(Schedulers.single())
+    }
+ 
+    if (b) {
+      f = f.publishOn(Schedulers.immediate())
+    } else {
+      f = f.publishOn(Schedulers.elastic())
+    }
+ 
+    f = f.map { i: Int -> Mono.just(i).block() }
+  }
+ 
+  fun shadowingSubscribeOn2(b: Boolean) {
+    var f = Flux.just(1).map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+    f = f.subscribeOn(Schedulers.elastic())
+ 
+    if (b) {
+      f = f.subscribeOn(Schedulers.elastic())
+    } else {
+      f = f.subscribeOn(Schedulers.parallel())
+    }
+ 
+    f.map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun independentChains() {
+    var flux = Flux.just(1, 2)
+ 
+    flux.map { Mono.just(it).block() }
+    flux.subscribeOn(Schedulers.parallel())
+  }
+ 
+  fun strangeShadowing() {
+    val flux = Flux.just(1, 2).map { Mono.just(1).block() }.subscribeOn(Schedulers.parallel())
+    flux.subscribeOn(Schedulers.elastic())
+    flux.subscribeOn(Schedulers.elastic())
+  }
+ 
+  fun strangeShadowing1() {
+    val flux = Flux.just(1, 2).map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }.subscribeOn(Schedulers.parallel())
+    flux.subscribeOn(Schedulers.elastic())
+    flux.subscribeOn(Schedulers.elastic())
+    flux.map { 10 }
+  }
+ 
+  fun mixedIf(b: Boolean) {
+    var f = Flux.just(1, 2)
+ 
+    if (b) {
+      f = f.subscribeOn(Schedulers.parallel())
+    } else {
+      f = f.publishOn(Schedulers.elastic())
+    }
+ 
+    f.map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun threeMaps() {
+    val f = Flux.just(1, 2, 3)
+    .map { Mono.just(it).<warning descr="Inappropriate blocking method call">block</warning>() }
+    .map { i: Int ->  Flux.just(i, i + 1).<warning descr="Inappropriate blocking method call">blockLast</warning>() }
+    .map { i: Int -> Mono.just(i).<warning descr="Inappropriate blocking method call">block</warning>() }
+ 
+    f.subscribeOn(Schedulers.parallel())
+  }
+ 
+  fun unknownInOneIfBranch(b: Boolean) {
+    var f = Flux.just(1, 2, 3)
+      .subscribeOn(Schedulers.parallel())
+ 
+    if (b) {
+      f = f
+        .map{ i -> Mono.just(i).block() }
+        .subscribeOn(Schedulers.elastic())
+    }
+    else {
+      f = f.map { i -> Mono.just(i).<warning descr="Inappropriate blocking method call">block</warning>() }
+    }
+  }
+ 
+  fun manySubscribeOn() {
+    Flux.just(1)
+      .subscribeOn(Schedulers.single())
+      .subscribeOn(Schedulers.elastic())
+      .map { i -> Mono.just(i).block() }
+  }
+ 
+  fun monoDelay() {
+    Mono.delay(Duration.ofMillis(100))
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun monoDelayWithScheduler() {
+    Mono.delay(Duration.ofMillis(100), Schedulers.single())
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun monoDelayWithBlockingScheduler() {
+    Mono.delay(Duration.ofMillis(100), Schedulers.elastic())
+      .map { Mono.just(1).block() }
+  }
+ 
+  fun monoDelayElement() {
+    Mono.just(1).delayElement(Duration.ofMillis(100))
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun monoDelayElementWithScheduler() {
+    Mono.just(1).delayElement(Duration.ofMillis(100), Schedulers.single())
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun monoDelayElementWithBlockingScheduler() {
+    Mono.just(1).delayElement(Duration.ofMillis(100), Schedulers.elastic())
+      .map { Mono.just(1).block() }
+  }
+ 
+  fun parallelFluxRunOn() {
+    Flux.just(1, 2)
+      .parallel()
+      .runOn(Schedulers.parallel())
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun fluxDelayElements() {
+    Flux.just(1)
+      .delayElements(Duration.ofMillis(100))
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun fluxDelayElementsWithScheduler() {
+    Flux.just(1)
+      .delayElements(Duration.ofMillis(100), Schedulers.single())
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun fluxDelayElementsWithBlockingScheduler() {
+    Flux.just(1)
+      .delayElements(Duration.ofMillis(100), Schedulers.immediate())
+      .map { Mono.just(1).block() }
+  }
+ 
+  fun fluxDelaySequence() {
+    Flux.just(1)
+      .delaySequence(Duration.ofMillis(100))
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun fluxDelaySequenceWithScheduler() {
+    Flux.just(1)
+      .delaySequence(Duration.ofMillis(100), Schedulers.single())
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun fluxDelaySequenceWithBlockingScheduler() {
+    Flux.just(1)
+      .delaySequence(Duration.ofMillis(100), Schedulers.immediate())
+      .map { Mono.just(1).block() }
+  }
+ 
+  fun fluxDelaySubscription() {
+    Flux.just(1)
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+    .delaySubscription(Duration.ofMillis(100))
+  }
+ 
+  fun fluxDelaySubscriptionWithScheduler() {
+    Flux.just(1)
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+    .delaySubscription(Duration.ofMillis(100), Schedulers.single())
+  }
+ 
+  fun fluxDelaySubscriptionWithBlockingScheduler() {
+    Flux.just(1)
+      .map { Mono.just(1).block() }
+    .delaySubscription(Duration.ofMillis(100), Schedulers.elastic())
+  }
+ 
+  fun fluxInterval() {
+    Flux.interval(Duration.ofMillis(100))
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun fluxIntervalWithScheduler() {
+    Flux.interval(Duration.ofMillis(100), Duration.ofMillis(200), Schedulers.parallel())
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun fluxIntervalWithBlockingScheduler() {
+    Flux.interval(Duration.ofMillis(100), Schedulers.elastic())
+      .map { Mono.just(1).block() }
+  }
+}
+```
+but sometimes actual:
+```kotlin
+import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
+import reactor.core.scheduler.Schedulers
+import java.time.Duration
+ 
+@Suppress("UNUSED_VALUE")
+public class SchedulersTest {
+  fun simpleScheduler() {
+    Flux.just(1, 2, 3)
+      .publishOn(Schedulers.parallel())
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int but Function<in Int!, out TypeVariable(V)!>! was expected">{
+        Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>()
+        1
+      }</error>
+  }
+ 
+  fun simpleSchedulerWithVariable() {
+    val f = Flux.just(1, 2, 3)
+      .publishOn(Schedulers.single())
+ 
+    f.map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int but Function<in Int!, out TypeVariable(V)!>! was expected">{
+      Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>()
+      10
+    }</error>.subscribe()
+  }
+ 
+  fun ifs(b: Boolean) {
+    var f = Flux.just(1, 2, 3)
+ 
+    if (b) {
+      f = f.publishOn(Schedulers.newParallel("p"))
+    } else {
+      f = f.publishOn(Schedulers.elastic())
+    }
+ 
+    val ff = f
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> [ERROR : Cannot infer type variable TypeVariable(_L)] but Function<in Int!, out TypeVariable(V)!>! was expected">{ <error descr="[UNRESOLVED_REFERENCE] Unresolved reference: it">it</error> + 1 }</error>
+      .map { <error descr="[UNRESOLVED_REFERENCE] Unresolved reference: it">it</error> + 2 }
+ 
+ 
+    ff.map {
+      Flux.just(1, 2, 3).toIterable()
+    }
+  }
+ 
+  fun noInformation(b: Boolean) {
+    var f = Flux.just(1, 2, 3)
+ 
+    if (b) {
+      f = f.publishOn(Schedulers.elastic())
+    } else {
+      f = f.publishOn(Schedulers.immediate())
+    }
+ 
+    f.handle<Int> { i, sink ->
+      sink.next(Flux.just(10).blockLast()!!)
+    }
+  }
+ 
+  fun withLoop(b: Boolean) {
+    var f = Flux.just(1, 2).publishOn(Schedulers.newParallel("p"))
+ 
+    while (b) {
+      f = Flux.just(1, 2).publishOn(Schedulers.elastic())
+    }
+ 
+    f.handle<Int> { i, sink ->
+      sink.next(Flux.just(10).<warning descr="Inappropriate blocking method call">blockLast</warning>()!!)
+    }
+  }
+ 
+  fun then(): Flux<Int> {
+    val f = Flux.just(1, 2, 3)
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> [ERROR : Cannot infer type variable TypeVariable(_L)] but Function<in Int!, out TypeVariable(V)!>! was expected">{ <error descr="[UNRESOLVED_REFERENCE] Unresolved reference: it">it</error> + 1 }</error>
+      .thenMany(Mono.just(1)
+          .publishOn(Schedulers.single())
+      );
+ 
+    return f.map {
+      Mono.just(<error descr="[UNRESOLVED_REFERENCE] Unresolved reference: it">it</error> + 3).block()
+    }
+  }
+ 
+  fun rescheduling(b: Boolean) {
+    var f = Flux.just(1, 2, 3)
+ 
+    if (b) {
+      f = f.publishOn(Schedulers.single())
+    }
+ 
+    f = f.publishOn(Schedulers.elastic())
+ 
+    f.map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{
+      Mono.just(1).block()
+    }</error>
+      .subscribe()
+  }
+ 
+  fun subscribeOnCheck() {
+    val f = Mono.just(1)
+ 
+    f.map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+      .subscribeOn(Schedulers.parallel())
+      .subscribe()
+  }
+ 
+  fun subscribOnCheck2() {
+    val f = Flux.just(1, 2, 3)
+      .subscribeOn(Schedulers.parallel())
+ 
+    f.map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }</error>
+  }
+ 
+  fun subscribeOnCheckWithIf(b: Boolean) {
+    val f = if (b) Flux.just(1, 2, 3).subscribeOn(Schedulers.single())
+    else Flux.just(2, 3, 4).subscribeOn(Schedulers.elastic())
+ 
+    f.map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }</error>
+  }
+ 
+  fun subscribeOnInIf(b: Boolean) {
+    var m = Mono.just("1")
+      .map { Flux.just("1", "2").<warning descr="Inappropriate blocking method call">blockLast</warning>() }
+ 
+    if (b) {
+      m = m.subscribeOn(Schedulers.parallel())
+    } else {
+      m = m.subscribeOn(Schedulers.elastic())
+    }
+  }
+ 
+  fun subscribeOnInIf2(b: Boolean) {
+    var m = Mono.just("1")
+      .map { Flux.just("1", "2").<warning descr="Inappropriate blocking method call">blockLast</warning>() }
+ 
+    if (b) {
+      m = m.subscribeOn(Schedulers.elastic())
+    } else {
+      m = m.subscribeOn(Schedulers.parallel())
+    }
+  }
+ 
+  fun subscribeOnInIf3(b: Boolean) {
+    var m = Mono.just("1")
+      .map { Flux.just("1", "2").<warning descr="Inappropriate blocking method call">blockLast</warning>() }
+ 
+    m = if (b) {
+      m.subscribeOn(Schedulers.elastic())
+    } else {
+      m.subscribeOn(Schedulers.parallel())
+    }
+  }
+ 
+  @Suppress("NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS")
+  fun shadowingSubscribeOn() {
+    Mono.just(1)
+      .subscribeOn(Schedulers.parallel())
+      .handle<Int> { i, sink ->
+        sink.next(Mono.just(i).block())
+      }
+      .subscribeOn(Schedulers.elastic())
+  }
+ 
+  fun branchingShadowing(b: Boolean) {
+    var f = Flux.just(1, 2)
+      .subscribeOn(Schedulers.parallel())
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }</error>
+ 
+    if (b) {
+      f = f.subscribeOn(Schedulers.immediate())
+    } else {
+      f = f.subscribeOn(Schedulers.elastic())
+    }
+  }
+ 
+  fun mixedScheduling(b: Boolean) {
+    var f = Flux.just(1, 2, 3)
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).block() }</error>
+ 
+    if (b) {
+      f = f.subscribeOn(Schedulers.parallel())
+    } else {
+      f = f.subscribeOn(Schedulers.single())
+    }
+ 
+    if (b) {
+      f = f.publishOn(Schedulers.immediate())
+    } else {
+      f = f.publishOn(Schedulers.elastic())
+    }
+ 
+    f = f.map { i: Int -> Mono.just(i).block() }
+  }
+ 
+  fun shadowingSubscribeOn2(b: Boolean) {
+    var f = Flux.just(1).map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).block() }</error>
+    f = f.subscribeOn(Schedulers.elastic())
+ 
+    if (b) {
+      f = f.subscribeOn(Schedulers.elastic())
+    } else {
+      f = f.subscribeOn(Schedulers.parallel())
+    }
+ 
+    f.map { Mono.just(1).block() }
+  }
+ 
+  fun independentChains() {
+    var flux = Flux.just(1, 2)
+ 
+    flux.map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> [ERROR : Cannot infer type variable TypeVariable(_L)] but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(<error descr="[UNRESOLVED_REFERENCE] Unresolved reference: it">it</error>).block() }</error>
+    flux.subscribeOn(Schedulers.parallel())
+  }
+ 
+  fun strangeShadowing() {
+    val flux = Flux.just(1, 2).map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).block() }</error>.subscribeOn(Schedulers.parallel())
+    flux.subscribeOn(Schedulers.elastic())
+    flux.subscribeOn(Schedulers.elastic())
+  }
+ 
+  fun strangeShadowing1() {
+    val flux = Flux.just(1, 2).map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).block() }</error>.subscribeOn(Schedulers.parallel())
+    flux.subscribeOn(Schedulers.elastic())
+    flux.subscribeOn(Schedulers.elastic())
+    flux.map { 10 }
+  }
+ 
+  fun mixedIf(b: Boolean) {
+    var f = Flux.just(1, 2)
+ 
+    if (b) {
+      f = f.subscribeOn(Schedulers.parallel())
+    } else {
+      f = f.publishOn(Schedulers.elastic())
+    }
+ 
+    f.map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }</error>
+  }
+ 
+  fun threeMaps() {
+    val f = Flux.just(1, 2, 3)
+    .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> [ERROR : Cannot infer type variable TypeVariable(_L)] but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(<error descr="[UNRESOLVED_REFERENCE] Unresolved reference: it">it</error>).block() }</error>
+    .map { i: Int ->  Flux.just(i, i + 1).blockLast() }
+    .map { i: Int -> Mono.just(i).block() }
+ 
+    f.subscribeOn(Schedulers.parallel())
+  }
+ 
+  fun unknownInOneIfBranch(b: Boolean) {
+    var f = Flux.just(1, 2, 3)
+      .subscribeOn(Schedulers.parallel())
+ 
+    if (b) {
+      f = f
+        .map<error descr="[TYPE_MISMATCH] Type mismatch: inferred type is (Nothing) -> Nothing! but Function<in Int!, out TypeVariable(V)!>! was expected">{ i -> Mono.just(i).<warning descr="Inappropriate blocking method call">block</warning>() }</error>
+        .subscribeOn(Schedulers.elastic())
+    }
+    else {
+      f = f.map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is (Nothing) -> Nothing! but Function<in Int!, out TypeVariable(V)!>! was expected">{ i -> Mono.just(i).<warning descr="Inappropriate blocking method call">block</warning>() }</error>
+    }
+  }
+ 
+  fun manySubscribeOn() {
+    Flux.just(1)
+      .subscribeOn(Schedulers.single())
+      .subscribeOn(Schedulers.elastic())
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is (Nothing) -> Nothing! but Function<in Int!, out TypeVariable(V)!>! was expected">{ i -> Mono.just(i).block() }</error>
+  }
+ 
+  fun monoDelay() {
+    Mono.delay(Duration.ofMillis(100))
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun monoDelayWithScheduler() {
+    Mono.delay(Duration.ofMillis(100), Schedulers.single())
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun monoDelayWithBlockingScheduler() {
+    Mono.delay(Duration.ofMillis(100), Schedulers.elastic())
+      .map { Mono.just(1).block() }
+  }
+ 
+  fun monoDelayElement() {
+    Mono.just(1).delayElement(Duration.ofMillis(100))
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun monoDelayElementWithScheduler() {
+    Mono.just(1).delayElement(Duration.ofMillis(100), Schedulers.single())
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun monoDelayElementWithBlockingScheduler() {
+    Mono.just(1).delayElement(Duration.ofMillis(100), Schedulers.elastic())
+      .map { Mono.just(1).block() }
+  }
+ 
+  fun parallelFluxRunOn() {
+    Flux.just(1, 2)
+      .parallel()
+      .runOn(Schedulers.parallel())
+      .map { Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }
+  }
+ 
+  fun fluxDelayElements() {
+    Flux.just(1)
+      .delayElements(Duration.ofMillis(100))
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }</error>
+  }
+ 
+  fun fluxDelayElementsWithScheduler() {
+    Flux.just(1)
+      .delayElements(Duration.ofMillis(100), Schedulers.single())
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }</error>
+  }
+ 
+  fun fluxDelayElementsWithBlockingScheduler() {
+    Flux.just(1)
+      .delayElements(Duration.ofMillis(100), Schedulers.immediate())
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).block() }</error>
+  }
+ 
+  fun fluxDelaySequence() {
+    Flux.just(1)
+      .delaySequence(Duration.ofMillis(100))
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }</error>
+  }
+ 
+  fun fluxDelaySequenceWithScheduler() {
+    Flux.just(1)
+      .delaySequence(Duration.ofMillis(100), Schedulers.single())
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }</error>
+  }
+ 
+  fun fluxDelaySequenceWithBlockingScheduler() {
+    Flux.just(1)
+      .delaySequence(Duration.ofMillis(100), Schedulers.immediate())
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).block() }</error>
+  }
+ 
+  fun fluxDelaySubscription() {
+    Flux.just(1)
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).block() }</error>
+    .delaySubscription(Duration.ofMillis(100))
+  }
+ 
+  fun fluxDelaySubscriptionWithScheduler() {
+    Flux.just(1)
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).block() }</error>
+    .delaySubscription(Duration.ofMillis(100), Schedulers.single())
+  }
+ 
+  fun fluxDelaySubscriptionWithBlockingScheduler() {
+    Flux.just(1)
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Int!, out TypeVariable(V)!>! was expected">{ Mono.just(1).block() }</error>
+    .delaySubscription(Duration.ofMillis(100), Schedulers.elastic())
+  }
+ 
+  fun fluxInterval() {
+    Flux.interval(Duration.ofMillis(100))
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Long!, out TypeVariable(V)!>! was expected">{ Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }</error>
+  }
+ 
+  fun fluxIntervalWithScheduler() {
+    Flux.interval(Duration.ofMillis(100), Duration.ofMillis(200), Schedulers.parallel())
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Long!, out TypeVariable(V)!>! was expected">{ Mono.just(1).<warning descr="Inappropriate blocking method call">block</warning>() }</error>
+  }
+ 
+  fun fluxIntervalWithBlockingScheduler() {
+    Flux.interval(Duration.ofMillis(100), Schedulers.elastic())
+      .map <error descr="[TYPE_MISMATCH] Type mismatch: inferred type is () -> Int! but Function<in Long!, out TypeVariable(V)!>! was expected">{ Mono.just(1).block() }</error>
+  }
+}
+```
+
+Also, link to test
+https://buildserver.labs.intellij.net/project.html?tab=testDetails&projectId=ijplatform_IjPlatform193_Idea_Tests_Jdk11&testNameId=-5976920612472334126&page=1

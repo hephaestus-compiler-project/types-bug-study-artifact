@@ -1,0 +1,67 @@
+In order to get the GORM codebase to compile I had to make this change:
+
+https://github.com/grails/grails-data-mapping/commit/1ef850c496d13d8ca915b27e76b6bfdb4e27377e
+
+The code in question is:
+
+{code}
+    /**
+     * Sets multipart values within the request body
+     *
+     * @param name The name of the multipart
+     * @param value The value of the multipart
+     */
+    void setProperty(String name, value) {
+        if (value instanceof File) {
+            value = new FileSystemResource(value)
+        }
+        else if (value instanceof URL) {
+            value = new UrlResource(value)
+        }
+        else if (value instanceof InputStream) {
+            value = new InputStreamResource(value)
+        }
+        else if (value instanceof GString) {
+            value = value.toString()
+        }
+        if( mvm[name] ) {
+            mvm[name].add value    
+        }
+        else {
+            mvm.put(name, [value]) // <--- FAILS COMPILATION HERE
+        }        
+    }
+{code}
+
+No matter what I tried I could not get it into to compile. The method accepts `put(String, List<Object>)` but fails compilation with:
+
+{code}
+RequestCustomizer.groovy: 392: [Static type checking] - Cannot call org.springframework.util.MultiValueMap <String, Object>#put(java.lang.String, java.lang.Object) with arguments [java.lang.String, java.util.List <java.lang.String>] 
+ @ line 392, column 13.
+               mvm.put(name, [value])
+               ^
+{code}
+
+Altering the code to:
+
+{code}
+       List<Object> values = [value]
+       mvm.put(name, values)
+{code}
+
+Fails with:
+
+{code}
+RequestCustomizer.groovy: 392: [Static type checking] - Incompatible generic argument types. Cannot assign java.util.List <java.lang.String> to: java.util.List <Object>
+ @ line 392, column 35.
+               List<Object> values = [value]
+                                     ^
+
+RequestCustomizer.groovy: 393: [Static type checking] - Cannot call org.springframework.util.MultiValueMap <String, Object>#put(java.lang.String, java.lang.Object) with arguments [java.lang.String, java.util.List <java.lang.String>] 
+ @ line 393, column 13.
+               mvm.put(name, values)
+               ^
+
+2 errors
+{code}
+

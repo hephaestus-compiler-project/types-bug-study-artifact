@@ -1,0 +1,25 @@
+```scala
+object A {
+  def fun[E](a: A[E]): Unit = ()
+  fun(new A[Int])
+}
+class A[-X]
+```
+Gets the following code 
+```scala
+result of Foo.scala after frontend:
+
+package <empty> {
+  final lazy module val A: A$ = new A$()
+  final module class A$() extends Object() { this: A.type => 
+    def fun[E](a: A[E]): Unit = ()
+    A.fun[Nothing](new A[Int]())   // <===========  Nothing is inferred where Int should
+  }
+  class A[X]() extends Object() { 
+    <contravariant> type -X
+    private[this] <contravariant> type -X =- X
+  }
+}
+```
+
+It also looks like #2671 and #2418 because of the contravariance of the arguments in the functions.

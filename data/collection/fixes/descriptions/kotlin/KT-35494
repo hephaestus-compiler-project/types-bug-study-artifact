@@ -1,0 +1,28 @@
+Assume there is a generic class A 
+```
+class A<T>(var data: T) {
+    fun foo (d : A<T>){}
+} 
+
+fun funct1(a: A<Int>) {}
+
+```
+
+In case if I try to pass ```null``` for ```data``` the ```NULL_FOR_NONNULL_TYPE``` diagnostic error is reporting twice:
+
+```
+funct1(A(null)) // funct1(<!TYPE_MISMATCH!>A(<!NULL_FOR_NONNULL_TYPE, NULL_FOR_NONNULL_TYPE!>null<!>)<!>)
+A(1).foo(A(null)) //A(1).foo(<!TYPE_MISMATCH!>A(<!NULL_FOR_NONNULL_TYPE, NULL_FOR_NONNULL_TYPE!>null<!>)<!>)
+```
+
+the same is with try-expression
+```
+ val tryVal: A<Int> =
+        <!TYPE_MISMATCH!>try {
+            throwExceptionA(false)
+            A(2)
+        } catch (e: ExcA) {
+            A(<!NULL_FOR_NONNULL_TYPE, NULL_FOR_NONNULL_TYPE!>null<!>)
+        }<!>
+```
+Seems like a minor diagnostics bug

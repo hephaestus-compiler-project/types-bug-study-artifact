@@ -1,0 +1,63 @@
+# Classification
+
+- Type of change:
+  - New errors are introduced
+- Motivation types:
+  - Type safety guarantees are not met
+- Impact types:
+  - Compilation. Some code that used to compile won't compile any more. There were cases when such code worked with no exceptions and no warnings.
+- Detection and Migration modes:
+  - All code locations affected by this change can be accurately detected statically.
+  - Migration can't be automated.
+
+# Background
+
+Enum classes with a primary constructor can have secondary constructors which do not delegate to their primary constructor. This is forbidden for ordinary classes and this restriction is necessary for type soundness. Not calling the primary constructor can leave some fields uninitialized, breaking null-safety.
+
+# Existing behaviour
+
+```kotlin
+enum class Enum(val a: String) {
+    X;
+    constructor()
+}
+
+fun main(args: Array<String>) {
+    println(Enum.X.a) // null
+}
+```
+
+The `Enum.a` field remains uninitialized and has value `null`. This is problematic as the field is declared to be non-nullable.
+
+The initialization is missing since `X` calls the secondary constructor of `Enum` without arguments, which does not call the primary constructor and hence does not initialize `Enum.a`.
+
+The behavior is clearly an oversight, as equivalent code using `class` instead of `enum class` fails to compile. For example, compiling
+```kotlin
+class A(val a: String) {
+    constructor()
+}
+```
+fails with `error: primary constructor call expected`.
+
+# Proposed changes
+
+We should add a check in the frontend to ensure that every secondary constructor in an enum class containing a primary constructor contains a delegating constructor call. This brings the behavior of secondary enum class constructors back in line with secondary constructors in classes.
+
+# Impact
+
+Some valid code which previously compiled without errors will be forbidden. Modifying the above example slightly yields code which is perfectly fine from a usage perspective.
+```kotlin
+enum class Enum(val a: String?) {
+    X;
+    constructor()
+}
+```
+
+However, this usage pattern is exceedingly uncommon. In the first 300 Maven packages returned by a search for "Kotlin" on mvnrepository.com and their dependencies there is not a single example of an enum class with multiple constructors and a primary constructor.
+
+Enum classes with multiple constructors are either due to enums converted from Java (which do not contain a primary constructor) or due to optional arguments on the primary constructor (resulting in a default argument stub which properly calls the primary constructor).
+
+# Migration plan
+
+- 1.4.20: introduce a warning for the problematic expression
+- 1.5.0: turn warning into an error

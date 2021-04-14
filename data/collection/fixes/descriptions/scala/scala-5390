@@ -1,0 +1,70 @@
+With scala-2.10.0.rdev-4208-2012-01-19-g58cb15c, compiling:
+```scala
+// Test.scala
+class A {
+  case class B(s: String)
+}
+
+
+object X {
+  def foo {
+    val b = a.B("foo")
+    val a = new A
+  }
+}
+```
+
+Gives a compiler stack trace:
+```
+error: symbol value a does not exist in X.foo
+error: scala.reflect.internal.FatalError: symbol value a does not exist in X.foo
+	at scala.reflect.internal.SymbolTable.abort(SymbolTable.scala:36)
+	at scala.tools.nsc.Global.abort(Global.scala:170)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:996)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1190)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1188)
+	at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:111)
+	at scala.collection.immutable.List.foldLeft(List.scala:76)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadArguments(GenICode.scala:1188)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:812)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:641)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genStat(GenICode.scala:178)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genStat$1.apply(GenICode.scala:147)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genStat$1.apply(GenICode.scala:147)
+	at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:111)
+	at scala.collection.immutable.List.foldLeft(List.scala:76)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1021)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:115)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:71)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:71)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:76)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:71)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:140)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:90)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:71)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:71)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:76)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:71)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:81)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:67)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.apply(GenICode.scala:63)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:386)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:355)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:349)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:687)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1112)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:349)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.run(GenICode.scala:56)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1130)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1105)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1227)
+	at scala.tools.nsc.Driver.doCompile(Driver.scala:31)
+	at scala.tools.nsc.Main$.doCompile(Main.scala:81)
+	at scala.tools.nsc.Driver.process(Driver.scala:52)
+	at scala.tools.nsc.Driver.main(Driver.scala:65)
+	at scala.tools.nsc.Main.main(Main.scala)
+```
+
+It should say something like, "forward reference extends over definition of value b".

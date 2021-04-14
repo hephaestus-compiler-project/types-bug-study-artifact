@@ -1,0 +1,133 @@
+Code:
+```
+// This code does not compile with Error:(5, 11) Kotlin: There's a cycle in the inheritance hierarchy for this type
+// It is expected behavior
+class O : O.I {
+    interface I
+}
+
+//This code snippets crash compile with similar exceptions
+object O : O.I {
+    interface I
+}
+
+object O : O.I {
+    open class I
+}
+
+object O : O.I {
+    abstract class I
+}
+```
+
+
+Error:Kotlin: [Internal Error] java.lang.IllegalStateException: Recursive call in a lazy value under LockBasedStorageManager@1c1f6c49 (<unknown creating class>)
+{cut Exception}
+
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.ClassResolutionScopesSupport$scopeForStaticMemberDeclarationResolution$1.invoke(ClassResolutionScopesSupport.kt:70)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.ClassResolutionScopesSupport$scopeForStaticMemberDeclarationResolution$1.invoke(ClassResolutionScopesSupport.kt:30)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedLazyValue.invoke(LockBasedStorageManager.java:323)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedNotNullLazyValue.invoke(LockBasedStorageManager.java:364)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor.getScopeForStaticMemberDeclarationResolution(LazyClassDescriptor.java:336)
+	at org.jetbrains.kotlin.resolve.lazy.DeclarationScopeProviderImpl.getResolutionScopeForDeclaration(DeclarationScopeProviderImpl.java:77)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor.getOuterScope(LazyClassDescriptor.java:306)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.ClassResolutionScopesSupport$scopeForClassHeaderResolution$1.invoke(ClassResolutionScopesSupport.kt:42)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.ClassResolutionScopesSupport$scopeForClassHeaderResolution$1.invoke(ClassResolutionScopesSupport.kt:30)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedLazyValue.invoke(LockBasedStorageManager.java:323)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedNotNullLazyValue.invoke(LockBasedStorageManager.java:364)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor.getScopeForClassHeaderResolution(LazyClassDescriptor.java:312)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor.computeSupertypes(LazyClassDescriptor.java:669)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor$LazyClassTypeConstructor.computeSupertypes(LazyClassDescriptor.java:580)
+	at org.jetbrains.kotlin.types.AbstractTypeConstructor$supertypes$1.invoke(AbstractTypeConstructor.kt:35)
+	at org.jetbrains.kotlin.types.AbstractTypeConstructor$supertypes$1.invoke(AbstractTypeConstructor.kt:22)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedLazyValue.invoke(LockBasedStorageManager.java:323)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedNotNullLazyValue.invoke(LockBasedStorageManager.java:364)
+	at org.jetbrains.kotlin.types.AbstractTypeConstructor.computeNeighbours(AbstractTypeConstructor.kt:57)
+	at org.jetbrains.kotlin.types.AbstractTypeConstructor.access$computeNeighbours(AbstractTypeConstructor.kt:22)
+	at org.jetbrains.kotlin.types.AbstractTypeConstructor$supertypes$3$resultWithoutCycles$1.invoke(AbstractTypeConstructor.kt:44)
+	at org.jetbrains.kotlin.types.AbstractTypeConstructor$supertypes$3$resultWithoutCycles$1.invoke(AbstractTypeConstructor.kt:22)
+	at org.jetbrains.kotlin.resolve.SupertypeLoopCheckerImpl$findLoopsInSupertypesAndDisconnect$graph$1.getNeighbors(findLoopsInSupertypes.kt:33)
+	at org.jetbrains.kotlin.resolve.SupertypeLoopCheckerImpl$findLoopsInSupertypesAndDisconnect$graph$1.getNeighbors(findLoopsInSupertypes.kt:26)
+	at org.jetbrains.kotlin.utils.DFS.doDfs(DFS.java:98)
+	at org.jetbrains.kotlin.utils.DFS.dfs(DFS.java:27)
+	at org.jetbrains.kotlin.resolve.FindLoopsInSupertypes.isReachable(findLoopsInSupertypes.kt:53)
+	at org.jetbrains.kotlin.resolve.FindLoopsInSupertypes.access$isReachable(findLoopsInSupertypes.kt:1)
+	at org.jetbrains.kotlin.resolve.SupertypeLoopCheckerImpl.findLoopsInSupertypesAndDisconnect(findLoopsInSupertypes.kt:38)
+	at org.jetbrains.kotlin.types.AbstractTypeConstructor$supertypes$3.invoke(AbstractTypeConstructor.kt:42)
+	at org.jetbrains.kotlin.types.AbstractTypeConstructor$supertypes$3.invoke(AbstractTypeConstructor.kt:22)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$3.postCompute(LockBasedStorageManager.java:171)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedLazyValue.invoke(LockBasedStorageManager.java:325)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedNotNullLazyValue.invoke(LockBasedStorageManager.java:364)
+	at org.jetbrains.kotlin.types.AbstractTypeConstructor.getSupertypes(AbstractTypeConstructor.kt:23)
+	at org.jetbrains.kotlin.types.AbstractTypeConstructor.getSupertypes(AbstractTypeConstructor.kt:22)
+	at org.jetbrains.kotlin.resolve.descriptorUtil.DescriptorUtilsKt.getSuperClassNotAny(DescriptorUtils.kt:135)
+	at org.jetbrains.kotlin.resolve.descriptorUtil.DescriptorUtilsKt.getAllSuperclassesWithoutAny(DescriptorUtils.kt:349)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.ClassResolutionScopesSupport$inheritanceScopeWithoutMe$1.invoke(ClassResolutionScopesSupport.kt:50)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.ClassResolutionScopesSupport$inheritanceScopeWithoutMe$1.invoke(ClassResolutionScopesSupport.kt:30)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedLazyValue.invoke(LockBasedStorageManager.java:323)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedNotNullLazyValue.invoke(LockBasedStorageManager.java:364)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.ClassResolutionScopesSupport$inheritanceScopeWithMe$1.invoke(ClassResolutionScopesSupport.kt:56)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.ClassResolutionScopesSupport$inheritanceScopeWithMe$1.invoke(ClassResolutionScopesSupport.kt:30)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedLazyValue.invoke(LockBasedStorageManager.java:323)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedNotNullLazyValue.invoke(LockBasedStorageManager.java:364)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.ClassResolutionScopesSupport$scopeForMemberDeclarationResolution$1.invoke(ClassResolutionScopesSupport.kt:64)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.ClassResolutionScopesSupport$scopeForMemberDeclarationResolution$1.invoke(ClassResolutionScopesSupport.kt:30)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedLazyValue.invoke(LockBasedStorageManager.java:323)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedNotNullLazyValue.invoke(LockBasedStorageManager.java:364)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor.getScopeForMemberDeclarationResolution(LazyClassDescriptor.java:330)
+	at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassDescriptor.resolveMemberHeaders(LazyClassDescriptor.java:550)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.resolveAllHeadersInClasses(LazyTopDownAnalyzer.kt:225)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations(LazyTopDownAnalyzer.kt:201)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations$default(LazyTopDownAnalyzer.kt:56)
+	at org.jetbrains.kotlin.resolve.jvm.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(TopDownAnalyzerFacadeForJVM.kt:104)
+	at org.jetbrains.kotlin.resolve.jvm.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration$default(TopDownAnalyzerFacadeForJVM.kt:76)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$analyze$1.analyze(KotlinToJVMBytecodeCompiler.kt:381)
+	at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.kt:105)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.kt:370)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules(KotlinToJVMBytecodeCompiler.kt:139)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:173)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:57)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.java:93)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.java:46)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:90)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.execCompiler(CompileServiceImpl.kt:397)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.access$execCompiler(CompileServiceImpl.kt:99)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$compile$1$1.invoke(CompileServiceImpl.kt:360)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$compile$1$1.invoke(CompileServiceImpl.kt:99)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$2$$special$$inlined$withValidClientOrSessionProxy$lambda$1.invoke(CompileServiceImpl.kt:798)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$2$$special$$inlined$withValidClientOrSessionProxy$lambda$1.invoke(CompileServiceImpl.kt:99)
+	at org.jetbrains.kotlin.daemon.common.DummyProfiler.withMeasure(PerfUtils.kt:137)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.checkedCompile(CompileServiceImpl.kt:825)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.access$checkedCompile(CompileServiceImpl.kt:99)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$2.invoke(CompileServiceImpl.kt:797)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$2.invoke(CompileServiceImpl.kt:99)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.ifAlive(CompileServiceImpl.kt:1004)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.ifAlive$default(CompileServiceImpl.kt:865)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.doCompile(CompileServiceImpl.kt:791)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.access$doCompile(CompileServiceImpl.kt:99)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$compile$1.invoke(CompileServiceImpl.kt:358)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$compile$1.invoke(CompileServiceImpl.kt:99)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.ifAlive(CompileServiceImpl.kt:1004)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.ifAlive$default(CompileServiceImpl.kt:865)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:336)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:324)
+	at sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:568)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:826)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:683)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:682)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+
+{cut}
+
+Tested on 1.1.2, 1.1.4. 

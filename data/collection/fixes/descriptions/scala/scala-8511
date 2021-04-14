@@ -1,0 +1,41 @@
+Given the following sealed trait, it is possible to see that at runtime there is the possibility of a MatchError being thrown -
+
+```scala
+sealed trait Expr
+final case class Foo(other: Option[String]) extends Expr
+final case class Bar(someConstant: String) extends Expr
+final case class Baz() extends Expr
+final case class EatsExhaustiveWarning(other: Reference) extends Expr
+ 
+sealed trait Reference {
+  val value: String
+}
+ 
+object Reference {
+  def unapply(reference: Reference): Option[(String)] = {
+    Some(reference.value)
+  }
+}
+ 
+object EntryPoint {
+  def main(args: Array[String]) {
+    println("Successfully ran")
+  }
+ 
+  private def logic(head: Expr): String = head match {
+    case Foo(_) =>
+      ???
+    // Commenting this line only causes the exhaustive search warning to be emitted
+    case EatsExhaustiveWarning(Reference(text)) =>
+      ???
+  }
+}
+```
+
+From the scala docs
+
+```
+If the selector of a pattern match is an instance of a sealed class (s5.2), the compilation of pattern matching can emit warnings which diagnose that a given set of patterns is not exhaustive, i.e. that there is a possibility of a MatchError being raised at run-time.
+```
+
+It seems that when the unapply method is provided for the Reference trait, no compiler warnings are emitted.

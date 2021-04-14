@@ -1,0 +1,21 @@
+[Edited to minimize.]
+
+The following code crashes the 2.9.0 compiler, with "scala.tools.nsc.symtab.Symbols$CyclicReference: illegal cyclic reference involving method ..."
+
+```scala
+class CyclicReferenceCompilerBug {
+  trait Trait[A] {
+    def foo: A
+  }
+  
+  class Class extends Trait[Class] {
+    def foo = new Class
+    
+    trait OtherTrait extends Trait[OtherTrait] { 
+      self: Class =>
+      
+      def foo = new Class
+    }
+  }
+}
+```

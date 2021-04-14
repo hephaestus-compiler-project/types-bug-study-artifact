@@ -1,0 +1,28 @@
+STEP TO REPRODUCE THE PROBLE
+
+class Y extends W {}
+class W extends Z {}
+
+class Z {
+   static void m(Z z) {
+       W w = (W)z;
+   }
+}
+
+put all the classes in a single file (e.g. Test.java) and then execute the command:
+javac Test.java -Xlint:all -XDverboseCompilePolicy
+
+EXPECTED BEHAVIOUR
+
+compilation passes with no warning
+
+ACTUAL BEHAVIOR
+
+the compiler generates a warning:
+
+Test.java:6: warning: [cast] redundant cast to W
+       W w = (W)z;
+                   ^
+
+
+It seems like Z's flow analysis is executed *after* Y's erasure - that is when Z itself has already been recursively erased.

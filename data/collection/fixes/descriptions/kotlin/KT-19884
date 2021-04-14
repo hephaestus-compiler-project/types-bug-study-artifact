@@ -1,0 +1,27 @@
+Similar to KT-19798. I have another example where it does not work as I would expect. Consider the following:
+```
+private fun <T> ofType(x: T): T = x
+class B<T>
+open class C(
+    a: B<Any>.(B<Int>.(Int) -> Unit) -> Int,
+    b: B<Any>.(B<Int>.() -> Unit) -> Int,
+    c: B<Any>.(B<Int>.() -> Unit) -> Int)
+
+class A : C(
+    ofType<B<Any>.(B<Int>.(Int) -> Unit) -> Int>(Companion::bar),
+    ofType<B<Any>.(B<Int>.() -> Unit) -> Int>(Companion::bar),
+    Companion::barInt
+) {
+    companion object {
+        fun barInt(b: B<Any>, rb: B<Int>.() -> Unit) = bar(b, rb)
+        inline fun <reified T> bar(b: B<Any>, noinline rb: B<T>.() -> Unit): T = 1 as T
+    }
+}
+```
+
+The second parameter for `A: C(...)` cannot be inferred, the first is wrong intentionally (so we see what type was inferred for `Companion::bar`) and the third parameter works fine.
+It seems like type inference runs into a problem. At least it only tells me "cannot be applied to ()" instead of an actual type. Consider the error message for the first parameter
+ 
+!error_first_param.png!
+
+From what we see, the inferred type of  Companion::bar is `KFunction2<B<Any>, B<Int>.()->Unit, Int>` which is assignable to `B<Any>.(B<Int>.() -> Unit) -> Int` as we can see for the third parameter. So, there must be another problem (see also the error_second_param.png)

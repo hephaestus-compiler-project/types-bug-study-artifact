@@ -1,0 +1,47 @@
+```
+// FILE: test.kt
+
+@file:Suppress("UNUSED_PARAMETER")
+
+import java.util.Comparator
+
+abstract class DataView {
+    abstract val presentationName: String
+}
+
+fun <T> comboBox(
+    model: SortedComboBoxModel<T>,
+    graphProperty: GraphProperty<T>,
+) {}
+
+class GraphProperty<T>
+
+fun test() {
+    val presentationName: (DataView) -> String = { it.presentationName }
+    val parentComboBoxModel/*: SortedComboBoxModel<DataView>*/ = SortedComboBoxModel(Comparator.comparing(presentationName))
+    comboBox(parentComboBoxModel, GraphProperty<DataView>())
+}
+```
+```
+// FILE: SortedComboBoxModel.java
+
+import java.util.Comparator;
+
+public class SortedComboBoxModel<T> {
+  public SortedComboBoxModel(Comparator<? super T> comparator) {
+  }
+}
+```
+
+1.4.20: compiles fine.
+
+1.4.30:
+```
+2.kt:19:35: error: type mismatch: inferred type is DataView? but DataView was expected
+    comboBox(parentComboBoxModel, GraphProperty<DataView>())
+                                  ^
+```
+
+Note that specifying the explicit type for `parentComboBoxModel` (commented in the code above) workarounds the issue.
+
+Minimized from https://github.com/JetBrains/intellij-community/blob/9ca6912853ef971b38eb5703be1b479b2fd060c4/platform/external-system-impl/src/com/intellij/openapi/externalSystem/service/project/wizard/MavenizedStructureWizardStep.kt#L79

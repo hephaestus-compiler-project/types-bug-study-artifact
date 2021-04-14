@@ -1,0 +1,40 @@
+{code lang=jet}
+class Buggy {
+  
+  val coll : java.util.Collection<Int> = arrayList(1,2,3,4,5)
+  
+  fun getThree(): Int? {
+    return coll.find{ it > 3 }  // works fine
+  }
+  
+  val anotherThree : Int
+    get() = coll.find{ it > 3 } // does not work here
+  
+  val yetAnotherThree : Int
+    get() = coll.find({ (v:Int) -> v > 3 }) // neither here
+  
+  val extendedGetter : Int
+    get() {
+      return coll.find{ it > 3 }  // not even here!
+    }
+  
+}
+{code}
+
+None of the following functions can be called with the arguments supplied: 
+public final fun jet.CharArray.find(predicate : (jet.Char) -> jet.Boolean) : jet.Char? defined in kotlin
+public final fun <T : jet.Any?> jet.Array<T>.find(predicate : (T) -> jet.Boolean) : T? defined in kotlin
+public final fun jet.LongArray.find(predicate : (jet.Long) -> jet.Boolean) : jet.Long? defined in kotlin
+public final fun jet.IntArray.find(predicate : (jet.Int) -> jet.Boolean) : jet.Int? defined in kotlin
+public final fun jet.FloatArray.find(predicate : (jet.Float) -> jet.Boolean) : jet.Float? defined in kotlin
+public final fun <T : jet.Any?> java.lang.Iterable<T>.find(predicate : (T) -> jet.Boolean) : T? defined in kotlin
+public final fun <T : jet.Any?> jet.Iterable<T>.find(predicate : (T) -> jet.Boolean) : T? defined in kotlin
+public final fun <T : jet.Any?> java.util.Iterator<T>.find(predicate : (T) -> jet.Boolean) : T? defined in kotlin
+public final fun jet.BooleanArray.find(predicate : (jet.Boolean) -> jet.Boolean) : jet.Boolean? defined in kotlin
+public final fun jet.ByteArray.find(predicate : (jet.Byte) -> jet.Boolean) : jet.Byte? defined in kotlin
+public final fun jet.ShortArray.find(predicate : (jet.Short) -> jet.Boolean) : jet.Short? defined in kotlin
+public final fun jet.DoubleArray.find(predicate : (jet.Double) -> jet.Boolean) : jet.Double? defined in kotlin
+
+If I replace Int to Int? in getters, everything works just fine.
+
+Maybe the error message should be more descriptive? I think, it's better to make exception in type checker for such situations, where method signature matches everything expect nullability. Since nullable classes is a new concept for Java developers, such errors will be frequent and hard to understand (given current error message).

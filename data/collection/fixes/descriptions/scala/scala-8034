@@ -1,0 +1,101 @@
+
+Steps to reproduce:
+
+- clean checkout
+- set `-Ydelambdafy:method` as default as shown below
+
+
+```
+diff --git a/src/compiler/scala/tools/nsc/settings/ScalaSettings.scala b/src/compiler/scala/tools/nsc/settings/ScalaSettings.scala
+index 7568c78..970fd25 100644
+--- a/src/compiler/scala/tools/nsc/settings/ScalaSettings.scala
++++ b/src/compiler/scala/tools/nsc/settings/ScalaSettings.scala
+@@ -186,7 +186,7 @@ trait ScalaSettings extends AbsScalaSettings
+ 
+   val exposeEmptyPackage = BooleanSetting("-Yexpose-empty-package", "Internal only: expose the empty package.").internalOnly()
+   // the current standard is "inline" but we are moving towards "method"
+-  val Ydelambdafy        = ChoiceSetting     ("-Ydelambdafy", "strategy", "Strategy used for translating lambdas into JVM code.", List("inline", "method"), "inline")
++  val Ydelambdafy        = ChoiceSetting     ("-Ydelambdafy", "strategy", "Strategy used for translating lambdas into JVM code.", List("inline", "method"), "method")
+ 
+   private def removalIn212 = "This flag is scheduled for removal in 2.12. If you have a case where you need this flag then please report a bug."
+```
+
+
+(3) `ant all.clean && ant nightly`
+
+Output
+
+```
+quick.reflect:
+    [mkdir] Created dir: /home/magarcia/scala/build/quick/classes/reflect
+[quick.reflect] Compiling 158 files to /home/magarcia/scala/build/quick/classes/reflect
+[quick.reflect] error: Unknown type: ErasedValueType(class Mode, Int), ErasedValueType(class Mode, Int) [class scala.reflect.internal.Types$UniqueErasedValueType, class scala.reflect.internal.Types$UniqueErasedValueType] TypeRef? false
+[quick.reflect] error: scala.reflect.internal.FatalError:
+[quick.reflect]   Unknown type: ErasedValueType(class Mode, Int), ErasedValueType(class Mode, Int) [class scala.reflect.internal.Types$UniqueErasedValueType, class scala.reflect.internal.Types$UniqueErasedValueType] TypeRef? false
+[quick.reflect]      while compiling: /home/magarcia/scala/src/reflect/scala/reflect/internal/Mode.scala
+[quick.reflect]         during phase: icode
+[quick.reflect]      library version: version 2.11.0-20131204-143828-636307b9ba
+[quick.reflect]     compiler version: version 2.11.0-20131204-143828-636307b9ba
+[quick.reflect]   reconstructed args: -Ydead-code -optimise -feature -d /home/magarcia/scala/build/quick/classes/reflect -Yinline -Yclosure-elim -classpath /home/magarcia/scala/build/quick/classes/library:/home/magarcia/scala/build/libs/classes/forkjoin:/home/magarcia/apache-ant-1.8.3/lib/ant.jar:/home/magarcia/scala/build/quick/classes/reflect -Yinline-handlers -Yconst-opt
+[quick.reflect] 
+[quick.reflect]   last tree to typer: TypeTree(object SynchronizedTypes$class)
+[quick.reflect]        tree position: line 111 of /home/magarcia/scala/src/reflect/scala/reflect/runtime/SynchronizedTypes.scala
+[quick.reflect]             tree tpe: reflect.runtime.SynchronizedTypes$class
+[quick.reflect]               symbol: abstract object SynchronizedTypes$class in package runtime
+[quick.reflect]    symbol definition: abstract class SynchronizedTypes$class extends  (a ClassSymbol with ImplClassSymbol)
+[quick.reflect]       symbol package: scala.reflect.runtime
+[quick.reflect]        symbol owners: object SynchronizedTypes$class
+[quick.reflect]            call site: constructor Macros in object Macros in package runtime
+[quick.reflect] 
+[quick.reflect] == Source file context for tree position ==
+[quick.reflect] 
+[quick.reflect]    108
+[quick.reflect]    109   override protected def defineBaseTypeSeqOfTypeRef(tpe: TypeRef) =
+[quick.reflect]    110     gilSynchronized { super.defineBaseTypeSeqOfTypeRef(tpe) }
+[quick.reflect]    111
+[quick.reflect]    112 }
+[quick.reflect]         at scala.reflect.internal.SymbolTable.abort(SymbolTable.scala:55)
+[quick.reflect]         at scala.tools.nsc.Global.abort(Global.scala:263)
+[quick.reflect]         at scala.tools.nsc.backend.icode.TypeKinds$class.toTypeKind(TypeKinds.scala:401)
+[quick.reflect]         at scala.tools.nsc.backend.icode.ICodes.toTypeKind(ICodes.scala:19)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadApply1$1(GenICode.scala:608)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:634)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1121)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1119)
+[quick.reflect]         at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:110)
+[quick.reflect]         at scala.collection.immutable.List.foldLeft(List.scala:83)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadArguments(GenICode.scala:1119)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadApply6$1(GenICode.scala:774)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:808)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadApply4$1(GenICode.scala:708)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:722)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:119)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:67)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:144)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:94)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:67)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:85)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:67)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:85)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:67)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:85)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:63)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.apply(GenICode.scala:59)
+[quick.reflect]         at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:424)
+[quick.reflect]         at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:391)
+[quick.reflect]         at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:391)
+[quick.reflect]         at scala.collection.Iterator$class.foreach(Iterator.scala:743)
+[quick.reflect]         at scala.collection.AbstractIterator.foreach(Iterator.scala:1174)
+[quick.reflect]         at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:391)
+[quick.reflect]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.run(GenICode.scala:51)
+[quick.reflect]         at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1603)
+[quick.reflect]         at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1588)
+[quick.reflect]         at scala.tools.nsc.Global$Run.compileSources(Global.scala:1583)
+[quick.reflect]         at scala.tools.nsc.Global$Run.compile(Global.scala:1681)
+[quick.reflect]         at scala.tools.nsc.Driver.doCompile(Driver.scala:34)
+[quick.reflect]         at scala.tools.nsc.MainClass.doCompile(Main.scala:23)
+[quick.reflect]         at scala.tools.nsc.Driver.process(Driver.scala:55)
+[quick.reflect]         at scala.tools.nsc.Driver.main(Driver.scala:68)
+[quick.reflect]         at scala.tools.nsc.Main.main(Main.scala)
+```
+

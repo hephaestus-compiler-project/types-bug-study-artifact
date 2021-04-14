@@ -1,0 +1,60 @@
+Getting very strange compilation error:
+
+```
+Error:(84, 45) Kotlin: Type mismatch: inferred type is @Nullable VirtualFile? but @NotNull Any was expected
+```
+in `dbe/database/tests/dataSource/srcStorage/DbSrcInspectionTest.kt`.
+code:
+```
+    val staging = fs.getBaseFile(file, true)
+    assertNotNull("Staging file not found", staging)
+```
+
+case minification showd that I could see same error:
+with simple
+```
+package com.intellij.database.dataSource.srcStorage
+
+import com.intellij.database.dataSource.A
+import junit.framework.TestCase
+
+class DbSrcInspectionTest : TestCase() {
+
+  fun setUp1(): Unit {
+
+    A::class.java
+
+    assertNotNull("Staging file not found", null)
+  }
+}
+```
+where A:
+```
+package com.intellij.database.dataSource;
+
+import org.jetbrains.annotations.NotNull;
+
+public class A {
+
+  @NotNull
+  private Object lock() {
+    throw new UnsupportedOperationException();
+  }
+}
+
+```
+
+probably it is important that `DbSrcInspectionTest` and `A` are in different modules.
+
+Isn't reproduced when these classes moved into separate project (out of IDEA Ultimate).
+
+IntelliJ IDEA 2017.3 EAP (Ultimate Edition)
+Build #IU-173.3279, built on October 15, 2017
+IntelliJ IDEA EAP User
+Expiration date: November 14, 2017
+JRE: 1.8.0_152-release-1036-b1 x86_64
+JVM: OpenJDK 64-Bit Server VM by JetBrains s.r.o
+Mac OS X 10.12.6
+
+kotlin-plugin-1.2.0-beta-87-IJ2017.3-1
+kotlin-plugin-1.2.0-dev-160-IJ2017.3-1

@@ -1,0 +1,81 @@
+I'm seeing dotty compiler errors with stack traces that appear and disappear depending on what lines are commented and uncommented. Lines that on the face of it should not be interacting. An example code-base is here:
+
+Reproduction: 
+
+```scala
+import scala.language.higherKinds
+
+trait LogDSL[L]
+
+object LogDSL {
+  implicit object LogRecsLogDSL extends LogDSL[String]
+  def runLog(ls: String): String = ???
+}
+
+trait Direction[D] {
+  def north: D
+}
+
+object Direction {
+  // needs both instances to trigger the bug
+  implicit def logDirection[L](implicit L: LogDSL[L]): Direction[L] = ???
+  implicit def RotateDirection[D](implicit D: Direction[D]): Direction[Rotate.Rotation[D]] = ???
+}
+
+trait Rotate[R] {
+  def rotate(r: R): R
+}
+
+object Rotate {
+  implicit def logRotate[L](implicit L: LogDSL[L]): Rotate[L] = ???
+
+  opaque type Rotation[T] = Int => T
+}
+
+object Main {
+  // the instances have to be acquired through implicit resolution to cause the crash
+  def north[D](implicit D: Direction[D]): D = ???
+  def rotate[R](r: R)(implicit RR: Rotate[R]): R = ???
+
+  def main(args: Array[String]): Unit = {
+    // commenting out either the first or the second of these lines removes the compiler crash
+    // removing the wrapping println call abolishes the crash
+    println(LogDSL.runLog(rotate(north)))
+    println(LogDSL.runLog(rotate(north)))
+  }
+}
+```
+
+
+```scala
+[info] Compiling 1 Scala source to /home/nmrp3/devel/turingatemyhamster/thirty-min/target/scala-0.13/classes ...
+[error] -- Error: /home/nmrp3/devel/turingatemyhamster/thirty-min/src/main/scala/Main.scala:38:11 
+[error] 38 |    println(LogDSL.runLog(rotate(north)))
+[error]    |           ^
+[error]    |Recursion limit exceeded.
+[error]    |Maybe there is an illegal cyclic reference?
+[error]    |If that's not the case, you could also try to increase the stacksize using the -Xss JVM option.
+[error]    |A recurring operation is (inner to outer):
+[error]    |
+[error]    |  subtype String <:< D
+[error]    |  subtype LogDSL[String] <:< LogDSL[D]
+[error]    |  subtype LogDSL.LogRecsLogDSL.type <:< LogDSL[D]
+[info] exception occurred while typechecking /home/nmrp3/devel/turingatemyhamster/thirty-min/src/main/scala/Main.scala
+[info] exception occurred while compiling /home/nmrp3/devel/turingatemyhamster/thirty-min/src/main/scala/Main.scala
+dotty.tools.dotc.ast.Trees$UnAssignedTypeException: type of Apply(Select(Ident(LogDSL),runLog),List(Apply(Ident(rotate),List(Ident(north))))) is not assigned while compiling /home/nmrp3/devel/turingatemyhamster/thirty-min/src/main/scala/Main.scala
+[error] ## Exception when compiling 1 sources to /home/nmrp3/devel/turingatemyhamster/thirty-min/target/scala-0.13/classes
+[error] type of Apply(Select(Ident(LogDSL),runLog),List(Apply(Ident(rotate),List(Ident(north))))) is not assigned
+[error] dotty.tools.dotc.ast.Trees$Tree.tpe(Trees.scala:85)
+[error] dotty.tools.dotc.ast.TypedTreeInfo.exprPurity(TreeInfo.scala:402)
+[error] dotty.tools.dotc.ast.TypedTreeInfo.exprPurity$$anonfun$1(TreeInfo.scala:405)
+[error] dotty.tools.dotc.ast.TypedTreeInfo.exprPurity$$anonfun$adapted$1(TreeInfo.scala:405)
+[error] scala.collection.immutable.List.map(List.scala:286)
+[error] dotty.tools.dotc.ast.TypedTreeInfo.exprPurity(TreeInfo.scala:405)
+[error] dotty.tools.dotc.ast.TypedTreeInfo.isPureExpr(TreeInfo.scala:425)
+[error] dotty.tools.dotc.typer.Typer.checkStatementPurity(Typer.scala:2817)
+...
+```
+
+https://gist.github.com/drdozer/8e2e345a3e834f9d771e03621404e875
+
+I think it's something to do with ambiguous implicit instances. It appears to only happen in conjunction with a "recursion limit exceeded" type inference problem.

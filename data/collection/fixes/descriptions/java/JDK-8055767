@@ -1,0 +1,14 @@
+In JDK-8044131 the sjavac server code got restructured. In the shutdown method there is a check to guard against calling it multiple times. This check will never return true and because of that, the server never quits. The fix is simple, just reversing the boolean arguments in the test:
+
+diff -r 4d1ea4477956 src/jdk.compiler/share/classes/com/sun/tools/sjavac/server/SjavacServer.java
+--- a/src/jdk.compiler/share/classes/com/sun/tools/sjavac/server/SjavacServer.java
++++ b/src/jdk.compiler/share/classes/com/sun/tools/sjavac/server/SjavacServer.java
+@@ -310,7 +310,7 @@
+ 
+     @Override
+     public void shutdown(String quitMsg) {
+-        if (!keepAcceptingRequests.compareAndSet(false, true)) {
++        if (!keepAcceptingRequests.compareAndSet(true, false)) {
+             // Already stopped, no need to shut down again
+             return;
+         }

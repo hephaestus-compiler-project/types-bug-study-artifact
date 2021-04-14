@@ -1,0 +1,45 @@
+```scala
+
+abstract class Base[M[_, _]] {
+  def foo[A, B]: M[(A, B), Any]
+}
+
+class Derived extends Base[PartialFunction] {
+  def foo[A, B] /*: PartialFunction[(A, B) => Any]*/ = { case (a, b) => (a: A, b: B) }
+}
+```
+
+```
+  ~/code/scala ./build/quick/bin/scalac -Xoldpatmat /Users/jason/code/bugs/arrow-infer/arrow.scala
+/Users/jason/code/bugs/arrow-infer/arrow.scala:7: error: type mismatch;
+ found   : a.type (with underlying type A[A,B])
+ required: A
+  def foo[A, B] /*: PartialFunction[(A, B) => Any]*/ = { case (a, b) => (a: A, b: B) }
+                                                                         ^
+/Users/jason/code/bugs/arrow-infer/arrow.scala:7: error: type mismatch;
+ found   : b.type (with underlying type B[A,B])
+ required: B
+  def foo[A, B] /*: PartialFunction[(A, B) => Any]*/ = { case (a, b) => (a: A, b: B) }
+                                                                               ^
+two errors found
+  ~/code/scala ./build/quick/bin/scaladoc /Users/jason/code/bugs/arrow-infer/arrow.scala
+/Users/jason/code/bugs/arrow-infer/arrow.scala:7: error: type mismatch;
+ found   : a.type (with underlying type A[A,B])
+ required: A
+  def foo[A, B] /*: PartialFunction[(A, B) => Any]*/ = { case (a, b) => (a: A, b: B) }
+                                                                         ^
+/Users/jason/code/bugs/arrow-infer/arrow.scala:7: error: type mismatch;
+ found   : b.type (with underlying type B[A,B])
+ required: B
+  def foo[A, B] /*: PartialFunction[(A, B) => Any]*/ = { case (a, b) => (a: A, b: B) }
+                                                                               ^
+warning: there were 1 feature warnings; re-run with -feature for details
+model contains 3 documentable templates
+one warning found
+two errors found
+  ~/code/scala ./build/quick/bin/scalac /Users/jason/code/bugs/arrow-infer/arrow.scala
+warning: there were 1 feature warnings; re-run with -feature for details
+one warning found
+```
+
+`a.type (with underlying type A[A,B])` is pretty messed up. Why does this affect Scaladoc? Does it miss out on some essential goodness from virtpatmat?

@@ -1,0 +1,55 @@
+The combination of lambda expressions, method references, SAM conversions and default methods in Java 8 enables some interesting possibilities:
+
+{code:lang=java|title=Java 8}List<String> list = new ArrayList<>();
+
+// Pre-Java8
+Collections.sort(list, new Comparator<String>() {
+	@Override
+	public int compare(String o1, String o2) {
+		return o1.compareTo(o2);
+	}
+});
+Collections.sort(list, (o1, o2) -> o1.compareTo(o2)); // Lambda expression
+Collections.sort(list, String::compareTo); // Method reference
+
+// Default method on java.util.List interface
+list.sort(new Comparator<String>() {
+	@Override
+	public int compare(String o1, String o2) {
+		return o1.compareTo(o2);
+	}
+});
+list.sort((o1, o2) -> o1.compareTo(o2)); // Lambda expression
+list.sort(String::compareTo); // Method reference{code}
+
+The same code translated to Kotlin suffers from several issues:
+
+{code:lang=kotlin|title=Kotlin}
+val list = ArrayList<String>() // (3)
+fun main(args: Array<String>) {
+    val list = ArrayList<String>() // (3)
+
+    // Works
+    Collections.sort(list, object: Comparator<String> {
+        override fun compare(o1: String, o2: String): Int = o1.compareTo(o2)
+    })
+    Collections.sort(list) { o1, o2 -> o1.compareTo(o2) } // Works in Java 7, fails in Java 8 (1)
+    Collections.sort(list, String::compareTo) // Doesn't work (2)
+
+    // Works
+    list.sort(object: Comparator<String> {
+        override fun compare(o1: String, o2: String): Int = o1.compareTo(o2)
+    })
+    list.sort { o1, o2 -> o1.compareTo(o2) } // Doesn't work (1)
+    list.sort(String::compareTo) // Doesn't work (2)
+}
+{code} 
+More on the issues:
+
+(1) SAM conversion fails on Java 8 because (afaict) of the presence of additional methods on the Comparator interface. It had a single method up to Java 7, but in Java 8 several default and static methods have been added. Testing with a custom interface (that satisfies @FunctionalInterface) suggests that adding either a default or a static method disables automatic SAM conversions in Kotlin.
+
+This is obviously a bug and should be simple to fix. It makes almost everything in the new java.util.stream package a pain to use.
+
+(2) Not exactly sure what the problem is with method references. My guess would be that it's related to the type of method references in Kotlin; they're extension methods. In this example, String::compareTo in Java is compatible with any functional interface that matches BiFunction<String, String, Integer>, but it's a String.(String) -> Int in Kotlin. These two have to be made compatible somehow for SAM conversion to work.
+
+(3) Kotlin cannot resolve the java.util.List default methods, if the list variable is declared as a List<String> or MutableList<String>.

@@ -1,0 +1,30 @@
+The following compiles in 2.10.2 and 2.11.0-M1, but not in M2 and later:
+
+```scala
+import scala.reflect.macros._
+
+class A[C <: Context with Singleton](position: C#Position)
+
+object A {
+  def apply(c: Context)(in: c.Tree): A[c.type] = new A(in.pos)
+}
+```
+
+The error message is:
+```scala
+A.scala:6: error: no type parameters for constructor A: (position: C#Position)A[C] exist so that it can be applied to arguments (c.universe.Position)
+ --- because ---
+argument expression's type is not compatible with formal parameter type;
+ found   : c.universe.Position
+ required: ?C#Position
+    (which expands to)  Aliases.this.universe.Position
+  def apply(c: Context)(in: c.Tree): A[c.type] = new A(in.pos)
+                                                 ^
+A.scala:6: error: type mismatch;
+ found   : c.universe.Position
+ required: C#Position
+    (which expands to)  C#universe.Position
+  def apply(c: Context)(in: c.Tree): A[c.type] = new A(in.pos)
+                                                          ^
+two errors found
+```

@@ -1,0 +1,56 @@
+FULL PRODUCT VERSION :
+java version  " 1.7.0_21 " 
+Java(TM) SE Runtime Environment (build 1.7.0_21-b12)
+Java HotSpot(TM) 64-Bit Server VM (build 23.21-b01, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+Seems to fail on all platforms.
+
+Darwin 12.4.0 Darwin Kernel Version 12.4.0: Wed May  1 17:57:12 PDT 2013; root:xnu-2050.24.15~1/RELEASE_X86_64 x86_64
+
+A DESCRIPTION OF THE PROBLEM :
+@SuppressWarnings annotations for unchecked and rawtypes are sometimes ignored and produce warnings in spite of the annotation. This may be related to arrays of generic types.
+
+REGRESSION.  Last worked in version 6u45
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+1. Define some generic class like P<T,S>
+2. Instantiate an array of those objects, for example:
+
+new P[] {
+new P<Boolean, String>( Boolean.TRUE,  " p1 "  ),
+new P<Boolean, String>( Boolean.TRUE,  " p2 "  ) }
+
+3. Compile the example with sufficient javac lint settings to see unchecked and rawtypes warnings; observe the generated warnings.
+4. Insert @SuppressWarnings({  " unchecked " ,  " rawtypes "  }) annotations prior to the method (for example, though class and statement scope would also be expected to work)
+5. Recompile the example with the same lint settings
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+The @SuppressWarnings annotation should suppress the unchecked and rawtypes warnings.
+ACTUAL -
+The warnings continue to appear in contradiction of the annotation settings.
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+More discussion and example code at http://stackoverflow.com/questions/13829753/java-generics-suppresswarningsunchecked-mystery including the following trivial example:
+
+class Bar<T> {
+   @SuppressWarnings( " unchecked " )
+   Bar() {
+      T[]dummy = (T[]) EMPTY_ARRAY;
+   }
+
+   private static final Object [] EMPTY_ARRAY = {};
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Compile with Java 6 javac, this workaround is not available for source that requires Java 7 features.
+
+The severity of this is that our ant build is now at the limit of reportable warnings because of this, so legitimate warnings are being dropped and we can't find them to fix them.

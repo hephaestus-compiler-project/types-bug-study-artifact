@@ -1,0 +1,86 @@
+FULL PRODUCT VERSION :
+java version "9"
+Java(TM) SE Runtime Environment (build 9+181)
+Java HotSpot(TM) 64-Bit Server VM (build 9+181, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux simpsons-p50 4.10.0-37-generic #41-Ubuntu SMP Fri Oct 6 20:20:37 UTC 2017 x86_64 x86_64 x86_64 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+When invoking the compiler programmatically, its OptionChecker interface has started to misreport the number of arguments consumed by some options, typically those of the form "-opt:value".  In Java 8, options such as "-implicit:class" returned 0, indicating that it is recognized by the compiler, and that no subsequent arguments are to be consumed.  In Java 9, it is reported as consuming 1 argument.  This means that when three arguments such as "-implicit:class -d classes" are provided, and JavaCompiler is consulted about the first, the consulter is led to believe that both "-implicit:class" and "-d" should be supplied to JavaCompiler together, without asking whether "-d" is recognized by any subsystem.  Consequently, "classes" is misinterpreted as a plain argument typically identifying a source file, and "-d" is not passed to the correct subsystem.
+
+REGRESSION.  Last worked in version 8u152
+
+ADDITIONAL REGRESSION INFORMATION: 
+java version "1.8.0_152"
+Java(TM) SE Runtime Environment (build 1.8.0_152-b16)
+Java HotSpot(TM) 64-Bit Server VM (build 25.152-b16, mixed mode)
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile the supplied program, and run with no arguments.
+
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Compiler: class com.sun.tools.javac.api.JavacTool
+            -profile:  1 ( 1 expected) PASS
+             -target:  1 ( 1 expected) PASS
+            -verbose:  0 ( 0 expected) PASS
+             -nowarn:  0 ( 0 expected) PASS
+                  -g:  0 ( 0 expected) PASS
+        -deprecation:  0 ( 0 expected) PASS
+    -Xlint:unchecked:  0 ( 0 expected) PASS
+     -implicit:class:  0 ( 0 expected) PASS
+          -proc:none:  0 ( 0 expected) PASS
+
+(Copied from Java 8 output.)
+ACTUAL -
+Compiler: class com.sun.tools.javac.api.JavacTool
+            -profile:  1 ( 1 expected) PASS
+             -target:  1 ( 1 expected) PASS
+            -verbose:  0 ( 0 expected) PASS
+             -nowarn:  0 ( 0 expected) PASS
+                  -g:  0 ( 0 expected) PASS
+        -deprecation:  0 ( 0 expected) PASS
+    -Xlint:unchecked:  1 ( 0 expected) FAIL
+     -implicit:class:  1 ( 0 expected) FAIL
+          -proc:none:  1 ( 0 expected) FAIL
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import javax.tools.OptionChecker;
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
+
+public class OptionCount {
+    private static void check(OptionChecker oc, String option, int expected) {
+        int count = oc.isSupportedOption(option);
+        System.out.printf("%20s: %2d (%2d expected) %s%n",
+                          option, count, expected,
+                          count == expected ? "PASS" : "FAIL");
+    }
+    public static void main(String[] args) throws Exception {
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        System.out.printf("Compiler: %s%n", compiler.getClass());
+        check(compiler, "-profile", 1);
+        check(compiler, "-target", 1);
+        check(compiler, "-verbose", 0);
+        check(compiler, "-nowarn", 0);
+        check(compiler, "-g", 0);
+        check(compiler, "-deprecation", 0);
+        check(compiler, "-Xlint:unchecked", 0);
+        check(compiler, "-implicit:class", 0);
+        check(compiler, "-proc:none", 0);
+    }
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Users could double up zero-argument options, e.g., -proc:none -proc:none.  If the bug is present, the second option is selected to be passed to the compiler, but the option is idempotent if interpreted twice.
+
+Programmers could look for specific options and ignore the value returned by OptionChecker, though this rather defeats its purpose.
+

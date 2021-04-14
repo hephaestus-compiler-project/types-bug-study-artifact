@@ -1,0 +1,42 @@
+Seems like the new algorithm [described in the announcement](https://blog.jetbrains.com/kotlin/2019/06/kotlin-1-3-40-released/) does not work well with RxJava and its SAM.
+
+The following code does not produce any errors while browsing in the IDE (with _Preferences → Enable new type inference algorithm for IDE analysis_ checked).
+
+```kotlin
+val number = Observable.just(42)
+val text = Observable.just("42")
+
+val combination = Observable
+    .combineLatest(number, text) { currentNumber, currentText ->
+        currentNumber to currentText
+    }
+```
+
+However the resulting code does not compile.
+
+```text
+e: None of the following functions can be called with the arguments supplied: 
+@CheckReturnValue @SchedulerSupport @NonNull public final fun <T1 : Any!, T2 : Any!, R : Any!> combineLatest(p0: ((Observer<in (???..???)>) -> Unit)!, p1: ((Observer<in (???..???)>) -> Unit)!, p2: ((???, ???) -> ???)!): Observable<(???..???)> defined in io.reactivex.Observable
+@CheckReturnValue @SchedulerSupport public final fun <T : Any!, R : Any!> combineLatest(p0: ((Array<(out) Any!>) -> (???..???))!, p1: Int, p2: Array<(out) ObservableSource<out (???..???)>!>!): Observable<(???..???)>! defined in io.reactivex.Observable
+@CheckReturnValue @SchedulerSupport @NonNull public open fun <T1 : Any!, T2 : Any!, R : Any!> combineLatest(p0: ObservableSource<out Int!>!, p1: ObservableSource<out String!>!, p2: BiFunction<in Int!, in String!, out (???..???)>!): Observable<(???..???)> defined in io.reactivex.Observable
+@CheckReturnValue @SchedulerSupport @NonNull public final fun <T : Any!, R : Any!> combineLatest(p0: Array<(out) ObservableSource<out (???..???)>!>!, p1: ((Array<(out) Any!>) -> (???..???))!, p2: Int): Observable<(???..???)> defined in io.reactivex.Observable
+@CheckReturnValue @SchedulerSupport @NonNull public open fun <T : Any!, R : Any!> combineLatest(p0: Array<(out) ObservableSource<out (???..???)>!>!, p1: Function<in Array<(out) Any!>!, out (???..???)>!, p2: Int): Observable<(???..???)> defined in io.reactivex.Observable
+@CheckReturnValue @SchedulerSupport @NonNull public final fun <T : Any!, R : Any!> combineLatest(p0: (Mutable)Iterable<ObservableSource<out (???..???)>!>!, p1: ((Array<(out) Any!>) -> (???..???))!, p2: Int): Observable<(???..???)> defined in io.reactivex.Observable
+@CheckReturnValue @SchedulerSupport @NonNull public open fun <T : Any!, R : Any!> combineLatest(p0: (Mutable)Iterable<ObservableSource<out (???..???)>!>!, p1: Function<in Array<(out) Any!>!, out (???..???)>!, p2: Int): Observable<(???..???)> defined in io.reactivex.Observable
+e: Cannot infer a type for this parameter. Please specify it explicitly.
+e: Cannot infer a type for this parameter. Please specify it explicitly.
+```
+
+Unchecking the preference produced an error in the IDE but you asked to report this kind of things ;-)
+
+Versions:
+
+* Kotlin 1.3.40
+* RxJava 2.2.10
+* Android Studio 3.4.1
+* Android Studio Kotlin plugin 1.3.40-release-Studio3.4-1
+
+References:
+
+* [RxJava `.combineLatest` source code](https://github.com/ReactiveX/RxJava/blob/v2.2.10/src/main/java/io/reactivex/Observable.java#L431-L441).
+* [RxJava `BiFunction` source code](https://github.com/ReactiveX/RxJava/blob/v2.2.10/src/main/java/io/reactivex/functions/BiFunction.java).

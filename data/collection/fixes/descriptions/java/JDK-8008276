@@ -1,0 +1,70 @@
+Incorrect call of method results in AssertionError 
+
+Code:
+public class testbug {
+    MapFun<String, Integer> sti;
+    
+    void test(String i) {
+       sti = s -> mtest( s, new testclass(Integer::decode){} );
+       System.out.println(sti.m(i));
+    }
+    Integer mtest( String S,  testclass t){ return t.stoi(S); }
+
+    public static void main(String... args){new testbug().test("123");}
+}
+
+interface MapFun<T,R>  { R m(T n); }
+
+class testclass { 
+    MapFun<String, Integer> mf  = null;
+    testclass( MapFun<String, Integer> _mf )  { mf  = _mf; }
+    Integer stoi( String S){ return (mf!=null)? mf.m(S):null; }
+    // comment below line and it's okay.
+    String itos( Integer I){return (mf!=null)? mf.m(I):null;} //mf.m(I) crashes
+}
+
+stacktrace:
+
+An exception has occurred in the compiler (1.8.0-ea). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.AssertionError
+	at com.sun.tools.javac.util.Assert.error(Assert.java:126)
+	at com.sun.tools.javac.util.Assert.check(Assert.java:45)
+	at com.sun.tools.javac.comp.TransTypes.visitApply(TransTypes.java:640)
+	at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1440)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:453)
+	at com.sun.tools.javac.comp.TransTypes.visitConditional(TransTypes.java:593)
+	at com.sun.tools.javac.tree.JCTree$JCConditional.accept(JCTree.java:1212)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:453)
+	at com.sun.tools.javac.comp.TransTypes.visitReturn(TransTypes.java:612)
+	at com.sun.tools.javac.tree.JCTree$JCReturn.accept(JCTree.java:1359)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:70)
+	at com.sun.tools.javac.tree.TreeTranslator.visitBlock(TreeTranslator.java:161)
+	at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:884)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:453)
+	at com.sun.tools.javac.comp.TransTypes.visitMethodDef(TransTypes.java:488)
+	at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:771)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:70)
+	at com.sun.tools.javac.tree.TreeTranslator.visitClassDef(TreeTranslator.java:134)
+	at com.sun.tools.javac.comp.TransTypes.translateClass(TransTypes.java:929)
+	at com.sun.tools.javac.comp.TransTypes.visitClassDef(TransTypes.java:474)
+	at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:686)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:453)
+	at com.sun.tools.javac.comp.TransTypes.translateTopLevelClass(TransTypes.java:956)
+	at com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1463)
+	at com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1359)
+	at com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1413)
+	at com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1359)
+	at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:909)
+	at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:868)
+	at com.sun.tools.javac.main.Main.compile(Main.java:506)
+	at com.sun.tools.javac.main.Main.compile(Main.java:365)
+	at com.sun.tools.javac.main.Main.compile(Main.java:354)
+	at com.sun.tools.javac.main.Main.compile(Main.java:345)
+	at com.sun.tools.javac.Main.compile(Main.java:76)
+	at com.sun.tools.javac.Main.main(Main.java:61)

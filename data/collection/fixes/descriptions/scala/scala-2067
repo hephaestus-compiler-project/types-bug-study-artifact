@@ -1,0 +1,25 @@
+```scala
+trait A[B[D[X, Y <: X]]] {
+ def f() : B[P]
+}
+
+trait C[E[T, S]]
+
+trait P[U, V <: U]
+```
+
+Now, the kinds are:
+
+```scala
+D : X@* -> *(Nothing,X) -> *
+B : (X@* -> *(Nothing,X) -> *) -> *
+
+E : * -> * -> *
+C : (* -> * -> *) -> *
+```
+
+In type application `A[C]`, `C` is substituted instead of the type parameter `B`, which leads to the ill-kinded type application C[P] in the return type of f().
+
+So `(* -> * -> *) -> *` must be a subkind of `(X@* -> *(Nothing,X) -> *) -> *`.
+Contravariantly, `X@* -> *(Nothing,X) -> *` must be a subkind of `* -> * -> *`.
+Contravariantly, `*` must be a subkind of `*(Nothing,X)`, but this is not the case. 

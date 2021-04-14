@@ -1,0 +1,38 @@
+I came across an unreachable code warning which should not be present, in Scala 2.10.0-RC3:
+
+```scala
+object Test {
+  type Id[X] = X
+
+  def main(args: Array[String]) {
+    val a: Id[Option[Int]] = None
+
+    a match {
+      case Some(x) => println(x)
+      case None => println("Nothing")
+    }
+  }
+}
+```
+
+```scala
+$ sbt run
+[info] Set current project to default-2e4ad8 (in build file:../)
+[info] Compiling 1 Scala source to .../target/scala-2.10/classes...
+[warn] .../src/main/scala/Test.scala:9: unreachable code
+[warn]       case None => println("Nothing")
+[warn]                           ^
+[warn] one warning found
+[info] Running Test 
+Nothing
+```
+
+If, instead, the code looks like
+```scala
+type Id[X] = Option[X]
+```
+and
+```scala
+val a: Id[Int] = None
+```
+no unreachable code warning appears.

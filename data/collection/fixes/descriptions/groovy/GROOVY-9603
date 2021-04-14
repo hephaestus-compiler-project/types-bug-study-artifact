@@ -1,0 +1,23 @@
+Declare a Map<String,Object>. When trying to put a map literal into that map, assignments in property style (map.key = ...) and subscript style (map[key] = ...) fail with
+
+*[Static type checking] - No such property: ... for class: java.lang.Object*
+
+First assigning to a local variable gives no such problems. If the Map were to contain objects of a specific type, coercion from map to that particular type would make sense. This coercion from Map to Object makes to sense. A Map is an Object and should simply become the new value for that particular key, which is just what is happening with regular compilation.
+
+Same for Map<String,?> and Map<String,? extends Object
+
+{code:groovy}
+@groovy.transform.CompileStatic
+def updateMap(Map<String,Object> map) {
+    def innerMap = [ foo: "bar", bar: "foo" ]
+    // No problem on this assignment
+    map.someProp = innerMap
+    assert map.someProp["foo"] == "bar"
+    // The next three lines should all be equivalent
+    // but the 2nd and 3rd don't CompileStatic
+    map.put("someProp", [ abc: "efg" ])
+    map["someProp"] = [ abc: "hij" ]
+    map.someProp = [ abc: "klm" ]
+    assert map.someProp["abc"] == "klm"
+}
+{code}

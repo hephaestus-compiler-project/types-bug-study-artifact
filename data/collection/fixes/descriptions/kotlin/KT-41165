@@ -1,0 +1,48 @@
+There is no any diagnostic error for case when an enum class inherits an interface with a variable 'name' or 'ordinal'. 
+The result of compilation is ```e: java.lang.IllegalStateException: Backend Internal error: Exception during file facade code generation```
+**Example 1:**
+implicitly overridden `name` is `    public final override /*2*/ /*fake_override*/ var name: kotlin.String`
+```
+fun box() {
+    Case1.VAL1.name = "boo" //ok
+}
+
+interface I {
+    var name: String
+}
+
+private enum class Case1 : I {
+    VAL1, VAL2;
+}
+```
+**Example 2**
+implicitly overridden `ordinal` is `    public final override /*2*/ /*fake_override*/ var ordinal: kotlin.Int`
+```
+fun box() {
+    Case1.VAL1.ordinal = 1 //ok
+}
+
+interface I {
+    var ordinal: Int
+}
+
+private enum class Case1 : I {
+    VAL1, VAL2;
+}
+```
+```stacktrace
+Caused by: java.lang.IllegalStateException: Concrete fake override public final fun <set-name>(<set-?>: kotlin.String): kotlin.Unit defined in Case1[PropertySetterDescriptorImpl@306d4186] should have exactly one concrete super-declaration: []
+	at org.jetbrains.kotlin.backend.common.bridges.BridgesKt.findConcreteSuperDeclaration(bridges.kt:130)
+	at org.jetbrains.kotlin.backend.common.bridges.BridgesKt.generateBridges(bridges.kt:61)
+	at org.jetbrains.kotlin.codegen.JvmBridgesImplKt.generateBridgesForFunctionDescriptorForJvm(JvmBridgesImpl.kt:95)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateBridges(FunctionCodegen.java:1016)
+	at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateBridges(ClassBodyCodegen.java:140)
+	at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateBody(ClassBodyCodegen.java:118)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:128)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:301)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:285)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateClassesAndObjectsInFile(PackageCodegenImpl.java:119)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateFile(PackageCodegenImpl.java:138)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generate(PackageCodegenImpl.java:70)
+	... 37 more
+```

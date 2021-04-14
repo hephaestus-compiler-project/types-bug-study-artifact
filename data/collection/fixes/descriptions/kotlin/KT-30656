@@ -1,0 +1,67 @@
+Example:
+```
+class GenericController<T> {
+    suspend fun yieldBarReturnType(t: T) = t
+}
+
+fun <S> generate(@BuilderInference g: suspend GenericController<S>.() -> Unit): List<S> = TODO()
+
+val test4 = generate {
+    barReturnType()
+}
+```
+
+Exception:
+```
+Caused by: java.lang.IllegalStateException: Should not be called on non-fixed type
+	at org.jetbrains.kotlin.types.StubType.replaceAnnotations(StubType.kt:27)
+	at org.jetbrains.kotlin.types.StubType.replaceAnnotations(StubType.kt:12)
+	at org.jetbrains.kotlin.types.typeUtil.TypeUtilsKt.replaceAnnotations(TypeUtils.kt:113)
+	at org.jetbrains.kotlin.types.TypeSubstitutor.unsafeSubstitute(TypeSubstitutor.java:212)
+	at org.jetbrains.kotlin.types.TypeSubstitutor.substituteWithoutApproximation(TypeSubstitutor.java:123)
+	at org.jetbrains.kotlin.types.TypeSubstitutor.substitute(TypeSubstitutor.java:108)
+	at org.jetbrains.kotlin.types.TypeSubstitutor.substitute(TypeSubstitutor.java:101)
+	at org.jetbrains.kotlin.descriptors.impl.FunctionDescriptorImpl.doSubstitute(FunctionDescriptorImpl.java:644)
+	at org.jetbrains.kotlin.descriptors.impl.FunctionDescriptorImpl$CopyConfiguration.build(FunctionDescriptorImpl.java:539)
+	at org.jetbrains.kotlin.descriptors.impl.FunctionDescriptorImpl.substitute(FunctionDescriptorImpl.java:331)
+	at org.jetbrains.kotlin.descriptors.impl.FunctionDescriptorImpl.substitute(FunctionDescriptorImpl.java:22)
+	at org.jetbrains.kotlin.resolve.scopes.SubstitutingScope.substitute(SubstitutingScope.kt:47)
+	at org.jetbrains.kotlin.resolve.scopes.SubstitutingScope.substitute(SubstitutingScope.kt:65)
+	at org.jetbrains.kotlin.resolve.scopes.SubstitutingScope.getContributedFunctions(SubstitutingScope.kt:77)
+	at org.jetbrains.kotlin.resolve.calls.tower.MemberScopeTowerLevel$getFunctions$1.invoke(TowerLevels.kt:182)
+	at org.jetbrains.kotlin.resolve.calls.tower.MemberScopeTowerLevel$getFunctions$1.invoke(TowerLevels.kt:82)
+	at org.jetbrains.kotlin.resolve.calls.tower.MemberScopeTowerLevel.collectMembers(TowerLevels.kt:95)
+	at org.jetbrains.kotlin.resolve.calls.tower.MemberScopeTowerLevel.getFunctions(TowerLevels.kt:181)
+	at org.jetbrains.kotlin.resolve.calls.tower.ScopeTowerProcessorsKt$createSimpleFunctionProcessor$1.invoke(ScopeTowerProcessors.kt:233)
+	at org.jetbrains.kotlin.resolve.calls.tower.ScopeTowerProcessorsKt$createSimpleFunctionProcessor$1.invoke(ScopeTowerProcessors.kt)
+	at org.jetbrains.kotlin.resolve.calls.tower.NoExplicitReceiverScopeTowerProcessor.simpleProcess(ScopeTowerProcessors.kt:147)
+	at org.jetbrains.kotlin.resolve.calls.tower.SimpleScopeTowerProcessor$DefaultImpls.process(ScopeTowerProcessors.kt:60)
+	at org.jetbrains.kotlin.resolve.calls.tower.AbstractSimpleScopeTowerProcessor.process(ScopeTowerProcessors.kt:63)
+	at org.jetbrains.kotlin.resolve.calls.tower.PrioritizedCompositeScopeTowerProcessor.process(ScopeTowerProcessors.kt:38)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.processTowerData(TowerResolver.kt:271)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.access$processTowerData(TowerResolver.kt:77)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.process(TowerResolver.kt:158)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.process(TowerResolver.kt:167)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.processImplicitReceiver(TowerResolver.kt:216)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.run(TowerResolver.kt:195)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.run(TowerResolver.kt:96)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.runResolve(TowerResolver.kt:83)
+	at org.jetbrains.kotlin.resolve.calls.KotlinCallResolver.resolveCall(KotlinCallResolver.kt:80)
+	at org.jetbrains.kotlin.resolve.calls.tower.PSICallResolver.runResolutionAndInference(PSICallResolver.kt:96)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.doResolveCallOrGetCachedResults(CallResolver.java:576)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.lambda$computeTasksAndResolveCall$0(CallResolver.java:208)
+	at org.jetbrains.kotlin.util.PerformanceCounter.time(PerformanceCounter.kt:91)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:206)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:196)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.resolveFunctionCall(CallResolver.java:322)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getResolvedCallForFunction(CallExpressionResolver.kt:95)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfoWithoutFinalTypeCheck(CallExpressionResolver.kt:217)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfo(CallExpressionResolver.kt:194)
+	at org.jetbrains.kotlin.types.expressions.BasicExpressionTypingVisitor.visitCallExpression(BasicExpressionTypingVisitor.java:721)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.visitCallExpression(ExpressionTypingVisitorDispatcher.java:376)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher$ForBlock.visitCallExpression(ExpressionTypingVisitorDispatcher.java:58)
+	at org.jetbrains.kotlin.psi.KtCallExpression.accept(KtCallExpression.java:35)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.lambda$getTypeInfo$0(ExpressionTypingVisitorDispatcher.java:173)
+	... 111 more
+
+```

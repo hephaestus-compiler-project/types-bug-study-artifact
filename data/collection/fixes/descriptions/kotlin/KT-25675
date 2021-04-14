@@ -1,0 +1,36 @@
+I've been trying out Spotify's Mobius library today (see: https://github.com/spotify/mobius/wiki/Creating-a-loop) and the following code compiles fine:    
+
+    sealed class Effect
+    object ReportErrorNegative : Effect()
+
+    sealed class Event
+    object Up : Event()
+    object Down : Event()
+
+    private fun update(model: Int, event: Event): Next<Int, Effect> {
+        when (event) {
+            Up -> return Next.next(model + 1)
+            Down -> {
+                return if (model > 0)
+                    Next.next(model - 1)
+                else
+                    Next.dispatch(Effects.effects(ReportErrorNegative))
+            }
+        }
+    }
+
+When I click on the `when` keyword in the above block then hit `option + return` to lift the return statements out (as the IDE suggests), the following code block is yielded:
+
+    private fun update(model: Int, event: Event): Next<Int, Effect> {
+        return when (event) {
+            Up -> Next.next(model + 1)
+            Down -> {
+                if (model > 0)
+                    Next.next(model - 1)
+                else
+                    Next.dispatch(Effects.effects(ReportErrorNegative))
+            }
+        }
+    }
+
+There's a compilation error here now -- type inference failed. A workaround is just to specify the type explicitly.

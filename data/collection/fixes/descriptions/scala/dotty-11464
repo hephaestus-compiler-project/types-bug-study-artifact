@@ -1,0 +1,157 @@
+## Compiler version
+
+Scala: 3.0.0-RC1 (works in 3.0.0-M3)
+sbt: 1.4.7
+
+## Minimized code
+
+```scala
+trait Txn[T <: Txn[T]]
+
+trait Adjunct
+
+trait Type0
+trait Type[A1, Repr[~ <: Txn[~]] <: Expr[~, A1]] extends Type0
+
+object Expr {
+  def test(peer: Type0): Adjunct = {
+    new AdjunctImpl(peer.asInstanceOf[Type[Any, ({ type R[~ <: Txn[~]] <: Expr[~, Any] }) # R]])
+  }
+}
+
+trait Expr[T <: Txn[T], +A]
+
+class AdjunctImpl[A, E[~ <: Txn[~]] <: Expr[~, A]](tpe: Type[A, E]) extends Adjunct
+```
+
+## Output
+
+```scala
+[error] java.lang.ClassCastException: class dotty.tools.dotc.core.Types$Range cannot be cast to class dotty.tools.dotc.core.Types$TypeBounds (dotty.tools.dotc.core.Types$Range and dotty.tools.dotc.core.Types$TypeBounds are in unnamed module of loader dotty.tools.sbtplugin.DottyPlugin$DottyLoader$1 @5ea3d7c4)
+[error] 	at scala.collection.immutable.List.mapConserve(List.scala:472)
+[error] 	at dotty.tools.dotc.core.Types$HKTypeLambda.newLikeThis$$anonfun$1(Types.scala:3740)
+[error] 	at dotty.tools.dotc.core.Types$HKTypeLambda.<init>(Types.scala:3696)
+[error] 	at dotty.tools.dotc.core.Types$HKTypeLambda$.apply(Types.scala:3805)
+[error] 	at dotty.tools.dotc.core.Types$HKTypeLambda.newLikeThis(Types.scala:3741)
+[error] 	at dotty.tools.dotc.core.Types$HKTypeLambda.newLikeThis(Types.scala:3736)
+[error] 	at dotty.tools.dotc.core.Types$HKTypeLambda.newLikeThis(Types.scala:3735)
+[error] 	at dotty.tools.dotc.core.Types$LambdaType.derivedLambdaType(Types.scala:3352)
+[error] 	at dotty.tools.dotc.core.Types$LambdaType.derivedLambdaType$(Types.scala:3295)
+[error] 	at dotty.tools.dotc.core.Types$HKLambda.derivedLambdaType(Types.scala:3368)
+[error] 	at dotty.tools.dotc.core.Types$ApproximatingTypeMap.derivedLambdaType(Types.scala:5546)
+[error] 	at dotty.tools.dotc.core.Types$TypeMap.mapOverLambda(Types.scala:5143)
+[error] 	at dotty.tools.dotc.core.Types$TypeMap.mapOver(Types.scala:5168)
+[error] 	at dotty.tools.dotc.core.TypeOps$$anon$1.apply(TypeOps.scala:444)
+[error] 	at dotty.tools.dotc.core.Types$ApproximatingTypeMap.reapply(Types.scala:5549)
+[error] 	at dotty.tools.dotc.core.Types$ApproximatingTypeMap.expandBounds(Types.scala:5348)
+[error] 	at dotty.tools.dotc.core.Types$ApproximatingTypeMap.tryWiden(Types.scala:5366)
+[error] 	at dotty.tools.dotc.core.TypeOps$$anon$1.derivedSelect(TypeOps.scala:459)
+[error] 	at dotty.tools.dotc.core.Types$TypeMap.mapOver(Types.scala:5162)
+[error] 	at dotty.tools.dotc.core.TypeOps$$anon$1.apply(TypeOps.scala:444)
+[error] 	at dotty.tools.dotc.core.Types$TypeMap.op$proxy13$1(Types.scala:5130)
+[error] 	at dotty.tools.dotc.core.Types$TypeMap.mapArgs(Types.scala:5130)
+[error] 	at dotty.tools.dotc.core.Types$TypeMap.mapArgs(Types.scala:5131)
+[error] 	at dotty.tools.dotc.core.Types$TypeMap.mapOver(Types.scala:5165)
+[error] 	at dotty.tools.dotc.core.TypeOps$$anon$1.apply(TypeOps.scala:444)
+[error] 	at dotty.tools.dotc.core.TypeOps$.avoid(TypeOps.scala:469)
+[error] 	at dotty.tools.dotc.typer.TypeAssigner.avoidingType(TypeAssigner.scala:44)
+[error] 	at dotty.tools.dotc.typer.TypeAssigner.avoidingType$(TypeAssigner.scala:20)
+[error] 	at dotty.tools.dotc.typer.Typer.avoidingType(Typer.scala:102)
+[error] 	at dotty.tools.dotc.typer.TypeAssigner.assignType(TypeAssigner.scala:368)
+[error] 	at dotty.tools.dotc.typer.TypeAssigner.assignType$(TypeAssigner.scala:20)
+[error] 	at dotty.tools.dotc.typer.Typer.assignType(Typer.scala:102)
+[error] 	at dotty.tools.dotc.ast.tpd$TypedTreeCopier.Block(tpd.scala:644)
+[error] 	at dotty.tools.dotc.ast.Trees$Instance$TreeMap.transform(Trees.scala:1335)
+[error] 	at dotty.tools.dotc.transform.MacroTransform$Transformer.transform(MacroTransform.scala:63)
+[error] 	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.transform(PostTyper.scala:426)
+[error] 	at dotty.tools.dotc.ast.Trees$Instance$TreeMap.transform(Trees.scala:1394)
+[error] 	at dotty.tools.dotc.transform.MacroTransform$Transformer.transform(MacroTransform.scala:54)
+[error] 	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.transform$$anonfun$5(PostTyper.scala:344)
+[error] 	at dotty.tools.dotc.transform.SuperAccessors.wrapDefDef(SuperAccessors.scala:225)
+[error] 	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.transform(PostTyper.scala:344)
+[error] 	at dotty.tools.dotc.transform.MacroTransform$Transformer.transformStat$1(MacroTransform.scala:42)
+[error] 	at dotty.tools.dotc.transform.MacroTransform$Transformer.transformStats$$anonfun$1(MacroTransform.scala:45)
+[error] 	at dotty.tools.dotc.core.Decorators$ListDecorator$.loop$1(Decorators.scala:92)
+[error] 	at dotty.tools.dotc.core.Decorators$ListDecorator$.mapconserve$extension(Decorators.scala:108)
+[error] 	at dotty.tools.dotc.transform.MacroTransform$Transformer.transformStats(MacroTransform.scala:45)
+[error] 	at dotty.tools.dotc.transform.MacroTransform$Transformer.transform(MacroTransform.scala:61)
+[error] 	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.transform$$anonfun$8$$anonfun$1(PostTyper.scala:335)
+[error] 	at dotty.tools.dotc.transform.SuperAccessors.wrapTemplate(SuperAccessors.scala:210)
+[error] 	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.transform$$anonfun$4(PostTyper.scala:335)
+[error] 	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.withNoCheckNews(PostTyper.scala:98)
+[error] 	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.transform(PostTyper.scala:337)
+[error] 	at dotty.tools.dotc.ast.Trees$Instance$TreeMap.transform(Trees.scala:1398)
+[error] 	at dotty.tools.dotc.transform.MacroTransform$Transformer.transform(MacroTransform.scala:54)
+[error] 	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.transform(PostTyper.scala:361)
+[error] 	at dotty.tools.dotc.ast.Trees$Instance$TreeMap.transform$$anonfun$1(Trees.scala:1422)
+[error] 	at scala.collection.immutable.List.mapConserve(List.scala:472)
+[error] 	at dotty.tools.dotc.ast.Trees$Instance$TreeMap.transform(Trees.scala:1422)
+[error] 	at dotty.tools.dotc.ast.Trees$Instance$TreeMap.transformStats(Trees.scala:1420)
+[error] 	at dotty.tools.dotc.ast.Trees$Instance$TreeMap.transform(Trees.scala:1407)
+[error] 	at dotty.tools.dotc.transform.MacroTransform$Transformer.transform(MacroTransform.scala:54)
+[error] 	at dotty.tools.dotc.transform.PostTyper$PostTyperTransformer.transform(PostTyper.scala:426)
+[error] 	at dotty.tools.dotc.transform.MacroTransform.run(MacroTransform.scala:21)
+[error] 	at dotty.tools.dotc.core.Phases$Phase.runOn$$anonfun$1(Phases.scala:303)
+[error] 	at scala.collection.immutable.List.map(List.scala:250)
+[error] 	at dotty.tools.dotc.core.Phases$Phase.runOn(Phases.scala:304)
+[error] 	at dotty.tools.dotc.Run.runPhases$4$$anonfun$4(Run.scala:205)
+[error] 	at scala.runtime.function.JProcedure1.apply(JProcedure1.java:15)
+[error] 	at scala.runtime.function.JProcedure1.apply(JProcedure1.java:10)
+[error] 	at scala.collection.ArrayOps$.foreach$extension(ArrayOps.scala:1323)
+[error] 	at dotty.tools.dotc.Run.runPhases$5(Run.scala:215)
+[error] 	at dotty.tools.dotc.Run.compileUnits$$anonfun$1(Run.scala:223)
+[error] 	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.scala:18)
+[error] 	at dotty.tools.dotc.util.Stats$.maybeMonitored(Stats.scala:67)
+[error] 	at dotty.tools.dotc.Run.compileUnits(Run.scala:230)
+[error] 	at dotty.tools.dotc.Run.compileSources(Run.scala:166)
+[error] 	at dotty.tools.dotc.Run.compile(Run.scala:150)
+[error] 	at dotty.tools.dotc.Driver.doCompile(Driver.scala:39)
+[error] 	at dotty.tools.xsbt.CompilerBridgeDriver.run(CompilerBridgeDriver.java:88)
+[error] 	at dotty.tools.xsbt.CompilerBridge.run(CompilerBridge.java:22)
+[error] 	at sbt.internal.inc.AnalyzingCompiler.compile(AnalyzingCompiler.scala:92)
+[error] 	at sbt.internal.inc.MixedAnalyzingCompiler.$anonfun$compile$7(MixedAnalyzingCompiler.scala:186)
+[error] 	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+[error] 	at sbt.internal.inc.MixedAnalyzingCompiler.timed(MixedAnalyzingCompiler.scala:241)
+[error] 	at sbt.internal.inc.MixedAnalyzingCompiler.$anonfun$compile$4(MixedAnalyzingCompiler.scala:176)
+[error] 	at sbt.internal.inc.MixedAnalyzingCompiler.$anonfun$compile$4$adapted(MixedAnalyzingCompiler.scala:157)
+[error] 	at sbt.internal.inc.JarUtils$.withPreviousJar(JarUtils.scala:239)
+[error] 	at sbt.internal.inc.MixedAnalyzingCompiler.compileScala$1(MixedAnalyzingCompiler.scala:157)
+[error] 	at sbt.internal.inc.MixedAnalyzingCompiler.compile(MixedAnalyzingCompiler.scala:204)
+[error] 	at sbt.internal.inc.IncrementalCompilerImpl.$anonfun$compileInternal$1(IncrementalCompilerImpl.scala:573)
+[error] 	at sbt.internal.inc.IncrementalCompilerImpl.$anonfun$compileInternal$1$adapted(IncrementalCompilerImpl.scala:573)
+[error] 	at sbt.internal.inc.Incremental$.$anonfun$apply$5(Incremental.scala:174)
+[error] 	at sbt.internal.inc.Incremental$.$anonfun$apply$5$adapted(Incremental.scala:172)
+[error] 	at sbt.internal.inc.Incremental$$anon$2.run(Incremental.scala:459)
+[error] 	at sbt.internal.inc.IncrementalCommon$CycleState.next(IncrementalCommon.scala:116)
+[error] 	at sbt.internal.inc.IncrementalCommon$$anon$1.next(IncrementalCommon.scala:56)
+[error] 	at sbt.internal.inc.IncrementalCommon$$anon$1.next(IncrementalCommon.scala:52)
+[error] 	at sbt.internal.inc.IncrementalCommon.cycle(IncrementalCommon.scala:261)
+[error] 	at sbt.internal.inc.Incremental$.$anonfun$incrementalCompile$8(Incremental.scala:414)
+[error] 	at sbt.internal.inc.Incremental$.withClassfileManager(Incremental.scala:499)
+[error] 	at sbt.internal.inc.Incremental$.incrementalCompile(Incremental.scala:401)
+[error] 	at sbt.internal.inc.Incremental$.apply(Incremental.scala:166)
+[error] 	at sbt.internal.inc.IncrementalCompilerImpl.compileInternal(IncrementalCompilerImpl.scala:573)
+[error] 	at sbt.internal.inc.IncrementalCompilerImpl.$anonfun$compileIncrementally$1(IncrementalCompilerImpl.scala:491)
+[error] 	at sbt.internal.inc.IncrementalCompilerImpl.handleCompilationError(IncrementalCompilerImpl.scala:332)
+[error] 	at sbt.internal.inc.IncrementalCompilerImpl.compileIncrementally(IncrementalCompilerImpl.scala:420)
+[error] 	at sbt.internal.inc.IncrementalCompilerImpl.compile(IncrementalCompilerImpl.scala:137)
+[error] 	at sbt.Defaults$.compileIncrementalTaskImpl(Defaults.scala:2177)
+```
+
+Note that a very strange thing happens - when I remove the braces from
+
+```scala
+  def test(peer: Type0): Adjunct = {
+    new AdjunctImpl(peer.asInstanceOf[Type[Any, ({ type R[~ <: Txn[~]] <: Expr[~, Any] }) # R]])
+  }
+```
+
+to
+
+```scala
+  def test(peer: Type0): Adjunct = {
+    new AdjunctImpl(peer.asInstanceOf[Type[Any, ({ type R[~ <: Txn[~]] <: Expr[~, Any] }) # R]])
+  }
+```
+
+the crash "disappears".

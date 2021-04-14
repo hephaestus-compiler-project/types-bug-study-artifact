@@ -1,0 +1,30 @@
+The following code stopped working after JDK-8078093:
+
+abstract class Test {
+  interface One {}
+  interface Two<I extends One> { I get(); }
+  interface Three<T> {}
+  interface Four<T> {}
+
+  <E extends Two<?>, L extends Three<E>> Four<L> f(Class raw, E destination) {
+    return g(raw, destination.get());
+  }
+
+  abstract <I extends One, E extends Two<I>, L extends Three<E>> Four<L> g(
+      Class<L> labelClass, I destinationId);
+}
+
+
+$ javac Test.java
+error: incompatible types: inference variable I has incompatible bounds
+    return g(raw, destination.get());
+            ^
+    equality constraints: CAP#1
+    lower bounds: One
+  where I,E,L are type-variables:
+    I extends One declared in method <I,E,L>g(Class<L>,I)
+    E extends Two<I> declared in method <I,E,L>g(Class<L>,I)
+    L extends Three<E> declared in method <I,E,L>g(Class<L>,I)
+  where CAP#1 is a fresh type-variable:
+    CAP#1 extends One from capture of ?
+1 error

@@ -1,0 +1,55 @@
+scalac can compile it. But dotc crashes.
+
+The callstack is partially similar to #1644 . I am not sure if it is a dup. If possible, please let me know. Thanks.
+
+
+$ cat abc.scala
+```
+object Test {
+  def f(g: { val update: String }) = g update
+  def main(args: Array[String]) = {}
+}
+
+```
+
+$ dotc abc.scala
+```
+exception while typing g.update of class class dotty.tools.dotc.ast.Trees$Select # 73
+exception while typing def f(g: Object{update: String}): String = g.update of class class dotty.tools.dotc.ast.Trees$DefDef # 102
+exception while typing @scala.annotation.internal.SourceFile("abc.scala") final module class Test$() extends Object() {
+  def f(g: Object{update: String}): String = g.update
+  def main(args: Array{scala$Array$$T = String}): Unit =
+    {
+      ()
+    }
+} of class class dotty.tools.dotc.ast.Trees$TypeDef # 115
+exception while typing package <empty> {
+  final lazy module val Test: Test$ = new Test$()
+  @scala.annotation.internal.SourceFile("abc.scala") final module class Test$() extends Object() {
+    def f(g: Object{update: String}): String = g.update
+    def main(args: Array{scala$Array$$T = String}): Unit =
+      {
+        ()
+      }
+  }
+} of class class dotty.tools.dotc.ast.Trees$PackageDef # 116
+
+exception occurred while compiling abc.scala
+Exception in thread "main" java.lang.AssertionError: assertion failed: g.update
+        at scala.Predef$.assert(Predef.scala:165)
+        at dotty.tools.dotc.transform.Erasure$Typer.typedSelect(Erasure.scala:335)
+        at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1417)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1475)
+        at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:95)
+        at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1487)
+        at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1485)
+        at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:132)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1485)
+        at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:1537)
+        at dotty.tools.dotc.typer.Typer$$anonfun$typedDefDef$1.apply(Typer.scala:1168)
+        at dotty.tools.dotc.typer.Typer$$anonfun$typedDefDef$1.apply(Typer.scala:1151)
+        at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+        at dotty.tools.dotc.typer.Typer.typedDefDef(Typer.scala:1151)
+<snipped>
+```

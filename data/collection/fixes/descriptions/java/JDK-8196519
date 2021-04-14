@@ -1,0 +1,50 @@
+=== Lib.java
+import java.util.Optional;
+
+abstract class B {
+  abstract <M> Optional<M> g(F<M> p);
+}
+
+interface F<M> {
+  M u(A o);
+}
+
+interface A {
+  <T> T v(Class<? extends T> o);
+}
+=== Test.java
+abstract class Test {
+  class Two {}
+
+  class One {}
+
+  abstract Two f(One proto);
+
+  Two test(B o) {
+    return f(o.g((x) -> x.v(One.class)).get());
+  }
+}
+===
+
+$ javac -fullversion
+javac full version "10-ea+41"
+$ javac *.java;
+$ rm A.class;
+$ javac -sourcepath : Test.java
+...
+Test.java:9: error: cannot access A
+                return f(o.g((x) -> x.v(One.class)).get());
+                             ^
+  class file for A not found
+1 error
+
+
+The system is out of resources.
+Consult the following stack trace for details.
+java.lang.StackOverflowError
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.isAccessible(Resolve.java:321)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.isAccessible(Resolve.java:384)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.isAccessible(Resolve.java:361)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.isAccessible(Resolve.java:384)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.isAccessible(Resolve.java:361)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.isAccessible(Resolve.java:384)

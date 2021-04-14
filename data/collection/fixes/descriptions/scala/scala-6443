@@ -1,0 +1,50 @@
+```scala
+object Test extends App {
+  trait A {
+    type D <: C
+    def foo(d: D)(x: X[d.type]): Unit
+    trait C { this: D =>
+      def bar(x: X[D]): Unit = foo(this)(x)
+    }
+    class X[-F <: D]
+  }
+  class B extends A {
+    def foo(d: D)(x: X[d.type]): Unit = ()
+    class D() extends C
+    new D().bar(new X[D])
+  }
+  new B
+}
+```
+
+produces the following at runtime:
+
+```scala
+java.lang.AbstractMethodError: Test$B.foo(LTest$A$C;LTest$A$X;)V
+        at Test$A$C$class.bar(forms.scala:6)
+        at Test$B$D.bar(forms.scala:13)
+        at Test$B.<init>(forms.scala:14)
+        at Test$.<init>(forms.scala:16)
+        at Test$.<clinit>(forms.scala)
+        at Test.main(forms.scala)
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:616)
+        at scala.tools.nsc.util.ScalaClassLoader$$anonfun$run$1.apply(ScalaClassLoader.scala:71)
+        at scala.tools.nsc.util.ScalaClassLoader$class.asContext(ScalaClassLoader.scala:31)
+        at scala.tools.nsc.util.ScalaClassLoader$URLClassLoader.asContext(ScalaClassLoader.scala:139)
+        at scala.tools.nsc.util.ScalaClassLoader$class.run(ScalaClassLoader.scala:71)
+        at scala.tools.nsc.util.ScalaClassLoader$URLClassLoader.run(ScalaClassLoader.scala:139)
+        at scala.tools.nsc.CommonRunner$class.run(ObjectRunner.scala:28)
+        at scala.tools.nsc.ObjectRunner$.run(ObjectRunner.scala:45)
+        at scala.tools.nsc.CommonRunner$class.runAndCatch(ObjectRunner.scala:35)
+        at scala.tools.nsc.ObjectRunner$.runAndCatch(ObjectRunner.scala:45)
+        at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:74)
+        at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:96)
+        at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:105)
+        at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+```
+
+This is probably a duplicate of, or at least related to, #6135.
+

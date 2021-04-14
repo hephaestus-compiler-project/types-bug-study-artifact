@@ -1,0 +1,52 @@
+The issue came up [in this StackOverflow question](http://stackoverflow.com/questions/19315362/scaladoc-is-not-compiling-like-the-compiler). The code posted there produces an error when running scaladoc, while it compiles fine with scalac.
+
+```scala
+[error]  found   : SigmaDDFactoryImpl.ipfFactory.inductiveIPFFactory.InductiveTypeImpl
+[error]  required: SigmaDDFactoryImpl.ipfFactory.inductiveIPFFactory.InductiveTypeImpl
+```
+
+I reproduced this problem myself, simplifying the code further to:
+
+```scala
+object A {
+  val foo = new B {
+    val bar = new C {
+      val baz: A.this.type = A.this
+    }
+  }
+}
+
+trait B {
+  type E = bar.D
+
+  val bar: C
+}
+
+trait C {
+  trait D
+}
+
+trait G {
+  type F = A.foo.E
+
+  def m(f: F) = f match {
+    case _: A.foo.bar.D => // error here
+  }
+}
+```
+
+The produce I have the following:
+
+- `src/main/scala/Test.scala` – the above code
+- `build.sbt` – only contains `scalaVersion := "2.10.3"`
+- `project/build.properties` – only contains `sbt.version=0.13.0`
+
+The following then succeeds: `sbt compile`. The following fails: `sbt doc`. The error is slightly different than in the StackOverflow post, but at the same position:
+
+```scala
+[error] /Users/hhrutz/Desktop/foo/src/main/scala/Test.scala:23: pattern type is incompatible with expected type;
+[error]  found   : A.foo.bar.D
+[error]  required: A.foo.bar.D
+[error]     case _: A.foo.bar.D => // error here
+[error]                       ^
+```

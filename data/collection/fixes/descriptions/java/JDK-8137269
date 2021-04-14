@@ -1,0 +1,38 @@
+There are situations in which we perform speculative attribution of (potentially) erroneous trees:
+
+1) DeferredAttr.canLambdaCompleteNormally
+2) Analyzer.analyze
+
+In such cases the ArgmentAttr cache should be disabled, to avoid bogus result to be used later on during real attribution steps. While this is handled in the current code (see ArgumentAttr.CachePolicy), this is an 'all or nothing' flag; if caching is disabled (because we are in one of the above cases), then a performance regression could be observed:
+
+import java.util.concurrent.Callable;
+
+class NestedLambdaGenerics2 {
+    void test() {
+        test(x -> { return m(null, () -> m(null, () -> m(null, () -> m(null, () -> m(null, () -> m(null, () -> m(null,
+                () -> m(null, () -> m(null, () -> m(null, () -> m(null, () -> m(null, () -> m(null,
+                () -> m(null, () -> m(null, () -> m(null, () -> m(null, () -> m(null, () -> m(null,
+                () -> m(null, () -> m(null, () -> m(null, () -> m(null, () -> m(null, () -> m(null,
+                () -> m(null, () -> m(null, () -> m(null, () -> m(null, () -> m(null, () -> m(null,
+                (Callable<String>)null))))))))))))))))))))))))))))))); });
+    }
+    static class A0 { }
+    static class A1 { }
+    static class A2 { }
+    static class A3 { }
+    static class A4 { }
+    <Z extends A0> Z m(A0 t, Callable<Z> ct) { return null; }
+    <Z extends A1> Z m(A1 t, Callable<Z> ct) { return null; }
+    <Z extends A2> Z m(A2 t, Callable<Z> ct) { return null; }
+    <Z extends A3> Z m(A3 t, Callable<Z> ct) { return null; }
+    <Z extends A4> Z m(A4 t, Callable<Z> ct) { return null; }
+    <Z> Z m(Object o, Callable<Z> co) { return null; }
+
+    void test(Foo foo) { }
+
+    interface Foo {
+        Object m(String s);
+    }
+}
+
+Compiling the above takes around 25s, while compiling the same example but without the outermost call to 'test' takes just 7s.

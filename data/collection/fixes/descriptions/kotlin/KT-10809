@@ -1,0 +1,88 @@
+Consider the following code usign RC-1007:
+
+```
+interface ConfigurationData
+interface ConfigurationListDataValue
+class FlagData(val value: Boolean) : ConfigurationData
+class ConfigurationListData<T : ConfigurationListDataValue>(val list: List<T>) : ConfigurationData
+
+fun deserialize(o: Any) = when (o) {
+    is List<*> -> ConfigurationListData(listOf())
+    is Int -> when {
+        o < 0 -> FlagData(true)
+        else -> null
+    }
+    else -> null
+}
+```
+
+Compiling this makes the compiler crash with the following error:
+
+Error:(8, 1) Kotlin: [Internal Error] org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: Failed to generate function deserialize
+Cause: Error type encountered: org.jetbrains.kotlin.types.ErrorUtils$UninferredParameterTypeConstructor@75eb423 (DeferredType).
+File being compiled and position: (8,1) in C:/Users/Kirill/Repos/KotlinDesktopTest/src/main/kotlin/CompilerError.kt
+PsiElement: fun deserialize(o: Any) = when (o) {
+    is List<*> -> ConfigurationListData(listOf())
+    is Int -> when {
+        o < 0 -> FlagData(true)
+        else -> null
+    }
+    else -> null
+}
+The root cause was thrown at: JetTypeMapper.java:429
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genFunctionOrProperty(MemberCodegen.java:189)
+	at org.jetbrains.kotlin.codegen.PackagePartCodegen.generateBody(PackagePartCodegen.java:97)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:117)
+	at org.jetbrains.kotlin.codegen.PackageCodegen.generateFile(PackageCodegen.java:117)
+	at org.jetbrains.kotlin.codegen.PackageCodegen.generate(PackageCodegen.java:61)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.generatePackage(KotlinCodegenFacade.java:99)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.doGenerateFiles(KotlinCodegenFacade.java:77)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.compileCorrectFiles(KotlinCodegenFacade.java:44)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.kt:376)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules(KotlinToJVMBytecodeCompiler.kt:121)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:174)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:49)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:174)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:135)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execAndOutputXml(CLICompiler.java:63)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$remoteIncrementalCompile$1.invoke(CompileServiceImpl.kt:245)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$remoteIncrementalCompile$1.invoke(CompileServiceImpl.kt:68)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$1$1.invoke(CompileServiceImpl.kt:419)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$1$1.invoke(CompileServiceImpl.kt:68)
+	at org.jetbrains.kotlin.daemon.common.DummyProfiler.withMeasure(PerfUtils.kt:137)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.checkedCompile(CompileServiceImpl.kt:452)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.access$checkedCompile(CompileServiceImpl.kt:68)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$1.invoke(CompileServiceImpl.kt:418)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$1.invoke(CompileServiceImpl.kt:68)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.ifAlive(CompileServiceImpl.kt:558)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.ifAlive$default(CompileServiceImpl.kt:523)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.doCompile(CompileServiceImpl.kt:409)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.remoteIncrementalCompile(CompileServiceImpl.kt:242)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:497)
+	at sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:323)
+	at sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:568)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:826)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$256(TCPTransport.java:683)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:682)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+Caused by: java.lang.IllegalStateException: Error type encountered: org.jetbrains.kotlin.types.ErrorUtils$UninferredParameterTypeConstructor@75eb423 (DeferredType).
+	at org.jetbrains.kotlin.codegen.state.JetTypeMapper.mapType(JetTypeMapper.java:429)
+	at org.jetbrains.kotlin.codegen.state.JetTypeMapper.mapReturnType(JetTypeMapper.java:354)
+	at org.jetbrains.kotlin.codegen.state.JetTypeMapper.mapReturnType(JetTypeMapper.java:338)
+	at org.jetbrains.kotlin.codegen.state.JetTypeMapper.mapSignature(JetTypeMapper.java:1035)
+	at org.jetbrains.kotlin.codegen.state.JetTypeMapper.mapSignature(JetTypeMapper.java:987)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:153)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:137)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.gen(FunctionCodegen.java:112)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genFunctionOrProperty(MemberCodegen.java:180)
+	... 44 more

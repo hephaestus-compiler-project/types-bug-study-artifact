@@ -1,0 +1,29 @@
+Hey everyone!
+We're using MapBox as a native Component in our React Native app and are writing the Component in Kotlin.
+We're mapping over an array of points that we receive as a RN prop, which we are casting as HashMap<*, *>.
+After the update, the compiler tells us
+```
+Type inference failed. The value of the type parameter K should be mentioned in input types (argument types, receiver type or expected type). Try to specify it explicitly.
+```
+for 
+
+when getting the values from `input` in the context of the following function:
+
+```kotlin
+@ReactProp(name = "polyline")
+    fun setPolyline(view: MapboxMapView, polylinePoints: ReadableArray?) {
+        val points = polylinePoints?.toArrayList()?.mapNotNull { it as? HashMap<*, *> }?.mapNotNull(fun(input: HashMap<*, *>): LatLng? {
+            val lat = input["lat"] as? Double
+            val lng = input["lng"] as? Double
+            if (lat != null && lng != null) {
+                return LatLng(lat, lng)
+            }
+            return null
+        }) ?: emptyList()
+        view.addLine(points)
+    }
+```
+
+Nevertheless the code compiles and runs fine!
+
+Keep up the good work!

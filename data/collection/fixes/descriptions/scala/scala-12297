@@ -1,0 +1,24 @@
+Using Scala 2.13.4,
+
+```scala
+scala> import scala.language.reflectiveCalls
+
+scala> class Sink[A] { def put(x: A): Unit = {} }
+class Sink
+
+scala> val a = new Sink[String]
+val a: Sink[String] = Sink@5dbbb292
+
+scala> val b: { def put(x: String): Unit } = a
+val b: AnyRef{def put(x: String): Unit} = Sink@5dbbb292
+
+scala> b.put("")
+java.lang.NoSuchMethodException: Sink.put(java.lang.String)
+  at java.lang.Class.getMethod(Class.java:1786)
+  at reflMethod$Method1(<console>:1)
+  ... 32 elided
+```
+
+There are other ways to run into trouble, a similar problem with lambdas was identified in https://github.com/scala/bug/issues/10334#issuecomment-312014026 by @lrytz, this was fixed by generating lambdas with bridges in the backend but I believe this isn't a sufficient fix since Java-generated lambdas won't have such bridges.
+
+I think the correct way to fix that involves changing the logic used at runtime to choose which method to call: basically we need to call to check all overloads of `put` to see which one could be a valid choice given the current signature. This is tricky since there might be more than one, in which case we could try to take the more precise one if it exists and/or fail with a runtime exception anyway.

@@ -1,0 +1,38 @@
+This does not compile, as one would expect.
+```scala
+class ValueClass(val l: Long) extends AnyVal
+object Extensions {
+  implicit class ValueClassExtensions(val value: ValueClass) extends AnyVal {
+    def asString: String = value.l.toString
+  }
+}
+```
+
+This however does. Using any of the extension methods causes a class cast exception at runtime.
+
+```scala
+object tag {
+  def apply[U] = new Tagger[U]
+
+  trait Tagged[U] extends Any
+  type @@[+T, U] = T with Tagged[U]
+
+  class Tagger[U] {
+    def apply[T](t: T): T @@ U = t.asInstanceOf[T @@ U]
+  }
+}
+
+class ValueClass(val l: Long) extends AnyVal
+object Extensions extends App {
+  import tag._
+  sealed trait Specific
+  type SpecificValueClass = ValueClass @@ Specific
+  implicit class SpecificValueClassExtensions(val value: SpecificValueClass) extends AnyVal {
+    def asString: String = value.l.toString
+  }
+
+  tag[Specific](new ValueClass(2)).asString //ClassCastException
+}
+```
+
+I'd expect neither one to work.

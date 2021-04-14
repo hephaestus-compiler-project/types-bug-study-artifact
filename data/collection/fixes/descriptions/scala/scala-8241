@@ -1,0 +1,19 @@
+This exploits a hole similar to the examples in #7278, but all of those use type members. Maybe it seems more serious if it can easily arise with the more frequently used type parameters.
+```scala
+class Covariant[+A](val x: A)
+trait Invariant[A] extends Covariant[A]
+object Foo extends Covariant[Any]("abc") with Invariant[Int] { def apply(x: Int): Int = x * 7 }
+object Bar { def main(args: Array[String]) { Foo(Foo.x) } }
+// java.lang.ClassCastException: java.lang.String cannot be cast to java.lang.Integer
+//   at scala.runtime.BoxesRunTime.unboxToInt(BoxesRunTime.java:105)
+//   at Bar$.main(a.scala:4)
+//   at Bar.main(a.scala)
+```
+The base type sequence of Foo.type is
+```scala
+Foo.type
+Invariant[Int]
+Covariant[Int] with Covariant[Any]
+Object
+Any
+```

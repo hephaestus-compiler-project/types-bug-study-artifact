@@ -1,0 +1,45 @@
+Consider these files:
+=== ./P/Outer.java ===
+package P;
+
+import static P.Outer.Nested.*;
+import static P.Q.C.*;
+
+public class Outer {
+  public static class Nested implements I {
+  }
+}
+=== ./P/Q/C.java ===
+package P.Q;
+
+public class C extends D {
+}
+=== ./P/Q/D.java ===
+package P.Q;
+
+public class D {
+  public interface I {
+  }
+}
+=================
+
+Compiling these files like this:
+$ javac P/Outer.java P/Q/C.java P/Q/D.java
+
+fails with:
+P/Outer.java:7: error: cannot find symbol
+  public static class Nested implements I {
+                                        ^
+  symbol:   class I
+  location: class Outer
+1 error
+
+The compilation passes when the compilation runs like:
+$ javac P/Q/C.java P/Q/D.java P/Outer.java
+
+This is on:
+$ javac -fullversion
+javac full version "1.9.0-ea-b54"
+
+Reported here:
+http://mail.openjdk.java.net/pipermail/compiler-dev/2015-March/009367.html

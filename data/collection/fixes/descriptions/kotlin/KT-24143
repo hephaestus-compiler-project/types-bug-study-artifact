@@ -1,0 +1,33 @@
+In the following code function `exampleMap` compiles and works normally, whereas `exampleMapNotNull` does not compile.
+
+```kotlin
+class Data<out T>(val value: T?)
+
+fun <T> exampleMap(cs: List<Data<T>>): List<T?> {
+    return cs.map { it.value }
+}
+
+fun <T> exampleMapNotNull(cs: List<Data<T>>): List<T> {
+    return cs.mapNotNull { it.value } // error here
+}
+
+fun main(args: Array<String>) {
+    val list: List<Data<String>> = listOf(Data("a"), Data(null), Data("b"))
+    println(exampleMap(list))
+    println(exampleMapNotNull(list))
+}
+```
+
+Compilation error:
+
+```
+Error:(8, 14) Type parameter bound for R in inline fun <T, R : Any> Iterable<T>.mapNotNull(transform: (T) -> R?): List<R>
+ is not satisfied: inferred type T is not a subtype of Any
+```
+
+Declaring explicit type of lambda's `it` parameter does not help:
+```kotlin
+fun <T> exampleMapNotNull(cs: List<Data<T>>): List<T> {
+    return cs.mapNotNull { it: Data<T> -> it.value } // same error here
+}
+```

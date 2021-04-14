@@ -1,0 +1,35 @@
+If you have a Java interface that could be a SAM:
+
+```scala
+public interface Foo<A> { public A aye(); }
+```
+
+And you refer to that from a Java interface that need not necessarily be a SAM:
+
+```scala
+public interface Bar<A> { public Foo<A> foo(); }
+```
+
+And you have a Scala trait that is supposed to give the SAM:
+
+```scala
+trait Baz[A] { def foo: Foo[A] }
+```
+
+And finally extend that trait and try to supply the SAM by getting it from the Java interface that can give you a SAM:
+
+```scala
+class Quux[A](bar: Bar[A]) extends Baz[A] { def foo = bar.foo }
+```
+
+you get a most peculiar error message:
+
+```scala
+found   : Foo[A]
+required: A
+  def foo = bar.foo
+```
+
+which only makes sense to me if the compiler has decided that it's got to synthesize the Foo SAM from scratch--no other way!--and then decides it's got to have an A to do it (never mind I'm giving it the already-existing SAM).
+
+This only happens with `-Xexperimental`, and only (as far as I can tell) with this many steps: the original SAM, the Java source that returns a SAM, the trait specifying an SAM, and finally an implementation trying to hand off the Java SAM to the trait's method.

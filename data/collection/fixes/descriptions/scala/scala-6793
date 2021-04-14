@@ -1,0 +1,254 @@
+Given:
+
+```scala
+// ns/Base.scala
+package ns
+
+class Base(private [ns] val name: String)
+```
+
+and
+
+```scala
+// Derived.scala
+import ns.Base
+
+class Derived(myName: String) extends Base(myName)
+{
+  myName.length()
+}
+```
+
+Trying to compile these results in a crash. The crash goes away if the "private [ns] val" modifiers are removed from Base.
+
+```
+$ scalac ns/Base.scala Derived.scala
+
+error: 
+     while compiling: Derived.scala
+        during phase: superaccessors
+     library version: version 2.10.0-RC3
+    compiler version: version 2.10.0-RC3
+  reconstructed args: 
+
+  last tree to typer: This(class Derived)
+              symbol: class Derived (flags: )
+   symbol definition: class Derived extends Base
+                 tpe: Derived.this.type
+       symbol owners: class Derived -> package <empty>
+      context owners: value myName -> constructor Derived -> class Derived -> package <empty>
+
+== Enclosing template or block ==
+
+DefDef( // def <init>(myName: String): Derived in class Derived
+  <method>
+  "<init>"
+  []
+  // 1 parameter list
+  ValDef( // myName: String
+    <param> <paramaccessor> <triedcooking>
+    "myName"
+    <tpt> // tree.tpe=String
+    <empty>
+  )
+  <tpt> // tree.tpe=Derived
+  Block( // tree.tpe=Unit
+    Apply( // def <init>(name: String): ns.Base in class Base, tree.tpe=ns.Base
+      Derived.super."<init>" // def <init>(name: String): ns.Base in class Base, tree.tpe=(name: String)ns.Base
+      "myName" // myName: String, tree.tpe=String
+    )
+    ()
+  )
+)
+
+== Expanded type of tree ==
+
+ThisType(class Derived)
+
+uncaught exception during compilation: scala.reflect.internal.Types$TypeError
+error: scala.reflect.internal.Types$TypeError: value name in class Base cannot be accessed in ns.Base
+	at scala.tools.nsc.typechecker.Contexts$Context.issue(Contexts.scala:379)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedSelect$1(Typers.scala:4703)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedSelectOrSuperCall$1(Typers.scala:4781)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5380)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5458)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5509)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedPos(Typers.scala:5514)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformSelect$1(SuperAccessors.scala:270)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:316)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1188)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.mayNeedProtectedAccessor$1(SuperAccessors.scala:164)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformSelect$1(SuperAccessors.scala:313)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:316)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:340)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2836)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2836)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformTrees(Trees.scala:2836)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer$$anonfun$6.apply(SuperAccessors.scala:216)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer$$anonfun$6.apply(SuperAccessors.scala:216)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:372)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformTemplate$1(SuperAccessors.scala:216)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:221)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+	at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2840)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1251)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1250)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:372)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1249)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformClassDef$1(SuperAccessors.scala:198)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:200)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2863)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2861)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2861)
+	at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1269)
+	at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1269)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:372)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1268)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$2.apply(TypingTransformers.scala:46)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$2.apply(TypingTransformers.scala:46)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:372)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:46)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:348)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+	at scala.tools.nsc.ast.Trees$Transformer.transformUnit(Trees.scala:227)
+	at scala.tools.nsc.transform.Transform$Phase.apply(Transform.scala:30)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:461)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:428)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:428)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:727)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1156)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:428)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1574)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1548)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1544)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1654)
+	at scala.tools.nsc.Driver.doCompile(Driver.scala:33)
+	at scala.tools.nsc.Main$.doCompile(Main.scala:79)
+	at scala.tools.nsc.Driver.process(Driver.scala:54)
+	at scala.tools.nsc.Driver.main(Driver.scala:67)
+	at scala.tools.nsc.Main.main(Main.scala)
+
+Exception in thread "main" scala.reflect.internal.Types$TypeError: value name in class Base cannot be accessed in ns.Base
+	at scala.tools.nsc.typechecker.Contexts$Context.issue(Contexts.scala:379)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedSelect$1(Typers.scala:4703)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedSelectOrSuperCall$1(Typers.scala:4781)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5380)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5458)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5509)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedPos(Typers.scala:5514)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformSelect$1(SuperAccessors.scala:270)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:316)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1188)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.mayNeedProtectedAccessor$1(SuperAccessors.scala:164)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformSelect$1(SuperAccessors.scala:313)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:316)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:340)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2836)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2836)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformTrees(Trees.scala:2836)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer$$anonfun$6.apply(SuperAccessors.scala:216)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer$$anonfun$6.apply(SuperAccessors.scala:216)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:372)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformTemplate$1(SuperAccessors.scala:216)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:221)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+	at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2840)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1251)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1250)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:372)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1249)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformClassDef$1(SuperAccessors.scala:198)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:200)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2863)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2861)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2861)
+	at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1269)
+	at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1269)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:372)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1268)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$2.apply(TypingTransformers.scala:46)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$2.apply(TypingTransformers.scala:46)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:372)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:46)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:348)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+	at scala.tools.nsc.ast.Trees$Transformer.transformUnit(Trees.scala:227)
+	at scala.tools.nsc.transform.Transform$Phase.apply(Transform.scala:30)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:461)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:428)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:428)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:727)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1156)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:428)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1574)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1548)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1544)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1654)
+	at scala.tools.nsc.Driver.doCompile(Driver.scala:33)
+	at scala.tools.nsc.Main$.doCompile(Main.scala:79)
+	at scala.tools.nsc.Driver.process(Driver.scala:54)
+	at scala.tools.nsc.Driver.main(Driver.scala:67)
+	at scala.tools.nsc.Main.main(Main.scala)
+```

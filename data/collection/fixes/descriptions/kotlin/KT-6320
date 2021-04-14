@@ -1,0 +1,55 @@
+{code}
+class A<X, Y : X>
+
+class B<X, Y : X>(foo: A<X, Y>) {
+    fun test(a: A<X, Y>) {
+        B(a) // crash here
+    }
+}
+{code}
+The constraint shouldn't contain different type variables on both sides: Y <: X
+java.lang.AssertionError: The constraint shouldn't contain different type variables on both sides: Y <: X
+	at org.jetbrains.jet.lang.resolve.calls.inference.ConstraintSystemImpl.doAddConstraint(ConstraintSystemImpl.java:395)
+	at org.jetbrains.jet.lang.resolve.calls.inference.ConstraintSystemImpl.addConstraint(ConstraintSystemImpl.java:342)
+	at org.jetbrains.jet.lang.resolve.calls.inference.ConstraintSystemImpl.addSubtypeConstraint(ConstraintSystemImpl.java:300)
+	at org.jetbrains.jet.lang.resolve.calls.inference.ConstraintSystemImpl.processDeclaredBoundConstraints(ConstraintSystemImpl.java:463)
+	at org.jetbrains.jet.lang.resolve.calls.CallCompleter.completeConstraintSystem(CallCompleter.kt:166)
+	at org.jetbrains.jet.lang.resolve.calls.CallCompleter.completeResolvedCallAndArguments(CallCompleter.kt:124)
+	at org.jetbrains.jet.lang.resolve.calls.CallCompleter.completeCall(CallCompleter.kt:77)
+	at org.jetbrains.jet.lang.resolve.calls.CallResolver.doResolveCallOrGetCachedResults(CallResolver.java:370)
+	at org.jetbrains.jet.lang.resolve.calls.CallResolver.resolveFunctionCall(CallResolver.java:312)
+	at org.jetbrains.jet.lang.resolve.calls.CallResolver.resolveFunctionCall(CallResolver.java:196)
+	at org.jetbrains.jet.plugin.intentions.RemoveExplicitTypeArguments.isApplicableTo(RemoveExplicitTypeArguments.kt:77)
+	at org.jetbrains.jet.plugin.intentions.RemoveExplicitTypeArguments.isApplicableTo(RemoveExplicitTypeArguments.kt:40)
+	at org.jetbrains.jet.plugin.intentions.JetSelfTargetingIntention.isApplicableTo(JetSelfTargetingIntention.kt:35)
+	at org.jetbrains.jet.plugin.intentions.JetSelfTargetingIntention$getTarget$1.invoke(JetSelfTargetingIntention.kt:40)
+	at org.jetbrains.jet.plugin.intentions.JetSelfTargetingIntention$getTarget$1.invoke(JetSelfTargetingIntention.kt:27)
+	at org.jetbrains.jet.lang.psi.psiUtil.PsiUtilPackage$jetPsiUtil$b363ebfd.getParentByTypesAndPredicate(jetPsiUtil.kt:59)
+	at org.jetbrains.jet.lang.psi.psiUtil.PsiUtilPackage.getParentByTypesAndPredicate(jetPsiUtil.kt:1)
+	at org.jetbrains.jet.plugin.intentions.JetSelfTargetingIntention.getTarget(JetSelfTargetingIntention.kt:40)
+	at org.jetbrains.jet.plugin.intentions.JetSelfTargetingIntention.isAvailable(JetSelfTargetingIntention.kt:48)
+	at com.intellij.codeInsight.intention.impl.config.IntentionActionWrapper.isAvailable(IntentionActionWrapper.java:56)
+	at com.intellij.codeInsight.intention.impl.ShowIntentionActionsHandler.a(ShowIntentionActionsHandler.java:113)
+	at com.intellij.codeInsight.intention.impl.ShowIntentionActionsHandler.availableFor(ShowIntentionActionsHandler.java:104)
+	at com.intellij.codeInsight.daemon.impl.ShowIntentionsPass$3.process(ShowIntentionsPass.java:287)
+	at com.intellij.codeInsight.daemon.impl.ShowIntentionsPass$3.process(ShowIntentionsPass.java:284)
+	at com.intellij.codeInsight.intention.impl.ShowIntentionActionsHandler.chooseBetweenHostAndInjected(ShowIntentionActionsHandler.java:138)
+	at com.intellij.codeInsight.daemon.impl.ShowIntentionsPass.getActionsToShow(ShowIntentionsPass.java:283)
+	at com.intellij.codeInsight.daemon.impl.ShowIntentionsPass.a(ShowIntentionsPass.java:210)
+	at com.intellij.codeInsight.daemon.impl.ShowIntentionsPass.doCollectInformation(ShowIntentionsPass.java:186)
+	at com.intellij.codeHighlighting.TextEditorHighlightingPass.collectInformation(TextEditorHighlightingPass.java:62)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$1$1.run(PassExecutorService.java:438)
+	at com.intellij.openapi.application.impl.ApplicationImpl.tryRunReadAction(ApplicationImpl.java:1143)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$1.run(PassExecutorService.java:429)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.a(ProgressManagerImpl.java:281)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.executeProcessUnderProgress(ProgressManagerImpl.java:233)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.a(PassExecutorService.java:426)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.run(PassExecutorService.java:402)
+	at com.intellij.concurrency.JobLauncherImpl$VoidForkJoinTask.exec(JobLauncherImpl.java:202)
+	at jsr166e.ForkJoinTask.doExec(ForkJoinTask.java:260)
+	at jsr166e.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:858)
+	at jsr166e.ForkJoinPool.scan(ForkJoinPool.java:1687)
+	at jsr166e.ForkJoinPool.runWorker(ForkJoinPool.java:1642)
+	at jsr166e.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:109)
+
+

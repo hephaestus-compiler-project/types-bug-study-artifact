@@ -1,0 +1,27 @@
+I know there are a number of edge cases regarding automatic coercion from GString to String, so I'm not certain whether this is a specific case of a larger problem area, but I've been able to isolate it.
+
+When using the named-parameter constructor approach, ternary expressions don't "inherit" the target type, and thus the inferred type of the expression is {{Serializable}} (not even {{CharSequence}}!). The problem is identical whether elvis or the long form is used.
+
+{code:groovy}
+@CompileStatic
+class Elvis {
+    static class HasString {
+        String value
+    }
+
+    void foo(String a, String b, String c) {
+        new HasString(
+            value: (a ?: "$b $c")
+        )
+    }
+}
+{code}
+
+{code}
+Cannot assign value of type java.io.Serializable <? extends java.lang.Object> to variable of type java.lang.String
+{code}
+
+This doesn't fail when used as
+{code}
+new HasString().value =
+{code} An explicit {{as String}} makes everyone happy but shouldn't be needed.

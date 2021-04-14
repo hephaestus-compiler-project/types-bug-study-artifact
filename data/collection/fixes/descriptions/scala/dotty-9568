@@ -1,0 +1,25 @@
+## Minimized code
+
+This is exactly the same code as https://github.com/lampepfl/dotty/issues/9504, but the implicit parameter has been marked as by-name:
+
+```Scala
+trait Monad[F[_]] {
+  def foo[A](fa: F[A]): Unit = {}
+}
+
+class Bla[F[_], A]
+
+object Test {
+  type Id[A] = A
+
+  val bla: Bla[Id, Unit] = ???
+  implicit def blaMonad[F[_], S](implicit ev: => Monad[F]): Monad[({type L[X] = Bla[F, X]})#L] = ???
+
+  blaMonad.foo(bla) // diverges
+}
+
+```
+
+## Expectation
+
+It should behave like the non by-name case and error out immediately (this bug also affects https://github.com/lampepfl/dotty/pull/9523 where an existing testcase with a by-name implicit is not caught by the divergence checker anymore)

@@ -1,0 +1,35 @@
+Given `src/main/scala/pack/age/Foo.scala` `hello`
+```scala
+package pack.age
+
+class Baz 
+
+object Implicits  {
+	implicit def Baz(n: Int): Baz = new Baz
+}
+```
+and src/main/scala/pack/age/Bar.scala:
+```scala
+package pack.age
+
+import pack.age.Implicits._
+
+object Quux {
+	def baz : Baz   = 1
+}
+```
+
+When first run, `scalac src/main/scala/pack/age/Foo.scala src/main/scala/pack/age/Bar.scala` compiles both fine, and places the class files in the `pack` directory.
+
+However, if rerun, `scalac src/main/scala/pack/age/Foo.scala src/main/scala/pack/age/Bar.scala` fails with the following error:
+
+```scala
+src/main/scala/pack/age/Bar.scala:6: error: type mismatch;
+found   : Int(1)
+required: pack.age.Baz
+ def baz : Baz   = 1
+									 ^
+one error found
+```
+
+This is a simplification of the bug reported in a stackoverflow question (http://stackoverflow.com/questions/9959199/error-in-scala-maven-recompilation-without-code-change).  All the above code can be downloaded from [github](https://github.com/rampion/scalac-compile-bug).

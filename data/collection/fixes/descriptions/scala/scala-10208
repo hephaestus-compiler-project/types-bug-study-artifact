@@ -1,0 +1,47 @@
+This was noticed by @sellout when porting his work on slamdata/matryoshka#28 to matryoshka's master branch (which uses typelevel scala). He suggested it might be tied to the #9760 fix.
+
+Here's the most minimal example I could come up with.
+
+Compiles with LB Scala 2.11.8
+Does not compile with TL Scala 2.11.8
+Does not compile with 2.12.1 (using either LB or TL)
+
+
+```scala
+object Test1 {
+
+  trait ~>[A[_], B[_]] {
+    def apply[I](fa: A[I]): B[I]
+  }
+
+  // HIGHER KINDED GADT
+
+  sealed trait GADTK[A[_], I]
+  final case class MemberK[A[_]](i: Int) extends GADTK[A, Int]
+
+  def doesNotCompile[A[_]]: (GADTK[A, ?] ~> GADTK[A, ?]) =
+    new (GADTK[A, ?] ~> GADTK[A, ?]) {
+      def apply[I](v: GADTK[A, I]): GADTK[A, I] = v match {
+        case MemberK(i) => MemberK(i)
+      }
+    }
+
+  class CompilesFine[A[_]] extends (GADTK[A, ?] ~> GADTK[A, ?]) {
+    def apply[I](v: GADTK[A, I]): GADTK[A, I] = v match {
+      case MemberK(i) => MemberK(i)
+    }
+  }
+
+  // SIMPLE GADT
+
+  sealed trait GADT[A, I]
+  case class Member[A, I](i: Int) extends GADT[A, Int]
+
+  def compilesFine[A]: (GADT[A, ?] ~> GADT[A, ?]) =
+    new (GADT[A, ?] ~> GADT[A, ?]) {
+      def apply[I](v: GADT[A, I]): GADT[A, I] = v match {
+        case Member(i) => Member(i)
+      }
+    }
+}
+```

@@ -1,0 +1,55 @@
+In a file `collections.scala`:
+```scala
+package collection
+
+trait Seq[+A] extends SeqOps[A, Seq, Seq[A]]
+trait SeqOps[+A, +CC[_], +C] extends Any
+
+package immutable {
+  trait Seq[+A] extends collection.Seq[A] with SeqOps[A, Seq, Seq[A]]
+  trait SeqOps[+A, +CC[_], +C] extends collection.SeqOps[A, CC, C]
+}
+
+class StringOps extends collection.SeqOps[Char, immutable.Seq, String]
+```
+In a file `Test.scala`:
+```scala
+package collection
+
+object Test {
+  type AnyConstr[X] = Any
+  val test: SeqOps[Char, AnyConstr, _] = null.asInstanceOf[StringOps]
+}
+```
+
+```scala
+$ dotc -d out collections.scala
+$ dotc -d out -classpath out Test.scala -explain-types
+-- [E007] Type Mismatch Error: tests/allan/Test.scala:5:58 ---------------------
+5 |  val test: SeqOps[Char, AnyConstr, _] = null.asInstanceOf[StringOps]
+  |                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |found:    collection.StringOps
+  |required: collection.SeqOps[Char, collection.Test.AnyConstr, _]
+  |
+  |
+  |Constraint(
+  | uninstVars = ;
+  | constrained types = 
+  | bounds = 
+  | ordering = 
+  |)
+  |Subtype trace:
+  |  ==> collection.StringOps <:< collection.SeqOps[Char, collection.Test.AnyConstr, _]  
+  |    ==> collection.SeqOps[Char, collection.immutable.Seq, String] <:< collection.SeqOps[Char, collection.Test.AnyConstr, _] LoApprox 
+  |      ==> collection.type <:< collection.type(collection)  
+  |      <== collection.type <:< collection.type(collection)   = true
+  |      ==> Char <:< Char  
+  |        ==> scala.type <:< scala.type  
+  |        <== scala.type <:< scala.type   = true
+  |      <== Char <:< Char   = true
+  |      ==> collection.immutable.Seq <:< collection.Test.AnyConstr  
+  |      <== collection.immutable.Seq <:< collection.Test.AnyConstr   = false
+  |    <== collection.SeqOps[Char, collection.immutable.Seq, String] <:< collection.SeqOps[Char, collection.Test.AnyConstr, _] LoApprox  = false
+  |  <== collection.StringOps <:< collection.SeqOps[Char, collection.Test.AnyConstr, _]   = false
+one error found
+```

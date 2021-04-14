@@ -1,0 +1,44 @@
+From David Schlosnagle, via compiler-dev
+http://mail.openjdk.java.net/pipermail/compiler-dev/2011-June/003335.html
+For full details, see the mail thread.
+
+I'd like to propose a minor change for javac to improve performance
+processing large numbers of filename arguments, especially on Windows.
+The main issue is that com.sun.tools.javac.main.Main currently uses a
+ListBuffer for the collection of filenames. Main.addFile calls
+ListBuffer.contains before calling ListBuffer.add, both of which are
+linear searches leading to O(N^2) performance. Additionally, the
+implementation of java.io.File.equals uses the underlying filesystem's
+compare method which on Windows requires an expensive case insensitive
+string comparison. For large numbers of files (I work with several
+modules of approximately 10,000 Java input files for a single javac
+invocation) so this is a big performance hit. The simple fix is to use
+a LinkedHashSet<File> instead of ListBuffer<File> for the filenames
+field in com.sun.tools.javac.main.Main (see attached patch).
+
+My preliminary tests show that execution time of
+com.sun.tools.javac.main.Main.processArgs method for 10,000 input
+files on my Windows machine went from around 15 seconds to around 300
+milliseconds with the patch. The performance improvement on
+case-sensitive filesystems isn't as good, but still seems to be an
+order of magnitude as seen in the following results on my main Mac OS
+X machine for com.sun.tools.javac.main.Main.processArgs method
+execution time.
+
+# files Before (ms) After (ms)  Delta (ms)
+------- ----------- ----------  ----------
+1       0.6         1.1         0.5
+1000    39.4        39.7        0.3
+2000    94.4        41.4        (53.1)
+3000    184.8       61.4        (123.4)
+4000    185.2       77.2        (108.0)
+5000    257.9       89.1        (168.7)
+6000    358.5       119.9       (238.6)
+7000    422.1       126.7       (295.4)
+8000    624.9       137.8       (487.2)
+9000    620.1       139.8       (480.4)
+10000   1,054.9     149.4       (905.5)
+
+
+Thanks,
+Dave

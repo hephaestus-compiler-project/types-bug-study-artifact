@@ -1,0 +1,32 @@
+Compiling the following three tests generate different output on each run:
+
+test/files/run/virtpatmat_alts.scala
+test/files/run/virtpatmat_nested_lists.scala
+test/files/run/virtpatmat_opt_sharing.scala
+
+Currently, partest doesn't see these warnings because of #7003, so the tests pass.
+
+An example:
+```
+szabi@kama3 ~/dev/git/scala > qscalac test/files/run/virtpatmat_alts.scala
+test/files/run/virtpatmat_alts.scala:2: warning: match may not be exhaustive.
+It would fail on the following inputs: (false, true), (true, false)
+  (true, true) match {
+  ^
+test/files/run/virtpatmat_alts.scala:6: warning: match may not be exhaustive.
+It would fail on the following inputs: List((x: Int forSome x not in (1, 2, 4, 5, 6, 7)), _), List((x: Int forSome x not in (1, 4, 5, 6, 7)), _), List(1, _), List(2, _), List(4, _), List(5, _), List(6, _), List(7, _)
+  List(5) match {
+      ^
+two warnings found
+
+szabi@kama3 ~/dev/git/scala > qscalac test/files/run/virtpatmat_alts.scala
+test/files/run/virtpatmat_alts.scala:2: warning: match may not be exhaustive.
+It would fail on the following inputs: (false, true), (true, false)
+  (true, true) match {
+  ^
+test/files/run/virtpatmat_alts.scala:6: warning: match may not be exhaustive.
+It would fail on the following inputs: List((x: Int forSome x not in (1, 2, 4, 5, 6, 7))), List((x: Int forSome x not in (1, 2, 4, 5, 6, 7)), _), List((x: Int forSome x not in (1, 2, 4, 5, 7)), _), List(1, _), List(2, _), List(4, _), List(5, _), List(6, _), List(7, _)
+  List(5) match {
+      ^
+two warnings found
+```

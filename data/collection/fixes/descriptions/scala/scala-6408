@@ -1,0 +1,49 @@
+According to SIP-15, "Universal traits may have neither fields nor initialization statements."  Nested objects are effectively both.
+
+```scala
+trait U extends Any {
+  def x: Int
+  object X {
+    lazy val y = { println("x: " + x); x }
+    var yy = x
+  }
+}
+
+class V(val x: Int) extends AnyVal with U
+
+object W {
+  def main(args: Array[String]) {
+    val v = new V(3)
+    val z = v.X.y
+    v.X.yy = 30
+    val z2 = v.X.y
+    val v2 = new V(4)
+    v2.X.yy = 31
+    println(z)
+    println(z2)
+    println(v.X.yy)
+    println(v2.X.yy)
+  }
+}
+```
+
+Output:
+```scala
+x: 3
+x: 3
+3
+3
+3
+4
+```
+
+Output without `extends AnyVal`:
+```scala
+x: 3
+3
+3
+30
+31
+```
+
+I'm not sure if nested classes and traits should be excluded as well, but it might be safer to start by excluding them.

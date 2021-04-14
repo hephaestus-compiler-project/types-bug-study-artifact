@@ -1,0 +1,30 @@
+We updated the latest Gradle master to kotlin 1.3.70. In one of our projects at Gradle we noticed that the following snippet results in a compile error that seems like a bug.
+
+The snippet:
+
+```
+// defer parsing unless we need them
+ val imageVersions: Map<String, String> by lazy(LazyThreadSafetyMode.NONE) {
+     ObjectMapper(YAMLFactory())
+         .registerKotlinModule()
+         .readValue<Map<String, PgVersionInfo>>(file("src/test/resources/old-ge-versions.yaml"))
+         .mapValues { it.value.replicatedVersion }
+```
+
+results in the following stacktrace:
+
+```
+> Configure project :enterprise-test-db-upgrade
+e: /Users/rene/dev/ge/enterprise-test-db-upgrade/enterprise-test-db-upgrade.gradle.kts:35:1: Back-end (JVM) Internal error: Failed to generate property imageVersions
+File being compiled: (35,1) in /private/var/folders/6p/mvc7wc491_l6_61jz6mk0xw80000gn/T/gradle-kotlin-dsl-3709010862897070976.tmp/enterprise-test-db-upgrade.gradle.kts
+The root cause java.lang.UnsupportedOperationException was thrown at: org.jetbrains.kotlin.load.kotlin.TypeSignatureMappingKt.mapType(typeSignatureMapping.kt:95)
+FAILURE: Build failed with an exception.
+* What went wrong:
+A problem occurred configuring project ':enterprise-test-db-upgrade'.
+> Could not open cache directory cc2ppx93oapnfvskhi54zemmp (/Users/rene/.gradle/caches/6.4-20200309230018+0000/gradle-kotlin-dsl/cc2ppx93oapnfvskhi54zemmp).
+   > Internal compiler error: Back-end (JVM) Internal error: Failed to generate property imageVersions
+     File being compiled: (35,1) in /private/var/folders/6p/mvc7wc491_l6_61jz6mk0xw80000gn/T/gradle-kotlin-dsl-3709010862897070976.tmp/enterprise-test-db-upgrade.gradle.kts
+     The root cause java.lang.UnsupportedOperationException was thrown at: org.jetbrains.kotlin.load.kotlin.TypeSignatureMappingKt.mapType(typeSignatureMapping.kt:95)
+```
+
+Removing the `lazy` keyword solves the issue.

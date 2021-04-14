@@ -1,0 +1,55 @@
+The code below compiles and runs under 2.11.8 and 2.12.1, but fails under dotty with:
+
+```
+[info] Compiling 1 Scala source to /home/nmrp3/devel/turingatemyhamster/commandeer/target/scala-2.11/classes...
+/home/nmrp3/devel/turingatemyhamster/commandeer/src/main/scala/commandeer/RunMe.scala:32: error: no implicit argument of type DSL found for parameter dsl of method apply in object CommandeerDSL
+    val kevin = CommandeerDSL(null.asInstanceOf[Foo])
+                                                     ^
+/home/nmrp3/devel/turingatemyhamster/commandeer/src/main/scala/commandeer/RunMe.scala:34: error: value Bar is not a member of Nothing(kevin)
+    val bar = kevin.Bar("bob", 3)
+                    ^
+two errors found
+[error] (compile:compileIncremental) Compilation failed
+```
+
+I'm attempting to summon an implicit instance of a trait, but getting back type information specific to the instance that I've summoned, beyond that in the trait that I summoned it through. There may be a better way to do this with dotty, but I don't know it.
+
+```scala
+package commandeer
+
+
+trait CommandeerDSL[Host] {
+  trait Operation[T]
+  type Op[T] <: Operation[T]
+}
+
+object CommandeerDSL {
+  def apply[Host, DSL <: CommandeerDSL[Host]](host: Host)(implicit dsl: DSL): DSL = dsl
+}
+ 
+trait Foo {
+  def bar(a: String, b: Int): Double
+}
+ 
+object Foo {
+  implicit val fooDSL: FooDSL = new FooDSL {}
+}
+ 
+trait FooDSL extends CommandeerDSL[Foo] {
+  sealed trait FooOperation[T] extends Operation[T]
+  type Op[T] = FooOperation[T]
+
+  case class Bar(a: String, b: Int) extends FooOperation[Double]
+}
+ 
+object RunMe {
+  def main(args: Array[String]): Unit = {
+    println("Hi Mum")
+
+    val kevin = CommandeerDSL(null.asInstanceOf[Foo])
+    println(s"Found DSL for Foo: $kevin")
+    val bar = kevin.Bar("bob", 3)
+    println(s"Made a bar: $bar")
+  }
+}
+```

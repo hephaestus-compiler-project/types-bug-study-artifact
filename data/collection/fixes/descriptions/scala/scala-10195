@@ -1,0 +1,45 @@
+The smallest example I was able to distill involves a type lambda:
+
+```scala
+sealed trait Foo[F[_]]
+case class Bar[F[_]]() extends Foo[F]
+
+object Test {
+
+  val foo: Foo[({ type Out[X] = String })#Out] = ???
+
+  foo match {
+    case Bar() => // error: constructor cannot be instantiated to expected type
+                  //  found   : Bar[F]
+                  //  required: Foo[[X]String]
+  }
+}
+```
+
+It is reproducible also without type lambdas, but the example is slightly more involved (some simpler cases do work):
+
+```scala
+sealed trait Foo[F[_]]
+case class Bar[F[_]]() extends Foo[F]
+
+trait TC[A, B] {
+  type F[X] = B
+}
+
+object TC {
+  implicit val intInstance: TC[Int, String] =
+    new TC[Int, String] {}
+
+  implicit class Ops[A, B](a: A)(implicit val tc: TC[A, B]) {
+    def getFoo: Foo[tc.F] = ???
+  }
+
+  1.getFoo match {
+    case Bar() => // error: constructor cannot be instantiated to expected type
+                  //  found   : Bar[F]
+                  //  required: Foo[[X]String]
+  }
+}
+```
+
+In both cases, it seems it got the shape of type arguments right, but doesn't unify F[_] with [X]String.

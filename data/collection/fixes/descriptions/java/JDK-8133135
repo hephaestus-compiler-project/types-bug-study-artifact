@@ -1,0 +1,70 @@
+Let's consider following code:
+
+class List<T> {
+}
+
+public class Test26 {
+    public static <T> List<T> m(List<T> list, T item) {
+        return list;
+    }
+    public static void run() {
+        m(new List<FooOuter.Foo<String>>(), new FooOuter().new Foo<>(){ });
+    }
+}
+
+class FooOuter {
+    class Foo<T> {
+        public Foo(){
+        }
+    }
+}
+
+it causes compilation internal error on JDK9b75:
+
+An exception has occurred in the compiler (1.9.0-ea). Please file a bug at the Java Bug Database (http://bugreport.java.com/bugreport/) after checking the database for duplicates. Include your program
+ and the following diagnostic in your report.  Thank you.
+java.lang.NullPointerException
+        at com.sun.tools.javac.comp.Flow$CaptureAnalyzer.visitClassDef(Flow.java:2544)
+        at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:744)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:404)
+        at com.sun.tools.javac.tree.TreeScanner.visitNewClass(TreeScanner.java:211)
+        at com.sun.tools.javac.tree.JCTree$JCNewClass.accept(JCTree.java:1653)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:404)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+        at com.sun.tools.javac.tree.TreeScanner.visitApply(TreeScanner.java:203)
+        at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1598)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:404)
+        at com.sun.tools.javac.tree.TreeScanner.visitExec(TreeScanner.java:178)
+        at com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1416)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:404)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+        at com.sun.tools.javac.tree.TreeScanner.visitBlock(TreeScanner.java:108)
+        at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:984)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:404)
+        at com.sun.tools.javac.tree.TreeScanner.visitMethodDef(TreeScanner.java:94)
+        at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:836)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:404)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+        at com.sun.tools.javac.tree.TreeScanner.visitClassDef(TreeScanner.java:83)
+        at com.sun.tools.javac.comp.Flow$CaptureAnalyzer.visitClassDef(Flow.java:2545)
+        at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:744)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:404)
+        at com.sun.tools.javac.comp.Flow$CaptureAnalyzer.analyzeTree(Flow.java:2622)
+        at com.sun.tools.javac.comp.Flow$CaptureAnalyzer.analyzeTree(Flow.java:2615)
+        at com.sun.tools.javac.comp.Flow.analyzeTree(Flow.java:213)
+        at com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1293)
+        at com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1262)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:871)
+        at com.sun.tools.javac.main.Main.compile(Main.java:254)
+        at com.sun.tools.javac.main.Main.compile(Main.java:142)
+        at com.sun.tools.javac.Main.compile(Main.java:56)
+        at com.sun.tools.javac.Main.main(Main.java:42)
+
+It looks like JDK-8132535, but the error thrown by javac is different.

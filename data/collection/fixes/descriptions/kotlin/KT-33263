@@ -1,0 +1,63 @@
+Kotlin code that compiles in IDEA 2019.1 crashes in the editor in 2019.2.
+The code example has been simplified to be contained in a single file (quoted below), but is hopefully correct Kotlin code, since it compiles in earlier versions.
+
+**Version that crashes**
+IntelliJ IDEA 2019.2 (Community Edition)
+Build #IC-192.5728.98, built on July 23, 2019
+Runtime version: 11.0.3+12-b304.10 x86_64
+VM: OpenJDK 64-Bit Server VM by JetBrains s.r.o
+macOS 10.14.6
+GC: ParNew, ConcurrentMarkSweep
+Memory: 1979M
+Cores: 12
+Registry: git.explicit.commit.renames.prohibit.multiple.calls=false
+Non-Bundled Plugins: CMD Support, Lombook Plugin, org.intellij.scala, org.jetbrains.kotlin, org.sonarlint.idea
+
+**Version that works**
+
+IntelliJ IDEA 2019.1 (Community Edition)
+
+**Code to reproduce:**
+
+~~~
+
+abstract class CrashExample {
+    val MY_PAR: Parameter<Foo, List<String>> = Parameter<CrashExample.Foo, List<String>>()
+
+    fun tl(): Expression {
+        return Expression()
+    }
+
+    class Parameter<H, V>
+
+    fun <H, U> Parameter<in H, U>.op(expr: Expression): Action<in H> {
+        return Action<H>()
+    }
+
+    fun crashExample() {
+        SBS().dodo<Foo>() with actions(
+            MY_PAR.op(tl())
+        )
+    }
+
+    infix fun SBS.with(villkor: List<Action<in Foo>>): SBS {
+        return this
+    }
+
+    fun <Foo> actions(vararg handlingar: Action<in Foo>): List<Action<in Foo>> {
+        return handlingar.asList()
+    }
+
+    class SBS {
+        fun <H> dodo(): SBS {
+            return this
+        }
+    }
+
+    class Foo
+
+    class Action<H>
+
+    class Expression
+}
+~~~

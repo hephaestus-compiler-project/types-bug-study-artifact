@@ -1,0 +1,45 @@
+## Minimized code
+
+```Scala
+trait Foo[F[_]]
+
+trait Bar[F[_]] extends Foo[F]
+trait Baz[F[_]] extends Foo[F]
+
+case class Applied[F[_], A](a: F[A])
+
+
+object Applied extends AppliedLowPrio {
+  implicit def barApplied[F[_]: Baz]: Baz[[X] =>> Applied[F, X]] = ???
+}
+
+trait AppliedLowPrio {
+  implicit def bazApplied[F[_]: Foo]: Foo[[X] =>> Applied[F, X]] = ???
+}
+
+
+object Test {
+  def test[F[_]: Bar: Baz] = implicitly[Foo[[X] =>> Applied[F, X]]]
+}
+```
+
+## Output
+
+```scala
+-- Error: try/i9793.scala:19:67 ------------------------------------------------
+19 |  def test[F[_]: Bar: Baz] = implicitly[Foo[[X] =>> Applied[F, X]]]
+   |                                                                   ^
+   |ambiguous implicit arguments of type Foo[[X] =>> Applied[F, X]] found for parameter ev of method implicitly in object DottyPredef.
+   |I found:
+   |
+   |    Applied.bazApplied[F](
+   |      /* ambiguous: both value evidence$4 and value evidence$3 match type Foo[F] */
+   |        summon[Foo[F]]
+   |    )
+   |
+   |But both value evidence$4 and value evidence$3 match type Foo[F].
+```
+
+## Expectation
+
+This should compile as it does in Scala 2.x

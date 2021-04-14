@@ -1,0 +1,43 @@
+`checkNoPrivateLeaks` replaces private types in signatures by dealiasing them if possible, but this is done in `PostTyper` which means that the following code does not compile (works in scalac):
+```scala
+class A {
+  private type Foo = Int
+
+  def foo: Foo = 1
+}
+class B extends A {
+  foo
+}
+```
+```scala
+cannot take signature of => B.this.Foo
+-- Error: ./try/1130x.scala ----------------------------------------------
+7 |  foo
+  |  ^^^
+  |  cannot resolve reference to type B(B.this).Foo
+  |  the classfile defining the type might be missing from the classpath
+```
+
+This is a big deal because inferred types might contain private types in perfectly innocent code:
+```scala
+class A {
+  private val x: List[Int] = List(1)
+  def foo = x.head // foo inferred type is this.x.scala$collection$immutable$List$$A
+}
+
+class B extends A {
+  foo
+}
+```
+```scala
+cannot take signature of => B.this.x.scala$collection$immutable$List$$A
+-- Error: ./try/i1130x.scala -------------------------------------------------------------------------------------------
+7 |  foo
+  |  ^^^
+  |  cannot resolve reference to type B.this.x.type.scala$collection$immutable$List$$A
+  |  the classfile defining the type might be missing from the classpath
+```
+
+I think we really need inference to avoid private types.
+
+/cc @odersky 

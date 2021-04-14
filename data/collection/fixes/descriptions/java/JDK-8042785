@@ -1,0 +1,24 @@
+While exploring adding covariant overrides for Buffer classes, it was discovered that javac is not making synthetic methods for covariant overrides match the finality of the covariant method.
+
+Simple illustration:
+
+  public class Test {
+      public Object foo() { return null; }
+  }
+  public class TestSub extends Test {
+      public final String foo() { return null; }
+  }
+
+Yields (javap output):
+
+  public class Test {
+    public Test();
+    public java.lang.Object foo();
+  }
+  public class TestSub extends Test {
+    public TestSub();
+    public final java.lang.String foo();
+    public java.lang.Object foo(); // <- not final?!
+  }
+
+reported in compiler-dev: http://mail.openjdk.java.net/pipermail/compiler-dev/2014-April/008732.html

@@ -1,0 +1,46 @@
+The code below worked in 2.9.2 but not in 2.10.0-M4.
+The return type projection Exp#OpSemExp#Val raises the obscure compile time error "Illegal type selection from volatile type null", so Exp#Val is not seen as a subtype of Exp#OpSemExp#Val anymore. For semantic reasons it is not allowed to remove #Val. It must work like that.
+
+```
+case class LamExpWaiter(xs: Seq[Idn]) { 
+  def apply[Exp <: LazyExp[_]](e: Exp): Exp#OpSemExp#Val = 
+    apply_helper(e.asInstanceOf[Exp#OpSemExp]) 
+  def apply_helper[Exp <: LazyExp[Exp]](e: Exp): Exp#Val = 
+    e.reify_lam(xs, e) 
+} 
+```
+
+This issue seems to be a blocker, because the coder has to go to 2.10 for TypeTag, because there is another problem in which Manifest is too limited.
+see thread http://groups.google.com/group/scala-user/browse_thread/thread/599b99bb2ee9ddd2
+
+The associated thread of this issue is:
+http://groups.google.com/group/scala-user/browse_thread/thread/ab77f705fe22a246
+
+I have narrowed the code below. If I narrow it further then I get errors in 2.9.2 too, so this is the minimal representative (I assume, because I don't know if semantically that statement is true, I don't understand this kind of type level programming) and maybe can be used as unit test. However use the project EDSL as regression test, because there might be some other issue connected that can popup and then is useless for the original coder.
+
+```
+class BaseApp[+Exp <: LazyExp[_]](val e: Exp, val x: String) 
+
+trait AbsVal[+Exp <: LazyExp[_]] 
+
+trait LamReifierBase { 
+  def reify_lam[Exp <: LazyExp[Exp]](xs: Seq[String], e: Exp): Exp#Val 
+} 
+
+trait LazyExp[+This <: LazyExp[This]] {
+  type OpSemExp <: LazyExp[OpSemExp] with This 
+  type Val <: AbsVal[This] with This 
+  type App <: BaseApp[This] with This 
+
+  protected val lr: LamReifierBase 
+  def reify_lam[Thiz >: This](xs: Seq[String], e: Thiz): This#Val = 
+    lr.reify_lam(xs, e.asInstanceOf[This]) 
+}
+
+case class LamExpWaiter(xs: Seq[String]) { 
+  def apply[Exp <: LazyExp[_]](e: Exp): Exp#OpSemExp#Val = 
+    apply_helper(e.asInstanceOf[Exp#OpSemExp]) 
+  def apply_helper[Exp <: LazyExp[Exp]](e: Exp): Exp#Val = 
+    e.reify_lam(xs, e) 
+}  
+```

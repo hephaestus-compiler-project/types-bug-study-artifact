@@ -1,0 +1,59 @@
+```
+scala-hash v2.10.4 -deprecation -nc -classpath /Users/jason/.ivy2/cache/org.reflections/reflections/jars/reflections-0.9.8.jar:action/jta/jars/jta-1.1.jar:/Users/jason/.ivy2/cache/com.jolbox/bonecp/bundles/bonecp-0.7.1.RELEASE.jar:/Users/jason/.ivy2/cache/com.google.guava/guava/bundles/guava-14.0.1.jar
+Welcome to Scala version 2.10.4-20140209-180020-b66a39653b (Java HotSpot(TM) 64-Bit Server VM, Java 1.6.0_65).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> new org.reflections.Store().get(null)
+...
+uncaught exception during compilation: java.lang.AssertionError
+java.lang.AssertionError: assertion failed: javax.annotation.Nullable
+	at scala.reflect.internal.Symbols$Symbol.info(Symbols.scala:1212)
+	at scala.reflect.internal.Symbols$TypeSymbol.isNonBottomSubClass(Symbols.scala:2821)
+	at scala.reflect.internal.AnnotationInfos$AnnotationInfo.matches(AnnotationInfos.scala:295)
+	at scala.reflect.internal.AnnotationInfos$Annotatable$class.dropOtherAnnotations(AnnotationInfos.scala:65)
+	at scala.reflect.internal.AnnotationInfos$Annotatable$class.hasAnnotation(AnnotationInfos.scala:50)
+	at scala.reflect.internal.Symbols$Symbol.hasAnnotation(Symbols.scala:112)
+	at scala.reflect.internal.Symbols$Symbol.isDeprecated(Symbols.scala:723)
+```
+
+```
+% scala-hash v2.11.0-RC3 -deprecation -nc -classpath /Users/jason/.ivy2/cache/org.reflections/reflections/jars/reflections-0.9.8.jar:action/jta/jars/jta-1.1.jar:/Users/jason/.ivy2/cache/com.jolbox/bonecp/bundles/bonecp-0.7.1.RELEASE.jar:/Users/jason/.ivy2/cache/com.google.guava/guava/bundles/guava-14.0.1.jar
+Welcome to Scala version 2.11.0-20140318-174310-bcf24ec9ba (Java HotSpot(TM) 64-Bit Server VM, Java 1.6.0_65).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> (s: org.reflections.Store) => s.get(null)
+warning: Class javax.annotation.Nullable not found - continuing with a stub.
+java.lang.AssertionError: assertion failed: javax.annotation.Nullable
+	at scala.reflect.internal.Symbols$Symbol.info(Symbols.scala:1410)
+	at scala.reflect.internal.Symbols$TypeSymbol.isNonBottomSubClass(Symbols.scala:3040)
+	at scala.reflect.internal.AnnotationInfos$AnnotationInfo.matches(AnnotationInfos.scala:305)
+	at scala.reflect.internal.AnnotationInfos$Annotatable$class.dropOtherAnnotations(AnnotationInfos.scala:68)
+	at scala.reflect.internal.AnnotationInfos$Annotatable$class.hasAnnotation(AnnotationInfos.scala:53)
+	at scala.reflect.internal.Symbols$Symbol.hasAnnotation(Symbols.scala:174)
+	at scala.tools.nsc.typechecker.Infer$class.improves$1(Infer.scala:61)
+```
+
+Adding the `Nullable` annotation to the compiler's classpath works around the crash:
+
+```
+scala-hash v2.11.0-RC3 -deprecation -nc -classpath /Users/jason/.ivy2/cache/org.reflections/reflections/jars/reflections-0.9.8.jar:action/jta/jars/jta-1.1.jar:/Users/jason/.ivy2/cache/com.jolbox/bonecp/bundles/bonecp-0.7.1.RELEASE.jar:/Users/jason/.ivy2/cache/com.google.guava/guava/bundles/guava-14.0.1.jar:/Users/jason/.ivy2/cache/com.google.code.findbugs/jsr305/jars/jsr305-2.0.1.jar
+Welcome to Scala version 2.11.0-20140318-174310-bcf24ec9ba (Java HotSpot(TM) 64-Bit Server VM, Java 1.6.0_65).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> (s: org.reflections.Store) => s.get(null)
+res0: org.reflections.Store => com.google.common.collect.Multimap[String,String] = <function1>
+```
+
+Where `Store.get` is defined as:
+
+```
+    /** return the multimap store of the given scanner class. not immutable */
+    @Nullable public Multimap<String, String> get(Class<? extends Scanner> scannerClass) {
+        return storeMap.get(scannerClass.getSimpleName());
+    }
+```
+
+Regressed in 2.10.4, specifically in https://github.com/scala/scala/commit/8d74fa024262

@@ -1,0 +1,119 @@
+FULL PRODUCT VERSION :
+java version "1.8.0"
+Java(TM) SE Runtime Environment (build 1.8.0-b132)
+Java HotSpot(TM) 64-Bit Server VM (build 25.0-b70, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Microsoft Windows [Version 6.1.7601]
+
+EXTRA RELEVANT SYSTEM CONFIGURATION :
+Windows 7 Professional, Service Pack 1
+
+A DESCRIPTION OF THE PROBLEM :
+The class file produced by javac for the attached program makes an illegal access to uninitialized local variable 2.  The verifier understandably objects.
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile and run the attached program.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+This is an experimental program to help me understand lambda expressions.  If there is an error in my program, I would expect the error to be reported by javac, rather than by the byte-code verifier.  
+
+I do not believe there is an error in this program.  I believe the program should run and the closure should be 
+ACTUAL -
+The program does not run because the verifier rejects the class file.
+
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+cygdrive/c/applications/java/jdk1.8.0/bin/java -classpath . MySecondLambda >MySecondLambda.run
+java.lang.VerifyError: Bad local variable type
+Exception Details:
+  Location:
+    MySecondLambda.doInstanceMethod()V @1: aload_2
+  Reason:
+    Type top (current frame, locals[2]) is not assignable to reference type
+  Current Frame:
+    bci: @1
+    flags: { }
+    locals: { 'MySecondLambda' }
+    stack: { 'MySecondLambda' }
+  Bytecode:
+    0000000: 2a2c ba00 1600 004e 2d12 17b9 0018 0200
+    0000010: 2d12 19b9 0018 0200 2d12 1ab9 0018 0200
+    0000020: b1
+
+        at java.lang.Class.getDeclaredMethods0(Native Method)
+        at java.lang.Class.privateGetDeclaredMethods(Class.java:2688)
+        at java.lang.Class.getMethod0(Class.java:2937)
+        at java.lang.Class.getMethod(Class.java:1771)
+        at sun.launcher.LauncherHelper.validateMainClass(LauncherHelper.java:544)
+        at sun.launcher.LauncherHelper.checkAndLoadMain(LauncherHelper.java:526)
+Exception in thread "main" Makefile:21: recipe for target `MySecondLambda.run' failed
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+
+
+public class MySecondLambda {
+  final int CONSTANT_INSTANCE_INT_VALUE = 5678765;
+  final String CONSTANT_INSTANCE_STRING_VALUE = "xyzyx";
+
+  public static void main(String[] args) {
+    List<String> names = Arrays.asList("1", "21", "376");
+    Stream<Integer> lengths = names.stream().map(name -> name.length());
+    System.out.println("This is the result of mapping names to lengths");
+    lengths.forEach(a -> System.out.println(a));
+
+    MySecondLambda mfl = new MySecondLambda();
+    mfl.doInstanceMethod();
+  }
+
+  void doInstanceMethod() {
+    final int CONSTANT_INT_VALUE = 232323;
+    final String CONSTANT_STRING_VALUE = "mwmwm";
+
+    /*
+    Consumer<Integer> consumeInts = y -> {
+      System.out.println("instance constant: " + CONSTANT_INSTANCE_INT_VALUE);
+      System.out.println("   local constant: " + CONSTANT_INT_VALUE);
+      System.out.println("          int arg: " + y);
+      System.out.println("              sum: " +
+                         (y +
+                          CONSTANT_INSTANCE_INT_VALUE + CONSTANT_INT_VALUE));
+    };
+
+    consumeInts.accept(37);
+    consumeInts.accept(54);
+    consumeInts.accept(21);
+    */
+
+    Consumer<String> consumeStrings = s -> {
+      System.out.println("instance constant: " +
+                         CONSTANT_INSTANCE_STRING_VALUE);
+      System.out.println("   local constant: " + CONSTANT_STRING_VALUE);
+      System.out.println("       string arg: " + s);
+      System.out.println("       catenation: " +
+                         (s + ":" +
+                          CONSTANT_INSTANCE_INT_VALUE + ":" +
+                          CONSTANT_INT_VALUE));
+    };
+
+    consumeStrings.accept("bob");
+    consumeStrings.accept("mary");
+    consumeStrings.accept("harry");
+  }
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+None found.
+

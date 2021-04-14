@@ -1,0 +1,47 @@
+javac fails (without -XDdev returns error code '4', with -XDdev prints the exception below) processing this source code:
+-----
+/*
+ * @test /nodynamiccopyright/
+ * @bug     8016640
+ * @summary compiler hangs if the generics arity of a base class is wrong
+ * @compile/fail/ref=T8016640.out -XDrawDiagnostics -XDdev T8016640.java
+ */
+class T8016640 {
+    static class Foo<X,Y> { }
+    static class BadFoo<T> extends Foo<T> { }
+    static class SubBadFoo<T> extends BadFoo<T> { }
+}
+-----
+
+$ javac -XDdev T8016640.java 
+T8016640.java:9: error: wrong number of type arguments; required 2
+    static class BadFoo<T> extends Foo<T> { }
+                                      ^
+An exception has occurred in the compiler (1.8.0-ea). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.NullPointerException
+        at com.sun.tools.javac.comp.Check.checkCompatibleConcretes(Check.java:1750)
+        at com.sun.tools.javac.comp.Check.checkCompatibleSupertypes(Check.java:2335)
+        at com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:4304)
+        at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4242)
+        at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4177)
+        at com.sun.tools.javac.comp.Attr.visitClassDef(Attr.java:871)
+        at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:687)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:581)
+        at com.sun.tools.javac.comp.Attr.attribStat(Attr.java:650)
+        at com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:4334)
+        at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4242)
+        at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4177)
+        at com.sun.tools.javac.comp.Attr.attrib(Attr.java:4151)
+        at com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1224)
+        at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:877)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:836)
+        at com.sun.tools.javac.main.Main.compile(Main.java:518)
+        at com.sun.tools.javac.main.Main.compile(Main.java:376)
+        at com.sun.tools.javac.main.Main.compile(Main.java:365)
+        at com.sun.tools.javac.main.Main.compile(Main.java:356)
+        at com.sun.tools.javac.Main.compile(Main.java:77)
+        at com.sun.tools.javac.Main.main(Main.java:62)
+
+This is with:
+$ jdk1.8.0/bin/javac -fullversion
+javac full version "1.8.0-ea-b100"

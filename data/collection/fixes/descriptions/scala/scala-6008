@@ -1,0 +1,32 @@
+The warning in the following is unnecessary:
+
+```java
+Welcome to Scala version 2.10.0-20120629-080700-cd1e6f94e9
+[...]
+
+def x(in: (Int, Boolean)) = in match { case (i: Int, b: Boolean) => 3 }
+<console>:7: warning: match may not be exhaustive.
+It would fail on the following inputs: (_, false), (_, true)
+       def x(in: (Int, Boolean)) = in match { case (i: Int, b: Boolean) => 3 }
+                                   ^
+```
+
+There is no warning if the Int is ignored or bound without an explicit type:
+
+```java
+scala> def x(in: (Int, Boolean)) = in match { case (_, b: Boolean) => 3 }
+x: (in: (Int, Boolean))Int
+```
+
+Keeping the explicit type for the Int but dropping the one for Boolean presents a spurious warning again:
+
+```java
+scala> def x(in: (Int, Boolean)) = in match { case (i: Int, b) => 3 }
+<console>:7: warning: match may not be exhaustive.
+It would fail on the following input: (_, _)
+       def x(in: (Int, Boolean)) = in match { case (i: Int, b) => 3 }
+                                   ^
+
+scala> x((3,true))
+res2: Int = 3
+```

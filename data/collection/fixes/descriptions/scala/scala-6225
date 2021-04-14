@@ -1,0 +1,27 @@
+Compiling the following three files together results in the compile error suggesting that val foo can't be found (presumably because it doesn't think its type is the same type as the type library.x.Foo it's looking for).  Defining class Foo outside of class X allows it to be found.
+
+This worked as desired in Scala 2.9.1.
+
+```scala
+// lib.scala
+package library.x
+class X {
+  class Foo
+  implicit val foo = new Foo
+}
+
+// package.scala
+package library
+package object x extends X
+
+// app.scala
+package app
+import library.x._
+object App { implicitly[Foo] }
+
+
+error: could not find implicit value for parameter e: library.x.Foo
+  implicitly[Foo]
+            ^
+one error found
+```

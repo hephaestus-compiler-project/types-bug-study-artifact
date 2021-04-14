@@ -1,0 +1,25 @@
+The current divergence checker computes the "stripped core" of the types it's resolving implicits for before computing their relative complexity. Unfortunately (a) missed case(s) in the core and/or the complexity computation means that divergent types can be smuggled into the resolution as arguments to a `TypeRef` and are not counted towards the overall complexity of the type. This causes implicit resolution to loop until stack overflow.
+
+```scala
+trait Foo[F[_]]
+object Foo {
+  implicit def mkFoo[F[_]](implicit ff: Foo[({ type λ[t] = F[F[t]] })#λ]): Foo[F] = ???
+}
+
+trait Bar[F[_]]
+object Bar {
+  implicit def mkBar[F[_]](implicit bb: Bar[λ forSome { type λ[t] <: F[t] }]): Bar[F] = ???
+}
+
+implicitly[Foo[List]] // compile time hang
+implicitly[Bar[List]] // compile time hang
+```
+
+I've taken a pass at a fix in https://github.com/scala/scala/pull/6530, however as noted there the approach taken might not be correct,
+
+> I realized after PR'ing this that core only eliminating top level ExistentialTypes and PolyTypes is as per the spec. However, the computation in complexity seems to be assuming that all existentials and poly types have been eliminated throughout.
+>
+> It would be possible to cover the missing cases in complexity, but it's not clear to me what that buys us over making the change in core as here. I note that in Dotty the stripped core is completely absent and instead we have a typeSize which appears to compute the normalized size of a type directly without constructing the intermediate stripped core type. On balance I would prefer to follow Dotty's approach here.
+>
+
+Comments from @odersky and @OlivierBlanvillain would be very welcome.

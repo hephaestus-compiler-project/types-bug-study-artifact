@@ -1,0 +1,17 @@
+many thanks for fixing KT-1765 - now I can get further creating a camel DSL for Kotlin! 
+Though now I've hit this compiler bug...
+
+If you clone this repo: https://github.com/koolapp/koolapp
+then edit this test https://github.com/koolapp/koolapp/blob/master/koolapp-camel/src/test/kotlin/test/koolapp/camel/RouteBuilderTest.kt#L11
+to uncomment the from("") call you'll get this compile error:
+{code}
+cd koolapp-camel
+mvn test -Dtest=RouteBuilderTest
+
+ERROR: /workspace/java/koolapp/koolapp-camel/src/test/kotlin/test/koolapp/camel/RouteBuilderTest.kt: (13, 17) Overload resolution ambiguity: 
+public open fun from(val uris : jet.Array<jet.String?>?) : org.apache.camel.model.RouteDefinition? defined in <module>.<root>.org.apache.camel.model.RouteDefinition
+public open fun from(val uri : jet.String?) : org.apache.camel.model.RouteDefinition? defined in <module>.<root>.org.apache.camel.model.RouteDefinition
+{code}
+
+basically Kotlin can't decide which method to invoke; despite having a String parameter. Its understandable - as there are 2 methods, one taking String and another taking an array of String as a Java vararg. Note it works fine if you pass 2 strings for example. I figured rather than just failing to compile, in this case we should pick the non-vararg option as the Java compiler does the same.
+

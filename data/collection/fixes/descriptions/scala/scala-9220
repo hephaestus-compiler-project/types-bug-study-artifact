@@ -1,0 +1,26 @@
+The following,
+
+```scala
+trait Command
+object Command {
+  sealed trait Execution extends Command
+}
+
+case class Buzz() extends Command.Execution
+case class Door() extends Command.Execution
+
+def foo(cmd: Command.Execution) = cmd match {
+  case x @ (_: Buzz) => ???
+  case x @ (_: Door) => ???
+}
+```
+
+results in the following spurious unreachable code warning,
+
+```scala
+[error]  bug.scala:11: unreachable code
+[error]       case x @ (_: Door) => ???
+[error]                             ^
+```
+
+Unnesting the `Execution` trait from the `Command` companion object results in compilation without the complaint.

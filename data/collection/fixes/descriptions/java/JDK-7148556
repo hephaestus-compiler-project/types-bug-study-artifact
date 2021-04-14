@@ -1,0 +1,46 @@
+FULL PRODUCT VERSION :
+java version "1.7.0_02"
+Java(TM) SE Runtime Environment (build 1.7.0_02-b13)
+Java HotSpot(TM) 64-Bit Server VM (build 22.0-b10, mixed mode)
+
+A DESCRIPTION OF THE PROBLEM :
+If you define an interface that defines a public clone() method, that method is sometimes not found by the compiler. In the case below we have an interface which defines clone(), an interface that extends that and implements java.util.List, then a class that attempts to call clone() on the second interface.
+
+The code compiles cleanly in Java 6, but fails in Java 7 with:
+
+Java7.java:8: error: clone() in Java7a is defined in an inaccessible class or interface
+    bar.clone();
+
+REGRESSION.  Last worked in version 6u29
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+public interface Java7a extends Cloneable
+{
+  public Object clone();
+}
+public interface Java7b extends Java7a, java.util.List
+{
+  public void bar();
+}
+public class Java7
+{
+  protected Java7b bar;
+
+  public void foo()
+  {
+    bar.clone();
+  }
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+The error can be worked around using any of these methods:
+
+1. Cast bar to Java7a before calling clone()
+2. Implement java.util.List<Object> instead of java.util.List
+
+Option #2 seems like the real problem here. In fact you can replace java.util.List below with any other interface that is genericized. Interfaces without generics don't cause this issue.

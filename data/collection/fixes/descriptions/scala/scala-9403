@@ -1,0 +1,93 @@
+I found an instance where the scala optimizer is generating incorrect bytecode which results in broken integer arithmetic (given a 39 where it should give a -5000). It happens for all versions of scala `2.11.x` but worked correctly in `2.10.x`. It only happens with `-optimize`.
+
+I've put the complete code necessary to reproduce on [github](https://github.com/jdolson/scala_optimizer_bug). But I'll paste the important bits here. The following two files must in different projects (e.g. a main and a test project) in order to trigger the bug:
+ 
+```scala
+package bug // in main
+final case class Bust (x: Long) extends AnyVal {
+  @inline def bar: Long = 10000L / (if (x < 0) -2 else 2)
+}
+```
+
+```scala
+package bug // in test
+object Busted {
+  def main(args: Array[String]) {
+    val p = Bust(-1L)
+    val y = p.bar
+    println(y) // should print -5000 but prints 39
+  }
+}
+```
+
+Looking at the bytecode the problem happens when the `bar` method is inlined. Scala 2.10 generates this
+```
+Compiled from "Busted.scala"
+public final class bug.Busted$ {
+  public static final bug.Busted$ MODULE$;
+
+  public static {};
+    Code:
+       0: new           #2                  // class bug/Busted$
+       3: invokespecial #12                 // Method "<init>":()V
+       6: return        
+
+  public void main(java.lang.String[]);
+    Code:
+       0: getstatic     #19                 // Field bug/Bust$.MODULE$:Lbug/Bust$;
+       3: astore_2      
+       4: ldc2_w        #20                 // long 10000l
+       7: ldc2_w        #22                 // long -1l
+      10: lconst_0      
+      11: lcmp          
+      12: iflt          19
+      15: iconst_2      
+      16: goto          21
+      19: bipush        -2
+      21: i2l           
+      22: ldiv          
+      23: lstore_3      
+      24: getstatic     #28                 // Field scala/Predef$.MODULE$:Lscala/Predef$;
+      27: lload_3       
+      28: invokestatic  #34                 // Method scala/runtime/BoxesRunTime.boxToLong:(J)Ljava/lang/Long;
+      31: invokevirtual #38                 // Method scala/Predef$.println:(Ljava/lang/Object;)V
+      34: return        
+}
+```
+
+whereas Scala 2.11 is generating this:
+
+```
+Compiled from "Busted.scala"
+public final class bug.Busted$ {
+  public static final bug.Busted$ MODULE$;
+
+  public static {};
+    Code:
+       0: new           #2                  // class bug/Busted$
+       3: invokespecial #12                 // Method "<init>":()V
+       6: return        
+
+  public void main(java.lang.String[]);
+    Code:
+       0: getstatic     #19                 // Field bug/Bust$.MODULE$:Lbug/Bust$;
+       3: astore_2      
+       4: ldc2_w        #20                 // long 10000l
+       7: ldc2_w        #22                 // long -1l
+      10: lconst_0      
+      11: lcmp          
+      12: iflt          19
+      15: iconst_2      
+      16: goto          22
+      19: sipush        254
+      22: i2l           
+      23: ldiv          
+      24: lstore_3      
+      25: getstatic     #28                 // Field scala/Predef$.MODULE$:Lscala/Predef$;
+      28: lload_3       
+      29: invokestatic  #34                 // Method scala/runtime/BoxesRunTime.boxToLong:(J)Ljava/lang/Long;
+      32: invokevirtual #38                 // Method scala/Predef$.println:(Ljava/lang/Object;)V
+      35: return        
+}
+```
+The only meaningful difference is that `bipush -2` is getting replaced with `sipush 254`, which is clearly incorrect.

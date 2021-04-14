@@ -1,0 +1,34 @@
+Sample Code:
+https://android.googlesource.com/platform/frameworks/support/+/refs/heads/androidx-lifecycle-release/lifecycle/lifecycle-livedata-core-ktx/src/main/java/androidx/lifecycle/LiveData.kt#43
+https://github.com/ganadist/VersionCodeDemo/blob/kt140rc/app/src/main/java/com/example/myapplication/LiveDataExtensions.kt
+
+Build log:
+```
+$ ./gradlew :app:assembleDevelopDebug --scan
+
+> Task :app:compileDevelopDebugKotlin FAILED
+e: app/src/main/java/com/example/myapplication/LiveDataExtensions.kt: (13, 18): Type mismatch: inferred type is Unit but Observer<T> was expected
+
+
+Publishing build scan...
+https://gradle.com/s/33fzzohqsj6kc
+
+```
+
+```kt
+package com.example.myapplication
+
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.Observer
+import androidx.lifecycle.observe
+
+fun <T> LifecycleOwner.observeNotNull(
+    liveData: LiveData<T>,
+    lifecycleOwner: LifecycleOwner = if (this is Fragment) this.viewLifecycleOwner else this,
+    func: (T) -> Unit
+): Observer<T> = liveData.observe(lifecycleOwner) { it?.let(func) }
+```
+
+This error raised after [latest commit](https://github.com/ganadist/VersionCodeDemo/commit/ea16c0c)  of [kt140rc branch](https://github.com/ganadist/VersionCodeDemo/commits/kt140rc)

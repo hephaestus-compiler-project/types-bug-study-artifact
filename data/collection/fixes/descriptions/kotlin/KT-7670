@@ -1,0 +1,35 @@
+The following code leads to runtime exception `java.lang.ClassFormatError: Illegal field modifiers in class org/jetbrains/bio/util/hypothesis/MethylatedDiffPredicate: 0x52`
+```
+public class MethylatedDiffPredicate(val methylomeQuery1: MethylomeQuery,
+                                     val name1: String,
+                                     val methylomeQuery2: MethylomeQuery,
+                                     val name2: String) : Predicate<Location> {
+    public val FDR_ALPHA: Double = 1e-4
+
+    // TODO[oleg] support more strategies
+    private val diffStrategy: MaxVoteChangedUnchanged = MaxVoteChangedUnchanged(FDR_ALPHA)
+
+    volatile public val data: ModelData by Delegates.lazy {
+        try {
+            return@lazy diffStrategy.prepareSample(methylomeQuery1.getGenomeQuery(),
+                    array(name1, name2), array(methylomeQuery1, methylomeQuery2))
+        } catch (e: Exception) {
+            Logs.error("Failed to prepare sample", e)
+            throw RuntimeException("Failed to prepare sample", e)
+        }
+    }
+
+    override fun test(location: Location): Boolean {
+        val changedAlternative = LongAdder()
+        val unchangedAlternative = LongAdder()
+        diffStrategy.test(location, 0, data, changedAlternative, unchangedAlternative)
+        return changedAlternative.longValue() > unchangedAlternative.longValue()
+    }
+
+    override fun getName(): String = "meth_$name1<>$name2"
+
+    override fun negate(): Predicate<Location> = Predicate.undefinedPredicate<Location>()
+
+}
+```
+Once I remove `volatile` everything is OK.

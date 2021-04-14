@@ -1,0 +1,23 @@
+javac doesn't respect the @SuppressWarnings("deprecation") on the enclosing class when it is processing the default clause of the annotation method declaration, i.e.
+
+@Deprecated
+enum Foo {
+    Bar
+}
+
+@interface Baz {
+    @SuppressWarnings("deprecation") 
+    Foo foo() default Foo.Bar;
+}
+
+
+javac -Xlint:deprecation Repro.java 
+
+produces
+
+Repro.java:9: warning: [deprecation] Foo in unnamed package has been deprecated
+    Foo foo() default Foo.Bar;
+                      ^
+1 warning
+
+which seems to contradict the @Deprecated section of JLS

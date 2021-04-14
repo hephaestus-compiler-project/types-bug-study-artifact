@@ -1,0 +1,345 @@
+The following value class crashes the compiler:
+
+```scala
+case class Foo(value: Unit) extends AnyVal {
+  def foo(i: Int)(s: String): Unit = foo(i, s)
+  private def foo(i: Int, a: Any): Unit = ()
+}
+```
+
+This affects both 2.11.7 (and nightly builds of 2.11.8) and 2.12.0-M3 (and nightly builds of 2.12.0), though the error is different (AssertionError vs. AnalyzerException).
+
+Here are the REPL outputs:
+
+**2.11.8-cc6fea6-nightly**
+```
+Welcome to Scala 2.11.8-cc6fea6-nightly (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_60).
+Type in expressions for evaluation. Or try :help.
+
+scala> :paste
+// Entering paste mode (ctrl-D to finish)
+
+case class Foo(value: Unit) extends AnyVal {
+  def foo(i: Int)(s: String): Unit = foo(i, s)
+  private def foo(i: Int, a: Any): Unit = ()
+}
+
+// Exiting paste mode, now interpreting.
+
+java.lang.AssertionError: assertion failed: 
+  no extension method found for:
+
+  method foo:(i: Int, a: Any)Unit
+
+ Candidates:
+
+ 
+
+ Candidates (signatures normalized):
+
+ 
+
+ Eligible Names: $line3$$read$$iw$$iw$Foo$$foo$extension" 
+     while compiling: <console>
+        during phase: globalPhase=erasure, enteringPhase=refchecks
+     library version: version 2.11.8-cc6fea6-nightly
+    compiler version: version 2.11.8-cc6fea6-nightly
+  reconstructed args: 
+
+  last tree to typer: TypeTree(class Some)
+       tree position: line 11 of <console>
+            tree tpe: Some
+              symbol: (final case) class Some in package scala
+   symbol definition: final case class Some[+A] extends Option[A] with Product with Serializable (a ClassSymbol)
+      symbol package: scala
+       symbol owners: class Some
+           call site: method foo$extension0 in object Foo in package $line3
+
+<Cannot read source file>
+	at scala.tools.nsc.transform.ExtensionMethods$$anonfun$extensionMethod$1.apply(ExtensionMethods.scala:73)
+	at scala.tools.nsc.transform.ExtensionMethods$$anonfun$extensionMethod$1.apply(ExtensionMethods.scala:69)
+	at scala.reflect.internal.SymbolTable.enteringPhase(SymbolTable.scala:235)
+	at scala.tools.nsc.transform.ExtensionMethods.extensionMethod(ExtensionMethods.scala:69)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.preEraseNormalApply(Erasure.scala:944)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.preEraseApply(Erasure.scala:1050)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.preErase(Erasure.scala:1060)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:1140)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:872)
+	at scala.reflect.internal.Trees$$anonfun$itransform$2.apply(Trees.scala:1363)
+	at scala.reflect.internal.Trees$$anonfun$itransform$2.apply(Trees.scala:1361)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:25)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:17)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1360)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:1148)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:872)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2589)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2587)
+	at scala.collection.immutable.List.loop$1(List.scala:173)
+	at scala.collection.immutable.List.mapConserve(List.scala:189)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2587)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1404)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:40)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:40)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:40)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:40)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:1151)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:872)
+	at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2563)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1408)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1407)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:25)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:17)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1406)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:1151)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:872)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2589)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2587)
+	at scala.collection.immutable.List.loop$1(List.scala:173)
+	at scala.collection.immutable.List.mapConserve(List.scala:189)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2587)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1404)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:40)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:40)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:40)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:40)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:1151)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:872)
+	at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2563)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1408)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1407)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:25)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:17)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1406)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:1151)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:872)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2589)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2587)
+	at scala.collection.immutable.List.loop$1(List.scala:173)
+	at scala.collection.immutable.List.mapConserve(List.scala:189)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2587)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1404)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:40)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:40)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:40)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:40)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:1151)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:872)
+	at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2563)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1408)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1407)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:25)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:17)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1406)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:1151)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:872)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2589)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2587)
+	at scala.collection.immutable.List.loop$1(List.scala:173)
+	at scala.collection.immutable.List.mapConserve(List.scala:189)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2587)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1404)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:40)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:40)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:40)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:40)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:1151)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:872)
+	at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2563)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1408)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1407)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:25)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:17)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1406)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:1151)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:872)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2589)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2587)
+	at scala.collection.immutable.List.loop$1(List.scala:173)
+	at scala.collection.immutable.List.mapConserve(List.scala:189)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2587)
+	at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1426)
+	at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1426)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:25)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:17)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1425)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:40)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$2.apply(TypingTransformers.scala:42)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$2.apply(TypingTransformers.scala:42)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:42)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:1151)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer.transform(Erasure.scala:1161)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer.transform(Erasure.scala:745)
+	at scala.tools.nsc.ast.Trees$Transformer.transformUnit(Trees.scala:147)
+	at scala.tools.nsc.transform.Transform$Phase.apply(Transform.scala:30)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$applyPhase$1.apply$mcV$sp(Global.scala:440)
+	at scala.tools.nsc.Global$GlobalPhase.withCurrentUnit(Global.scala:431)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:440)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:398)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:398)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:854)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1297)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:398)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1501)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1486)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1481)
+	at scala.tools.nsc.interpreter.IMain.compileSourcesKeepingRun(IMain.scala:435)
+	at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compileAndSaveRun(IMain.scala:855)
+	at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compile(IMain.scala:813)
+	at scala.tools.nsc.interpreter.IMain$Request.compile$lzycompute(IMain.scala:1002)
+	at scala.tools.nsc.interpreter.IMain$Request.compile(IMain.scala:997)
+	at scala.tools.nsc.interpreter.IMain.compile(IMain.scala:579)
+	at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:567)
+	at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:565)
+	at scala.tools.nsc.interpreter.ILoop.interpretCode$1(ILoop.scala:750)
+	at scala.tools.nsc.interpreter.ILoop.pasteCommand(ILoop.scala:764)
+	at scala.tools.nsc.interpreter.ILoop$$anonfun$standardCommands$9.apply(ILoop.scala:208)
+	at scala.tools.nsc.interpreter.ILoop$$anonfun$standardCommands$9.apply(ILoop.scala:208)
+	at scala.tools.nsc.interpreter.LoopCommands$LineCmd.apply(LoopCommands.scala:62)
+	at scala.tools.nsc.interpreter.ILoop.colonCommand(ILoop.scala:688)
+	at scala.tools.nsc.interpreter.ILoop.command(ILoop.scala:679)
+	at scala.tools.nsc.interpreter.ILoop.processLine(ILoop.scala:395)
+	at scala.tools.nsc.interpreter.ILoop.loop(ILoop.scala:415)
+	at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply$mcZ$sp(ILoop.scala:923)
+	at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply(ILoop.scala:909)
+	at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply(ILoop.scala:909)
+	at scala.reflect.internal.util.ScalaClassLoader$.savingContextLoader(ScalaClassLoader.scala:97)
+	at scala.tools.nsc.interpreter.ILoop.process(ILoop.scala:909)
+	at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:74)
+	at scala.tools.nsc.MainGenericRunner.run$1(MainGenericRunner.scala:87)
+	at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:98)
+	at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:103)
+	at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+
+That entry seems to have slain the compiler.  Shall I replay
+your session? I can re-run each line except the last one.
+[y/n]
+```
+
+**2.12.0-333187a-nightly**
+```
+Welcome to Scala 2.12.0-333187a-nightly (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_60).
+Type in expressions for evaluation. Or try :help.
+
+scala> :paste
+// Entering paste mode (ctrl-D to finish)
+
+case class Foo(value: Unit) extends AnyVal {
+  def foo(i: Int)(s: String): Unit = foo(i, s)
+  private def foo(i: Int, a: Any): Unit = ()
+}
+
+// Exiting paste mode, now interpreting.
+
+scala.tools.asm.tree.analysis.AnalyzerException: Error at instruction 42: Cannot pop operand off an empty stack.
+	at scala.tools.asm.tree.analysis.Analyzer.analyze(Analyzer.java:302)
+	at scala.tools.nsc.backend.jvm.analysis.BackendUtils$AsmAnalyzer.<init>(BackendUtils.scala:37)
+	at scala.tools.nsc.backend.jvm.opt.LocalOpt.removeUnreachableCodeImpl(LocalOpt.scala:486)
+	at scala.tools.nsc.backend.jvm.opt.LocalOpt.removalRound$2(LocalOpt.scala:273)
+	at scala.tools.nsc.backend.jvm.opt.LocalOpt.methodOptimizations(LocalOpt.scala:352)
+	at scala.tools.nsc.backend.jvm.opt.LocalOpt.scala$tools$nsc$backend$jvm$opt$LocalOpt$$$anonfun$2(LocalOpt.scala:194)
+	at scala.tools.nsc.backend.jvm.opt.LocalOpt.scala$tools$nsc$backend$jvm$opt$LocalOpt$$$anonfun$2$adapted(LocalOpt.scala:193)
+	at scala.collection.TraversableOnce$class.scala$collection$TraversableOnce$class$$$anonfun$5(TraversableOnce.scala:156)
+	at scala.collection.TraversableOnce$class.scala$collection$TraversableOnce$class$$$anonfun$5$adapted(TraversableOnce.scala:156)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1368)
+	at scala.collection.AbstractIterable.foreach(Iterable.scala:54)
+	at scala.collection.TraversableOnce$class.foldLeft(TraversableOnce.scala:156)
+	at scala.collection.AbstractTraversable.foldLeft(Traversable.scala:104)
+	at scala.tools.nsc.backend.jvm.opt.LocalOpt.methodOptimizations(LocalOpt.scala:193)
+	at scala.tools.nsc.backend.jvm.GenBCode$BCodePhase$Worker2.scala$tools$nsc$backend$jvm$GenBCode$BCodePhase$Worker2$$$anonfun$5(GenBCode.scala:245)
+	at scala.tools.nsc.backend.jvm.GenBCode$BCodePhase$Worker2.localOptimizations(GenBCode.scala:245)
+	at scala.tools.nsc.backend.jvm.GenBCode$BCodePhase$Worker2.run(GenBCode.scala:264)
+	at scala.tools.nsc.backend.jvm.GenBCode$BCodePhase.buildAndSendToDisk(GenBCode.scala:378)
+	at scala.tools.nsc.backend.jvm.GenBCode$BCodePhase.run(GenBCode.scala:344)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1406)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1391)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1386)
+	at scala.tools.nsc.interpreter.IMain.compileSourcesKeepingRun(IMain.scala:430)
+	at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compileAndSaveRun(IMain.scala:850)
+	at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compile(IMain.scala:808)
+	at scala.tools.nsc.interpreter.IMain$Request.compile$lzycompute(IMain.scala:997)
+	at scala.tools.nsc.interpreter.IMain$Request.compile(IMain.scala:992)
+	at scala.tools.nsc.interpreter.IMain.compile(IMain.scala:574)
+	at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:562)
+	at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:560)
+	at scala.tools.nsc.interpreter.ILoop.interpretCode$1(ILoop.scala:747)
+	at scala.tools.nsc.interpreter.ILoop.pasteCommand(ILoop.scala:761)
+	at scala.tools.nsc.interpreter.ILoop.scala$tools$nsc$interpreter$ILoop$$$anonfun$23(ILoop.scala:207)
+	at scala.tools.nsc.interpreter.LoopCommands$LineCmd.apply(LoopCommands.scala:62)
+	at scala.tools.nsc.interpreter.ILoop.colonCommand(ILoop.scala:685)
+	at scala.tools.nsc.interpreter.ILoop.command(ILoop.scala:676)
+	at scala.tools.nsc.interpreter.ILoop.processLine(ILoop.scala:393)
+	at scala.tools.nsc.interpreter.ILoop.loop(ILoop.scala:413)
+	at scala.tools.nsc.interpreter.ILoop.scala$tools$nsc$interpreter$ILoop$$$anonfun$91(ILoop.scala:915)
+	at scala.tools.nsc.interpreter.ILoop.process(ILoop.scala:901)
+	at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:74)
+	at scala.tools.nsc.MainGenericRunner.run$1(MainGenericRunner.scala:87)
+	at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:98)
+	at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:103)
+	at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+Caused by: java.lang.IndexOutOfBoundsException: Cannot pop operand off an empty stack.
+	at scala.tools.asm.tree.analysis.Frame.pop(Frame.java:235)
+	at scala.tools.asm.tree.analysis.Frame.execute(Frame.java:338)
+	at scala.tools.asm.tree.analysis.Analyzer.analyze(Analyzer.java:205)
+	... 44 more
+error: Error while emitting Foo$
+Error at instruction 42: Cannot pop operand off an empty stack.
+
+scala> 
+```

@@ -1,0 +1,16 @@
+(Mutable)List<Int!> == (Mutable)List<???> returns true (that's wrong)
+(Mutable)List<Int> == (Mutable)List<???> returns false
+??? == Int! returns false
+???! == Int! returns false
+
+One of the ways to reproduce:
+The type of 'Collections.emptyList' should be List<Int>.
+{code}
+import java.util.*
+
+fun <T> foo(f: () -> List<T>): T = throw Exception()
+fun test() {
+    val b: Int = foo { Collections.emptyList() } // [TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER] Type inference failed: Not enough information to infer parameter T in fun <T : Any!> emptyList(): (Mutable)List<T!>!
+}
+{code}
+See CallCompleter.updateRecordedTypeForArgument and remove the workaround.

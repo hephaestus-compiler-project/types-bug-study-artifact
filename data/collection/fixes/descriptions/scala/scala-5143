@@ -1,0 +1,28 @@
+Consider this code
+
+{code:title="Test.scala"}
+package test
+trait Abs {
+  type Foo
+  type Bar <: Foo
+  val Bar: BarExtractor
+  abstract class BarExtractor {
+    def unapply(b: Bar): Option[Int]
+  }
+}
+object Test {
+  val abs: Abs = ???
+  import abs._
+  val foo: Foo = ???
+  val Bar(x) = foo
+}
+{code}
+
+Compiling it using latest trunk gives us:
+
+./scalac -unchecked Test.scala 
+Test.scala:16: warning: abstract type test.Test.abs.Bar in type pattern test.Test.abs.Bar is unchecked since it is eliminated by erasure
+  val Bar(x) = foo
+         ^
+
+The warning itself is correct because we are pattern matching using abstract types. Since we need this pattern to implement reflection API we probably go ahead and make pattern matcher to make use of manifests. We've got initial Martin's approval stamp on this.

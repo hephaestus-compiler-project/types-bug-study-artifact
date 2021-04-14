@@ -1,0 +1,30 @@
+The following compiled on 2.13.0-M5, but not on RC1:
+
+```
+object ORSet {
+  def empty[A]: ORSet[A] = ???
+}
+
+final class ORSet[A] {
+  def add(node: Long, element: A): ORSet[A] = ???
+  def add(node: Int, element: A): ORSet[A] = ???
+}
+
+class Test {
+  ORSet.empty.add(42, "A")
+}
+```
+
+Compiler error:
+
+```
+[error] /home/aengelen/dev/scala-2.13-repro/src/main/scala/ORSet.scala:11:23: type mismatch;
+[error]  found   : String("A")
+[error]  required: A(in method empty)
+[error]   ORSet.empty.add(42, "A")
+[error]                       ^
+[error] one error found
+[error] (Compile / compileIncremental) Compilation failed
+```
+
+Adding an explicit `ORSet.empty[String]`, but that gets quite painful in similar situations (e.g. `ORMap.empty.put(node2, "c", ORSet.empty.add(node2, "C"))` became `ORMap.empty[String, ORSet[String]].put(node2, "c", ORSet.empty[String].add(node2, "C"))`)

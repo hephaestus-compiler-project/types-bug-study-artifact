@@ -1,0 +1,51 @@
+Reported here:
+http://mail.openjdk.java.net/pipermail/compiler-dev/2018-November/012638.html
+
+Source code:
+---
+
+public class Java12Test {
+  public static void main(String[] args) {
+    System.out.println(switch(0) {
+      default -> {
+        try { throw new Exception(); }
+        catch(Exception ex) {
+          break 1;
+        }
+      }
+    });
+  }
+}
+---
+
+When run, this crashes:
+---
+Error: Unable to initialize main class Java12Test
+Caused by: java.lang.VerifyError: Stack map does not match the one at
+exception handler 24
+Exception Details:
+  Location:
+    Java12Test.main([Ljava/lang/String;)V @16: new
+  Reason:
+    Current frame's stack size doesn't match stackmap.
+  Current Frame:
+    bci: @16
+    flags: { }
+    locals: { '[Ljava/lang/String;' }
+    stack: { 'java/lang/Exception' }
+  Stackmap Frame:
+    bci: @24
+    flags: { }
+    locals: { '[Ljava/lang/String;' }
+    stack: { 'java/io/PrintStream', 'java/lang/Exception' }
+  Bytecode:
+    0000000: b200 0203 ab00 0000 0000 000c 0000 0000
+    0000010: bb00 0359 b700 04bf 4d04 3ca7 0003 1bb6
+    0000020: 0005 b1
+  Exception Handler Table:
+    bci [16, 24] => handler: 24
+  Stackmap Table:
+    same_locals_1_stack_item_frame(@16,Object[#15])
+    full_frame(@24,{Object[#16]},{Object[#15],Object[#3]})
+    full_frame(@30,{Object[#16],Integer},{Object[#15]})
+---

@@ -1,0 +1,68 @@
+Compiling the following file results in an AssertionError using the latest nightly build (also tested in 0.2.0-RC1 and 0.1.2-RC1):
+```scala
+object Main {
+  Map(
+    "a" -> Unknown(),
+    "b" -> Unknown()
+  )
+}
+```
+The stack trace is as follows:
+```
+exception occurred while compiling /home/von/bb/dotty-test/src/main/scala/main.scala
+java.lang.AssertionError: assertion failed
+        at scala.Predef$.assert(Predef.scala:156)
+        at dotty.tools.dotc.core.ConstraintHandling.approximation(ConstraintHandling.scala:232)
+        at dotty.tools.dotc.core.ConstraintHandling.instanceType(ConstraintHandling.scala:266)
+        at dotty.tools.dotc.core.Types$TypeVar.instantiate(Types.scala:3215)
+        at dotty.tools.dotc.typer.Inferencing$.op$78$$anonfun$4(Inferencing.scala:264)
+        at scala.collection.mutable.ResizableArray$class.foreach(ResizableArray.scala:59)
+        at scala.collection.mutable.ArrayBuffer.foreach(ArrayBuffer.scala:48)
+        at dotty.tools.dotc.typer.Inferencing$.op$78(Inferencing.scala:265)
+        at dotty.tools.dotc.typer.Inferencing$.interpolate$2(Inferencing.scala:221)
+        at dotty.tools.dotc.typer.Inferencing$.interpolateUndetVars(Inferencing.scala:267)
+        at dotty.tools.dotc.typer.Typer.op$125(Typer.scala:1830)
+        at dotty.tools.dotc.typer.Typer.op$124(Typer.scala:1829)
+        at dotty.tools.dotc.typer.Typer.adapt(Typer.scala:1828)
+        at dotty.tools.dotc.typer.Typer.op$122(Typer.scala:1680)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1678)
+        at dotty.tools.dotc.typer.Typer.traverse$4(Typer.scala:1702)
+        at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1725)
+        at dotty.tools.dotc.typer.Typer.op$120(Typer.scala:1508)
+        at dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:1495)
+        at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1648)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1665)
+        at dotty.tools.dotc.typer.Typer.op$122(Typer.scala:1680)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1678)
+        at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:1737)
+        at dotty.tools.dotc.typer.FrontEnd.typeCheck$$anonfun$1(FrontEnd.scala:64)
+        at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+        at dotty.tools.dotc.typer.FrontEnd.monitor(FrontEnd.scala:32)
+        at dotty.tools.dotc.typer.FrontEnd.typeCheck(FrontEnd.scala:68)
+        at dotty.tools.dotc.typer.FrontEnd.runOn$$anonfun$5(FrontEnd.scala:93)
+        at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+        at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+        at scala.collection.immutable.List.foreach(List.scala:392)
+        at dotty.tools.dotc.typer.FrontEnd.runOn(FrontEnd.scala:93)
+        at dotty.tools.dotc.Run.compileUnits$$anonfun$1$$anonfun$1(Run.scala:82)
+        at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+        at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+        at scala.collection.IndexedSeqOptimized$class.foreach(IndexedSeqOptimized.scala:33)
+        at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:186)
+        at dotty.tools.dotc.Run.compileUnits$$anonfun$1(Run.scala:90)
+        at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+        at dotty.tools.dotc.util.Stats$.monitorHeartBeat(Stats.scala:76)
+        at dotty.tools.dotc.Run.compileUnits(Run.scala:95)
+        at dotty.tools.dotc.Run.compileSources(Run.scala:64)
+        at dotty.tools.dotc.Run.compile(Run.scala:48)
+        at dotty.tools.dotc.Driver.doCompile(Driver.scala:26)
+        at dotty.tools.dotc.Driver.process(Driver.scala:124)
+...
+```
+A minimal reproduction is also available in the `assertion-error` branch of [vlthr/dotty-test](https://github.com/vlthr/dotty-test/tree/assertion-error).
+
+The error disappears when:
+- The Map constructor call is placed on the right hand side of a val or def.
+- A case class or object (with an associated apply method) named Unknown is defined. 
+
+Creating just an `object Unknown` without an apply method results in a compile error: `object Unknown does not take parameters` but that is still followed by the same AssertionError.

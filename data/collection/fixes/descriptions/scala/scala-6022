@@ -1,0 +1,49 @@
+```scala
+(null: Any) match {
+  case x: AnyRef if false =>
+  case list: Option[Int] =>
+  case product: Product => // change Product to String and it's all good
+}
+```
+
+due to the way the subtyping relations are rendered as boolean propositions, we get a contradiction, and the error shows up in an unexpected case:
+
+```scala
+[adriaan@lampmac13 scala (topic/virtpatmat-dev)]$ qs -Ypatmat-debug
+Welcome to Scala version 2.10.0-20120705-095737-584eeecd82 (Java HotSpot(TM) 64-Bit Server VM, Java 1.6.0_33).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> (null: Any) match {
+     |   case x: AnyRef if false => // has to be AnyRef
+     |   case list: Option[Int] => // has to be a product-derived class
+     |   case product: Product => // apparently Product is not a subtype of AnyRef (or AnyVal)
+     | }
+
+<snip>
+
+NOT excludes: (Product,Option[_])
+excludes    : (Product,Product,AnyRef,AnyRef,false,false,false,false)
+excludes    : (Product,Product,null,Null(null),false,false,true,true)
+
+eq axioms for: Product
+excluded: List(V1=AnyRef#2, V1=null#1)
+implied: List()
+NOT excludes: (Option[_],Product)
+NOT excludes: (Option[_],AnyRef)
+excludes    : (Option[_],Option[_],null,Null(null),false,false,true,true)
+
+eq axioms for: Option[_]
+excluded: List(V1=null#1)
+implied: List(V1=Product#4, V1=AnyRef#2)
+NOT excludes: (AnyRef,Option[_])
+excludes    : (AnyRef,AnyRef,null,Null(null),false,false,true,true)
+
+eq axioms for: AnyRef
+excluded: List(V1=null#1)
+implied: List()
+
+eq axioms for: null
+excluded: List()
+implied: List()
+```

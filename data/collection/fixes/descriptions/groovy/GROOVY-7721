@@ -1,0 +1,40 @@
+Create classes.java:
+{code}
+interface I {
+    R[] method();
+}
+
+interface I2 extends I {
+    R2[] method();
+}
+
+interface R {}
+interface R2 extends R {}
+{code}
+
+compile it with JDK 8 javac.
+
+Then create usage.groovy:
+
+{code}import groovy.transform.CompileStatic
+
+@CompileStatic
+class Gr {
+    R2[] x(I2 i) {
+       return i.method();
+    }
+}
+{code}
+
+Compile it with groovyc (also run with Java8) with the classes from previous compilation in the classpath. Compilation fails:
+
+{code}
+usage.groovy: 6: [Static type checking] - Reference to method is ambiguous. Cannot choose between [R2[] I2#method(), R[] I2#method()]
+ @ line 6, column 15.
+          return i.method();
+                 ^
+
+1 error
+{code}
+
+Originally reported as https://youtrack.jetbrains.com/issue/IDEA-148973

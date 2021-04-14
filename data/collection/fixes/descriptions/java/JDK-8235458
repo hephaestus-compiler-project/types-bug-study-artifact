@@ -1,0 +1,45 @@
+The presence of imports in a module-info causes issues for annotation processing.
+
+For full details, see the original email here:
+https://mail.openjdk.java.net/pipermail/compiler-dev/2019-December/014009.html
+
+Extract from email follows:
+
+> The second issue occurs when you want to use imports in a module-info.java
+> file, if you do so the file is simply ignored during annotation processing.
+> This issue also exists on all versions since JDK 9. Let's say we have the
+> following module descriptor:
+>
+>      import com.example.SampleAnnotation;
+>
+>      @SampleAnnotation
+>      module sampleModule {
+>
+>      }
+>
+> and a properly configured annotation processor to process the
+> @com.example.SampleAnnotation, the compiler simply doesn't take the module
+> into account when processing annotation.
+>
+> I've been able to track down the issue in
+> com.sun.tools.javac.processing.JavacProcessingEnvironment#getModuleInfoFiles()
+>
+>      private List<ModuleSymbol> getModuleInfoFiles(List<? extends
+> JCCompilationUnit> units) {
+>          List<ModuleSymbol> modules = List.nil();
+>          for (JCCompilationUnit unit : units) {
+>              if (isModuleInfo(unit.sourcefile, JavaFileObject.Kind.SOURCE) &&
+>                  unit.defs.nonEmpty() &&
+>                  unit.defs.head.hasTag(Tag.MODULEDEF)) {
+>                  modules = modules.prepend(unit.modle);
+>              }
+>          }
+>          return modules.reverse();
+>      }
+>
+> Here it is assumed that the first unit in a module descriptor has to be a
+> module statement however according to the java language specification, a
+> module descriptor can have import statements before (and this actually
+> compiles just fine) as a result the module is not added to the list of
+> modules candidates for annotation processing.
+>

@@ -1,0 +1,46 @@
+It seems that guarded match expressions are not tested for completeness at compile time. Or, more accurately, it seems that guarded case statements are optimistically considered complete. For example, the following code will compile without "warning: match is not exhaustive!", even though calling it with a value of 1 will result in a MatchError.
+
+```
+def foo(x: Option[Int]): Int = x match {
+  case Some(n) if n % 2 == 0 => n
+  case None => 0
+}
+```
+
+The equivalent code in Ocaml does print a non-exhaustive match warning at compile time. 
+
+```
+let foo(x) = 
+  match x with
+  | Some n when n mod 2 = 0 -> n
+  | None -> 0;;
+
+
+Warning 8: this pattern-matching is not exhaustive.
+Here is an example of a value that is not matched:
+Some _
+(However, some guarded clause may match this value.)
+val foo : int option -> int = <fun>
+```
+
+Obviously the compiler can't decide whether or not arbitrary combinations of guards are complete, but I was surprised didn't treat guards pessimistically like Ocaml does. This actually bit us in production code, when a method like this:
+
+```
+def foo(x: Option[Int]): Int = x match {
+  case Some(n) if n % 2 == 0 => n
+  case _ => 0
+}
+```
+
+was refactored to look like this:
+
+```
+def foo(x: Option[Int]): Int = x match {
+  case Some(n) if n % 2 == 0 => n
+  case None => 0
+}
+```
+
+which resulted in runtime MatchErrors.
+
+I understand that adding a warning that treats guarded match statements pessimistically could be annoying in cases when the combined guards actually are safe, but in these instances the warning could easily be dismissed with an annotation or a noop unguarded match. Why don't we give Scala users the option for added safety?

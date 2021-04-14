@@ -1,0 +1,24 @@
+The spec:
+```
+  SimpleType        ::=  SimpleType TypeArgs
+                      |  SimpleType ‘#’ id
+                      |  StableId
+                      |  Path ‘.’ ‘type’
+                      |  ‘(’ Types ‘)’
+```
+
+The [doc comment](https://github.com/scala/scala/blob/v2.12.4/src/compiler/scala/tools/nsc/ast/parser/Parsers.scala#L1013-L1020) in `Parsers` repeats that, but adds `WildcardType` as a production.
+
+Therefore, this is accepted:
+```scala
+scala> tq"L[_ <: _ >: _ <: _ >: Int]"
+res0: $r.intp.global.ExistentialTypeTree =
+L[_$2] forSome {
+  <synthetic> type _$1 >: Int;
+  <synthetic> type _$3 <: _$1;
+  <synthetic> type _$4 >: _$3;
+  <synthetic> type _$2 <: _$4
+}
+```
+
+If for some reason that tree is at all useful and the spec is overly limiting, the bug becomes that that `ExistentialTypeTree` doesn't pass position validation.

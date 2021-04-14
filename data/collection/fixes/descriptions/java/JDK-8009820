@@ -1,0 +1,38 @@
+SYNOPSIS
+--------
+AssertionError when compiling java code with two identical static imports
+
+OPERATING SYSTEMS
+-----------------
+All
+
+FULL JDK VERSION
+----------------
+JDK 8-b66 onwards, including JDK 8-b80
+
+PROBLEM DESCRIPTION
+-------------------
+Under certain circumstances javac will fail with an AssertionError if a file contains two identical static import statements. The specific imports do not seem to matter, but the pattern in which they are referenced in the code is important. The testcase is just an example and doesn't represent real application code. The APIs used in the testcase can be substituted for others, so long as the usage pattern remains the same.
+
+While it doesn't make much sense to have two identical import statements, the fact remains that this code compiled prior to b66, but now it fails. Moreover, if this code is not supposed to compile, it should result in a proper descriptive javac Error rather than an AssertionError.
+ 
+TESTCASE :
+----------
+// Commenting out one of these import statements avoids the problem
+import static java.lang.Thread.*;
+import static java.lang.Thread.*;
+
+public class ImportStaticTest {
+    public void test() {
+        Object o = new Object();
+        holdsLock(o.getClass());
+    }
+}
+
+REPRODUCTION INSTRUCTIONS
+-------------------------
+Compile the testcase with javac.
+
+WORKAROUND
+----------
+The problem can be avoided by removing once of the import statements. 

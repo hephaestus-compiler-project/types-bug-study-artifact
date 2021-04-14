@@ -1,0 +1,21 @@
+```scala
+import scala.language.higherKinds
+
+trait TypePreservingFn[T[X <: T[X]]]
+
+trait Validator[T, This <: Validator[T,This]]
+
+trait Foo[T] {
+
+  type `Validator[T]`[This <: Validator[T, This]] = Validator[T, This]
+
+  val f: TypePreservingFn[`Validator[T]`] = ???  // compiles
+
+}
+
+class Bar[T] extends Foo[T] {
+
+  val g: TypePreservingFn[`Validator[T]`] = ???  // does not compile
+
+}
+```

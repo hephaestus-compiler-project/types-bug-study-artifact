@@ -1,0 +1,30 @@
+The code below was broken after https://github.com/JetBrains/kotlin/commit/23ed6c4a1f1b82b49c4d08743e52bf0f6e02fe83
+
+Examples:
+```
+class Foo<T>(x: T)
+class Bar<S>
+
+fun <K> foo4(x: K?, y: Foo<Bar<out K>>) {}
+
+// before
+foo4(x, <!DEBUG_INFO_EXPRESSION_TYPE("Foo<Bar<out L!!>>")!>Foo(Bar())<!>)
+foo4(y, <!DEBUG_INFO_EXPRESSION_TYPE("Foo<Bar<out L!!>>")!>Foo(Bar())<!>)
+
+// after
+foo4(x, <!DEBUG_INFO_EXPRESSION_TYPE("Foo<Bar<L!!>>"), TYPE_MISMATCH!>Foo(Bar())<!>)
+foo4(y, <!DEBUG_INFO_EXPRESSION_TYPE("Foo<Bar<L!!>>"), TYPE_MISMATCH!>Foo(Bar())<!>)
+
+interface IBar<S>
+interface IFoo<S>
+
+fun <K, S, T: S> foo44(x: K?): T where S: IFoo<String>, S: IBar<K> = materialize()
+
+// before
+<!DEBUG_INFO_EXPRESSION_TYPE("{IBar<L> & IBar<in L> & IFoo<String>}")!>foo44(x)<!>
+
+// after
+<!DEBUG_INFO_EXPRESSION_TYPE("{IBar<L> & IFoo<String>}")!>foo44(x)<!>
+```
+
+See https://github.com/JetBrains/kotlin/commit/125b39d9beeb8071b17aac7741a801054032d8e5 with temporary mute test data.

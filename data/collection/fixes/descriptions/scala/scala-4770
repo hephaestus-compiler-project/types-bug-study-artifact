@@ -1,0 +1,28 @@
+This crashes the compiler.
+
+```scala
+package crasher {
+  class Z[@specialized A, @specialized(AnyRef) B](var a: A, var b: B) { }
+  object O {
+    def apply[@specialized A, @specialized(AnyRef) B](a0: A, b0: B) = 
+      new Z(a0,b0)
+  }
+}
+```
+
+For the crash to occur, you need at least two specialized types, at least one has to be AnyRef, and there have to be at least two specialized types for at least one of the entries.
+
+The compiler complains:
+
+```scala
+error: scala.tools.nsc.symtab.Types$TypeError: type mismatch;
+ found   : B$sp(in method apply$mVTc$sp)
+ required: B$sp(in class Z$mcVT$sp)
+	at scala.tools.nsc.typechecker.Contexts$Context.error(Contexts.scala:291)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.error(Infer.scala:205)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.typeError(Infer.scala:215)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.typeErrorTree(Infer.scala:230)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:929)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4219)
+        ...
+```

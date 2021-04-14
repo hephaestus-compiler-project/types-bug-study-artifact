@@ -1,0 +1,49 @@
+I am writing to point out an anomaly in the Java compiler (JDK 7u3).
+Here is the code (it is a slightly revisited example taken from the book
+"Java Generics and Collections" by Naftalin and Wadler).
+
+public class Test {
+
+    public static <S extends AutoCloseable & Readable,
+                       T extends AutoCloseable & Appendable>
+                       void copy(S s, T t, int size) throws Exception {
+        try (S src = s; T trg = t) {
+            CharBuffer buf = CharBuffer.allocate(size);
+            int i = src.read(buf);
+            while (i >= 0) {
+                buf.flip(); // prepare buffer for writing
+                trg.append(buf);
+                buf.clear(); // prepare buffer for reading
+                i = src.read(buf);
+            }
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        int size = 32;
+        FileReader r = new FileReader(args[0]);
+        FileWriter w = new FileWriter(args[1]);
+        copy(r, w, size);
+        BufferedReader br = new BufferedReader(new FileReader(args[0]));
+        BufferedWriter bw = new BufferedWriter(new FileWriter(args[1]));
+        copy(br, bw, size);
+    }
+
+}
+
+
+Problem:
+as it is, the program compiles and executes correctly, but if the bounds
+AutoCloseable and Readable are swapped (same problem with Appendable),
+then the compiler issues the following error:
+
+ /home/davide/Didattica/MGP/11-12/javaCode/lect07/src/Test.java:8: error: cannot find symbol
+        try (S src = s; T trg = t) {
+        ^
+  symbol:   method close()
+  location: interface Readable
+Fatal Error: Unable to find method close
+
+I guess it has to do with the fact that the lhs bounds are used for erasure
+and with the translation of the try-with construct, however the behavior is
+anomalous.

@@ -1,0 +1,68 @@
+Code:
+import java.lang.reflect.*;
+import java.lang.annotation.*;
+
+@Target({ElementType.TYPE_PARAMETER, ElementType.METHOD})
+@Repeatable(TC.class)
+@interface T { int value(); }
+
+@Target(ElementType.METHOD)
+@interface TC { T[] value(); }
+
+public class RepAnno {
+
+    public class C<@T(1) @T(2) N> {}
+
+}
+
+Could be compiled without any errors. Note, that TC (container annotation) has target = METHOD.
+
+JLS declares (9.7.5. Multiple Annotations of the Same Type):
+"If a declaration context or type context has multiple annotations of a repeatable annotation type T, then it is as if the context has no explicitly declared annotations of type T and one implicitly declared annotation of the containing annotation type of T."
+
+Let's check it with reflection API and extend the code:
+
+import java.lang.reflect.*;
+import java.lang.annotation.*;
+
+@Target({ElementType.TYPE_PARAMETER, ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+@Repeatable(TC.class)
+@interface T { int value(); }
+
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+@interface TC { T[] value(); }
+
+public class RepAnno {
+
+    public class C1<@T(1) N> {}
+    public class C2<@T(1) @T(2) N> {}
+
+    public static void main(String[] args) {
+
+        Class<RepAnno> cl = RepAnno.class;
+        Class<?>[] cs = cl.getDeclaredClasses();
+
+        for (Class<?> c : cs) {
+            System.out.println("Class: " + c);
+            TypeVariable<?>[] tvs = c.getTypeParameters();
+            for (TypeVariable<?> tv : tvs) {
+                System.out.println("    T: " + tv.isAnnotationPresent(T.class));
+                System.out.println("    TC: " + tv.isAnnotationPresent(TC.class));
+            }
+        }
+    }
+}
+
+It's output is:
+
+$ java RepAnno
+Class: class RepAnno$C2
+    T: false
+    TC: true
+Class: class RepAnno$C1
+    T: true
+    TC: false
+
+I.e. TC is applied to type parameter of class C2, although TC target (METHOD) should not be applicable to type parameter. Should be an error instead.

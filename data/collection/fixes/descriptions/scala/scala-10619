@@ -1,0 +1,44 @@
+With 2.12.3, and any other published version of Scala (incl. 2.11.12 and 2.13.0-M2):
+```scala
+$ ~/opt/scala-2.12.3/bin/scala
+Welcome to Scala 2.12.3 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_40).
+Type in expressions for evaluation. Or try :help.
+
+scala> class Outer { class Inner }
+defined class Outer
+
+scala> def newOuter = new Outer
+newOuter: Outer
+
+scala> identity[newOuter.Inner] _
+<console>:13: error: stable identifier required, but newOuter found.
+       identity[newOuter.Inner] _
+                ^
+
+scala> val x: newOuter.Inner = ???
+<console>:12: error: stable identifier required, but newOuter found.
+       val x: newOuter.Inner = ???
+```
+which is the correct behavior.
+
+With 2.12.4:
+```scala
+$ ~/opt/scala-2.12.4/bin/scala
+Welcome to Scala 2.12.4 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_40).
+Type in expressions for evaluation. Or try :help.
+
+scala> class Outer { class Inner }
+defined class Outer
+
+scala> def newOuter = new Outer
+newOuter: Outer
+
+scala> identity[newOuter.Inner] _
+res0: Outer#Inner => Outer#Inner = $$Lambda$1060/2027587999@e7b265e
+
+scala> val x: newOuter.Inner = ???
+scala.NotImplementedError: an implementation is missing
+  at scala.Predef$.$qmark$qmark$qmark(Predef.scala:284)
+  ... 29 elided
+```
+which is bogus.

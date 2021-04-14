@@ -1,0 +1,57 @@
+Carved out of #4375. The following code compiles, while I expect all the errors described—they're necessary if we want to _ensure_ people can't write existentials (and otherwise, not sure what the current check is for). Such an error is useful for people who might not realize their types mean something else now.
+
+The check for unreducibility seems simply incomplete:
+```scala
+object App {
+  type Id[A] >: A <: A
+  def v1: Id[_] = ??? // should give error
+
+  type HkL[A] >: A
+  def v2: HkL[_] = ??? // should give error
+
+  type HkU[A] <: A
+  def v3: HkU[_] = ???  // should give error
+
+  type HkAbs[A]
+  def v4: HkAbs[_] = ??? // should give error
+}
+```
+
+contrast with
+```scala
+scala> def v: _ = ???
+1 |def v: _ = ???
+  |       ^
+  |       Unbound wildcard type
+```
+
+To demonstrate this is a problem, let's use a trait instead:
+
+```scala
+trait Foo {
+  type HkP[A] >: (A, A) <: (A, A)
+  def v1: HkP[_] = ??? // should give error
+
+  type HkL[A] >: (A, A)
+  def v2: HkL[_] = ??? // should give error
+
+  type HkU[A] <: (A, A)
+  def v3: HkU[_] = ???  // should give error
+
+  type HkAbs[A]
+  def v4: HkAbs[_] = ??? // should give error
+}
+object Bar extends Foo {
+  type HkP[A] = (A, A)
+  type HkL[A] = (A, A)
+  type HkU[A] = (A, A)
+  type HkAbs[A] = (A, A)
+}
+```
+
+Then at least the types are approximates without crashes (here):
+
+```scala
+scala> def foo = Bar.v1
+def foo: (_, _)
+```

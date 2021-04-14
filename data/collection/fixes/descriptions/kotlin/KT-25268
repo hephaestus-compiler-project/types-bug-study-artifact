@@ -1,0 +1,64 @@
+In some combinations with numeric types, a least upper bound of the types does not infer correctly (**inferred as Any**).
+
+The problem occurs only if the result is written to a constant/variable (and then returned):
+```
+fun case_1(value: Int): Number {
+    val whenValue = when (value) {
+        1 -> 1
+        else -> 0.123
+    }
+
+    return whenValue
+}
+```
+Compiler output:
+> type mismatch: inferred type is Any but Number was expected
+
+But it's OK:
+```
+fun case_1(value: Int): Number = when (value) {
+    1 -> 1
+    else -> 0.123
+}
+```
+
+Also with Int+Short and Int+Long it's OK:
+```
+fun case_1(value: Int): Number {
+    val whenValue = when (value) {
+        1 -> 1
+        else -> 10.toShort()
+    }
+
+    return whenValue
+}
+```
+
+But with Int+Short+Long isn't OK:
+```
+fun case_1(value: Int): Number {
+    val whenValue = when (value) {
+        1 -> 1L
+        2 -> 10
+        else -> 10.toShort()
+    }
+
+    return whenValue
+}
+```
+
+Float+Double isn't OK:
+```
+fun case_1(value: Int): Number {
+    val whenValue = when (value) {
+        1 -> .0001
+        2 -> .0001f
+    }
+
+    return whenValue
+}
+```
+
+Etc.
+
+**Here is an example for Number, but perhaps this problem actual not only for Number.**

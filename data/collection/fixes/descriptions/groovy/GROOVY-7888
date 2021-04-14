@@ -1,0 +1,36 @@
+Given the Java class
+{code}
+public class ContainsSet extends GroovyObjectSupport {
+    private Set<File> files = new HashSet<File>();
+
+    public Set<File> getFiles() {
+        return files;
+    }
+
+    public void setFiles(Set<File> files) {
+        this.files = files;
+    }
+}
+{code}
+
+the following Groovy code will not type check:
+{code}
+@TypeChecked
+private Set<File> modifyIdeaModel() {
+    set.files += new File('foo')
+}
+{code}
+
+The failure is: 
+{code}
+Error: Groovyc: [Static type checking] - Cannot assign value of type java.io.File to variable of type java.util.Set <java.io.File>
+{code}
+
+Without the {{@TypeChecked}} the code runs with dynamic Groovy.
+
+Using the following Groovy class type checking the code above works.
+{code}
+class ContainsSet {
+    Set<File> files = new HashSet<>()
+}
+{code}

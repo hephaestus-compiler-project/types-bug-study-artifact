@@ -1,0 +1,24 @@
+```scala
+sealed trait Optional[A]
+case class No[+A]() extends Optional[A]
+object Noo extends No[Nothing]
+
+object Test {
+  def coerce[A, B]: A => B = {
+    ((Noo: No[A]): Optional[A]) match {
+      case Noo => (identity: Nothing => B)
+      case _ => ???
+    }
+  }
+
+  def boom: Int = coerce[String, Int]("foo")
+}
+```
+
+`Test.boom` produces
+
+```
+java.lang.ClassCastException: java.lang.String cannot be cast to scala.runtime.Nothing$
+```
+
+Tested with `dotty-0.5.0-RC1`.

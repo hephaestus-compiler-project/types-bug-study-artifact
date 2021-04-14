@@ -1,0 +1,26 @@
+While trying to find an implicit of a value whose type is a dependent constructor, I have seen the following behaviour:
+
+```scala
+scala> trait M[C[_]]
+defined trait M
+
+scala> trait A { type C[_] }
+defined trait A
+
+scala> def f(a: A)(implicit ev: M[a.C]) = implicitly[M[a.C]]
+<console>:10: error: could not find implicit value for parameter e: M[a.C]
+       def f(a: A)(implicit ev: M[a.C]) = implicitly[M[a.C]]
+                                                    ^
+```
+
+When using an alternative M, which declares C[_] as a body type, the code runs smoothly:
+
+```scala
+scala> trait M { type C[_] }
+defined trait M
+
+scala> def f(a: A)(implicit ev: M { type C[X] = a.C[X] }) = implicitly[{ type C[X] = a.C[X] }]
+f: (a: A)(implicit ev: M{type C[X] = a.C[X]})AnyRef{type C[X] = a.C[X]}
+```
+
+It may worth saying that this problem does not appear when no type constructor involved.

@@ -1,0 +1,91 @@
+# Classification
+
+Type of change:
+* New errors are introduced
+
+Motivation types:
+* The implementation does not abide by a published spec or documentation
+* Inconsistency in the design (things are done differently in different contexts)
+
+Impact types:
+* Compilation. Some code that used to compile won't compile any more
+    * There were cases when such code worked with no exceptions
+        * There was a warning reported on all such code
+* Behavior changes
+    * The behavior in question belongs under a previously released specification, contract or official documentation
+        * By the contract, the old behavior is incorrect (thus a fix is needed)
+
+Detection and Migration modes:
+* All code locations affected by this change can be accurately detected statically
+
+# Existing behaviour
+Java:
+```
+public class Test {
+    public static String foo(Runnable r, String... strs) {
+        return null;
+    }
+}
+```
+
+Kotlin:
+```
+fun main() {
+    Test.foo({}, arrayOf()) // there aren't any errors
+}
+```
+
+In Kotlin, if we want to unpack some array into the argument list when called, we have to use the spread operator (see https://kotlinlang.org/spec/expressions.html#spread-operator-expressions). But in certain cases we allowed to pass an array for unpacking into the argument list without using the spread operator (missed the type mismatch error).
+
+The described problem appears only in one class of cases - when there was an argument over which the SAM-conversion is performed, *before* the passed array. This was due to the fact that when performing a SAM-conversion, we transform all the passed arguments. In the case of passing arrays to unpack into an argument list, such a conversion was incorrect.
+
+We didn't have any errors on such code since 1.4.0.
+
+NB: the new type inference has introduced a new SAM-conversion transformations which already work correctly, but in Kotlin 1.4 we changed these transformations in the direction of existing (stable) behavior with added warnings to ensure a proper deprecation cycle.
+
+# Proposed changes
+
+We propose to introduce type mismatch errors in the described cases which are already reported in similar cases (but without using SAM-conversions). This will prevent users from passing arrays directly to parameters declared with vararg modifier, without proper unpacking which is performed by the spread operator.
+
+# Impact
+
+First, this current behavior is inconsistent by the design: on all calls in the described case, errors are reported except for calls where SAM-conversions are used. This exclusion is unfounded and exists by mistake.
+
+Second, due to the lack of proper unpacking of the array, there is a hidden difference in the behavior with the passing of the array through the spread operator: the array without the spread operator is passed directly by reference, without copying. Therefore, all changes to the array on the call site will be reflected in the corresponding value of the parameter declared with the vararg modifier.
+
+Java:
+```
+public class Test {
+    public static String[] values = {};
+
+    public static String assignValues(Runnable r, String... strs) {
+        values = strs;
+        return null;
+    }
+}
+```
+
+Kotlin:
+```
+fun test1() {
+    val values = arrayOf("1", "2")
+    Test.assignValues({}, values)
+    values[0] = "3"
+    println(Test.values[0]) // printed "3"
+}
+
+fun test2() {
+    val values = arrayOf("1", "2")
+    Test.assignValues({}, *values)
+    values[0] = "3"
+    println(Test.values[0]) // printed "1"
+}
+```
+
+It seems to us that this is a rather rare case (on our base of fairly large projects using Koltin, and in particular a mix of Kotlin and Java, such a case has met only once).
+
+Also, if this happens, then almost certainly the user just forgot to add `*` (spread operator), but the passing of an array without the spread operator isn't equivalent to passing with it, as described above, and we want to protect users from this danger in the hidden difference of behavior.
+
+# Migration plan
+1.3.70: report a warning on calls where a user passes arrays directly, without using the spread operator (it's possible only on calls with SAM-conversion as we know)
+1.5.0: report errors instead of the corresponding warnings

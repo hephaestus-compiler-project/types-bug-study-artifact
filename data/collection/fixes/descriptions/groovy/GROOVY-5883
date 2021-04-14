@@ -1,0 +1,21 @@
+{code}
+@CompileStatic
+class Test<T> {
+    def map(Closure<T> mapper) { }
+
+    def failing(Closure<Boolean> predicate) {
+        map { T it -> return predicate(it) ? it : null }
+    }
+    
+    def passing(Closure<Boolean> predicate) {
+        map { T it -> return predicate(it) ? it : (T) null }
+    }
+
+    def failingWithExplicitCast(Closure<Boolean> predicate) {
+        Closure<T> c = { T it -> return predicate(it) ? it : null }
+        map(c)
+    }
+}
+{code}
+
+In the last case, I would expect the compiler to obey the forced cast even at the risk of producing class-cast exception at runtime.

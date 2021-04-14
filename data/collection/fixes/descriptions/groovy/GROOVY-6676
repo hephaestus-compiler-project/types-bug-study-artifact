@@ -1,0 +1,26 @@
+The following code fails with a compile time error ("This should not have happened") because the type inference engine doesn't use the right receiver type.
+
+{code}
+import java.util.concurrent.Callable
+
+interface Foo {
+    public <T> T background(Callable<T> backgroundOperation)
+}
+class FooImpl implements Foo {
+
+    @Override
+    def <T> T background(final Callable<T> backgroundOperation) {
+        backgroundOperation.call()
+    }
+}
+static void test(@DelegatesTo(Foo) Closure cl) {
+    cl.delegate = new FooImpl()
+    cl()
+}
+
+test {
+    background { 'foo' }
+}
+{code}
+
+Test case adapted from the Ratpack sources.

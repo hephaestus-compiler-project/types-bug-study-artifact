@@ -1,0 +1,24 @@
+Following code:
+```
+override val initializer: JSObjectLiteralExpression?
+    get() {
+      val storeCreationCall = this.sourceElement
+      return CachedValuesManager.getCachedValue(storeCreationCall) {
+        readLiteralFromParams(storeCreationCall)
+          ?.let { create(it, storeCreationCall, it) }
+        ?: create(null, storeCreationCall, VFS_STRUCTURE_MODIFICATIONS)
+      }
+    }
+```
+has no errors reported by IDE inspection, however compiler 1.3.70-eap-42 complains that it cannot infer type:
+```
+Error:(75, 34) Kotlin: Type inference failed: Cannot infer type parameter T in fun <T : Any!> getCachedValue(p0: PsiElement, p1: () -> CachedValueProvider.Result<T!>?): T!
+None of the following substitutions
+(PsiElement,() -> CachedValueProvider.Result<JSObjectLiteralExpression!>?)
+(PsiElement,() -> CachedValueProvider.Result<Nothing!>?)
+(PsiElement,() -> CachedValueProvider.Result<JSObjectLiteralExpression?>?)
+can be applied to
+(JSCallExpression,() -> CachedValueProvider.Result<out JSObjectLiteralExpression!>)
+```
+ and `null` has to be explicitly casted to `JSObjectLiteralExpression?`. Additionally, after adding `as`, in the code completion dialog there is one entry which completes to:
+`null as @org.jetbrains.annotations.Nullable JSObjectLiteralExpression`

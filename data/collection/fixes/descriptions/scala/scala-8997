@@ -1,0 +1,31 @@
+This doesn't work:
+```scala
+
+        type SerializableList[T <: Serializable] = List[T]
+
+        scala> case class NetworkDataCC(things: SerializableList[_])
+        <console>:9: error: type arguments [_$1] do not conform to type SerializableList's type parameter bounds [T <: Serializable]
+      
+```
+
+But this works:
+
+```scala
+
+       scala> type SL = SerializableList[_]
+      defined type alias SL
+
+      scala> case class NetworkDataCC(things: SL)
+      defined class NetworkDataCC
+
+```
+
+You can also workaround it using high-order type:
+
+```scala
+ 
+     case class NetworkDataCC[SerializableList[_]](things: SerializableList[_])
+
+```
+
+It's reproducing for case classes only.

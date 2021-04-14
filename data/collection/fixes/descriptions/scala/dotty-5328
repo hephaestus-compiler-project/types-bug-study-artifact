@@ -1,0 +1,18 @@
+@odersky said:
+
+> I believe this was not intended. In my mind, any missing arguments are inferred, and cannot be specified in a subsequent argument list. Otherwise we'll get an ambiguity with polymorphic apply methods. Example:
+
+```
+class C[X, Y] { def apply[Z](x: X, y: Y, z: Z) = (x, y, z) }
+def f[X, Y]: C[X, Y] = new C[X, Y]
+f[Int, Boolean][String](1, true, "") // OK
+f[X = Int](1, true, "") // OK, Y and Z are inferred
+f[X = Int][String](1, true, "") // error: String argument is assumed to specify `Y`, not `Z`:
+1 |f[X = Int][String](1, true, "")
+  |                      ^^^^
+  |                      found:    Boolean(true)
+  |                      required: String
+  |                      
+```
+
+_Originally posted by @odersky in https://github.com/lampepfl/dotty/pull/5326_

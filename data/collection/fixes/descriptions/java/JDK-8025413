@@ -1,0 +1,113 @@
+This changeset, http://hg.openjdk.java.net/jdk8/tl/langtools/rev/09301757bb32,  results in an NPE at at com.sun.tools.javac.code.Type.isCompound(Type.java:390)
+
+Failing test: apt/types/inherited
+
+Compile and run processor below: 
+
+javac InheritedAP.java        
+javac -cp . -processor InheritedAP -proc:only InheritedAP.java      
+
+>>iface's superclass: <none>
+InheritedAP.getTypes().directSupertypes( <none> );
+
+
+An annotation processor threw an uncaught exception.
+Consult the following stack trace for details.
+java.lang.NullPointerException
+        at com.sun.tools.javac.code.Type.isCompound(Type.java:390)
+        at com.sun.tools.javac.code.Types$22.visitType(Types.java:2424)
+        at com.sun.tools.javac.code.Types$22.visitType(Types.java:2421)
+        at com.sun.tools.javac.code.Type.accept(Type.java:169)
+        at com.sun.tools.javac.code.Types$UnaryVisitor.visit(Types.java:4481)
+        at com.sun.tools.javac.code.Types.directSupertypes(Types.java:2418)
+        at com.sun.tools.javac.model.JavacTypes.directSupertypes(JavacTypes.java:119)
+        at SimpleTypeMirrorVisitor.defaultAction(InheritedAP.java:37)
+        at SimpleTypeMirrorVisitor.defaultAction(InheritedAP.java:33)
+        at javax.lang.model.util.SimpleTypeVisitor6.visitNoType(SimpleTypeVisitor6.java:226)
+        at com.sun.tools.javac.code.Type$JCNoType.accept(Type.java:1652)
+        at ElementScanner.scan(InheritedAP.java:57)
+        at InheritedAP.process(InheritedAP.java:26)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.callProcessor(JavacProcessingEnvironment.java:794)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.discoverAndRunProcs(JavacProcessingEnvironment.java:705)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.access$1800(JavacProcessingEnvironment.java:91)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment$Round.run(JavacProcessingEnvironment.java:1035)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.doProcessing(JavacProcessingEnvironment.java:1169)
+        at com.sun.tools.javac.main.JavaCompiler.processAnnotations(JavaCompiler.java:1179)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:865)
+        at com.sun.tools.javac.main.Main.compile(Main.java:523)
+        at com.sun.tools.javac.main.Main.compile(Main.java:381)
+        at com.sun.tools.javac.main.Main.compile(Main.java:370)
+        at com.sun.tools.javac.main.Main.compile(Main.java:361)
+        at com.sun.tools.javac.Main.compile(Main.java:56)
+        at com.sun.tools.javac.Main.main(Main.java:42)
+
+Source: InheritedAP.java
+
+import java.util.*;
+import javax.annotation.processing.*;
+import javax.lang.model.element.*;
+import javax.lang.model.type.*;
+import javax.lang.model.util.*;
+import java.lang.annotation.*;
+import static javax.lang.model.type.TypeKind.*;
+import static javax.lang.model.SourceVersion.*;
+import static javax.lang.model.util.ElementFilter.*;
+
+@SupportedAnnotationTypes("testclass")
+@SupportedSourceVersion(RELEASE_8)
+public class InheritedAP  extends  AbstractProcessor {
+    static Types types;
+    public void init(ProcessingEnvironment penv) {super.init(penv);}
+    public static Types getTypes() { return types; }
+    
+    public boolean process(Set<? extends TypeElement> typeElementSet,RoundEnvironment renv) {
+        if ( renv.errorRaised()) { System.out.println("Error!");    return false;   }
+        if ( typeElementSet.size() <=0  && typesIn(renv.getRootElements()).size() <= 0 )  {
+            return true;
+        }
+        types=processingEnv.getTypeUtils();
+        for (TypeElement typeElem: typesIn(renv.getRootElements())) {
+            if (typeElem.getAnnotation(testclass.class) != null) {
+                new ElementScanner( new SimpleTypeMirrorVisitor()).scan(typeElem, null);
+            }
+        }
+        return true ;
+    }
+}
+
+class SimpleTypeMirrorVisitor extends  SimpleTypeVisitor6 <Void, Void> {
+    protected Void defaultAction(TypeMirror mirror, Void p ) {
+        try {
+            System.out.println( "InheritedAP.getTypes().directSupertypes( "+mirror.toString()+" );" );
+            InheritedAP.getTypes().directSupertypes(mirror);
+            System.out.println("PASS");                  
+        }catch(java.lang.IllegalArgumentException iae) {/*stuff*/ }
+        return p;
+    }
+}
+
+class ElementScanner <T  extends SimpleTypeVisitor6<Void, Void> >
+                    extends ElementScanner6<Void, Void> {
+    SimpleTypeVisitor6<Void, Void>  typeVisitor;
+
+    public ElementScanner(T  typeVisitor) { this.typeVisitor=typeVisitor;}
+
+    @Override 
+    public Void scan(Element e, Void p)  {
+         if (e instanceof TypeElement ) {
+            TypeElement te = (TypeElement) e;
+            System.out.println(">>" + te.toString() + "'s superclass: " +
+                               te.getSuperclass().toString());            
+            te.getSuperclass().accept(typeVisitor,p);
+        }
+        return p;
+    }
+
+}
+
+
+@interface testclass { }
+
+@testclass
+@interface iface { }
+

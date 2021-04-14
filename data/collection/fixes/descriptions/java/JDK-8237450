@@ -1,0 +1,32 @@
+From compiler-dev:
+
+Hi,
+
+I've just ran into this issue while testing annotation processors with JDK13. It happens when you specify a @SupportedAnnotationTypes annotation with annotation names prefixed with composite module names like the following:
+
+@SupportedAnnotationTypes({"com.example.moda/com.example.moda.annotation.SomeAnnotation"})
+public class ModuleAnnotationProcessor extends AbstractProcessor {
+   ...
+}
+
+This is perfectly valid according to the documentation and was working just fine until JDK13
+
+"the name of the annotation type can be optionally preceded by a module name followed by a "/" character. For example, if a processor supports "a.B", this can include multiple annotation types named a.B which reside in different modules. To only support a.B in the Foo module, instead use "Foo/a.B". If a module name is included, only an annotation in that module is matched. In particular, if a module name is given in an environment where modules are not supported, such as an annotation processing environment configured for a source version without modules, then the annotation types with a module name do not match." -- https://docs.oracle.com/en/java/javase/11/docs/api/java.compiler/javax/annotation/processing/Processor.html#getSupportedAnnotationTypes()
+
+I've track down the issue in JavacProcessingEnvironment.java to the following commit: https://hg.openjdk.java.net/jdk/jdk/diff/d84176dd57b0/src/jdk.compiler/share/classes/com/sun/tools/javac/processing/JavacProcessingEnvironment.java
+
+Some checks have been added to make sure supported annotation strings are valid and proper warning reported, unfortunately there's an error in the module's name check:
+
+private static Pattern importStringToPattern(boolean allowModules, String s, Processor p, Log log, boolean lint) {
+    ....
+    else {
+            String moduleName = s.substring(0, slash);
+            if (!SourceVersion.isIdentifier(moduleName)) {
+                return warnAndNoMatches(s, p, log, lint);
+            }
+    ....
+}
+
+A module name is not a simple identifier like "moda", "com.example.moda" is also a valid module name as stated in the Java Language Specification (7.7). This results in always returning a no match pattern when such module name is used and the processor basically ignored.
+
+If we do not prefix the annotation with a module name, so there is a workaround but that doesn't match the API doc.

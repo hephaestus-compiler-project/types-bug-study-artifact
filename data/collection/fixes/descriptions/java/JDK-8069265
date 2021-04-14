@@ -1,0 +1,31 @@
+Originally reported at http://mail.openjdk.java.net/pipermail/compiler-dev/2015-January/009244.html
+
+As of JDK 9b08+ the following program when compiled and run
+produces CCE. Earlier builds produce code that runs cleanly.
+
+// ---- 8< ------
+import java.util.*;
+ 
+public class X {
+    static interface Foo {
+    }
+ 
+    public static void main(String[] args) {
+        List<Date> list = new ArrayList<>();
+        list.add(new Date());
+ 
+        List<Foo> cList = (List<Foo>) (List<?>) list;
+        Date date = (Date) cList.get(0);
+    }
+}
+
+// ---- 8< ------
+
+This new behavior got introduced as a result of the fix for
+https://bugs.openjdk.java.net/browse/JDK-8015499 and
+needs to be investigated.
+
+Prima facie, there is no indication that there is a compiler bug here. The compiler
+is well within its rights to assert what it is asserting which fails due to CCE. But
+we may want to see if we should avoid such gratuitous and inadvertent behavior
+change.

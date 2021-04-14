@@ -1,0 +1,24 @@
+The following program erroneously compiles after JDK-8046685:
+
+import java.util.List;
+
+class Test {
+<A2 extends A, A> A m(List<? super A2> a2) { return null; }
+<B> B g(B b) { return null; }
+
+void test() {
+	List<Integer> I = null;
+	String s = g(m(I));
+}
+}
+
+This used to give the following error:
+
+error: incompatible types: inference variable A2 has incompatible upper bounds String,B,Object,Integer,A
+	String s = g(m(I));
+	            ^
+  where A2,A,B are type-variables:
+    A2 extends A declared in method <A2,A>m(List<? super A2>)
+    A extends Object declared in method <A2,A>m(List<? super A2>)
+    B extends Object declared in method <B>g(B)
+1 error

@@ -1,0 +1,48 @@
+This issue was reported by the parfait team and can be reproduced with the following test case:
+
+public class Test {
+    void m() {
+        try {
+        } finally {
+            System.out.println("dead code");
+        }
+    }
+}
+
+After:
+
+javac Test.java
+
+If we check the generated code:
+
+javap -v -p Test
+
+we have the following code for method m:
+
+void m();
+    descriptor: ()V
+    flags: 
+    Code:
+      stack=2, locals=2, args_size=1
+         0: getstatic     #2                  // Field java/lang/System.out:Ljava/io/PrintStream;
+         3: ldc           #3                  // String dead code
+         5: invokevirtual #4                  // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+         8: goto          22
+        11: astore_1      
+        12: getstatic     #2                  // Field java/lang/System.out:Ljava/io/PrintStream;
+        15: ldc           #3                  // String dead code
+        17: invokevirtual #4                  // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+        20: aload_1       
+        21: athrow        
+        22: return        
+      LineNumberTable:
+        line 5: 0
+        line 6: 8
+        line 5: 11
+        line 7: 22
+      StackMapTable: number_of_entries = 2
+           frame_type = 75 /* same_locals_1_stack_item */
+          stack = [ class java/lang/Throwable ]
+           frame_type = 10 /* same */
+
+The code between PCs 8 - 21 inclusive is dead code.

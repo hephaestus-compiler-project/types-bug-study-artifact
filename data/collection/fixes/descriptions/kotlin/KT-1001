@@ -1,0 +1,139 @@
+{code}
+package xsd_test2
+
+import org.jdom.Element
+import org.jdom.output.XMLOutputter
+import java.util.Arrays
+import java.util.List
+import java.io.FileInputStream
+import org.jdom.input.SAXBuilder
+
+// common staff
+fun readXmlFromFile(filename : String) = SAXBuilder().build(FileInputStream(filename))?.getRootElement()
+
+fun Element?.setContent(name : String?, value : String?) : Element? {
+    this?.removeChildren(name)
+    return this?.addContent(Element(name).setText(value))
+}
+
+fun Element?.setContent(name : String?, element : Element?) : Element? {
+    this?.removeChildren(name)
+    return this?.addContent(element)
+}
+
+fun Element?.setContent(name : String?, t : Int?)    = this.setContent(name, t.toString())
+
+fun Element?.setContent(name : String?, t : Double?) = this.setContent(name, t.toString())
+
+fun Element?.setOrUpdateContent(element : Element?) : Element? { this?.removeContent(element); return this?.addContent(element) }
+
+fun Element?.toXML() = XMLOutputter().outputString(this)
+
+fun print(a : Any?) = System.out?.println(a)
+
+fun asInt(s : String?)     = java.lang.Integer.valueOf(s)
+fun asByte(s : String?)    = java.lang.Byte.valueOf(s)
+fun asLong(s : String?)    = java.lang.Long.valueOf(s)
+fun asDouble(s : String?)  = java.lang.Double.valueOf(s)
+fun asFloat(s : String?)   = java.lang.Float.valueOf(s)
+fun asBoolean(s : String?) = java.lang.Boolean.valueOf(s)
+fun asString(s : String?)  = s
+
+// some stuff for test
+fun <T> stupidTransform(t : T) = t
+
+class Container<T>(val content : T)
+
+class shiporder(
+    var orderperson : String,
+    var shipto : shipto,
+    val itemList : List<item>,
+    var `if` : `if`
+) {
+    fun toXML() = "<XML>"
+}
+class shipto(
+    var name : String,
+    var address : String,
+    var city : String,
+    var country : String
+) {
+    fun toXML() = "<XML>"
+}
+class item(
+    var title : String,
+    var note : String?,
+    var quantity : Int,
+    var price : Double
+) {
+    fun toXML() = "<XML>"
+}
+class `if`(
+    var value : String
+) {
+    fun toXML() = "<XML>"
+}
+
+
+fun main(args : Array<String>) {
+    val order : shiporder = readXmlFromFile("order.xml") as shiporder
+
+    order.`if` = `if`("Test")
+    order.orderperson = "Ola"
+    order.shipto.name += " with Another Test"
+    print(order.orderperson)
+    print(order.shipto.address)
+    print(order.itemList.get(0).price * 10)
+    print(order.itemList.get(0).note + " Hello")
+
+    return // !!! insertion of this return statement trows an exception
+    
+    for (i in order.itemList) i.price = i.price * 10 * i.price
+    for (i in order.itemList) i.price *= i.price * 20 * i.price
+
+    print(Container<shiporder>(order).content.toXML())
+}
+{code}
+
+java.lang.IllegalArgumentException: Argument 2 for @NotNull parameter of org/jetbrains/jet/lang/cfg/JetFlowInformationProvider.checkIsInitialized must not be null
+	at org.jetbrains.jet.lang.cfg.JetFlowInformationProvider.checkIsInitialized(JetFlowInformationProvider.java)
+	at org.jetbrains.jet.lang.cfg.JetFlowInformationProvider.access$600(JetFlowInformationProvider.java:33)
+	at org.jetbrains.jet.lang.cfg.JetFlowInformationProvider$5.execute(JetFlowInformationProvider.java:231)
+	at org.jetbrains.jet.lang.cfg.JetFlowInformationProvider$5.execute(JetFlowInformationProvider.java:221)
+	at org.jetbrains.jet.lang.cfg.JetControlFlowGraphTraverser.traverseAndAnalyzeInstructionGraph(JetControlFlowGraphTraverser.java:148)
+	at org.jetbrains.jet.lang.cfg.JetControlFlowGraphTraverser.traverseAndAnalyzeInstructionGraph(JetControlFlowGraphTraverser.java:131)
+	at org.jetbrains.jet.lang.cfg.JetFlowInformationProvider.markUninitializedVariables(JetFlowInformationProvider.java:221)
+	at org.jetbrains.jet.lang.resolve.ControlFlowAnalyzer.checkFunction(ControlFlowAnalyzer.java:81)
+	at org.jetbrains.jet.lang.resolve.ControlFlowAnalyzer.process(ControlFlowAnalyzer.java:44)
+	at org.jetbrains.jet.lang.resolve.TopDownAnalyzer.doProcess(TopDownAnalyzer.java:74)
+	at org.jetbrains.jet.lang.resolve.TopDownAnalyzer.process(TopDownAnalyzer.java:54)
+	at org.jetbrains.jet.lang.resolve.TopDownAnalyzer.process(TopDownAnalyzer.java:40)
+	at org.jetbrains.jet.lang.resolve.AnalyzingUtils.analyzeFilesWithGivenTrace(AnalyzingUtils.java:99)
+	at org.jetbrains.jet.lang.resolve.java.AnalyzerFacade.analyzeFilesWithJavaIntegration(AnalyzerFacade.java:81)
+	at org.jetbrains.jet.lang.resolve.java.AnalyzerFacade$2.compute(AnalyzerFacade.java:52)
+	at com.intellij.psi.impl.PsiCachedValueImpl.doCompute(PsiCachedValueImpl.java:47)
+	at com.intellij.util.CachedValueBase.getValueWithLock(CachedValueBase.java:200)
+	at com.intellij.psi.impl.PsiCachedValueImpl.getValue(PsiCachedValueImpl.java:37)
+	at org.jetbrains.jet.lang.resolve.java.AnalyzerFacade.analyzeFileWithCache(AnalyzerFacade.java:70)
+	at org.jetbrains.jet.plugin.compiler.WholeProjectAnalyzerFacade.analyzeProjectWithCacheOnAFile(WholeProjectAnalyzerFacade.java:67)
+	at org.jetbrains.jet.plugin.annotations.JetLineMarkerProvider.getLineMarkerInfo(JetLineMarkerProvider.java:47)
+	at com.intellij.codeInsight.daemon.impl.LineMarkersPass.addLineMarkers(LineMarkersPass.java:127)
+	at com.intellij.codeInsight.daemon.impl.LineMarkersPass.collectInformationWithProgress(LineMarkersPass.java:100)
+	at com.intellij.codeInsight.daemon.impl.ProgressableTextEditorHighlightingPass.doCollectInformation(ProgressableTextEditorHighlightingPass.java:58)
+	at com.intellij.codeHighlighting.TextEditorHighlightingPass.collectInformation(TextEditorHighlightingPass.java:61)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$1$1.run(PassExecutorService.java:350)
+	at com.intellij.openapi.application.impl.ApplicationImpl.tryRunReadAction(ApplicationImpl.java:1040)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$1.run(PassExecutorService.java:342)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.executeProcessUnderProgress(ProgressManagerImpl.java:206)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.doRun(PassExecutorService.java:340)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.run(PassExecutorService.java:316)
+	at com.intellij.concurrency.JobUtil$3.call(JobUtil.java:134)
+	at com.intellij.concurrency.JobUtil$3.call(JobUtil.java:131)
+	at java.util.concurrent.FutureTask$Sync.innerRun(FutureTask.java:303)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:138)
+	at com.intellij.concurrency.PrioritizedFutureTask.access$101(PrioritizedFutureTask.java:31)
+	at com.intellij.concurrency.PrioritizedFutureTask$1.run(PrioritizedFutureTask.java:70)
+	at com.intellij.concurrency.PrioritizedFutureTask.run(PrioritizedFutureTask.java:113)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.runTask(ThreadPoolExecutor.java:886)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:908)
+	at java.lang.Thread.run(Thread.java:662)

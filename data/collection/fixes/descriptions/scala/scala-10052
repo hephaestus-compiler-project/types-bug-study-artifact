@@ -1,0 +1,43 @@
+scalac-2.12 crashes. But scalac-2.11 can compile.
+
+```scala
+$ scalac -version
+Scala compiler version 2.12.0-20161028-204919-0666377 -- Copyright 2002-2016, LAMP/EPFL and Lightbend, Inc.
+
+$ scalac abc.scala
+java.lang.AssertionError: assertion failed:
+  Java member module without member class: package foo - List(package foo)
+     while compiling: abc.scala
+        during phase: jvm
+     library version: version 2.12.0-20161028-204919-0666377
+    compiler version: version 2.12.0-20161028-204919-0666377
+  reconstructed args:
+
+  last tree to typer: TypeTree(class Int)
+       tree position: line 3 of abc.scala
+            tree tpe: Int
+              symbol: (final abstract) class Int in package scala
+   symbol definition: final abstract class Int extends  (a ClassSymbol)
+      symbol package: scala
+       symbol owners: class Int
+           call site: constructor Test13 in object Test13 in package <empty>
+
+== Source file context for tree position ==
+
+     0 package foo { trait identifier }
+     1 package foo { package identifier.foo {} }
+     2 object Test13 { def identifier = 2 }
+     3
+	at scala.tools.nsc.Global.assert(Global.scala:229)
+	at scala.tools.nsc.backend.jvm.BTypesFromSymbols.$anonfun$setClassInfo$14(BTypesFromSymbols.scala:435)
+	at scala.tools.nsc.backend.jvm.BTypesFromSymbols.$anonfun$setClassInfo$14$adapted(BTypesFromSymbols.scala:430)
+	at scala.collection.TraversableLike.$anonfun$filterImpl$1(TraversableLike.scala:248)
+	at scala.collection.immutable.List.foreach(List.scala:378)
+	at scala.collection.TraversableLike.filterImpl(TraversableLike.scala:247)
+<snipped>
+
+$ cat abc.scala
+package foo { trait identifier }
+package foo { package identifier.foo {} }
+object Test13 { def identifier = 2 }
+```

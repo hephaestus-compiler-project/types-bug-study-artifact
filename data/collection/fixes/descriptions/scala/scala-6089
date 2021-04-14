@@ -1,0 +1,27 @@
+Critical hit.  This took me forever to minimize, but I guess I'm glad I did.
+```scala
+case class Foo(x: Int)
+
+object Test {
+  def bippo(result: Boolean): Boolean = result
+  def bungus(m: Foo): Boolean         = bippo(m match { case Foo(2) => bungus(m) })
+
+  def main(args: Array[String]): Unit = bungus(Foo(0))
+}
+
+// With -Xoldpatmat: correct behavior
+//
+// scala.MatchError: Foo(0) (of class Foo)
+//  at Test$.bungus(a.scala:5)
+//  at Test$.main(a.scala:7)
+//  at Test.main(a.scala)
+//
+// With virtpatmat:
+//
+// java.lang.VerifyError: (class: Test$, method: bungus signature: (LFoo;)Z) Inconsistent stack height 1 != 0
+//  at Test.main(a.scala)
+//  at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+//  at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+//  at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+//  at java.lang.reflect.Method.invoke(Method.java:601)
+```

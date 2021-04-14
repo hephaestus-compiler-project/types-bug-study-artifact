@@ -1,0 +1,31 @@
+I spent some time debugging the spurious error we started to get recently in the presentation compiler. It is about 'Companions X and X must be defined in the same file'. You can see one user complaining here: https://groups.google.com/d/msg/scala-internals/aPGxqZSyvYg/W5yo9TKKMl4J
+
+In my tests, I can reproduce it with any class in the Empty package (but not only there).
+
+- my source is just 'class Foo {}'
+- I don't define a companion myself, nor should there be one. Am I right?
+- the source files that are listed in the error message are the same
+
+I traced it back to commit 816cecf9a95989dfc570f2acad87d4156b09e2ff. Reverting this made the problem go away (I'm not suggesting that, just a data point).
+Debugging lead to the following event:
+
+- the immediate cause is that 'isCoDefinedWith' returns false for the two symbols
+- it returns false because the first test fails (this.rawInfo ne NoType)
+
+NOTE: This looks asymmetrical. Is that intended? If I call 'that isCoDefinedWith this' I might get a different result..
+
+- when the class is entered, it goes through updatePosFlags (https://github.com/scala/scala/blob/master/src/compiler/scala/tools/nsc/typechecker/Namers.scala#L135)
+The code looks like this:
+```scala
+        companionSymbolOf(sym, context) andAlso { companion =>
+          val assignNoType = companion.rawInfo match {
+            case _: SymLoader => true
+            case tp           => tp.isComplete && (runId(sym.validTo) != currentRunId)
+          }
+          // pre-set linked symbol to NoType, in case it is not loaded together with this symbol.
+          if (assignNoType)
+            companion setInfo NoType
+        }
+```
+
+This code makes companions that **were** companions (the call to `companionSymbolOf` just returned my companion) **not be companions anymore**. This is what I'm witnessing in the IDE.

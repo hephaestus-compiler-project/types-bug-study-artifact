@@ -1,0 +1,40 @@
+Too many arguments for open fun unlock() : Tuple0 defined in <java_root>.java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock[NamedFunctionDescriptorImpl@7965c43e]
+
+{code}
+inline fun <erased T> ReadLock.lock(readCount: Int) {
+    if(readCount > 0) {
+        for(j in 1..readCount) {
+            lock()
+        }
+    }
+}
+
+inline fun <erased T> ReadLock.unlock(readCount: Int) {
+    if(readCount > 0) {
+        for(j in 1..readCount) {
+            unlock()
+        }
+    }
+}
+
+inline fun <erased T> ReentrantReadWriteLock.write(action: ()->T) : T {
+    val rl = readLock().sure()
+    var readCount = 0
+    val writeCount = getWriteHoldCount()
+    if(writeCount == 0) {
+        // ERROR HERE
+        rl.unlock(readCount)
+    }
+
+    val wl = writeLock().sure()
+    wl.lock()
+    try {
+        return action()
+    }
+    finally {
+        // ERROR HERE
+        rl.lock(readCount)
+        wl.unlock()
+    }
+}
+{code}

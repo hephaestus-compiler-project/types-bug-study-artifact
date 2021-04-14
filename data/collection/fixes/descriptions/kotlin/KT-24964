@@ -1,0 +1,154 @@
+I have an issue when compiling code with version 1.2.50 of kotlin compiler. Code compiled with 1.2.41.
+
+The following example is simple and shows the issue (I use the last version of arrow) and junit 5:
+```code
+package services
+
+import arrow.data.Validated
+import arrow.data.ValidatedNel
+import arrow.data.validNel
+import org.amshove.kluent.shouldBeInstanceOf
+import org.junit.jupiter.api.Test
+
+internal class ValidationsErrorsKtTest {
+
+    @Test
+    fun `on valid should be invoked when used with validated nel`() {
+
+        Unit.validNel<String, Unit>().onValid {
+
+            Unit.validNel()
+        } shouldBeInstanceOf Validated.Valid::class
+    }
+}
+
+private fun <E, V> ValidatedNel<E, V>.onValid(function: () -> ValidatedNel<E, V>): ValidatedNel<E, V> =
+    when (this) {
+        is Validated.Invalid -> this
+        is Validated.Valid -> function()
+    }
+
+```
+
+The error message I get is the following:
+```
+Error:Kotlin: [Internal Error] java.lang.IllegalStateException: Backend Internal error: Exception during code generation
+Cause: Back-end (JVM) Internal error: Cannot serialize error type: [ERROR : Unknown type parameter 0]
+Cause: Cannot serialize error type: [ERROR : Unknown type parameter 0]
+File being compiled at position: (17,103) in C:/XXXX/interactors/src/test/kotlin/services/ValidationsErrorsKtTest.kt
+The root cause was thrown at: SerializerExtension.kt:61
+File being compiled at position: file://XXXX/src/test/kotlin/services/ValidationsErrorsKtTest.kt
+The root cause was thrown at: ExpressionCodegen.java:317
+	at org.jetbrains.kotlin.codegen.CompilationErrorHandler.lambda$static$0(CompilationErrorHandler.java:24)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generate(PackageCodegenImpl.java:74)
+	at org.jetbrains.kotlin.codegen.DefaultCodegenFactory.generatePackage(CodegenFactory.kt:97)
+	at org.jetbrains.kotlin.codegen.DefaultCodegenFactory.generateModule(CodegenFactory.kt:68)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.doGenerateFiles(KotlinCodegenFacade.java:47)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.compileCorrectFiles(KotlinCodegenFacade.java:39)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.kt:442)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt:146)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:154)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:51)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.java:95)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.java:50)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:88)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$compile$$inlined$ifAlive$lambda$1.invoke(CompileServiceImpl.kt:399)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$compile$$inlined$ifAlive$lambda$1.invoke(CompileServiceImpl.kt:98)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$$inlined$ifAlive$lambda$2.invoke(CompileServiceImpl.kt:927)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$$inlined$ifAlive$lambda$2.invoke(CompileServiceImpl.kt:98)
+	at org.jetbrains.kotlin.daemon.common.DummyProfiler.withMeasure(PerfUtils.kt:137)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.checkedCompile(CompileServiceImpl.kt:957)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.doCompile(CompileServiceImpl.kt:926)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:397)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:564)
+	at java.rmi/sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:359)
+	at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.base/java.security.AccessController.doPrivileged(Native Method)
+	at java.rmi/sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:562)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:796)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:677)
+	at java.base/java.security.AccessController.doPrivileged(Native Method)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:676)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1135)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:844)
+Caused by: org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: Cannot serialize error type: [ERROR : Unknown type parameter 0]
+Cause: Cannot serialize error type: [ERROR : Unknown type parameter 0]
+File being compiled at position: (17,103) in C:/dev/projects/gps-sos/interactors/src/test/kotlin/services/ValidationsErrorsKtTest.kt
+The root cause was thrown at: SerializerExtension.kt:61
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:317)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:278)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:323)
+	at org.jetbrains.kotlin.codegen.CallGenerator$DefaultCallGenerator.genValueAndPut(CallGenerator.kt:53)
+	at org.jetbrains.kotlin.codegen.CallBasedArgumentGenerator.generateExpression(CallBasedArgumentGenerator.java:51)
+	at org.jetbrains.kotlin.codegen.ArgumentGenerator.generate(ArgumentGenerator.kt:68)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.invokeMethodWithArguments(ExpressionCodegen.java:2374)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.invokeMethodWithArguments(ExpressionCodegen.java:2351)
+	at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:41)
+	at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:13)
+	at org.jetbrains.kotlin.codegen.OperationStackValue.putSelector(StackValue.kt:79)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:110)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:99)
+	at org.jetbrains.kotlin.codegen.StackValue.moveToTopOfStack(StackValue.java:95)
+	at org.jetbrains.kotlin.codegen.CallReceiver.putSelector(CallReceiver.java:171)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:110)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:99)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.putReceiverAndInlineMarkerIfNeeded(ExpressionCodegen.java:2435)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.invokeMethodWithArguments(ExpressionCodegen.java:2365)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.invokeMethodWithArguments(ExpressionCodegen.java:2351)
+	at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:41)
+	at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:13)
+	at org.jetbrains.kotlin.codegen.OperationStackValue.putSelector(StackValue.kt:79)
+	at org.jetbrains.kotlin.codegen.StackValueWithLeaveTask.putSelector(StackValue.kt:67)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:110)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:99)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.putStackValue(ExpressionCodegen.java:347)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:332)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.returnExpression(ExpressionCodegen.java:1627)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$FunctionDefault.doGenerateBody(FunctionGenerationStrategy.java:60)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$CodegenBased.generateBody(FunctionGenerationStrategy.java:80)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:643)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:399)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:251)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:172)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.gen(FunctionCodegen.java:142)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genSimpleMember(MemberCodegen.java:199)
+	at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateDeclaration(ClassBodyCodegen.java:155)
+	at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateBody(ClassBodyCodegen.java:75)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:131)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:305)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:289)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateClassOrObject(PackageCodegenImpl.java:161)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateClassesAndObjectsInFile(PackageCodegenImpl.java:86)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateFile(PackageCodegenImpl.java:119)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generate(PackageCodegenImpl.java:66)
+	... 36 more
+Caused by: java.lang.IllegalStateException: Cannot serialize error type: [ERROR : Unknown type parameter 0]
+	at org.jetbrains.kotlin.serialization.SerializerExtension.serializeErrorType(SerializerExtension.kt:61)
+	at org.jetbrains.kotlin.codegen.serialization.JvmSerializerExtension.serializeErrorType(JvmSerializerExtension.java:204)
+	at org.jetbrains.kotlin.serialization.DescriptorSerializer.type$serialization(DescriptorSerializer.kt:486)
+	at org.jetbrains.kotlin.serialization.DescriptorSerializer.typeArgument(DescriptorSerializer.kt:589)
+	at org.jetbrains.kotlin.serialization.DescriptorSerializer.fillFromPossiblyInnerType(DescriptorSerializer.kt:557)
+	at org.jetbrains.kotlin.serialization.DescriptorSerializer.type$serialization(DescriptorSerializer.kt:515)
+	at org.jetbrains.kotlin.serialization.DescriptorSerializer.type$serialization(DescriptorSerializer.kt:539)
+	at org.jetbrains.kotlin.serialization.DescriptorSerializer.typeArgument(DescriptorSerializer.kt:589)
+	at org.jetbrains.kotlin.serialization.DescriptorSerializer.fillFromPossiblyInnerType(DescriptorSerializer.kt:557)
+	at org.jetbrains.kotlin.serialization.DescriptorSerializer.type$serialization(DescriptorSerializer.kt:515)
+	at org.jetbrains.kotlin.serialization.DescriptorSerializer.functionProto(DescriptorSerializer.kt:281)
+	at org.jetbrains.kotlin.codegen.ClosureCodegen.generateKotlinMetadataAnnotation(ClosureCodegen.java:234)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:138)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genClosure(ExpressionCodegen.java:986)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genClosure(ExpressionCodegen.java:960)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.visitLambdaExpression(ExpressionCodegen.java:951)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.visitLambdaExpression(ExpressionCodegen.java:108)
+	at org.jetbrains.kotlin.psi.KtLambdaExpression.accept(KtLambdaExpression.java:39)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:296)
+	... 81 more
+```
+
+I can use a workaround for the moment, but it should be great to solve that issue.

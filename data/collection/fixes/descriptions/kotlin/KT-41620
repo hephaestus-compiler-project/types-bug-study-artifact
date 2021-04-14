@@ -1,0 +1,27 @@
+When I try to execute the following code
+```
+interface A {
+    fun a(): A
+}
+class A1 : A {
+    override fun a() = test() ?: error("")
+    @Suppress("UNCHECKED_CAST")
+    private fun <V : A> test(): V? = this as? V
+}
+fun main() {
+    val a: A = A1()
+    println(a.a())
+}
+```
+I get the following exception.
+```stacktrace
+Exception in thread "main" java.lang.ClassCastException: A1 cannot be cast to java.lang.Void
+	at A1.a(Test2.kt:7)
+	at A1.a(Test2.kt:6)
+	at Test2Kt.main(Test2.kt:16)
+	at Test2Kt.main(Test2.kt)
+```
+In the kotlin bytecode view I see the checkcast to `java.lang.Void`.
+This can be solved by explicitly mentioning the return type.
+
+So it would be nice, if either the cast to void is not there or at least intellij could mark this as a potential error.

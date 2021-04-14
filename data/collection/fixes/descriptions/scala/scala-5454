@@ -1,0 +1,29 @@
+Compiling the following,
+
+```scala
+object IllegalInheritance {
+  trait A
+  implicit def a = new A {}            // def => val
+  //val r = implicitly[A]              // uncomment
+
+  class B[T](t : T)(implicit a : A)    // remove implicit param block
+
+  class C extends B/*[Int]*/(23)       // uncomment
+  val c = new C                        // comment
+}
+```
+
+with 2.9.1.final or 2.10.0-M1-0179-g34233f031e-2012-02-10 results in the following error reports,
+
+```scala
+bug.scala:8: error: could not find implicit value for parameter a: IllegalInheritance.A
+  class C extends B/*[Int]*/(23)       // uncomment
+          ^
+bug.scala:8: error: illegal inheritance;
+ self-type IllegalInheritance.C does not conform to IllegalInheritance.B[Int]'s selftype IllegalInheritance.B[Int]
+  class C extends B/*[Int]*/(23)       // uncomment
+                  ^
+two errors found
+```
+
+Any one of the changes mentioned in the line-end comments will result in a successful compilation. Compiling with -Yno-self-type-checks eliminates the illegal inheritance error, but doesn't eliminate the spurious implicit resolution failure.

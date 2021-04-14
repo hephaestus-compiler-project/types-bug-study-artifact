@@ -1,0 +1,51 @@
+The code is:
+```
+fun <T> materialize(): T = null as T
+
+class Foo<out A> {
+    fun <B> product(other: Foo<(A) -> B>) = materialize<Foo<B>>()
+
+    fun <B, C, D, E, R> foo3(other1: Foo<B>, other2: Foo<C>, other3: Foo<D>, other4: Foo<E>, function: (A, B, C, D) -> R) {
+        val x = product<R>(
+            other1.product(
+                other2.product(
+                    other3.product(
+                        // Required: Foo<(D) → (C) → (B) → (A) → R>
+                        // Found: Foo<(D) → (C) → (B) → Any?>
+                        bar { d -> { c -> { b -> { a -> function(a, b, c, d) } } } } // ERROR
+                    )
+                )
+            )
+        )
+    }
+
+    companion object {
+        fun <A> bar(x: A) = materialize<Foo<A>>()
+    }
+}
+```
+
+In the example, incorporation runs into max depth of incorporation, so we don't have suitable ready constraint. It's assumed that we get suitable constraint during incorporation of remaining type variable (when it will be fixed), but another incorporation (`TypeVariable(_R)` into `TypeVariable(B)`) brings `Any?` as incorporating constraints have opposite kind. Finally, we have constraint only with `Any?` as a return type of the last lambda. It leads to contradiction.
+
+If depth of incorporation be little bit less, then we won't have an error (as incorporation will be done immediately):
+```
+fun <T> materialize(): T = null as T
+
+class Foo<out A> {
+    fun <B> product(other: Foo<(A) -> B>) = materialize<Foo<B>>()
+
+    fun <B, C, R> foo2(other1: Foo<B>, other2: Foo<C>, function: (A, B, C) -> R) {
+        val x = product<R>(
+            other1.product(
+                other2.product(
+                    bar {  c -> { b -> { a -> function(a, b, c) } } } // OK
+                )
+            )
+        )
+    }
+
+    companion object {
+        fun <A> bar(x: A) = materialize<Foo<A>>()
+    }
+}
+```

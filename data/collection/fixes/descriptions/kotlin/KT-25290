@@ -1,0 +1,32 @@
+Enable new inference for your project.
+
+Provide dummy Java and Kotlin sources:
+{code:lang=java|title=JavaFace.java}
+public interface JavaFace<T> {
+    void singleMethod();
+}
+{code}
+{code:lang=java|title=JavaFaceUser.java}
+public class JavaFaceUser<T> {
+    public <X> void use1(JavaFace<X> face) {}
+    public void use2(JavaFace<T> face) {}
+}
+{code}
+{code:lang=kotlin|title=KotlinSamUser.kt}
+fun JavaFaceUser<out Any>.useOut() {
+    use1<Any> {}
+//    use2 {}
+}
+
+fun JavaFaceUser<in Any>.useIn() {
+    use1<Any> {}
+    use2 {}
+}
+{code}
+
+Rebuild: all is Ok.
+Uncomment commented `use2()` call, rebuild: fail with exception.
+
+NB: All builds Ok with old inference.
+
+IDEA 182.3603 + Kotlin plugin 1.3-M1-eap-27.

@@ -1,0 +1,18 @@
+When compiling something with javac and using multiple -Xpatch arguments to patch multiple modules in the JDK, e.g., for testing, javac seems to be ignoring all but the last -Xpatch argument.
+
+For example:
+javac \
+    -Xpatch:jdk.foo=/path/to/jdk.foo \
+    -Xpatch:jdk.bar=/path/to/jdk.bar \
+    /path/to/SomeClass.java
+
+If SomeClass.java relies on any classes that may be patched into jdk.foo by the -Xpatch arg above then it will fail to compile.
+
+If I reverse the args so jdk.foo is last (and assuming there are no dependencies on jdk.bar), or eliminate jdk.bar entirely then SomeClass will compile.
+
+Once it's compiled, the java launcher seems to work just fine with multiple -Xpatch arguments, regardless of argument order:
+java \
+    -Xpatch:jdk.foo=/path/to/jdk.foo \
+    -Xpatch:jdk.bar=/path/to/jdk.bar \
+    -cp /path/to
+    SomeClass

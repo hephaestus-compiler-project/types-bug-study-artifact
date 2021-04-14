@@ -1,0 +1,30 @@
+The following class fails to compile:
+{code}
+@TypeChecked
+class A {
+    public <T> T f(T value, int param = 0) {
+        value
+    }
+
+    void run() {
+        def s = f('42')
+        s.length()
+    }
+}
+{code}
+
+The compilation error is:
+{noformat}
+[ERROR] /Users/fpavageau/devs/bugs/generic-method-optional-param/src/main/groovy/A.groovy: 26: [Static type checking] - Cannot find matching method java.lang.Object#length(). Please check if the declared type is right and if the method exists.
+[ERROR] @ line 26, column 9.
+[ERROR] s.length()
+[ERROR] ^
+[ERROR] 
+[ERROR] 1 error
+{noformat}
+
+The same code will compile if the optional parameter is removed from {{f}}, or if {{s}} is explicitely declared as a {{String}} instead of using {{def}}.
+
+It seems to be related to GROOVY-7211, but this bug is definitely not fixed in 2.4.2.
+
+I'm attaching a test case, which is also available on [Github|https://github.com/fpavageau/generic-method-default-param].

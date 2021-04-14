@@ -1,0 +1,62 @@
+In JDK 9 build 148 javac throws NPE if a module that is compiled requires any other module outside of java.se and java.corba is specified as a root module
+
+Example:
+===============================
+$ find src/
+src/
+src/m
+src/m/module-info.java
+src/m2
+src/m2/module-info.java
+$ cat src/m/module-info.java
+module m {
+  requires m2;
+}
+$ cat src/m2/module-info.java
+module m2 {}
+$ /set/java/re/jdk/9/promoted/ea/148/binaries/solaris-sparcv9/bin/javac --module-source-path src/ -d out src/m/module-info.java --add-modules java.corba
+An exception has occurred in the compiler (9-ea). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.NullPointerException
+        at jdk.compiler/com.sun.tools.javac.code.Symtab.lookupPackage(Symtab.java:647)
+        at jdk.compiler/com.sun.tools.javac.code.Symtab.enterClass(Symtab.java:710)
+        at jdk.compiler/com.sun.tools.javac.jvm.ClassReader.enterClass(ClassReader.java:2533)
+        at jdk.compiler/com.sun.tools.javac.jvm.ClassReader.classSigToType(ClassReader.java:788)
+        at jdk.compiler/com.sun.tools.javac.jvm.ClassReader.sigToType(ClassReader.java:718)
+        at jdk.compiler/com.sun.tools.javac.jvm.ClassReader.sigToType(ClassReader.java:668)
+        at jdk.compiler/com.sun.tools.javac.jvm.ClassReader$ProxyType.resolve(ClassReader.java:2998)
+        at jdk.compiler/com.sun.tools.javac.jvm.ClassReader$AnnotationDeproxy.resolvePossibleProxyType(ClassReader.java:2181)
+        at jdk.compiler/com.sun.tools.javac.jvm.ClassReader$AnnotationDeproxy.deproxyCompound(ClassReader.java:2031)
+        at jdk.compiler/com.sun.tools.javac.jvm.ClassReader$AnnotationDeproxy.deproxyCompoundList(ClassReader.java:2025)
+        at jdk.compiler/com.sun.tools.javac.jvm.ClassReader$AnnotationCompleter.run(ClassReader.java:2245)
+        at jdk.compiler/com.sun.tools.javac.comp.Annotate.flush(Annotate.java:177)
+        at jdk.compiler/com.sun.tools.javac.comp.Annotate.unblockAnnotations(Annotate.java:134)
+        at jdk.compiler/com.sun.tools.javac.comp.Enter.complete(Enter.java:591)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.readSourceFile(JavaCompiler.java:846)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.readSourceFile(JavaCompiler.java:821)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.readSourceFile(JavaCompiler.java:790)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.access$100(JavaCompiler.java:101)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler$1.complete(JavaCompiler.java:343)
+        at jdk.compiler/com.sun.tools.javac.code.ClassFinder.fillIn(ClassFinder.java:357)
+        at jdk.compiler/com.sun.tools.javac.code.ModuleFinder$1.complete(ModuleFinder.java:342)
+        at jdk.compiler/com.sun.tools.javac.code.Symbol.complete(Symbol.java:633)
+        at jdk.compiler/com.sun.tools.javac.code.Symbol$ClassSymbol.complete(Symbol.java:1273)
+        at jdk.compiler/com.sun.tools.javac.comp.Modules$2.complete(Modules.java:516)
+        at jdk.compiler/com.sun.tools.javac.code.Symtab.lambda$enterModule$10(Symtab.java:773)
+        at jdk.compiler/com.sun.tools.javac.code.Symbol.complete(Symbol.java:633)
+        at jdk.compiler/com.sun.tools.javac.comp.Modules.checkCyclicDependencies(Modules.java:1503)
+        at jdk.compiler/com.sun.tools.javac.comp.Modules.access$400(Modules.java:127)
+        at jdk.compiler/com.sun.tools.javac.comp.Modules$3.complete(Modules.java:602)
+        at jdk.compiler/com.sun.tools.javac.code.Symbol.complete(Symbol.java:633)
+        at jdk.compiler/com.sun.tools.javac.comp.Modules.computeTransitiveClosure(Modules.java:1159)
+        at jdk.compiler/com.sun.tools.javac.comp.Modules.setupAllModules(Modules.java:1131)
+        at jdk.compiler/com.sun.tools.javac.comp.Modules.lambda$initModules$0(Modules.java:233)
+        at jdk.compiler/com.sun.tools.javac.comp.Modules.enter(Modules.java:265)
+        at jdk.compiler/com.sun.tools.javac.comp.Modules.initModules(Modules.java:229)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.initModules(JavaCompiler.java:1048)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:942)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:307)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:160)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:55)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:41)
+===============================
+In the example above if m requires java.logging or if --add-modules doesn't specify java.corba nor java.se.ee, then compilation succeeds.

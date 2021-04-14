@@ -1,0 +1,25 @@
+See the following useless piece of code:
+
+{code}
+fun foo() {
+    val x = ""
+    val a = if (x.isEmpty()) x else null  // all fine
+    val b = if (x.isEmpty()) (x as String?) else returnNull() // warning - useless cast
+    val c = if (x.isEmpty()) x else returnNull() // error
+}
+
+fun <T> returnNull(): T? = null
+{code}
+
+I would expect the type of each of `a`, `b` and `c` to be the same: `String?`. The actual code where I encountered this was:
+
+{code}
+fun foo() {
+  generateSequence { if (iterator.hasNext()) iterator else closeAndNull(iterator) }
+}
+
+fun <T> closeAndNull(iterator: MyCloseableIterator): T? {
+  iterator.close()
+  return null
+}
+{code}

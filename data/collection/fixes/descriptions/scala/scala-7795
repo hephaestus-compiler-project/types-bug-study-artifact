@@ -1,0 +1,41 @@
+```scala
+import scala.reflect.macros.Context
+import language.experimental.macros
+
+object Zero
+object One
+
+object Macros {
+  implicit def zeroToZero(x: Int): Zero.type = macro zeroToZeroImpl
+  def zeroToZeroImpl(c: Context)(x: c.Expr[Int]) = {
+    import c.universe._
+    if (c.toString == Literal(Constant(0)).toString) reify(Zero)
+    else c.abort(c.enclosingPosition, "zeroToZeroImpl")
+  }
+  implicit def oneToOne(x: Int): One.type = macro oneToOneImpl
+  def oneToOneImpl(c: Context)(x: c.Expr[Int]) = {
+    import c.universe._
+    if (c.toString == Literal(Constant(1)).toString) reify(One)
+    else c.abort(c.enclosingPosition, "oneToOneImpl")
+  }
+}
+```
+
+```scala
+import Macros._
+
+object Test extends App {
+  def f(n: Zero.type) = "Zero"
+  def f(n: One.type) = "One"
+  println(f(0))
+}
+
+22:11 ~/Projects/Master/sandbox (master)$ ks
+Test.scala:6: error: ambiguous reference to overloaded definition,
+both method f in object Test of type (n: One.type)String
+and  method f in object Test of type (n: Zero.type)String
+match argument types (Int) and expected result type Any
+  println(f(0))
+          ^
+one error found
+```

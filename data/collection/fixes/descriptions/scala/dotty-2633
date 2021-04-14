@@ -1,0 +1,35 @@
+This seems to be related to compilation order. The following fails with a `cyclic reference involving class deprecated`:
+
+```bash
+$ sbt "run -language:Scala2 \
+  scala2-library/src/library/scala/io/Position.scala \
+  scala2-library/src/library/scala/Predef.scala \
+  scala2-library/src/library/scala/deprecated.scala"
+```
+
+Compiling with `deprecated` first leads to a different error:
+
+```scala
+-- [E006] Unbound Identifier Error: scala2-library/src/library/scala/deprecated.scala:20:1 
+20 |@getter @setter @beanGetter @beanSetter
+   | ^^^^^^
+   | not found: type getter
+
+longer explanation available when compiling with `-explain`
+-- [E006] Unbound Identifier Error: scala2-library/src/library/scala/deprecated.scala:20:9 
+20 |@getter @setter @beanGetter @beanSetter
+   |         ^^^^^^
+   |         not found: type setter
+
+longer explanation available when compiling with `-explain`
+-- [E006] Unbound Identifier Error: scala2-library/src/library/scala/deprecated.scala:20:17 
+20 |@getter @setter @beanGetter @beanSetter
+   |                 ^^^^^^^^^^
+   |                 not found: type beanGetter
+
+longer explanation available when compiling with `-explain`
+-- [E006] Unbound Identifier Error: scala2-library/src/library/scala/deprecated.scala:20:29 
+20 |@getter @setter @beanGetter @beanSetter
+   |                             ^^^^^^^^^^
+   |                             not found: type beanSetter
+```

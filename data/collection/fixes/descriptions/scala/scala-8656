@@ -1,0 +1,32 @@
+Here's a minimal script that duplicates the problem:
+
+import breeze.linalg.{DenseMatrix,QuasiTensor,argsort}
+val data = new DenseMatrix(2,2,Array(0,1,2,3))
+val a1 = data.argsort  // if commented out, subsequent line won't compile
+val a2 = argsort(data)
+
+As-is, the script runs, but prints a deprecation warning:
+
+$  ./run.sh 
+/opt/ue/argsort-bug/argsort.sc:3: warning: method argsort in trait QuasiTensor is deprecated: Use argsort(t) instead of t.argsort
+val a1 = data.argsort  // if this is commented out, subsequent line does not compile
+              ^
+one warning found
+
+If line 3 is commented out, it fails with a compile error:
+
+$  ./run.sh 
+/opt/ue/argsort-bug/argsort.sc:4: error: diverging implicit expansion for type breeze.linalg.argsort.Impl[breeze.linalg.DenseMatrix[Int],VR]
+starting with method Tuple9 in object Ordering
+val a2 = argsort(data)
+                ^
+one error found
+
+The attached tarball contains everything you need to duplicate the problem.  BTW, it contains 2 unzipped jar files, with portions deleted to avoid going over the 10MByte attachment limit.  The original classpath files are:
+
+breeze_2.11-0.8.1.jar
+breeze-macros_2.11-0.3.1.jar
+
+Let me know if I can be of further assistance.
+
+- Phil

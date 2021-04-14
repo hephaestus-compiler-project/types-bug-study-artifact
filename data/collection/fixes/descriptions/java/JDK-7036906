@@ -1,0 +1,18 @@
+The method CompoundScope.getElements doesn't pass the scope filter to subscopes when scanning members of a given class; look at the code:
+
+@Override
+        public Iterable<Symbol> getElements(final Filter<Symbol> sf) {
+            return new Iterable<Symbol>() {
+                public Iterator<Symbol> iterator() {
+                    return new CompoundScopeIterator(subScopes) {
+                        Iterator<Symbol> nextIterator(Scope s) {
+                            return s.getElements().iterator(); //PROBLEM
+                        }
+                    };
+                }
+            };
+        }
+
+The problematic line should be:
+
+     return s.getElements(***sf***).iterator(); //PROBLEM

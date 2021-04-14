@@ -1,0 +1,31 @@
+Consider the common case of defining a transformation that preserves the structure of some type:
+
+```scala
+sealed abstract class Tree
+final case class Program(str: String) extends Tree
+final case class Literal(n: Int) extends Tree
+
+object Foo {
+  def transform[T <: Tree](t: T): T = t match {
+    case Program(str) => Program(str + "_")
+    case Literal(n)   => Literal(n + 1)
+  }
+}
+```
+
+This fails now with type errors:
+```scala
+transform.scala:7: error: type mismatch;
+ found   : Program
+ required: T
+    case Program(str) => Program(str + "_")
+                         ^
+transform.scala:8: error: type mismatch;
+ found   : Literal
+ required: T
+    case Literal(n)   => Literal(n + 1)
+                         ^
+two errors found
+```
+
+Could we do better? Given that {{T <: Program}} on branch 1, and {{Program}} is final, could we infer that {{T == Program}}? This looks like a common case, and a worthwhile ehancement.

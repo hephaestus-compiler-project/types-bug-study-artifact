@@ -1,0 +1,43 @@
+If I follow the example given [here](https://github.com/scala/scala/blob/master/test/files/run/virtpatmat_staging.scala) and define the following program:
+
+```scala
+trait TestPatMat {
+  import language.higherKinds
+
+  type Rep[+A]
+
+  val __match: MatchStrategy
+  trait MatchStrategy {
+    def runOrElse[A, B](in: Rep[A])(matcher: Rep[A] => Rep[Option[B]]): Rep[B]
+    def zero: Rep[Option[Nothing]]
+    def one[A](x: Rep[A]): Rep[Option[A]]
+  }
+
+}
+
+trait TestPatMatDep { this: TestPatMat =>
+  case class Foo(bar: String)
+}
+
+trait TestPatMatSub extends TestPatMat {
+  case class Foo(bar: String) // Does not compile
+}
+```
+
+I can’t compile it:
+
+```scala
+[info] Compiling 1 Scala source to /home/jrf/workspace/dev/reppatmat/target/scala-2.10/classes...
+[error] /home/jrf/workspace/dev/reppatmat/src/main/scala/reppatmat/reppatmat.scala:22: type mismatch;
+[error]  found   : Int
+[error]  required: TestPatMatSub.this.Rep[?]
+[error]   case class Foo(bar: String)
+[error]              ^
+[error] one error found
+[error] (compile:compile) Compilation failed
+[error] Total time: 2 s, completed Feb 11, 2013 5:13:31 PM
+```
+
+With a regular class instead of a case class, it compiles.
+
+Note that we get a compile error only when we define a case class in a trait extending the trait defining the __match value (TestPatMatDep compiles finely).

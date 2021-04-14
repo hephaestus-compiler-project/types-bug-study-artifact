@@ -1,0 +1,42 @@
+When both functions are in the same class there's a duplicate method
+
+{code}
+package pkg
+
+class C {
+    fun f(a: Int.() -> Unit) = ""
+    fun f(a: String.() -> Unit) = ""
+}
+
+fun main(args: Array<String>) {
+    C()
+}
+{code}
+
+{{Exception in thread "main" java.lang.ClassFormatError: Duplicate method name&signature in class file pkg/C
+	at java.lang.ClassLoader.defineClass1(Native Method)
+	at java.lang.ClassLoader.defineClassCond(ClassLoader.java:631)
+	at java.lang.ClassLoader.defineClass(ClassLoader.java:615)}}
+
+When a subclass tries to overload a superclass extension function it overrides a final method of the superclass
+
+{code}
+package pkg
+
+open class C1 {
+    fun f(a: Int.() -> Unit) = ""
+}
+
+class C2: C1() {
+    fun f(a: String.() -> Unit) = ""
+}
+
+fun main(args: Array<String>) {
+    C2()
+}
+{code}
+
+{{Exception in thread "main" java.lang.VerifyError: class pkg.C2 overrides final method f.(Ljet/ExtensionFunction0;)Ljava/lang/String;
+	at java.lang.ClassLoader.defineClass1(Native Method)
+	at java.lang.ClassLoader.defineClassCond(ClassLoader.java:631)
+	at java.lang.ClassLoader.defineClass(ClassLoader.java:615)}}

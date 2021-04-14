@@ -1,0 +1,21 @@
+The following program compiles (with @CompileStatic), although it shouldn't.
+{code:java}
+public class Main {
+    public static void main(String[] args) {
+      Integer[] arr = new Integer[]{1, "str"}; // does not report error
+      // Integer[] arr2 = [1, "fda"] as Integer[] // does not report error (see GROOVY-9986)
+    }
+}
+{code}
+As a result, an exception is thrown at runtime
+{code:java}
+Exception in thread "main" org.codehaus.groovy.runtime.typehandling.GroovyCastException: Cannot cast object 'str' with class 'java.lang.String' to class 'java.lang.Integer'
+        at org.codehaus.groovy.runtime.typehandling.DefaultTypeTransformation.castToNumber(DefaultTypeTransformation.java:172)
+        at org.codehaus.groovy.runtime.typehandling.DefaultTypeTransformation.continueCastOnNumber(DefaultTypeTransformation.java:282)
+        at org.codehaus.groovy.runtime.typehandling.DefaultTypeTransformation.castToType(DefaultTypeTransformation.java:243)
+        at org.codehaus.groovy.vmplugin.v8.IndyInterface.fromCache(IndyInterface.java:318)
+        at Main.main(test.groovy:4)
+{code}
+Tested on [https://github.com/apache/groovy/commit/f0eea862549529ef4e93fafe337f86dd4ac98751]
+
+ 

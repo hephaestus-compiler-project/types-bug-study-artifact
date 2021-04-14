@@ -1,0 +1,43 @@
+My colleague Ron Shapiro noticed an issue with the implementation of RoundEnvironment.getElementsAnnotatedWith. The javadoc for that method specifies:
+
+> Elements in a package are not considered included simply because a package-info file for that package was created.
+
+However that doesn't match the behaviour we're seeing. Instead, getElementsAnnotatedWith is returning annotated members in a compilation with a package-info on the class path.
+
+Reproduced using javac 9.0.1+11:
+
+=== ./foo/A.java ===
+package foo;
+class A {
+  B b;
+}
+=== ./foo/B.java ===
+package foo;
+@Deprecated
+class B {}
+=== ./foo/package-info.java ===
+@Deprecated
+package foo;
+=== ./P.java ===
+import java.util.Set;
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.lang.model.element.TypeElement;
+
+@SupportedAnnotationTypes("*")
+public class P extends AbstractProcessor {
+  @Override
+  public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+    System.err.println(">>> " + roundEnv.getElementsAnnotatedWith(Deprecated.class));
+    return false;
+  }
+}
+===
+
+$ javac P.java foo/B.java
+$ javac -processor P -cp . -sourcepath : foo/A.java foo/package-info.java
+...
+>>> [foo, foo.B]
+
+Note that getElementsAnnotatedWith returns foo.B, which is a member of the package foo, but which is not part of the current compilation.

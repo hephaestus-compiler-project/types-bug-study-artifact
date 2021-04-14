@@ -1,0 +1,61 @@
+When compiling the following code, the exhaustiveness warning is too general:
+(the warning is correct if either `One` or `Two` are removed, see later.
+Scala 2.11.2 has the exactly same behavior)
+
+```scala
+object Test {
+
+  sealed abstract class A
+
+  case object A1 extends A
+
+  case object A2 extends A
+
+  sealed abstract class B
+
+  case object B1 extends B
+
+  case object B2 extends B
+
+  sealed abstract class C
+
+  final case class One(a: A, b: B) extends C
+
+  final case class Two(b: B, a: A) extends C
+
+  def foo(c: C): Unit = c match {
+    case One(A1, B1) =>
+    case One(A2, B1) =>
+    case One(A1, B2) =>
+    case One(A2, B2) =>
+    case Two(B1, A1) =>
+    case Two(B2, A1) =>
+  }
+}
+```
+
+The compiler ignores that one of the cases is actually covered:
+```scala
+/Users/geri/Documents/scala-branch/moretest/Same.scala:21: warning: match may not be exhaustive.
+It would fail on the following input: Two(_, _)
+  def foo(c: C): Unit = c match {
+```
+
+I did some investigation and the cause is that the exhaustive checks in the pattern matcher forgets about the relationship between the case class and it's fields. Internally, infeasible counter examples are generated of the form:
+```scala
+Two(A2, B2)
+```
+
+There's some clever code in {code}VariableAssignment.addField{code} that removes these invalid counter examples but while doing so, the covered case(s) gets lost, since it thinks the field has no constraints.
+A solution seems rather tricky and I don't think it can be fixed in the counter example filtering. 
+The reason is that if you had two case classes with exactly the same, then they would still be mistaken with each other.
+Similarly you could trick such a filtering with something like:
+```scala
+  def `fool me`(c: C, a: A, b: B): Unit = (c, a, b) match {
+    case (_: One, A1, B1) =>
+    case (_: Two, A1, B1) =>
+  }
+```
+Thus, I came to the conclusion that the dependencies must be tracked in the formulas that are generated (in {code}MatchAnalysis.exhaustive{code}).
+So ideally the {code}ProductExtractorTreeMaker{code} would propagate information about the dependencies to the other treemakers and the equalities would be extended with implications between the types.
+I'm still struggling to achieve this, maybe you could give me some hints, where to look or how {code}ProductExtractorTreeMaker, ExtractorTreeMaker, TypeTestTreeMaker{code} are related?

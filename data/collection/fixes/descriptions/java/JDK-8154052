@@ -1,0 +1,69 @@
+FULL PRODUCT VERSION :
+java version "1.8.0_77"
+Java(TM) SE Runtime Environment (build 1.8.0_77-b03)
+Java HotSpot(TM) 64-Bit Server VM (build 25.77-b03, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+Darwin xxxx 14.5.0 Darwin Kernel Version 14.5.0: Mon Jan 11 18:48:35 PST 2016; root:xnu-2782.50.2~1/RELEASE_X86_64 x86_64
+
+
+A DESCRIPTION OF THE PROBLEM :
+Upon encountering a certain error, the Java compiler reports the error on standard output.
+
+However, the line quoted in the error message is from the wrong file.
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+1. Create TWO separate source files, x1.java and x2.java as shown:
+
+========== x1.java =============
+public class x1 implements x2 {
+    // this is a comment in file x1
+    float x = VAL;
+}
+
+========== x2.java =============
+public interface x2 {
+    float VAL = 1.0;
+}
+
+Note that x2.java contains an error (lossy conversion from double to float).
+
+2. Compile the files: javac x1.java x2.java
+
+3. Witness the following output with a line from x1.java. It should be x2.java instead:
+
+x1.java:2: error: incompatible types: possible lossy conversion from double to float
+    // this is a comment in file x1
+      ^
+1 error
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+x2.java:2: error: incompatible types: possible lossy conversion from double to float
+    float VAL = 1.0;
+                   ^
+1 error
+ACTUAL -
+x1.java:2: error: incompatible types: possible lossy conversion from double to float
+    // this is a comment in file x1
+      ^
+1 error
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+========== x1.java =============
+public class x1 implements x2 {
+    // this is a comment in file x1
+    float x = VAL;
+}
+
+========== x2.java =============
+public interface x2 {
+    float VAL = 1.0;
+}
+---------- END SOURCE ----------
+

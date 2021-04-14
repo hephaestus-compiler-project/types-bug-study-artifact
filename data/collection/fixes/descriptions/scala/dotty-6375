@@ -1,0 +1,36 @@
+When we use a contextual type as a return type
+```scala
+class Test  {
+   def f(): given Int => Boolean = true
+}
+```
+
+it η-expands once ->
+
+```scala
+def f(): ImplicitFunction1[Int, Boolean] =  {
+   def $anonfun(implicit evidence$1: Int): Boolean = true
+   closure($anonfun)
+}
+```
+
+However, if we provide an explicit ascription:
+
+```scala
+class Test  {
+   def f(): given Int => Boolean = true : (given Int => Boolean)
+}
+```
+
+it expands unnecessarily twice: 
+
+```scala
+def f(): ImplicitFunction1[Int, Boolean] =  {
+   def $anonfun(implicit evidence$1: Int): Boolean =  (
+      {
+         def $anonfun(implicit evidence$2: Int): Boolean = true
+         closure($anonfun)
+      }:ImplicitFunction1[Int, Boolean]).apply(evidence$1)
+   closure($anonfun)
+}
+```

@@ -1,0 +1,64 @@
+Let's say you have a Java class like this:
+{code lang=java}
+import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.IOException;
+import java.net.Socket;
+
+public class MyFrame extends Frame {
+    private Socket server;
+
+    public MyFrame() {
+        try {
+            this.server = new Socket("0.0.0.0", 8080);
+        } catch (IOException e) {
+            dispose();
+        }
+
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                try {
+                    MyFrame.this.server.close();
+                } catch (IOException ignored) {
+                }
+                dispose();
+            }
+        });
+    }
+}
+{code}
+I guess, the a good way to convert backing field expressions for this case is:
+# {{this.server}} to {{this.$server}}
+# {{MyFrame.this.server}} to {{this@MyFrame.$server}}
+
+Full converted example:
+{code}
+import java.awt.*
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
+import java.io.IOException
+import java.net.Socket
+
+public open class MyFrame() : Frame() {
+    private var server : Socket?
+    {
+        try {
+            this.$server = Socket("0.0.0.0", 8080)
+        }
+        catch (e : IOException?) {
+            dispose()
+        }
+        addWindowListener(object : WindowAdapter() {
+            override public fun windowClosing(e : WindowEvent?) : Unit {
+                try {
+                    this@MyFrame.$server?.close()
+                }
+                catch (ignored : IOException?) {}
+                dispose()
+            }
+        })
+    }
+}
+{code}

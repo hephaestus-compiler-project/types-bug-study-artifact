@@ -1,0 +1,40 @@
+Using {{@CompileStatic}} when a field is initialized with a lambda:
+{code}
+class LambdaAssignedToField
+{
+	private Comparator<Integer> myComparator = (int1, int2) -> Integer.compare(int1, int2);
+}
+{code}
+causes compilation errors:
+{noformat}
+Exception in thread "main" org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
+Script_28800dd8352617dbb4fe2e1957614875.groovy: 3: [Static type checking] - Cannot find matching method java.lang.Integer#compare(java.lang.Object, java.lang.Object). Please check if the declared type is correct and if the method exists.
+ @ line 3, column 61.
+   yComparator = (int1, int2) -> Integer.co
+                                 ^
+
+Script_28800dd8352617dbb4fe2e1957614875.groovy: 3: [Static type checking] - Cannot assign value of type groovy.lang.Closure <java.lang.Object> to variable of type java.util.Comparator <Integer>
+ @ line 3, column 45.
+   rator<Integer> myComparator = (int1, int
+{noformat}
+
+The same code, used in the context of a method, works fine:
+{code}
+class LambdaAssignedToVariable
+{
+	public void test()
+	{
+		Comparator<Integer> myComparator = (int1, int2) -> Integer.compare(int1, int2);
+	}
+}
+{code}
+
+In order to make the first example compile, I have to manually specify the types of the lambda parameters and also cast it to the correct type:
+{code}
+class LambdaAssignedToFieldCast
+{
+	private Comparator<Integer> myComparator = (Comparator<Integer>) (Integer int1, Integer int2) -> Integer.compare(int1, int2);
+}
+{code}
+
+The issue seems to exist since Groovy 3.0.0.

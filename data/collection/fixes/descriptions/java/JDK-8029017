@@ -1,0 +1,49 @@
+The following program doesn't compile (JDK8 b116) because javac thinks 
+the containing annotation type (FooContainer) is applicable to more 
+targets than the repeatable annotation type (Foo):
+
+---
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Repeatable;
+import java.lang.annotation.Target;
+
+@Target({ElementType.TYPE_USE})
+@Repeatable(FooContainer.class)
+@interface Foo {}
+
+@Target({ElementType.TYPE, ElementType.TYPE_USE})
+@interface FooContainer {
+   Foo[] value();
+}
+---
+
+In fact, the program should compile. The kinds of program element where 
+FooContainer is applicable - type uses and type declarations - are the 
+same kinds where Foo is applicable, which means FooContainer is a 
+legitimate containing type for Foo. (TYPE_USE is logically a superset of 
+TYPE, so the TYPE target on FooContainer is redundant.)
+
+Here is the relevant text for JLS8 9.6.3 "Repeatable Annotation Types"
+which is aware of the TYPE_USE construct from JSR 308:
+
+---
+T is applicable to at least the same kinds of program element as TC 
+(§9.6.4.1). Specifically, if the kinds of program element where T is 
+applicable are denoted by the set m1, and the kinds of program element 
+where TC is applicable are denoted by the set m2, then each kind in m2 
+must occur in m1, except that:
+
+- If the kind in m2 is java.lang.annotation.ElementType.ANNOTATION_TYPE, 
+then at least
+one of java.lang.annotation.ElementType.ANNOTATION_TYPE or
+java.lang.annotation.ElementType.TYPE or
+java.lang.annotation.ElementType.TYPE_USE must occur in m1.
+
+- If the kind in m2 is java.lang.annotation.ElementType.TYPE,
+then at least one of java.lang.annotation.ElementType.TYPE or
+java.lang.annotation.ElementType.TYPE_USE must occur in m1.
+
+- If the kind in m2 is java.lang.annotation.ElementType.TYPE_PARAMETER,
+then at least one of java.lang.annotation.ElementType.TYPE_PARAMETER or
+java.lang.annotation.ElementType.TYPE_USE must occur in m1.
+---

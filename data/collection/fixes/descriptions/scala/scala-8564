@@ -1,0 +1,23 @@
+Copying from the discussion here: https://groups.google.com/forum/#!topic/scala-internals/QBjjb5gTQKI
+
+A repl session in 2.11 (works the same way in 2.10):
+
+
+```scala
+scala> def noisyIdentity(x: AnyRef): x.type = {
+     | println("got " + x)
+     | x
+     | }
+noisyIdentity: (x: AnyRef)x.type
+
+scala> noisyIdentity("test")
+res0: String = test
+
+// Even more weird:
+scala> noisyIdentity(new java.lang.String("test"))
+got test
+res1: String = test
+```
+
+
+As you see, println did not get executed: the body of the method got replaced by the inhabitant of the ConstantType.

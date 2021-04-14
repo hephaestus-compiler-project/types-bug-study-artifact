@@ -1,0 +1,30 @@
+There's no upside to it. Empty application cannot hurt eta expansion, but eta expansion can hurt empty application.
+
+I propose the order in SLS 6.26.2 place "Empty Application" before "Eta Expansion".
+```scala
+scala> def f(): Map[Int, Int] = ???
+f: ()Map[Int,Int]
+
+scala> def g: Int => Int = f
+<console>:8: error: type mismatch;
+ found   : () => Map[Int,Int]
+ required: Int => Int
+       def g: Int => Int = f
+                           ^
+
+scala> def g: Map[Int, Int] = f
+g: Map[Int,Int]
+
+scala> class Bippy[A, B](f: A => B)
+defined class Bippy
+
+scala> def fn() = Map(1 -> 2)
+fn: ()scala.collection.immutable.Map[Int,Int]
+
+scala> new Bippy(fn)
+<console>:10: error: type mismatch;
+ found   : () => scala.collection.immutable.Map[Int,Int]
+ required: ? => ?
+              new Bippy(fn)
+                        ^
+```

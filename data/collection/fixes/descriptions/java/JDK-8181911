@@ -1,0 +1,50 @@
+Consider this code:
+---
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
+public class LambdaTest {
+
+    public void test(Consumer<Supplier<I>> c) {
+        c.accept(()-> {
+            return new I() {
+                public <T> void t() {
+                }
+            };
+        });
+    }
+    
+    public interface I {
+        public <T> void t();
+    }
+
+}
+---
+
+This code compiles OK without Analyzer:
+---
+$ javac LambdaTest.java
+---
+
+But not with the Lambda Analyzer:
+---
+$ javac -XDfind=lambda LambdaTest.java 
+LambdaTest.java:8: warning: This anonymous inner class creation can be turned into a lambda expression.
+            return new I() {
+                           ^
+LambdaTest.java:8: error: incompatible types: bad return type in lambda expression
+            return new I() {
+                   ^
+    invalid functional descriptor for lambda expression
+      method <T>()void in interface I is generic
+  where T is a type-variable:
+    T extends Object declared in method <T>t()
+Note: Some messages have been simplified; recompile with -Xdiags:verbose to get full output
+1 error
+1 warning
+---
+
+The cause for the error appears to be that when speculatively attributing the "new I() {...}" converted to lambda, the AttrContext.returnResult is reused from the ordinary compilation. And this returnResult has checkContext that will throw an InapplicableMethodException when an error is reported - and as the "new I() {...}" cannot be converted to a lambda, an error will be reported, and the IME be thrown. The IME will then go outside of the speculative attribution and the Analyzer and will affect the ordinary attribution as well.
+
+Originally reported here:
+https://netbeans.org/bugzilla/show_bug.cgi?id=270849

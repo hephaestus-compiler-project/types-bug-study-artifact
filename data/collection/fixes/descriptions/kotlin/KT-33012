@@ -1,0 +1,178 @@
+# Classification
+
+* Type of change:
+    * New errors are introduced
+* Motivation types:
+    * The implementation does not abide by a published spec or documentation
+    * Inconsistency in the design (things are done differently in different contexts)
+* Impact types:
+    * Compilation. Some code that used to compile won't compile anymore
+        * There were cases when such code worked with no exceptions
+            * Some such code could compile without any warnings
+    * Behavior changes
+        * The behavior in question belongs under a previously released specification, contract or official documentation
+            * By the contract, the old behavior is incorrect (thus a fix is needed)
+* Detection and Migration modes:
+    * Migration can't be automated
+
+# Existing behavior
+
+## Code example
+
+The code is:
+
+```
+class Recursive<T : Recursive<T>>
+
+fun <T : Recursive<T>> foo(e: Recursive<T>) {}
+
+fun test(k: Recursive<*>) {
+    foo(k) // Compile time error
+}
+```
+
+## What's wrong with it
+
+The main problem is that this example currently doesn't compile, there is an error at call `foo(k)`:
+```
+Type parameter bound for T in fun <T : Recursive<T>> foo(e: T): Unit is not satisfied: inferred type Recursive<*> is not a subtype of Recursive<Recursive<*>>
+```
+
+Namely, it's impossible to instantiate type parameter with a captured star projection of recursive generic type. Note that the following examples work fine:
+
+```
+class Recursive<T : Recursive<T>>
+
+fun <T : Recursive<T>> foo(e: Recursive<T>) {}
+fun nonGeneric(e: Recursive<*>) {}
+
+fun <K : Recursive<K>> test(s: Recursive<*>, k: Recursive<K>) {
+    nonGeneric(s) // OK
+    nonGeneric(k) // OK
+    foo(k) // OK
+}
+``` 
+
+It's totally correct instantiating type variable with proper captured type. For example, a similar code works in Java:
+
+```java
+class Recursive<T extends Recursive<T>> {
+    public static <K extends Recursive<K>> void foo(Recursive<K> k) {}
+
+    public static void test(Recursive<?> r) {
+        foo(r); // OK
+    }
+}
+```
+
+## Why and how this happens
+
+This happens because capturing for star projection of recursive types doesn't work well. Here, for `Recursive<*>` internally we have type `Recursive<Captured(*)>` with a supertype  `Recursive<*>`, while it should be `Recursive<C>`, where `C` is a captured star projection.
+
+# Affected versions: when did the problem appear first?
+
+The problem exists since Kotlin 1.0
+
+# Proposed changes
+
+The proposal is to start properly capture projections with recursive generics. As a result, the following code will be compiled successfully:
+```
+class Recursive<T : Recursive<T>>
+
+fun <T : Recursive<T>> foo(e: Recursive<T>) {}
+
+fun test(k: Recursive<*>) {
+    foo(k) // OK
+}
+```
+
+# Impact
+
+Since more methods now will be applicable, the overload resolution rules may slightly change. 
+For example:
+```
+class Recursive<T : Recursive<T>>
+
+fun foo(a: Any) {} // (2)
+fun <T : Recursive<T>> foo(e: Recursive<T>) {} // (1)
+
+fun test(k: Recursive<*>) {
+    foo(k)
+}
+```
+
+Here, before the fix, `foo` is resolved to `(2)` as the first candidate isn't applicable. After the fix, `foo` will be resolved to `(1)` as it's more specific.
+And because expected and return type doesn't participate in overload resolution, it's possible to construct an example that will not compile after the fix:
+```
+class Recursive<T : Recursive<T>>
+
+fun foo(a: Any): Int = 0 // (2)
+fun <T : Recursive<T>> foo(e: Recursive<T>): String = "" // (1)
+
+fun test(k: Recursive<*>) {
+    val a: Int = foo(k) // Error, because foo is resolved to (1) that returns String
+}
+```
+
+Still, we evaluated our internal and several open-source projects and haven't met this issue, so this case should be quite rare.
+
+# Migration plan
+
+- 1.4.0 Implement proposed changes
+
+This problem is fixed under the new type inference algorithm, so there will be a common compiler key for the old behavior.
+
+----
+
+# Original Issue
+
+The "Accessor call that can be replaced with property syntax access" inspection for the Kotlin language incorrectly raises a weak warning telling that calls to `isNotNull()`, `isFalse()`, `isTrue()`, and similar methods from [AssertJ](https://joel-costigliola.github.io/assertj/) can respectively be replaced with `isNotNull`, `isFalse`, and `isTrue`. Replacing these calls with property access syntax, however, causes an error during compilation of the code. The exact error depends on the version of AssertJ that is used.
+
+## Code sample
+The following code triggers the inspection's weak warning:
+```kotlin
+import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Test
+
+class MyTest {
+    @Test
+    fun myTest() {
+        assertThat("asdf").isNotNull()
+    }
+}
+```
+
+## Expected result
+I would expect that either (a) replacing the getter call with a property access still allows the code to compile, or (b) that the weak warning is not given in the first place. I suspect that addressing expectation (a) requires changing the language definition, while (b) requires an adjustment in the inspection to prevent false positives. Both are sufficient to solve this issue.
+
+## Actual result
+Changing the getter call to a property access results in a compilation error. The contents of the error depend on the version of AssertJ used.
+
+**AssertJ 3.8.0**
+```log
+e: [redacted]\MyTest.kt: (9, 28): Type parameter bound for SELF in val <SELF : AbstractCharSequenceAssert<SELF!, ACTUAL!>!, ACTUAL : CharSequence!> AbstractCharSequenceAssert<SELF, ACTUAL>.isNotNull: SELF!
+ is not satisfied: inferred type CapturedTypeConstructor(*) is not a subtype of AbstractCharSequenceAssert<out AbstractCharSequenceAssert<*, *>!, String!>!
+```
+
+**AssertJ 3.12.2**
+```log
+e: [redacted]\MyTest.kt: (9, 28): Cannot infer type parameter SELF in val <SELF : AbstractStringAssert<SELF!>!> AbstractStringAssert<SELF>.isNotNull: SELF!
+None of the following substitutions
+receiver: AbstractStringAssert<CapturedTypeConstructor(*)>  arguments: ()
+receiver: AbstractStringAssert<AbstractStringAssert<*>!>  arguments: ()
+receiver: AbstractStringAssert<Nothing!>  arguments: ()
+receiver: AbstractStringAssert<AbstractStringAssert<Nothing!>!>  arguments: ()
+receiver: AbstractStringAssert<AbstractStringAssert<in AbstractStringAssert<*>!>!>  arguments: ()
+receiver: AbstractStringAssert<AbstractStringAssert<CapturedTypeConstructor(*)!>!>  arguments: ()
+can be applied to
+receiver: AbstractStringAssert<*>!  arguments: ()
+```
+
+## Version info
+```
+JDK       1.8.0_201
+IntelliJ  2019.2
+Kotlin    1.3.41
+JUnit     5.5.0
+AssertJ   3.8.0 or 3.12.2
+```

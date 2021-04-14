@@ -1,0 +1,136 @@
+FULL PRODUCT VERSION :
+1.7.0_147 and 1.6.0_22
+
+A DESCRIPTION OF THE PROBLEM :
+Calling javac with an annotation processor and a class name with an invalid postfix raises an exception.
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Create an empty directory and put the source code from the "Source code for an executable test case" box into it.
+(Alternatively, you could also use
+com.sun.tools.javac.processing.PrintingProcessor, but you'll need some
+dummy file in your current directory anyway.)
+Call
+
+javac EmptyProcessor.java
+
+which should succeed.
+
+
+Call
+
+javac -processor EmptyProcessor EmptyProcessor.java
+
+You should see the output:
+
+Empty Processor run!
+Empty Processor run!
+
+
+If you pass an invalid file name, you get the expected error message:
+
+javac -processor EmptyProcessor Blub.ja
+error: Could not find class file for 'Blub.ja'.
+1 error
+
+
+Now assume the programmer made a simple typo and ran
+
+javac -processor EmptyProcessor EmptyProcessor.javaxxx
+
+I now get an exception from javac.
+I tried this with 1.6.0_22 and build 147 of 1.7.
+Find the stack traces in the "Actual Result" box.
+
+I only get the exception when the base filename is EmptyProcessor,
+i.e. a class name that exists in the current directory.
+I get an even longer stack trace when the file name contains two dots,
+e.g. EmptyProcessor.x.y.
+
+It looks like name resolution is a bit too lenient when annotation
+processing is happening.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+A meaningful error message about the invalid argument.
+ACTUAL -
+With a single dot (EmptyProcessor.javaxxx) I get the messages:
+
+An exception has occurred in the compiler (1.6.0_22). Please file a
+bug at the Java Developer Connection
+(http://java.sun.com/webapps/bugreport)  after checking the Bug Parade
+for duplicates. Include your program and the following diagnostic in
+your report.  Thank you.
+java.lang.AssertionError
+       at com.sun.tools.javac.main.JavaCompiler.processAnnotations(JavaCompiler.java:968)
+       at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:727)
+       at com.sun.tools.javac.main.Main.compile(Main.java:353)
+       at com.sun.tools.javac.main.Main.compile(Main.java:279)
+       at com.sun.tools.javac.main.Main.compile(Main.java:270)
+       at com.sun.tools.javac.Main.compile(Main.java:69)
+       at com.sun.tools.javac.Main.main(Main.java:54)
+
+An exception has occurred in the compiler (1.7.0). Please file a bug
+at the Java Developer Connection
+(http://java.sun.com/webapps/bugreport)  after checking the Bug Parade
+for duplicates. Include your program and the following diagnostic in
+your report.  Thank you.
+java.lang.AssertionError
+       at com.sun.tools.javac.util.Assert.error(Assert.java:126)
+       at com.sun.tools.javac.util.Assert.check(Assert.java:45)
+       at com.sun.tools.javac.main.JavaCompiler.processAnnotations(JavaCompiler.java:1090)
+       at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:824)
+       at com.sun.tools.javac.main.Main.compile(Main.java:417)
+       at com.sun.tools.javac.main.Main.compile(Main.java:331)
+       at com.sun.tools.javac.main.Main.compile(Main.java:322)
+       at com.sun.tools.javac.Main.compile(Main.java:76)
+       at com.sun.tools.javac.Main.main(Main.java:61)
+
+
+With two dots (EmptyProcessor.x.y) I get the message:
+
+An exception has occurred in the compiler (1.7.0). Please file a bug
+at the Java Developer Connection
+(http://java.sun.com/webapps/bugreport)  after checking the Bug Parade
+for duplicates. Include your program and the following diagnostic in
+your report.  Thank you.
+java.lang.ClassCastException:
+com.sun.tools.javac.comp.Resolve$SymbolNotFoundError cannot be cast to
+com.sun.tools.javac.code.Symbol$ClassSymbol
+       at com.sun.tools.javac.comp.Attr$IdentAttributer.visitMemberSelect(Attr.java:313)
+       at com.sun.tools.javac.comp.Attr$IdentAttributer.visitMemberSelect(Attr.java:302)
+       at com.sun.tools.javac.tree.JCTree$JCFieldAccess.accept(JCTree.java:1683)
+       at com.sun.tools.javac.comp.Attr.attribIdent(Attr.java:298)
+       at com.sun.tools.javac.main.JavaCompiler.resolveIdent(JavaCompiler.java:672)
+       at com.sun.tools.javac.main.JavaCompiler.resolveBinaryNameOrIdent(JavaCompiler.java:650)
+       at com.sun.tools.javac.main.JavaCompiler.processAnnotations(JavaCompiler.java:1074)
+       at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:824)
+       at com.sun.tools.javac.main.Main.compile(Main.java:417)
+       at com.sun.tools.javac.main.Main.compile(Main.java:331)
+       at com.sun.tools.javac.main.Main.compile(Main.java:322)
+       at com.sun.tools.javac.Main.compile(Main.java:76)
+       at com.sun.tools.javac.Main.main(Main.java:61)
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import java.util.Set;
+import javax.annotation.processing.*;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.TypeElement;
+
+@SupportedAnnotationTypes("*")
+public class EmptyProcessor extends AbstractProcessor {
+    @Override
+    public boolean process(Set<? extends TypeElement> annotations,
+            RoundEnvironment roundEnv) {
+        System.out.println("Empty Processor run!");
+        return false;
+    }
+
+    @Override
+    public SourceVersion getSupportedSourceVersion() {
+        return SourceVersion.latest();
+    }
+}
+---------- END SOURCE ----------

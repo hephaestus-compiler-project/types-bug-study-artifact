@@ -1,0 +1,57 @@
+Consider this small program:
+
+1: package scratch;
+2: public class MainApp {
+3:   public static void main(String[] args) {
+4:     Runnable r = () -> {};
+5:     System.out.println(r.toString());
+6:   }
+7: }
+
+When compiled with javac the resulting file looks like this:
+
+ public static void main(java.lang.String[]);
+    descriptor: ([Ljava/lang/String;)V
+    flags: ACC_PUBLIC, ACC_STATIC
+    Code:
+      stack=2, locals=2, args_size=1
+         0: invokedynamic #2,  0              // InvokeDynamic #0:run:()Ljava/lang/Runnable;
+         5: astore_1
+         6: getstatic     #3                  // Field java/lang/System.out:Ljava/io/PrintStream;
+         9: aload_1
+        10: invokevirtual #4                  // Method java/lang/Object.toString:()Ljava/lang/String;
+        13: invokevirtual #5                  // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+        16: return
+      LineNumberTable:
+        line 4: 5
+        line 5: 6
+        line 6: 16
+
+Notice that line 4 begins at bci 5, not on the invokedynamic instruction.
+
+When compiled with the eclipse compiler the file looks like:
+
+  public static void main(java.lang.String[]);
+    descriptor: ([Ljava/lang/String;)V
+    flags: ACC_PUBLIC, ACC_STATIC
+    Code:
+      stack=2, locals=2, args_size=1
+         0: invokedynamic #19,  0             // InvokeDynamic #0:run:()Ljava/lang/Runnable;
+         5: astore_1
+         6: getstatic     #20                 // Field java/lang/System.out:Ljava/io/PrintStream;
+         9: aload_1
+        10: invokevirtual #26                 // Method java/lang/Object.toString:()Ljava/lang/String;
+        13: invokevirtual #30                 // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+        16: return
+      LineNumberTable:
+        line 4: 0
+        line 5: 6
+        line 6: 16
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      17     0  args   [Ljava/lang/String;
+            6      11     1     r   Ljava/lang/Runnable;
+
+Notice that line 4 begins at the bci 0.
+
+I don't know which variant is right, but they differ. The problem is when debugging and setting a breakpoint on line 4, should the invokedynamic be executed before the breakpoint happens or not?

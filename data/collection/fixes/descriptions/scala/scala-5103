@@ -1,0 +1,24 @@
+With Scala trunk, following r25861 and with -Yexperimental specified.
+
+In the REPL transcript below, the compiler infers `T` as the non-singleton type `String`, and then rejects it as not conforming to the explicitly provided bound `<: Singleton`.
+
+```scala
+miles@lewis:scala$ scala-trunk -Xexperimental
+Welcome to Scala version 2.10.0.r25866-b20111021020217 (Java HotSpot(TM) 64-Bit Server VM, Java 1.7.0).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> val x = "one"
+x: String = one
+
+scala> def single[T <: Singleton](x : T) = x
+single: [T <: Singleton](x: T)T
+
+scala> single(x)
+<console>:10: error: inferred type arguments [String] do not conform to method single's type parameter bounds [T <: Singleton]
+              single(x)
+              ^
+
+scala> single[x.type](x)
+res2: x.type = one
+```

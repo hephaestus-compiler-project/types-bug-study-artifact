@@ -1,0 +1,37 @@
+The c.s.t.javac.file.Paths class is overdue for a cleanup.
+
+There are bugs in the interactions between option handling and direct API access via the file manager get/setLocation calls. These bugs are best addressed by cleaning up Paths first.
+
+
+The standard javac file manger is a StandardJavaFileManager, which requires that the following methods are supported
+
+Iterable<? extends File> getLocation(Location l)
+void setLocation(Location l, Iterable<? extends File> path)
+boolean handleOption(String curr, Iterator<String> remaining)
+
+------------
+
+Right now, there are 6 members of the StandardLocation enum;  javac.file.Paths provides support for 4 (CLASS_PATH, SOURCE_PATH, ANNOTATION_PROCESSOR_PATH and PLATFORM_CLASS_PATH) and the file manager provides the remaining 2 (CLASS_OUTPUT, SOURCE_OUTPUT). Each of these members is affected by get/setLocation, and by one or more options. The code to handle these is somewhat disorganized.
+
+Each of the 6 members of the StandardLocation enum could have an associated handler, which knows how to handle the associated options and interactions with the corresponding get/setLocation calls.
+
+Thus, we could have the following class
+
+    abstract class LocationHandler {
+        LocationHandler(Location location, Option... options) {
+            // set up a Map<Location, LocationHandler>
+            // set up a Map<Option, LocationHandler>
+        }
+
+        abstract boolean handleOption(Option option, String value);
+        abstract Iterable<? extends File> getLocation();
+        abstract File getOutputLocation();
+        abstract void setLocation(Iterable<? extends File> path);
+    }
+
+Then, CLASS_PATH, SOURCE_PATH and ANNOTATION_PROCESSOR_PATH all have similar impls so would be instances of one subtype.
+CLASS_OUTPUT and SOURCE_OUTPUT would likewise be instances of another subtype.
+PLATFORM_CLASS_PATH is the most complex, because of all the constituent options, and would be it's own subtype.
+
+
+Then, Paths could be renamed Locations (which helps avoid NIO naming problems as well), and could take on the role of providing all the support for the "values" of Locations used by the file manager.

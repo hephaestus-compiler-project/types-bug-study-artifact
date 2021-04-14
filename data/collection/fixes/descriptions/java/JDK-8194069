@@ -1,0 +1,67 @@
+FULL PRODUCT VERSION :
+$ java -version
+java version "1.8.0_152"
+Java(TM) SE Runtime Environment (build 1.8.0_152-b16)
+Java HotSpot(TM) 64-Bit Server VM (build 25.152-b16, mixed mode)
+
+
+A DESCRIPTION OF THE PROBLEM :
+Running javac with -Xdoclint:all occasionally produces warnings about missing Javadoc comments on code which normally does not usually have (and in many cases cannot have) Javadoc. 
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+javac -Xdoclint:all -Werror acme/MyClass.java
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+No warnings emitted and command succeeds.
+ACTUAL -
+2 warnings are emitted, the first of them on the parameter to the lambda and the second on the local variable:
+
+
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+/.../acme/MyClass.java:16: warning: no comment
+    static final Function<String, String> someFunction = string -> {
+                                                         ^
+/.../acme/MyClass.java:18: warning: no comment
+        int localVariable = 3;
+            ^
+error: warnings found and -Werror specified
+1 error
+2 warnings
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+package acme;
+
+import java.util.Arrays;
+import java.util.Set;
+import java.util.function.Function;
+
+/**
+ * The class has docs.
+ */
+public final class MyClass
+{
+    /**
+     * The field itself has docs.
+     */
+    // Spurious warning 1 here, at 'string ->'
+    static final Function<String, String> someFunction = string -> {
+        // Spurious warning 2 here, at 'localVariable'
+        int localVariable = 3;
+        return Integer.toString(localVariable);
+    };
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Not using doclint is a workaround, but we want to use it, because we'd like to report Javadoc issues as soon as possible.
+
+

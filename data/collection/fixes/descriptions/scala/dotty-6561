@@ -1,0 +1,24 @@
+Tested in dotty 0.15.0-RC1.
+
+The following works as expected:
+
+```scala
+trait Foo[V]
+case class Inv[A](a: A)
+
+trait Bar[K <: Foo[V], V] {
+  type X = Inv[V]
+  def test(): Bar[Foo[X], X]
+}
+```
+But the following shows a strange compiler error:
+
+```scala
+trait Foo[V]
+case class Inv[A](a: A)
+
+trait Bar[K <: Foo[V], V] {
+  // ERROR: Type argument Foo[Inv[V]] does not conform to upper bound Foo[Inv[Inv[V]]] 
+  def test(): Bar[Foo[Inv[V]], Inv[V]]
+}
+```

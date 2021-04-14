@@ -1,0 +1,28 @@
+When prototyping adding a new public API type, that is a record class, to the JDK it is clear that the symbolgenerator CreateSymbols does not expect or handle the record attribute.
+
+This is most evident from the failure of test/langtools/tools/javac/platform/CanHandleClassFilesTest.java
+
+Additionally, javac generates a MethodParameters for the canonical constructor of a record class. This also trips up the symbol generator. The MethodParameters should likely just be ignored/skipped.
+
+----------System.err:(25/1772)----------
+java.lang.reflect.InvocationTargetException
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:64)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:564)
+	at CanHandleClassFilesTest.run(CanHandleClassFilesTest.java:117)
+	at CanHandleClassFilesTest.main(CanHandleClassFilesTest.java:53)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:64)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:564)
+	at com.sun.javatest.regtest.agent.MainActionHelper$AgentVMRunnable.run(MainActionHelper.java:298)
+	at java.base/java.lang.Thread.run(Thread.java:831)
+Caused by: java.lang.IllegalStateException: Unhandled attribute: Record
+	at build.tools.symbolgenerator.CreateSymbols.readAttribute(CreateSymbols.java:2157)
+	at build.tools.symbolgenerator.CreateSymbols.inspectClassFile(CreateSymbols.java:1836)
+	at build.tools.symbolgenerator.CreateSymbols.loadVersionClasses(CreateSymbols.java:1390)
+	at build.tools.symbolgenerator.CreateSymbols.incrementalUpdate(CreateSymbols.java:1698)
+	at build.tools.symbolgenerator.CreateSymbols.createIncrementalBaseLine(CreateSymbols.java:1761)
+	at build.tools.symbolgenerator.CreateSymbols.main(CreateSymbols.java:3942)
+	... 12 more

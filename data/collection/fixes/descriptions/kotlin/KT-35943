@@ -1,0 +1,94 @@
+Type error / error about lack of type information is not reported with new type inference enabled.
+```
+class Inv<I>
+fun <T> create(): Inv<T> = TODO()
+
+fun main() {
+    if (true) create() else null
+}
+```
+
+This leads to backend exception:
+```stacktrace
+Error:Kotlin: [Internal Error] org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: Failed to generate function main
+File being compiled at position: (15,1) in /home/Pavel.Kirpichenkov/jb/non_debug_idea_plyground/src/test/test.kt
+The root cause java.lang.IllegalStateException was thrown at: org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$typeMappingConfiguration$1.processErrorType(KotlinTypeMapper.kt:113)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genSimpleMember(MemberCodegen.java:203)
+	at org.jetbrains.kotlin.codegen.PackagePartCodegen.generateBody(PackagePartCodegen.java:95)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:129)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateFile(PackageCodegenImpl.java:148)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generate(PackageCodegenImpl.java:68)
+	at org.jetbrains.kotlin.codegen.DefaultCodegenFactory.generatePackage(CodegenFactory.kt:96)
+	at org.jetbrains.kotlin.codegen.DefaultCodegenFactory.generateModule(CodegenFactory.kt:67)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.doGenerateFiles(KotlinCodegenFacade.java:47)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.compileCorrectFiles(KotlinCodegenFacade.java:39)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.kt:637)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt:195)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:165)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:55)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:84)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:42)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:104)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:1479)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at java.rmi/sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:359)
+	at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.base/java.security.AccessController.doPrivileged(Native Method)
+	at java.rmi/sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:562)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:796)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:677)
+	at java.base/java.security.AccessController.doPrivileged(Native Method)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:676)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:834)
+Caused by: java.lang.IllegalStateException: Error type encountered: org.jetbrains.kotlin.types.ErrorUtils$UninferredParameterTypeConstructor@15bddd4d (ErrorType).
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$typeMappingConfiguration$1.processErrorType(KotlinTypeMapper.kt:113)
+	at org.jetbrains.kotlin.load.kotlin.TypeSignatureMappingKt.mapType(typeSignatureMapping.kt:100)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.mapType(KotlinTypeMapper.kt:264)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.mapTypeParameter(KotlinTypeMapper.kt:218)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.getOrCreateCallGenerator(ExpressionCodegen.java:2688)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.getOrCreateCallGenerator(ExpressionCodegen.java:2668)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.invokeMethodWithArguments(ExpressionCodegen.java:2467)
+	at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:41)
+	at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:13)
+	at org.jetbrains.kotlin.codegen.OperationStackValue.putSelector(StackValue.kt:79)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:122)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:115)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.putStackValue(ExpressionCodegen.java:384)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:365)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.lambda$generateIfExpression$0(ExpressionCodegen.java:536)
+	at org.jetbrains.kotlin.codegen.OperationStackValue.putSelector(StackValue.kt:79)
+	at org.jetbrains.kotlin.codegen.StackValueWithLeaveTask.putSelector(StackValue.kt:67)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:122)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:115)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.putStackValue(ExpressionCodegen.java:384)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:365)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.returnExpression(ExpressionCodegen.java:1701)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$FunctionDefault.doGenerateBody(FunctionGenerationStrategy.java:64)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$CodegenBased.generateBody(FunctionGenerationStrategy.java:84)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:666)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:473)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:260)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:176)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.gen(FunctionCodegen.java:147)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genSimpleMember(MemberCodegen.java:197)
+	... 33 more
+```
+
+IntelliJ IDEA 2019.3.1 (Ultimate Edition)
+Build #IU-193.5662.53, built on December 18, 2019
+Licensed to JetBrains Team
+
+Runtime version: 11.0.5+10-b520.17 amd64
+VM: OpenJDK 64-Bit Server VM by JetBrains s.r.o
+Linux 5.3.0-23-generic
+GC: ParNew, ConcurrentMarkSweep
+Memory: 4012M
+Cores: 12
+Non-Bundled Plugins: com.github.b3er.idea.plugins.arc.browser, io.protostuff.protostuff-jetbrains-plugin

@@ -1,0 +1,73 @@
+Compiling the following program:
+
+import java.util.*;
+
+class Test {
+
+    <T> Comparator<T> compound(Iterable<? extends Comparator<? super T>> it) {}
+
+    public void test(List<Comparator<?>> x) {
+        Comparator<String> c3 = compound(x);
+    }
+}
+
+leads to the following compiler error message:
+
+TestX.java:9: invalid inferred types for T#1; actual arguments do not conforms to inferred formal arguments
+        Comparator<String> c3 = compound(x);
+                                        ^
+    required: Iterable<? extends Comparator<? super String>>
+    found: List<Comparator<?>>
+  where T#1,T#2 are type-variables:
+    T#1 extends Object declared in method <T#2>compound(Iterable<? extends Comparator<? super T#2>>)
+    T#2 extends Object declared in method <T#2>compound(Iterable<? extends Comparator<? super T#2>>)
+1 error
+
+The error message should be:
+
+TestX.java:9: invalid inferred types for T; actual arguments do not conforms to inferred formal arguments
+        Comparator<String> c3 = compound(x);
+                                        ^
+    required: Iterable<? extends Comparator<? super String>>
+    found: List<Comparator<?>>
+  where T is a type-variable:
+    T extends Object declared in method <T>compound(Iterable<? extends Comparator<? super T>>)
+Moreover, when compiling the following example:
+
+class Foo<T extends String, S> {
+   <S, T extends S> void foo(T t) {
+      test(t);
+   }
+
+   void test(T t) {}
+}
+
+The output is:
+
+TestX.java:3: method test in class Foo<T#1,S#4> cannot be applied to given types
+      test(t);
+      ^
+  required: T#1
+  found: T#2
+  where T#1,T#2,S#3,S#4 are type-variables:
+    T#1 extends String declared in class Foo
+    T#2 extends S#3 declared in method <S#3,T#2>foo(T#2)
+    S#3 extends Object declared in method <S#3,T#2>foo(T#2)
+    S#4 extends Object declared in class Foo
+1 error
+
+When it should have been:
+
+TestX.java:3: method test in class Foo<T#1,S#4> cannot be applied to given types
+  test(t);
+      ^
+  required: T#1
+  found: T#2
+  where T#1,T#2,S#1,S#2 are type-variables:
+    T#1 extends String declared in class Foo
+    T#2 extends S#1 declared in method <S#1,T#2>foo(T#2)
+    S#1 extends Object declared in method <S#1,T#2>foo(T#2)
+    S#2 extends Object declared in class Foo
+1 error
+
+[note the wrong numbering of type-variables in the where clause!]

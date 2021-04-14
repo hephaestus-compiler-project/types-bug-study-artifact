@@ -1,0 +1,143 @@
+The code is:
+```
+import kotlin.experimental.ExperimentalTypeInference
+
+class TypeDefinition<K : Any> {
+    fun parse(parser: (serializedValue: String) -> K?): Unit {}
+    fun serialize(parser: (value: K) -> Any?): Unit {}
+}
+
+@OptIn(ExperimentalTypeInference::class)
+fun <T : Any> defineType(@BuilderInference definition: TypeDefinition<T>.() -> Unit): Unit {}
+
+fun test() {
+    defineType {
+        parse { it.toInt() }
+        serialize { it.toString() }
+    }
+}
+
+fun main() {
+    test()
+}
+```
+The thrown exception is:
+~~~
+Error:Kotlin: [Internal Error] org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: Failed to generate expression: KtLambdaExpression
+File being compiled: (14,19) in /Users/.../IdeaProjects/sandbox-2/src/main/kotlin/main.kt
+The root cause java.lang.IllegalStateException was thrown at: org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$typeMappingConfiguration$1.processErrorType(KotlinTypeMapper.kt:110)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:328)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:288)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:360)
+	at org.jetbrains.kotlin.codegen.CallGenerator$DefaultCallGenerator.genValueAndPut(CallGenerator.kt:70)
+	at org.jetbrains.kotlin.codegen.CallBasedArgumentGenerator.generateExpression(CallBasedArgumentGenerator.kt:42)
+	at org.jetbrains.kotlin.codegen.ArgumentGenerator.generate(ArgumentGenerator.kt:68)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.invokeMethodWithArguments(ExpressionCodegen.java:2610)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.invokeMethodWithArguments(ExpressionCodegen.java:2581)
+	at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:41)
+	at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:13)
+	at org.jetbrains.kotlin.codegen.OperationStackValue.putSelector(StackValue.kt:79)
+	at org.jetbrains.kotlin.codegen.StackValueWithLeaveTask.putSelector(StackValue.kt:67)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:123)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:116)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.putStackValue(ExpressionCodegen.java:388)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:369)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.returnExpression(ExpressionCodegen.java:1755)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$FunctionDefault.doGenerateBody(FunctionGenerationStrategy.java:64)
+	at org.jetbrains.kotlin.codegen.ClosureGenerationStrategy.doGenerateBody(ClosureGenerationStrategy.kt:35)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$CodegenBased.generateBody(FunctionGenerationStrategy.java:86)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:638)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:468)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:250)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:166)
+	at org.jetbrains.kotlin.codegen.ClosureCodegen.generateClosureBody(ClosureCodegen.java:200)
+	at org.jetbrains.kotlin.codegen.ClosureCodegen.generateBody(ClosureCodegen.java:188)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:127)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genClosure(ExpressionCodegen.java:1051)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genClosure(ExpressionCodegen.java:1016)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.visitLambdaExpression(ExpressionCodegen.java:1007)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.visitLambdaExpression(ExpressionCodegen.java:114)
+	at org.jetbrains.kotlin.psi.KtLambdaExpression.accept(KtLambdaExpression.java:40)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:306)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:288)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:360)
+	at org.jetbrains.kotlin.codegen.CallGenerator$DefaultCallGenerator.genValueAndPut(CallGenerator.kt:70)
+	at org.jetbrains.kotlin.codegen.CallBasedArgumentGenerator.generateExpression(CallBasedArgumentGenerator.kt:42)
+	at org.jetbrains.kotlin.codegen.ArgumentGenerator.generate(ArgumentGenerator.kt:68)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.invokeMethodWithArguments(ExpressionCodegen.java:2610)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.invokeMethodWithArguments(ExpressionCodegen.java:2581)
+	at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:41)
+	at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:13)
+	at org.jetbrains.kotlin.codegen.OperationStackValue.putSelector(StackValue.kt:79)
+	at org.jetbrains.kotlin.codegen.StackValueWithLeaveTask.putSelector(StackValue.kt:67)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:123)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:116)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.putStackValue(ExpressionCodegen.java:388)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:369)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.returnExpression(ExpressionCodegen.java:1755)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$FunctionDefault.doGenerateBody(FunctionGenerationStrategy.java:64)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$CodegenBased.generateBody(FunctionGenerationStrategy.java:86)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:638)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:468)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:250)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:166)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.gen(FunctionCodegen.java:137)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genSimpleMember(MemberCodegen.java:195)
+	at org.jetbrains.kotlin.codegen.PackagePartCodegen.generateBody(PackagePartCodegen.java:95)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:127)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateFile(PackageCodegenImpl.java:145)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generate(PackageCodegenImpl.java:70)
+	at org.jetbrains.kotlin.codegen.DefaultCodegenFactory.generatePackage(CodegenFactory.kt:88)
+	at org.jetbrains.kotlin.codegen.DefaultCodegenFactory.generateModule(CodegenFactory.kt:67)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.compileCorrectFiles(KotlinCodegenFacade.java:35)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.kt:608)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt:198)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:164)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:51)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:86)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:44)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:105)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:1479)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:357)
+	at sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:573)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:834)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:688)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:687)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+Caused by: java.lang.IllegalStateException: Error type encountered: NonFixed: TypeVariable(T) (StubType).
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$typeMappingConfiguration$1.processErrorType(KotlinTypeMapper.kt:110)
+	at org.jetbrains.kotlin.load.kotlin.TypeSignatureMappingKt.mapType(typeSignatureMapping.kt:101)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.mapType(KotlinTypeMapper.kt:262)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$writeGenericArguments$$inlined$with$lambda$1.invoke(KotlinTypeMapper.kt:353)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$writeGenericArguments$$inlined$with$lambda$1.invoke(KotlinTypeMapper.kt:77)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$Companion.writeGenericArguments(KotlinTypeMapper.kt:1502)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.writeGenericArguments(KotlinTypeMapper.kt:352)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.writeGenericArguments(KotlinTypeMapper.kt:342)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.writeGenericType(KotlinTypeMapper.kt:295)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.access$writeGenericType(KotlinTypeMapper.kt:77)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$mapType$1.invoke(KotlinTypeMapper.kt:265)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$mapType$1.invoke(KotlinTypeMapper.kt:77)
+	at org.jetbrains.kotlin.load.kotlin.TypeSignatureMappingKt.mapType(typeSignatureMapping.kt:74)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.mapType(KotlinTypeMapper.kt:262)
+	at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.mapSupertype(KotlinTypeMapper.kt:212)
+	at org.jetbrains.kotlin.codegen.ClosureCodegen.generateDeclaration(ClosureCodegen.java:160)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:117)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genClosure(ExpressionCodegen.java:1051)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genClosure(ExpressionCodegen.java:1016)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.visitLambdaExpression(ExpressionCodegen.java:1007)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.visitLambdaExpression(ExpressionCodegen.java:114)
+	at org.jetbrains.kotlin.psi.KtLambdaExpression.accept(KtLambdaExpression.java:40)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:306)
+	... 88 more
+~~~

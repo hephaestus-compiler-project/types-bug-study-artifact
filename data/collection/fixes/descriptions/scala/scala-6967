@@ -1,0 +1,19 @@
+This is a real buzzkill. How does it manage, given classTag[Boolean], to a) not match the Boolean extractor and b) match the Object extractor?
+
+There are pretty close to zero tests for this. The only one which comes close is test/files/run/virtpatmat_typetag.scala. Not cool.
+```scala
+scala> import scala.reflect._
+import scala.reflect._
+
+scala> def f(x: Boolean) = x match { case ClassTag.Boolean(_) => "bool" ; case _ => "other" }
+f: (x: Boolean)String
+
+scala> f(true)
+res0: String = bool
+
+scala> def f[T: ClassTag](x: T) = x match { case ClassTag.Boolean(y) => "bool" ; case ClassTag.Object(_) => classTag[T].runtimeClass }
+f: [T](x: T)(implicit evidence$1: scala.reflect.ClassTag[T])java.io.Serializable
+
+scala> f(true)
+res1: java.io.Serializable = boolean
+```

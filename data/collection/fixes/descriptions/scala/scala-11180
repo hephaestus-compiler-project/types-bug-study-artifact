@@ -1,0 +1,53 @@
+```scala
+// syntax_1.scala
+import scala.util._
+
+package object syntax {
+  def toTry[A](self: Option[A])(failure: => Throwable): Try[A] =
+    self.fold[Try[A]](Failure(failure))(Success(_))
+}
+
+// usage_2.scala
+package usage
+
+import scala.util.Try, syntax._
+
+object Usage {
+  def foo(opt: Option[Int]): Try[Int] =
+    toTry(opt)(new Exception())
+}
+```
+
+with compiler flags: `-opt:l:inline -opt-inline-from:**`:
+
+```
+error: Error while emitting usage/Usage$
+java.util.NoSuchElementException: None.get
+    at scala.None$.get(Option.scala:349)
+    at scala.None$.get(Option.scala:347)
+    at scala.tools.nsc.backend.jvm.PostProcessor$ClassWriterWithBTypeLub.getCommonSuperClass(PostProcessor.scala:152)
+    at scala.tools.asm.SymbolTable.addMergedType(SymbolTable.java:1209)
+    at scala.tools.asm.Frame.merge(Frame.java:1293)
+    at scala.tools.asm.Frame.merge(Frame.java:1175)
+    at scala.tools.asm.MethodWriter.computeAllFrames(MethodWriter.java:1615)
+    at scala.tools.asm.MethodWriter.visitMaxs(MethodWriter.java:1551)
+    at scala.tools.asm.tree.MethodNode.accept(MethodNode.java:810)
+    at scala.tools.asm.tree.MethodNode.accept(MethodNode.java:690)java.util.NoSuchElementException: None.get
+    at scala.None$.get(Option.scala:349)
+    at scala.None$.get(Option.scala:347)
+    at scala.tools.nsc.backend.jvm.PostProcessor$ClassWriterWithBTypeLub.getCommonSuperClass(PostProcessor.scala:152)
+    at scala.tools.asm.SymbolTable.addMergedType(SymbolTable.java:1209)
+    at scala.tools.asm.Frame.merge(Frame.java:1293)
+    at scala.tools.asm.Frame.merge(Frame.java:1175)
+    at scala.tools.asm.MethodWriter.computeAllFrames(MethodWriter.java:1615)
+    at scala.tools.asm.MethodWriter.visitMaxs(MethodWriter.java:1551)
+    at scala.tools.asm.tree.MethodNode.accept(MethodNode.java:810)
+    at scala.tools.asm.tree.MethodNode.accept(MethodNode.java:690)
+one error found
+```
+
+The `None` is from a call to `cachedClassBType`, which expects that codegen will have made a btype for every class mentioned in compiled units; however, classes mentioned only in inlined methods don't necessarily ever get a btype made.
+
+The regression was introduced in scala/scala@833cf7ef13bf65877c3730c41f3fea63468ff863, where we stopped loading btypes for classes which could not be inner (due to lacking a `$` in their internal name). In yet another indictment of side effects, this was the _only_ place where btypes for inlined classes were made. Now they're not.
+
+cc @Milyardo

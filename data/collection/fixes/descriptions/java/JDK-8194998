@@ -1,0 +1,56 @@
+FULL PRODUCT VERSION :
+java version "9.0.1"
+Java(TM) SE Runtime Environment (build 9.0.1+11)
+Java HotSpot(TM) 64-Bit Server VM (build 9.0.1+11, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+17.2.0 Darwin Kernel Version 17.2.0: Fri Sep 29 18:27:05 PDT 2017; root:xnu-4570.20.62~3/RELEASE_X86_64 x86_64
+
+
+A DESCRIPTION OF THE PROBLEM :
+The following code is quite confusing, as after casting an anonymous class to its interface it can work as a functional interface (in various constructions actually):
+
+public class A {
+    public static void main(String[] args) {
+        Runnable test1 = ((I)(new I() {}))::test;  // compiles OK
+        Runnable test2 = ((new I() {}))::test;     // won't compile 
+    }
+
+    interface I {
+        private void test() {}
+    }
+}
+
+So,  Runnable test1 = ((I)(new I() {}))::test; compiles and works okay, while Runnable test2 = ((new I() {}))::test; doesn't compile.
+
+It seems that it is not a consistent behavior.  Either one should be compiled well and another, or both shouldn't be compiled. 
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile the following code:
+
+public class A {
+
+    public static void main(String[] args) {
+        Runnable test1 = ((I)(new I() {}))::test;
+        Runnable test2 = ((new I() {}))::test;
+    }
+
+    interface I {
+        private void test() {}
+    }
+
+}
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Perhaps, Runnable test2 = ((new I() {}))::test; should be compiled fine in this example.
+ACTUAL -
+Runnable test1 = ((I)(new I() {}))::test; is compiled well
+Runnable test2 = ((new I() {}))::test; is not compiled.
+
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+

@@ -1,0 +1,28 @@
+This is very related to #8128, but still exhibits similar behaviour in 2.11.2.
+
+```scala
+package regr 
+
+trait F[A]
+
+class G(val a: F[_], val b: F[_])
+
+object G {
+  def unapply(g: G) = Some((g.a, g.b))
+}
+
+object H {
+  def unapply(g: G) = g match {
+    case G(a, _) => Some(a)
+  }
+}
+```
+
+results in (from H.unapply):
+
+```
+error during expansion of this match (this is a scalac bug). 
+The underlying error was: type mismatch;
+  found   : regr.F[_$1(in method unapply)(in method unapply)(in method unapply)(in method unapply)] where type _$1(in method unapply)(in method unapply)(in method unapply)(in method unapply)
+  required: regr.F[_$1(in method unapply)(in method unapply)(in method unapply)(in method unapply)]	Regr.scala
+```

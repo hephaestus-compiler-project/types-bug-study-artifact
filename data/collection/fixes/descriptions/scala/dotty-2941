@@ -1,0 +1,21 @@
+The following example triggers an infinite recursion in TypeAssigner.avoid(). The call to avoid() originates from `ensureNoLocalRefs`, and, further up the call stack, from the handling of `match` cases ([Typer.scala:951](https://github.com/lampepfl/dotty/blob/d916343daa86c98e739dc3b685f95410565072d9/compiler/src/dotty/tools/dotc/typer/Typer.scala#L951)). The actual avoidance is performed on a `LazyRef`, which is likely at the heart of the problem.
+
+```scala
+trait FooBase {
+  type Bar >: Null <: BarBase { type This <: FooBase.this.Bar }
+  type This >: this.type <: FooBase { type This <: FooBase.this.This }
+
+  def derived(bar: Bar): This = ???
+}
+
+trait BarBase {
+  type This >: Null <: BarBase { type This <: BarBase.this.This }
+}
+
+object Test {
+  def bad(foo: FooBase): FooBase = foo match {
+    case foo: FooBase =>
+      foo.derived(???)  // Triggers infinite loop in TypeAssigner.avoid()
+  }
+}
+```

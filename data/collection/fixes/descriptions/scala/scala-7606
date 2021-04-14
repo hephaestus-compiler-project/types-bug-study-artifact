@@ -1,0 +1,38 @@
+Given a Dynamic class/trait, with updateDynamic(name: Something)(...), and an implicit conversion from String to Something, the typechecker will report "reassignment to val" when trying to update a field using the = syntax. It does work fine for selectDynamic and applyDynamic.
+
+Minimized test case:
+
+```scala
+import scala.language.{ dynamics, implicitConversions }
+
+class ID(s: String)
+
+class DynamicFields extends scala.Dynamic {
+  def updateDynamic(name: ID)(value: Any): Unit = ???
+}
+
+object BugUpdateDynamic {
+  implicit def string2id(s: String): ID = new ID(s)
+
+  def bug(): Unit = {
+    val o = new DynamicFields
+    o.foo = "bar"
+  }
+}
+```
+
+Compiling with 2.10.1, 2.10.2 or 2.11.0-M3 yields the same output.
+
+Expected output: compile fine, without error.
+
+Actual output:
+
+```scala
+$ ~/opt/scala-2.11.0-M3/bin/scalac BugUpdateDynamic.scala
+BugUpdateDynamic.scala:14: error: reassignment to val
+    o.foo = "bar"
+          ^
+one error found
+```
+
+(manually calling updateDynamic works, btw)

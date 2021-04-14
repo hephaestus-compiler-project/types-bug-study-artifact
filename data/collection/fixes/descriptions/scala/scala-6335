@@ -1,0 +1,127 @@
+A method with the same name as an implicit class crashes the compiler:
+
+```scala
+object E {
+  def X = 3
+  implicit class X(val i: Int) {
+    def xx = i
+  }
+}
+```
+
+```
+error: 
+     while compiling: E.scala
+        during phase: typer
+     library version: version 2.10.0-20120906-172417-b7e08723d1
+    compiler version: version 2.10.0-20120906-172417-b7e08723d1
+  reconstructed args: -d out
+
+  last tree to typer: Literal(Constant(()))
+              symbol: null
+   symbol definition: null
+                 tpe: Unit
+       symbol owners: 
+      context owners: class X -> object E -> package <empty>
+
+== Enclosing template or block ==
+
+Template(
+  "java.lang.Object" // parents
+  ValDef(
+    private
+    "_"
+    <tpt>
+    <empty>
+  )
+  // 3 statements
+  ValDef( // private[this] val i: <?> in class X
+    private <local> <paramaccessor>
+    "i"
+    "Int"
+    <empty>
+  )
+  DefDef( // def <init>: <?> in class X
+    <method>
+    "<init>"
+    []
+    // 1 parameter list
+    ValDef(
+      <param> <paramaccessor>
+      "i"
+      "Int"
+      <empty>
+    )
+    <tpt>
+    Block(
+      Apply(
+        super."<init>"
+        Nil
+      )
+      ()
+    )
+  )
+  DefDef( // def xx: <?> in class X
+    <method>
+    "xx"
+    []
+    Nil
+    <tpt>
+    "i"
+  )
+)
+
+== Expanded type of tree ==
+
+TypeRef(TypeSymbol(final abstract class Unit extends AnyVal))
+
+uncaught exception during compilation: java.lang.AssertionError
+error: java.lang.AssertionError: assertion failed: List(method X, method X)
+	at scala.Predef$.assert(Predef.scala:173)
+	at scala.reflect.internal.Symbols$Symbol.suchThat(Symbols.scala:1562)
+	at scala.tools.nsc.typechecker.MethodSynthesis$MethodSynth$ImplicitClassWrapper.derivedSym(MethodSynthesis.scala:380)
+	at scala.tools.nsc.typechecker.MethodSynthesis$MethodSynth$class.addDerivedTrees(MethodSynthesis.scala:233)
+	at scala.tools.nsc.typechecker.Namers$Namer.addDerivedTrees(Namers.scala:55)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$27.apply(Typers.scala:1788)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$27.apply(Typers.scala:1788)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$rewrappingWrapperTrees$1.apply(Typers.scala:1726)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$rewrappingWrapperTrees$1.apply(Typers.scala:1723)
+	at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:251)
+	at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:251)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.collection.TraversableLike$class.flatMap(TraversableLike.scala:251)
+	at scala.collection.AbstractTraversable.flatMap(Traversable.scala:105)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1788)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$26.apply(Typers.scala:1698)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$26.apply(Typers.scala:1698)
+	at scala.tools.nsc.typechecker.Typers$Typer.typerReportAnyContextErrors(Typers.scala:513)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1697)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5273)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5330)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:2673)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$53.apply(Typers.scala:2767)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$53.apply(Typers.scala:2767)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:2767)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedPackageDef$1(Typers.scala:4999)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5276)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5330)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5381)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.apply(Analyzer.scala:98)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:450)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:90)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:90)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:726)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1155)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.run(Analyzer.scala:90)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1561)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1535)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1531)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1641)
+	at scala.tools.nsc.Driver.doCompile(Driver.scala:33)
+	at scala.tools.nsc.Main$.doCompile(Main.scala:79)
+	at scala.tools.nsc.Driver.process(Driver.scala:54)
+	at scala.tools.nsc.Driver.main(Driver.scala:67)
+	at scala.tools.nsc.Main.main(Main.scala)
+```

@@ -1,0 +1,37 @@
+Kotlin 1.3.41
+
+In kotlin-test there's expect defined as follows:
+```kotlin
+fun <T> expect(expected: T, actual: () -> T) {
+}
+```
+
+There is a problem with the function in which the following code doesn't compile:
+```
+fun <T> expect(expected: T, actual: () -> T) {
+}
+
+var String.someProp: String?
+    get() = toString()
+    set(value) {}
+
+fun main() {
+    val s = ""
+    expect(null) { s.someProp }
+    s.someProp = "foo"
+    expect("foo") { s.someProp }
+}
+```
+
+The compilation will fail with:
+```
+Error:(12, 21) Kotlin: Smart cast to 'String' is impossible, because 's.someProp' is a mutable property that could have been changed by this time
+```
+
+I'm not sure whether this is a bug (which needs to be fixed in the Kotlin compiler) or a feature (then kotlin-test's function signature needs to be changed). It looks to me that the Kotlin compiler type inference should infer a nullable type for `T` which would make the compilation pass, but I'd like to hear your opinion on this please.
+
+There are two workarounds:
+1. Modify the `expect` function signature to `fun <T> expect(expected: T, actual: () -> T?) {`
+2. Rewrite the call site as follows: `expect<String?>("foo") { s.someProp }`
+
+Neither of those workarounds are perfect unfortunately.

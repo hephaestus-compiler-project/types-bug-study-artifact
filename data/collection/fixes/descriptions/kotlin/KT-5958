@@ -1,0 +1,69 @@
+I have a java library with following API:
+{code}
+package some;
+
+public class Code {
+    public static class Box<T> {
+        public T value;
+
+        public Box(T value) {
+            this.value = value;
+        }
+    }
+
+    public interface BoxedValueProvider<T> {
+         Box<T> getBoxedValue();
+    }
+
+    public static class Unboxer<T> {
+        BoxedValueProvider<T> provider;
+
+        public Unboxer(BoxedValueProvider<T> provider) {
+            this.provider = provider;
+        }
+
+        public T getUnboxed() {
+            return provider.getBoxedValue().value;
+        }
+    }
+}
+{code}
+
+For some reason constructing Unboxer using sam-adapter leads to strange type inference problems:
+{code lang=kt}
+package test
+
+import some.Code.*
+
+fun main() {
+    val unboxed: Int? = Unboxer {
+        Box(3)
+    }.getUnboxed()
+    //TYPE MISMATCH: required: Int?, found: T?
+
+    val unboxed1: Int? = Unboxer(BoxedValueProvider {
+        Box(3)
+    }).getUnboxed()
+    //works
+
+    val unboxed2: Int? = Unboxer(object : BoxedValueProvider<Int> {
+        override fun getBoxedValue(): Box<Int>? {
+            return Box(3)
+        }
+    }).getUnboxed()
+    //works
+}
+{code}
+
+Doesn't happen when using similar construct not involving sam:
+{code lang=kt}
+public class KotlinBox<T>(public var value: T)
+
+public class KotlinUnboxer<T>(val f: () -> KotlinBox<T>) {
+    fun unbox() = f().value
+}
+
+fun main() {
+    KotlinUnboxer { KotlinBox(3) }.unbox(): Int //works
+}
+{code}

@@ -1,0 +1,89 @@
+Files without a main()-function works fine. Files with a main()-function hangs on "Error analysis is in progress".  I have several files in the same package, each with a top-level main()-function, but some variants in signature.
+fun main(args: Array<String>)
+fun main()
+fun main(): Unit
+suspend fun main()
+
+File A.kt:
+```kotlin
+fun main() {
+    println("One")
+}
+```
+
+File B.kt:
+```kotlin
+@JvmName("foo")
+fun String.foo(): String = "foo"
+
+fun main() {
+ println("Two")
+}
+
+```
+
+Invalidate caches/restart does not help
+IU-193.7288.26, JRE 11.0.6+8-b520.66x64 JetBrains s.r.o, OS Mac OS X(x86_64) v10.15.5, screens 1792x1120; Retina
+
+from idea.log:
+```
+2020-07-10 15:17:24,652 [ 956197]  ERROR - hes.resolve.KotlinCacheService - IntelliJ IDEA 2019.3.5  Build #IU-193.7288.26 
+2020-07-10 15:17:24,652 [ 956197]  ERROR - hes.resolve.KotlinCacheService - JDK: 11.0.6; VM: OpenJDK 64-Bit Server VM; Vendor: JetBrains s.r.o 
+2020-07-10 15:17:24,652 [ 956197]  ERROR - hes.resolve.KotlinCacheService - OS: Mac OS X 
+2020-07-10 15:17:24,653 [ 956198]  ERROR - hes.resolve.KotlinCacheService - Plugin to blame: Kotlin version: 1.3.72-release-IJ2019.3-5 
+2020-07-10 15:17:24,653 [ 956198]  ERROR - hes.resolve.KotlinCacheService - Last Action: GotoNextError 
+2020-07-10 15:17:27,623 [ 959168]  ERROR - hes.resolve.KotlinCacheService - No descriptor resolved for FUN 
+org.jetbrains.kotlin.utils.KotlinExceptionWithAttachments: No descriptor resolved for FUN
+	at org.jetbrains.kotlin.idea.MainFunctionDetector$1.invoke(MainFunctionDetector.kt:43)
+	at org.jetbrains.kotlin.idea.MainFunctionDetector$1.invoke(MainFunctionDetector.kt:35)
+	at org.jetbrains.kotlin.idea.MainFunctionDetector.isMain(MainFunctionDetector.kt:89)
+	at org.jetbrains.kotlin.idea.MainFunctionDetector.isMainWithParameter(MainFunctionDetector.kt:162)
+	at org.jetbrains.kotlin.idea.MainFunctionDetector.isMain(MainFunctionDetector.kt:142)
+	at org.jetbrains.kotlin.idea.MainFunctionDetector.isMain$default(MainFunctionDetector.kt:98)
+	at org.jetbrains.kotlin.resolve.OverloadResolver.isTopLevelMainInDifferentFiles(OverloadResolver.kt:276)
+	at org.jetbrains.kotlin.resolve.OverloadResolver.findRedeclarations(OverloadResolver.kt:253)
+	at org.jetbrains.kotlin.resolve.OverloadResolver.checkOverloadsInPackage(OverloadResolver.kt:194)
+	at org.jetbrains.kotlin.resolve.OverloadResolver.checkOverloadsInPackages(OverloadResolver.kt:85)
+	at org.jetbrains.kotlin.resolve.OverloadResolver.checkOverloads(OverloadResolver.kt:48)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations(LazyTopDownAnalyzer.kt:223)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations$default(LazyTopDownAnalyzer.kt:60)
+	at org.jetbrains.kotlin.idea.caches.resolve.KotlinResolveDataProvider.analyze(PerFileAnalysisCache.kt:412)
+	at org.jetbrains.kotlin.idea.caches.resolve.PerFileAnalysisCache.analyze(PerFileAnalysisCache.kt:193)
+	at org.jetbrains.kotlin.idea.caches.resolve.PerFileAnalysisCache.getIncrementalAnalysisResult(PerFileAnalysisCache.kt:126)
+	at org.jetbrains.kotlin.idea.caches.resolve.PerFileAnalysisCache.getAnalysisResults(PerFileAnalysisCache.kt:65)
+	at org.jetbrains.kotlin.idea.caches.resolve.ProjectResolutionFacade.getAnalysisResultsForElements$idea_core(ProjectResolutionFacade.kt:127)
+	at org.jetbrains.kotlin.idea.caches.resolve.ModuleResolutionFacadeImpl.analyzeWithAllCompilerChecks(ModuleResolutionFacadeImpl.kt:67)
+	at org.jetbrains.kotlin.idea.caches.resolve.ResolutionFacadeWithDebugInfo.analyzeWithAllCompilerChecks(ResolutionFacadeWithDebugInfo.kt:55)
+	at org.jetbrains.kotlin.idea.caches.resolve.ResolutionUtils.analyzeWithAllCompilerChecks(resolutionApi.kt:159)
+	at org.jetbrains.kotlin.idea.highlighter.KotlinPsiChecker.annotateElement(KotlinPsiChecker.kt:70)
+	at org.jetbrains.kotlin.idea.highlighter.KotlinPsiChecker.annotate(KotlinPsiChecker.kt:61)
+	at com.intellij.codeInsight.daemon.impl.DefaultHighlightVisitor.runAnnotators(DefaultHighlightVisitor.java:126)
+	at com.intellij.codeInsight.daemon.impl.DefaultHighlightVisitor.visit(DefaultHighlightVisitor.java:108)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.runVisitors(GeneralHighlightingPass.java:351)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.lambda$collectHighlights$5(GeneralHighlightingPass.java:285)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.analyzeByVisitors(GeneralHighlightingPass.java:311)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.lambda$analyzeByVisitors$6(GeneralHighlightingPass.java:314)
+	at com.intellij.codeInsight.daemon.impl.DefaultHighlightVisitor.analyze(DefaultHighlightVisitor.java:93)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.analyzeByVisitors(GeneralHighlightingPass.java:314)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.collectHighlights(GeneralHighlightingPass.java:282)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.collectInformationWithProgress(GeneralHighlightingPass.java:227)
+	at com.intellij.codeInsight.daemon.impl.ProgressableTextEditorHighlightingPass.doCollectInformation(ProgressableTextEditorHighlightingPass.java:84)
+	at com.intellij.codeHighlighting.TextEditorHighlightingPass.collectInformation(TextEditorHighlightingPass.java:55)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.lambda$null$1(PassExecutorService.java:429)
+	at com.intellij.openapi.application.impl.ApplicationImpl.tryRunReadAction(ApplicationImpl.java:997)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.lambda$doRun$2(PassExecutorService.java:422)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.registerIndicatorAndRun(CoreProgressManager.java:585)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.executeProcessUnderProgress(CoreProgressManager.java:531)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.executeProcessUnderProgress(ProgressManagerImpl.java:59)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.doRun(PassExecutorService.java:421)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.lambda$run$0(PassExecutorService.java:397)
+	at com.intellij.openapi.application.impl.ReadMostlyRWLock.executeByImpatientReader(ReadMostlyRWLock.java:167)
+	at com.intellij.openapi.application.impl.ApplicationImpl.executeByImpatientReader(ApplicationImpl.java:157)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.run(PassExecutorService.java:395)
+	at com.intellij.concurrency.JobLauncherImpl$VoidForkJoinTask$1.exec(JobLauncherImpl.java:161)
+	at java.base/java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:290)
+	at java.base/java.util.concurrent.ForkJoinPool$WorkQueue.topLevelExec(ForkJoinPool.java:1020)
+	at java.base/java.util.concurrent.ForkJoinPool.scan(ForkJoinPool.java:1656)
+	at java.base/java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1594)
+	at java.base/java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:177)
+```

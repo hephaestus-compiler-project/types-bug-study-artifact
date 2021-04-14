@@ -1,0 +1,60 @@
+javac throws NPE when compiling the following incorrect code with JDK 9:
+
+public class javacbug {
+    public static void main(String[] args) {
+        int buf = 0xFFFF;
+       int oldBuf = buf;
+       if (buf ^ ~oldBuf == 0x10000) {
+       }
+    }
+}
+
+java.lang.NullPointerException
+        at com.sun.tools.javac.comp.TransTypes.visitBinary(TransTypes.java:750)
+        at com.sun.tools.javac.tree.JCTree$JCBinary.accept(JCTree.java:1947)
+        at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+        at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:485)
+        at com.sun.tools.javac.comp.TransTypes.visitParens(TransTypes.java:722)
+        at com.sun.tools.javac.tree.JCTree$JCParens.accept(JCTree.java:1813)
+        at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+        at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:485)
+        at com.sun.tools.javac.comp.TransTypes.visitIf(TransTypes.java:630)
+        at com.sun.tools.javac.tree.JCTree$JCIf.accept(JCTree.java:1387)
+        at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+        at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:70)
+        at com.sun.tools.javac.tree.TreeTranslator.visitBlock(TreeTranslator.java:167)
+        at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:986)
+        at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+        at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:485)
+        at com.sun.tools.javac.comp.TransTypes.visitMethodDef(TransTypes.java:520)
+        at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:838)
+        at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+        at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:70)
+        at com.sun.tools.javac.tree.TreeTranslator.visitClassDef(TreeTranslator.java:139)
+        at com.sun.tools.javac.comp.TransTypes.translateClass(TransTypes.java:937)
+        at com.sun.tools.javac.comp.TransTypes.visitClassDef(TransTypes.java:506)
+        at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:746)
+        at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+        at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:485)
+        at com.sun.tools.javac.comp.TransTypes.translateTopLevelClass(TransTypes.java:961)
+        at com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1446)
+        at com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1317)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:865)
+        at com.sun.tools.javac.main.Main.compile(Main.java:251)
+        at com.sun.tools.javac.main.Main.compile(Main.java:140)
+        at com.sun.tools.javac.Main.compile(Main.java:56)
+        at com.sun.tools.javac.Main.main(Main.java:42)
+
+$ java -version
+java version "1.9.0-ea"
+Java(TM) SE Runtime Environment (build 1.9.0-ea-b52)
+Java HotSpot(TM) 64-Bit Server VM (build 1.9.0-ea-b52, mixed mode)
+
+When compiling the same code with JDK 8u60:
+
+javacbug.java:6: error: bad operand types for binary operator '^'
+        if (buf ^ ~oldBuf == 0x10000) {
+                ^
+  first type:  int
+  second type: boolean
+1 error

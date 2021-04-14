@@ -1,0 +1,108 @@
+Compile the attached file with `-Ypartial-unification`.
+
+Focus on the difference between `Test1` and `Test2`, which differ only in the extra pair of braces ({ }) around some code. That extra pair of braces helps implicit resolution, which otherwise fails. The claim of this bug report is that those braces should not be necessary.
+
+A bunch of smaller working examples is added in `Test3`, which explains why the minimal failing case is so complex.
+
+I inline the contents of the attached file for easy reference:
+
+```scala
+import scala.language.higherKinds
+
+final case class Coproduct[F[_], G[_], A](run: Either[F[A], G[A]])
+
+object Coproduct {
+
+  sealed trait Builder {
+    type Out[_]
+  }
+
+  sealed trait :++:[F[_], G[_]] extends Builder {
+    type Out[A] = Coproduct[F, G, A]
+  }
+
+  sealed trait :+:[F[_], B <: Builder] extends Builder {
+    type Out[A] = Coproduct[F, B#Out, A]
+  }
+}
+
+trait Inject[F[_], H[_]] {
+  def inj[A](fa: F[A]): H[A]
+}
+
+object Inject {
+  import Coproduct._
+
+  implicit def reflexiveInject[F[_]]: Inject[F, F] =
+    new Inject[F, F] {
+      def inj[A](fa: F[A]): F[A] = fa
+    }
+
+  implicit def injectLeft[F[_], G[_]]: Inject[F, (F :++: G)#Out] =
+    new Inject[F, (F :++: G)#Out] {
+      def inj[A](fa: F[A]): Coproduct[F, G, A] = Coproduct(Left(fa))
+    }
+
+  implicit def injectRight[F[_], G[_], H[_]](implicit I: Inject[F, H]): Inject[F, (G :++: H)#Out] =
+    new Inject[F, (G :++: H)#Out] {
+      def inj[A](fa: F[A]): Coproduct[G, H , A] = Coproduct(Right(I.inj(fa)))
+    }
+}
+
+object Test1 {
+  import Coproduct.{:++:, :+:}
+
+  class Foo[A]
+  class Bar[A]
+  class Baz[A]
+
+  implicitly[Inject[Baz, (Foo :+: Bar :++: Baz)#Out]] // error
+
+  // expanded previous line, still doesn't compile
+  implicitly[Inject[Baz, ({ type Out[A] = Coproduct[Foo, ({ type Out1[a] = Coproduct[Bar, Baz, a] })#Out1, A] })#Out]] // error
+}
+
+// Differs from Test1 only by extra braces.
+// This compiles.
+object Test2 {
+  import Coproduct.{:++:, :+:}
+
+  {
+    class Foo[A]
+    class Bar[A]
+    class Baz[A]
+
+    implicitly[Inject[Baz, (Foo :+: Bar :++: Baz)#Out]] // OK
+
+    // expanded previous line
+    implicitly[Inject[Baz, ({ type Out[A] = Coproduct[Foo, ({ type Out1[a] = Coproduct[Bar, Baz, a] })#Out1, A] })#Out]] // OK
+  }
+}
+
+// A bunch of "smaller" examples that work without the extra braces.
+object Test3 {
+  import Coproduct.{:++:, :+:}
+
+  class Foo[A]
+  class Bar[A]
+  class Baz[A]
+
+  // injecting into Left(_) works
+  implicitly[Inject[Foo, (Foo :+: Bar :++: Baz)#Out]]
+
+  // injecting into Right(Left(_)) works
+  implicitly[Inject[Bar, (Foo :+: Bar :++: Baz)#Out]]
+
+  // injecting into Right(_) works
+  implicitly[Inject[Baz, (Bar :++: Baz)#Out]]
+
+  // define FooBarBaz equal to (Foo :+: Bar :++: Baz)#Out
+  type BarBaz[A] = Coproduct[Bar, Baz, A]
+  type FooBarBaz[A] = Coproduct[Foo, BarBaz, A]
+  def proveTypeEquality[A] = implicitly[FooBarBaz[A] =:= (Foo :+: Bar :++: Baz)#Out[A]]
+
+  // injectiong into Right(Right(_)) of FooBarBaz works,
+  // as opposed to (Foo :+: Bar :++: Baz)#Out. But they are the same type!
+  implicitly[Inject[Baz, FooBarBaz]]
+}
+```

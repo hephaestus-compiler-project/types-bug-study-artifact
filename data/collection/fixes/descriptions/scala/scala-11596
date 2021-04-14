@@ -1,0 +1,23 @@
+The following code compiles under scala 2.12.8 but not under scala 2.13.0 (it fails with ambiguous implicit warnings)
+```
+package object foo {
+  import scala.language.higherKinds
+  class Functor[X[_]]
+  trait Monad[F[_]] extends Functor[F]
+
+  class OptionT[M[_], A]
+  trait OptionTInstances2 {
+    implicit def optionTMonad[M[_]]: Monad[({ type l[a] = OptionT[M, a] })#l] = ???
+  }
+
+  trait OptionTInstances1 extends OptionTInstances2 {
+    implicit def optionTFunctor[M[_]]: Functor[({ type l[a] = OptionT[M, a] })#l] = ???
+  }
+
+  object OptionT extends OptionTInstances1
+
+  object Main extends App {
+    implicitly[Functor[({type l[a] = OptionT[Option, a]})#l]]
+  }
+}
+```

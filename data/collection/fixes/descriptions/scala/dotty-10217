@@ -1,0 +1,62 @@
+## Minimized code
+
+```Scala
+trait A
+trait B
+trait C
+trait D
+trait E
+trait F
+trait G
+trait H
+trait I
+trait J
+trait K
+trait L
+trait M
+trait N
+trait O
+trait P
+trait Q
+trait R
+trait S
+trait T
+trait U
+trait V
+trait W
+
+class Foo[T]
+
+val f = Foo[A | B | C | D | E | F | G | H | I | J | K | L | M | N | O | P | Q | R | S | T | U]
+```
+
+## Output
+
+With Dotty `0.27.0-RC1` through `0.28.0-bin-20201014-ca67e4d-NIGHTLY`, a file containing just the above code compiles in less than a second on my laptop. **However, using `3.0.0-M1` and later (including the latest nightly build, `3.0.0-M2-bin-20201105-c20be38-NIGHTLY`), the above code takes 287 seconds to compile:**
+
+```scala
+sbt:dotty-simple> compile
+[info] Compiling 1 Scala source to C:\Git\Overload\target\scala-3.0.0-M1\classes ...
+[success] Total time: 287 s (04:47), completed 6 Nov 2020, 21:37:04
+```
+
+Instantiating `Foo` with a union of only types `A` through `T` (i.e. omitting `U`) reduces the compile time to 103 seconds:
+
+```scala
+sbt:dotty-simple> compile
+[info] Compiling 1 Scala source to C:\Git\Overload\target\scala-3.0.0-M1\classes ...
+[success] Total time: 103 s (01:43), completed 6 Nov 2020, 21:40:16
+```
+
+Instantiating `Foo` with a union of only types `A` through `S` reduces the compile time to 35 seconds.
+
+Instantiating `Foo` with a union of only types `A` through `R` reduces the compile time to 11 seconds.
+
+Instantiating `Foo` with a union of only types `A` through `Q` reduces the compile time to 4 seconds.
+
+Instantiating `Foo` with a union of only types `A` through `P` reduces the compile time to 2 seconds.
+
+
+## Expectation
+
+The time required to compile code like this should not explode as terms are added to the union of types.

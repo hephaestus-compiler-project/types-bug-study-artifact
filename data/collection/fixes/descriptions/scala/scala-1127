@@ -1,0 +1,34 @@
+I attempt to compile the following under 2.7.1:
+
+```scala
+trait Foo
+
+case class Bar[E](input: E)( implicit val foo: Foo ) 
+
+implicit object f extends Foo
+implicit object bar extends Bar(1)
+```
+
+I expect the code to compile. Instead, it fails with the error:
+```scala
+error: illegal cyclic reference involving object bar 
+```
+
+The error is resolved if I do any of the following:
+
+1. supply the type parameter for bar
+```scala
+implicit object bar extends Bar[Int](1) 
+```
+
+2. Make bar not be implicit:
+```scala
+object bar extends Bar(1) 
+```
+
+3. Remove the implicit parameter to Bar:
+```scala
+case class Bar[E](input: E) 
+```
+
+I hazard a guess that some interaction of those three things is causing a problem. :)

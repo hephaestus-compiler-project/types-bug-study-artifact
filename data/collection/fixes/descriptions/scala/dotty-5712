@@ -1,0 +1,52 @@
+The code below never seems to finish type checking. It just hangs forever.
+
+But when the line marked "`Dotty never finishes compiling`" is commented, compilation finishes.
+
+```scala
+abstract class Code_In[+T,-Ctx] {
+  val eval: T
+}
+
+class Scope { outer =>
+  type Ctx
+  type Code[T] = T Code_In Ctx
+  
+  def $[T](expr: implicit (scope: Scope) => T Code_In (outer.Ctx & scope.Ctx)): T = {
+    expr(outer).eval
+  }  
+}
+
+object TopLevel {
+  implicit object Scope extends Scope {
+    type Ctx = Any
+  }
+  def code[T](expr: implicit Scope => T): T Code_In Any = new{val eval = expr}
+}
+
+object Main {
+  
+  def code[T](expr: implicit Scope => T)(implicit scope: Scope): scope.Code[T] = {
+    new{ val eval = expr(scope) }
+  }
+
+  def scope(implicit scope: Scope): scope.type = scope
+
+  def main(args: Array[String]): Unit = {
+    
+    TopLevel.code {
+      scope.${
+        var x = code{0}
+        code{ scope.${
+          var y = code{1}
+          x: scope.Code[Int] // Dotty never finishes compiling
+          ???
+        }}
+      }
+    }
+    
+  }
+
+}
+```
+
+Sorry, haven't had time to minimize this further. It seems related to https://github.com/lampepfl/dotty/issues/864

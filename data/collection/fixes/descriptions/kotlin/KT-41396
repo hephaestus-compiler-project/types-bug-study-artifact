@@ -1,0 +1,42 @@
+It seems this issue is caused by having two receivers of the same type.
+
+### Error message:
+```
+Type mismatch.
+Required:
+suspend FlowCollector<Boolean>.(Boolean) → Unit
+Found:
+suspend FlowCollector<Boolean>.(TypeVariable(T)) → Unit
+```
+
+### Reproducing snippet #1:
+```kotlin
+import kotlinx.coroutines.flow.*
+
+private fun reproduceTypeInferenceRegression(
+    someFlow: Flow<Boolean>
+): Flow<Int> = flowOf(*"kotlin".toCharArray().toTypedArray()).transformLatest { letter ->
+    println(letter.toUpperCase())
+    someFlow.transformLatest { value ->
+        emit(value.not())
+    } /*Type mismatch.
+    Required:
+    suspend FlowCollector<Boolean>.(Boolean) → Unit
+    Found:
+    suspend FlowCollector<Boolean>.(TypeVariable(T)) → Unit
+    */
+    emit(letter.toInt())
+}
+```
+
+### Reproducing snippet #2:
+```kotlin
+fun `Having two receivers of the same type messes with new type inference`() = flow {
+    flowOf(false).transformLatest { // flow and transformLatest provide the same receiver type
+        emit(false) // I'd expect this call to call emit for the closest receiver (the one of transformLatest)
+    }
+    emit(0)
+}
+```
+
+Compiles fine in 1.3.72, but fails in 1.4.0

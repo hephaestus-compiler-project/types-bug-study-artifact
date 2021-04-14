@@ -1,0 +1,31 @@
+When looking at a macro implementation, the compiler looks at parameters to recognize, among other less semantic sanity-checks, that the only implicit parameter is a `WeakTypeTag`. 
+
+This is done in `scala.reflect.macros.compiler`'s `Validators`, through the building of  `macroImplSig`. The exact place of comparison is in `scala.reflect.macros.util.Helpers`' `transformTypeTagEvidenceParams`.
+If it fails you get a `MacroImplNonTagImplicitParameters`.
+
+But from what I understand, the `WeakTypeTagClass` being compared against is (scala-)version-specific, so that when the 2.11 compiler works in `-Xsource:2.10` mode, against a macro implementation coming from a 2.10 classfile, the `WeakTypeTagClass` it should try to find an instance of is **not** the one it has loaded, but the one in the 2.10 scala-reflect jar it (hopefully has on classpath).
+
+So the symptom is, when compiling the play framework on 2.10 with -Xsource:2.10 and -Ymacro-expand:none:
+
+```scala
+/home/huitseeker/Scala/playframework/framework/src/play-json/src/main/scala/play/api/libs/json/Json.scala:194: error: macro implementations cannot have implicit parameters other than WeakTypeTag evidences
+  def reads[A] = macro JsMacroImpl.readsImpl[A]
+                                   ^
+/home/huitseeker/Scala/playframework/framework/src/play-json/src/main/scala/play/api/libs/json/Json.scala:214: error: macro implementations cannot have implicit parameters other than WeakTypeTag evidences
+  def writes[A] = macro JsMacroImpl.writesImpl[A]
+                                    ^
+/home/huitseeker/Scala/playframework/framework/src/play-json/src/main/scala/play/api/libs/json/Json.scala:234: error: macro implementations cannot have implicit parameters other than WeakTypeTag evidences
+  def format[A] = macro JsMacroImpl.formatImpl[A]
+                                    ^
+three errors found
+```
+
+The relevant signatures from `JsMacroImpl` are fine:
+```scala
+  def readsImpl[A: c.WeakTypeTag](c: Context): c.Expr[Reads[A]] = {
+  def writesImpl[A: c.WeakTypeTag](c: Context): c.Expr[Writes[A]] = {
+  def formatImpl[A: c.WeakTypeTag](c: Context): c.Expr[Format[A]] = {
+
+```
+
+Is there a way for `transformTag` to dereference the class and manually fetch that 2.10 `WeakTypeTagClass` from classpath to compare against ?

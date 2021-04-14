@@ -1,0 +1,53 @@
+Here is a self-contained test case. Maybe we can minimize it further:
+
+~~~ scala
+object ImplicitRegression {
+
+  import scala.language.{implicitConversions, higherKinds}
+
+  trait Map[K, +V] extends MapOps[K, V, Map, Map[K, V]]
+
+  trait MapOps[K, +V, +CC[_, _], +C]
+
+  trait BuildFrom[-From, -A, +C]
+
+  object BuildFrom {
+    implicit def buildFromMapOps[CC[X, Y] <: Map[X, Y] with MapOps[X, Y, CC, _], K0, V0, K, V]: BuildFrom[CC[K0, V0], (K, V), CC[K, V]] = ???
+  }
+
+  trait MapDecorator[K, V] {
+    val `this`: Map[K, V]
+    def zipByKeyWith[W, X, C](that: Map[K, W])(f: (V, W) => X)(implicit bf: BuildFrom[`this`.type, (K, X), C]): C = ???
+  }
+
+  implicit def MapDecorator[K, V](map: Map[K, V]): MapDecorator[K, V] { val `this`: map.type } = ???
+
+  def test[A, B, C](map1: Map[A, B], map2: Map[A, B], f: (B, B) => C): Unit = {
+    val map3 = map1.zipByKeyWith(map2)(f)/*(BuildFrom.buildFromMapOps)*/
+    map3: Map[A, C]
+  }
+
+}
+~~~
+
+This code compiles fine with M2 but fails with the following error in M3:
+
+~~~
+[error] /home/julien/workspace/dev/scala/collection-strawman/collections-contrib/src/main/scala/strawman/collection/ImplicitRegression.scala:25: could not find implicit value for parameter bf: strawman.collection.ImplicitRegression.BuildFrom[stabilizer$1.this.type,(A, C),C]
+[error]     val map3 = map1.zipByKeyWith(map2)(f)/*(BuildFrom.buildFromMapOps)*/
+[error]                                       ^
+[error] one error found
+~~~
+
+Enabling `-Xlog-implicits` gives the following:
+
+~~~
+[info] /home/julien/workspace/dev/scala/collection-strawman/collections-contrib/src/main/scala/strawman/collection/ImplicitRegression.scala:25: ImplicitRegression.this.BuildFrom.buildFromMapOps is not a valid implicit value for strawman.collection.ImplicitRegression.BuildFrom[stabilizer$1.this.type,(A, C),C] because:
+[info] hasMatchingSymbol reported error: polymorphic expression cannot be instantiated to expected type;
+[info]  found   : [CC[X, Y] <: strawman.collection.ImplicitRegression.Map[X,Y] with strawman.collection.ImplicitRegression.MapOps[X, Y, CC, _], K0, V0, K, V]strawman.collection.ImplicitRegression.BuildFrom[CC[K0,V0],(K, V),CC[K,V]]
+[info]  required: strawman.collection.ImplicitRegression.BuildFrom[stabilizer$1.this.type,(A, C(in method test)),C(in method zipByKeyWith)]
+[info]     val map3 = map1.zipByKeyWith(map2)(f)/*(BuildFrom.buildFromMapOps)*/
+[info]                                       ^
+~~~
+
+It doesn’t compile either with 2.13.0-pre-9afd281-SNAPSHOT (from scala/scala#6308).

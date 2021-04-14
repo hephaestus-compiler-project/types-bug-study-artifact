@@ -1,0 +1,155 @@
+See discussion at http://groovy.329449.n5.nabble.com/Closure-shared-variables-and-flow-typing-tp5041259p5041259.html
+
+Copy of original post:
+
+
+Yesterday, Guillaume & I had a face-to-face working session in Paris. One of our discussion subjects was centered on static type checking, and especially a corner case with closure shared variables. In this email, I will expose the problem and the solutions we had in mind. Let's start with a sample code:
+
+{code}
+def x = '123'
+def cl = { x = new Date() }
+x.toInteger()
+{code}
+
+The current implementation of the static type checked is totally wrong in that case (this is a bug I know about for long). Especially, it complains with the following error message:
+
+Cannot find matching method java.util.Date#toInteger()
+
+This is because the closure is visited before the call to x.toInteger() so the inferred type of x is changed although the closure is *not* called. This example illustrates the case of a closure shared variable, "x", and flow typing. In flow typing, we want this not to throw an error:
+
+{code}
+def x = new Date()
+x = '123'
+x.toInteger() // should work because the compiler can infer that x is of string type at this point
+{code}
+
+Now, when "x" is closure shared, we are facing a dangerous situation. Back to our first example:
+
+{code}
+def x = '123'
+def cl = { x = new Date() }
+x.toInteger()
+{code}
+
+The workaround seems to be easy: "hey, we don't call the closure, you must know that x is still a string at line 3!". If we do that, then we must also keep track of closure calls which may alter the shared variable:
+
+{code}
+def x = '123'
+def cl = { x = new Date() }
+cl()
+x.toInteger() // now, this must throw an error because x has changed type !
+{code}
+
+In that case, this is a very problematic issue. Tracking shared variables is doable, but tracking closure calls depends on runtime execution and seems impossible. For example, we could have nastier code like this:
+
+{code}
+def x = '123'
+def cl = { foo -> x = new Date() }
+def cl2 = cl.curry('If you ever visit Nantes, we could have a talk')
+cl2()
+x.toInteger() // now, this must throw an error because x has changed type !
+{code}
+
+or even more problematic :
+
+{code}
+class A {
+   Closure action
+   def foo() { action() }
+}
+
+def x = '123'
+def cl = { x = new Date() }
+def a = new A(action:cl)
+a.foo()
+x.toInteger() // now, this must throw an error because x has changed type !
+{code}
+
+Basically, the latter example shows it is rather impossible to track closure calls implying shared variables at compile time. The first solution is to disable flow typing. We don't really like that idea, as it is definitely not in the "Groovy" spirit. Though flow typing may be seen as bad style, we still think things like this are groovier:
+
+{code}
+class A {}
+class B extends A { void foo() {} }
+
+A a = new B()
+a.foo() // should be allowed in static mode
+{code}
+
+The first option, then, is not the one we want to promote. The second option is to go "Java style", and disallow closure shared variables, meaning each variable used in a closure should be final. The code you saw would therefore be invalid. But we don't like this idea because it would remove a large part of the interest of using "lightweight" closures.
+
+The 3rd solution, first suggested by Guillaume, was to ignore tracking of closure execution, and let the program fail at runtime. For example, this would fail with a class cast exception:
+
+{code}
+def x = '123'
+def cl = { x = new Date() }
+cl()
+x.toInteger()
+{code}
+
+But it would fail *at runtime*. Dynamic groovy would fail with a "No signature of method Date#toInteger". I don't really like this option for two reasons:
+    1. it beats the concept of static type checking, which is IMHO interesting if errors are found at compile time rather than runtime
+    2. it is conceptually wrong
+
+After a short brainstorming session, where we discussed about possible warnings or disallowing assignments of shared variables in closures, I suggested an alternative option, which requires some trickery in the type checker, but seems conceptually correct: throwing an error on "x.toInteger()", knowing that if you assign a shared variable in a closure with an "incompatible" type, this is not bad style, but very bad style. The question is how can we throw an error here, without throwing an error when the variable is *not* closure shared (that is to say in the classical flow typing mode). My idea is to use the "lowest upper bound" algorithm to compute, for closure shared variables, the lowest common type of all assignments of a closure shared variables. Direct method calls (I mean, without explicit casts), in that case, should only be allowed on methods belonging to that common super type. This means that in that case:
+
+{code}
+def x = '123'
+def cl = { x = new Date() }
+cl()
+x.toInteger()
+{code}
+
+We know that 'x' is assigned a string and a date. We compute the LUB of those types. Then method calls on 'x' would be checked against this type. Here, the LUB is an Object implementing Serializable. Serializable doesn't have a "toInteger" method, so "toInteger" would fail here. Guillaume, then, came with another example:
+
+{code}
+def x = '123'
+def cl = { x = new Date() }
+cl()
+x = '456'
+x.toInteger()
+{code}
+
+Using our algorithm, 'x.toInteger()' would throw a compilation error, so Guillaume said this would violate the principle of least surprise. At first, I thought we could be smarter, letting this pass if no method call was made between an assignment and the method call on the shared variable. For example, this would pass:
+
+{code}
+def x = '123'
+def cl = { x = new Date() }
+cl()
+x = '456'
+x.toInteger()
+{code}
+
+But this would not:
+
+{code}
+def x = '123'
+def cl = { x = new Date() }
+cl()
+x = '456'
+logger.debug('info')
+x.toInteger() // would fail, because we don't know what logger.debug does. Potentially, it could lead to using the "cl" closure. If you as a human know that it would not, the compiler cannot know, so it must invalidate the call
+{code}
+
+However, Guillaume came with an excellent counter-example. What if "x" is used in another thread? For example :
+
+{code}
+def x = '123'
+Thread.start { x = new Date() }
+x = '456'
+x.toInteger()
+{code}
+
+There is absolutely no guarantee that when "x.toInteger()" will be called, "x" will be of type 'String'. There are chances that it will be of type Date, depending on when the assignement is executed... We all agree that using a shared variable in this use case is a very, ugly, fool code style, but it demonstrates that at compile time, we cannot make any better hint that "x" would be of the LUB type.
+
+This is why I think the solution of throwing an error systematically when such a method call is found is the right way to go. This would allow the classical "flow typing" to work. This would also encourage good style because using a shared variable to store whatever you want is not a good idea.
+
+Eventually, we must think about this use case :
+
+{code}
+def x = 1
+def cl = { x.toInteger() }
+x = '123'
+cl()
+{code}
+
+This is a similar problem. Here, to be able to statically check the closure, we must know the type of the shared variable. There is no assignment in the closure, but still, we can statically check it if we use the very same algorithm. A call to ".toInteger()" would only be allowed if we know that this method belongs to all types that have been assigned to x. This won't be fun to implement, but I still think this is the most promising way to do this.

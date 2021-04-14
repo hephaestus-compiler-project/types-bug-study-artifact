@@ -1,0 +1,25 @@
+```scala
+import scala.reflect.ClassTag
+
+class A[Foo](implicit tag: ClassTag[Foo]) {
+  object ExtractFoo {
+    def unapply(foo: Foo): Boolean = true
+  }
+
+  def isFoo(x: Any) = x match {
+    case ExtractFoo() => true
+    case _ => false
+  }
+}
+
+object Test {
+  def main(args: Array[String]): Unit = {
+    assert((new A[String]).isFoo("foo")) // OK
+    assert(!(new A[String]).isFoo(42)) // OK in scalac, fails in Dotty
+  }
+}
+```
+
+The ClassTag handling is done in [`typedTyped`](https://github.com/lampepfl/dotty/blob/6df672c7e7be65d7be1cd6524c610aed4f35178c/compiler/src/dotty/tools/dotc/typer/Typer.scala#L525-L533) but the extractor handling is done in [`typedUnapply` where we create a `Typed` node using `tpd.Typed` which does not call `typedTyped`](https://github.com/lampepfl/dotty/blob/6df672c7e7be65d7be1cd6524c610aed4f35178c/compiler/src/dotty/tools/dotc/typer/Applications.scala#L919)
+
+[This is needed to get the dotty-compiled shared backend to have the correct runtime behavior.](https://github.com/DarkDimius/scala/blob/40bdc7b65a766f0fbe8ee9ccd744647d3d58a7ef/src/compiler/scala/tools/nsc/backend/jvm/BackendInterface.scala#L57-L88)

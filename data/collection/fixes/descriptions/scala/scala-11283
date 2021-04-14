@@ -1,0 +1,45 @@
+A spurious exhaustiveness warning occurs when matching on stable references.
+
+```scala
+➜  scala-2.13.0-M5 ./bin/scala                                                                                                                                 [I]
+Welcome to Scala 2.13.0-M5 (OpenJDK 64-Bit Server VM, Java 11.0.1).
+Type in expressions for evaluation. Or try :help.
+
+scala> :paste
+// Entering paste mode (ctrl-D to finish)
+
+sealed trait Color
+case object Red extends Color
+case object Blue extends Color
+case object Green extends Color
+
+val R: Color = Red
+val B: Color = Blue
+val G: Color = Green
+
+def go(c: Color): Int = c match {
+  case R => 0
+  case G => 1
+  case B => 2
+}
+
+// Exiting paste mode, now interpreting.
+
+<pastie>:20: warning: match may not be exhaustive.
+It would fail on the following inputs: Blue, Green, Red
+def go(c: Color): Int = c match {
+                        ^
+defined trait Color
+defined object Red
+defined object Blue
+defined object Green
+R: Color = Red
+B: Color = Blue
+G: Color = Green
+go: (c: Color)Int
+```
+
+Occurs in both 2.12.7 and 2.13.0-M5. Occurs when the aliased type is a Java Enum as well. I checked the existing open issues on exhaustiveness checker and didn't see this variant captured but please close if I missed it.
+
+Originally spotted by Chris Marshall here: 
+https://twitter.com/oxbow_lakes/status/1068515553071915008

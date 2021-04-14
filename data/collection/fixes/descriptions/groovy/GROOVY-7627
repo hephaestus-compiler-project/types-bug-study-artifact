@@ -1,0 +1,26 @@
+If a class defines a property but also explicitly provides a getter or setter, property style get/set calls are type checked using the underlying field type rather than the getter return type/setter parameter type.
+
+Setter example:
+{code}
+class Foo {
+    Bar bar;
+
+    void setBar(int x) {
+        this.bar = new Bar(x: x)
+    }
+}
+
+class Bar {
+    int x
+}
+
+@groovy.transform.TypeChecked
+void test() {
+    Foo foo = new Foo()
+    foo.bar = new Bar()
+}
+
+test()
+{code}
+
+The code above will pass STC and throw a GroovyCastException at runtime. Conversely, code like {{foo.bar = 1}} will not pass STC.  The case for getters with return type different from the field type is similar.

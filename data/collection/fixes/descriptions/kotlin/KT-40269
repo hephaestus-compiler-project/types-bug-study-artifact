@@ -1,0 +1,22 @@
+The code is:
+```
+fun <T> foo(f: () -> T) {}
+fun bar(g: () -> Unit) {}
+fun <K> baz(): () -> K = TODO()
+fun test() {
+    foo { bar(baz()) } // [UNSUPPORTED_FEATURE] The feature "unit conversion" is disabled
+}
+```
+
+Case from Arrow code:
+```
+class Either
+
+infix fun <A, B, C> ((A) -> B).andThen(g: (B) -> C) = null as (A) -> C
+
+fun unsafeRunAsync(cb: (Either) -> Unit) {}
+
+fun runAsync(cb: (Either) -> Unit) {
+    unsafeRunAsync(cb.andThen { })
+}
+```

@@ -1,0 +1,30 @@
+Consider the following code.  `bar` and `baz` are essentially equivalent.
+
+```
+abstract class Foo<T>(val v: T) {
+  fun bar() {
+    when (this) {
+      is LongFoo -> println(this.intVal)
+    }
+  }
+}
+
+fun Foo<*>.baz() {
+  when (this) {
+    is LongFoo -> println(this.intVal)
+  }
+}
+
+val <T: Number> Foo<T>.intVal: Int
+  get() = v.toInt()
+
+class LongFoo(v: Long): Foo<Long>(v)
+```
+
+In Kotlin 1.3, `baz` compiles, but `bar` does not, giving the error: 
+```
+Type parameter bound for T in 
+val <T : Number> Foo<T>.intVal: Int
+is not satisfied: inferred type T is not a subtype of Number
+```
+...suggesting there is some problem with the compiler's smart cast logic that differs between the compilation of these two functions.

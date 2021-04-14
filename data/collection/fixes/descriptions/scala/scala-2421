@@ -1,0 +1,57 @@
+simplified version of the DeliteDSL example:
+
+```scala
+  abstract class <~<[-From, +To] extends (From => To)
+  implicit def trivial[A]: A <~< A = error("")
+
+
+  trait Forcible[T]
+  implicit val forcibleInt: (Int <~< Forcible[Int]) = error("")
+
+  def headProxy[P <: Forcible[Int]](implicit w: Int <~< P): P = error("")
+  
+  headProxy 
+```
+
+this should compile, but instead complains about ambiguous implicits:
+
+```scala
+error: ambiguous implicit values:
+ both value forcibleInt in object Test of type => Test.<~<[Int,Test.Forcible[Int]]
+ and method trivial in object Test of type [A]Test.<~<[A,A]
+ match expected type Test.<~<[Int,P]
+  headProxy
+  ^
+one error found
+```
+
+They match the expected type, but only one of them will lead to a successful instantiation of headProxy's type parameter. trivial[Int] should not be considered a valid implicit, since w would have type Int <~< Int,  and headProxy's type parameter P cannot be instantiated to Int
+
+there's an easy fix: simply do a checkBounds in typedImplicit0: 
+
+```scala
+          if (itree2.tpe.isError) SearchFailure
+          else if (hasMatchingSymbol(itree1)) {
+            val tvars = undetParams map freshVar
+            if (isCompatible(itree2.tpe, pt.instantiateTypeParams(undetParams, tvars))) {
+              if (traceImplicits) println("tvars = "+tvars+"/"+(tvars map (_.constr)))
+              val targs = solvedTypes(tvars, undetParams, undetParams map varianceInType(pt),
+                                      false, lubDepth(List(itree2.tpe, pt)))
+
++           // need checkBounds for delitedsl test
++           checkBounds(itree2.pos, NoPrefix, NoSymbol, undetParams, targs, "inferred ")
+              val subst = new TreeTypeSubstituter(undetParams, targs)
+              subst traverse itree2 
+              // todo: remove type params that have been instantiated to Nothing, similar
+              // to methTypeArgs
+              val result = new SearchResult(itree2, subst)
+              if (traceImplicits) println("RESULT = "+result)
+              // println("RESULT = "+itree+"///"+itree1+"///"+itree2)//DEBUG
+              result
+            } else {
+
+```
+
+Martin, please re-assign to me if you agree with the proposed fix.
+
+will commit tests in pending

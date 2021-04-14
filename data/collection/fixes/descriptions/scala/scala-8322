@@ -1,0 +1,359 @@
+Note that this **appears** to be already fixed in the 2.11 series, but I thought I'd record it in the bug database because the true cause of the crash is non-obvious - it's not on the line printed, where the compiler crashes, but elsewhere (in my real code, it was in a different file).
+
+It took me a long time to minimise my test case, but here it is:
+
+```
+trait W[A]
+class Writes[-A]
+
+object Writes { 
+    def apply[A](f: A => String) = new Writes[A]()
+}
+
+trait F {
+
+  implicit def jw[A](implicit wa: Writes[A], wj: W[Any]): W[A]
+
+  implicit val ew: Writes[Any]
+
+  implicit def rw[E] = Writes[Seq[E]] { _ => "" }
+
+  implicit def wr[E] = jw(implicitly, implicitly)
+
+  Right(0).right.flatMap(_ => new String())
+
+}
+```
+
+This produces:
+
+```
+TREE: new String()
+TRANSFORM: Minimised.scala
+TREE: ((x$2: Int) => new String())
+TRANSFORM: null
+TREE: scala.`package`.Right.apply[Nothing, Int](0).right.flatMap[Nothing, Nothing](((x$2: Int) => new String()))
+TRANSFORM: Minimised.scala
+TREE: scala.AnyRef {
+  def /*F*/$init$(): Unit = {
+    ()
+  };
+  implicit def jw[A >: Nothing <: Any](implicit wa: Writes[A], wj: W[Any]): W[A];
+  implicit <stable> <accessor> def ew: Writes[Any];
+  implicit def rw[E >: Nothing <: Any]: Writes[Seq[E]] = Writes.apply[Seq[E]](((x$1: Seq[E]) => ""));
+  implicit def wr[E >: Nothing <: Any]: <error> = F.this.jw[A](implicitly, implicitly);
+  scala.`package`.Right.apply[Nothing, Int](0).right.flatMap[Nothing, Nothing](((x$2: Int) => new String()))
+}
+TRANSFORM: Minimised.scala
+TREE: abstract trait F extends scala.AnyRef {
+  def /*F*/$init$(): Unit = {
+    ()
+  };
+  implicit def jw[A >: Nothing <: Any](implicit wa: Writes[A], wj: W[Any]): W[A];
+  implicit <stable> <accessor> def ew: Writes[Any];
+  implicit def rw[E >: Nothing <: Any]: Writes[Seq[E]] = Writes.apply[Seq[E]](((x$1: Seq[E]) => ""));
+  implicit def wr[E >: Nothing <: Any]: <error> = F.this.jw[A](implicitly, implicitly);
+  scala.`package`.Right.apply[Nothing, Int](0).right.flatMap[Nothing, Nothing](((x$2: Int) => new String()))
+}
+TRANSFORM: null
+TREE: package <empty> {
+  abstract trait W[A >: Nothing <: Any] extends scala.AnyRef;
+  class Writes[A >: Nothing <: Any] extends scala.AnyRef {
+    def <init>(): Writes[A] = {
+      Writes.super.<init>();
+      ()
+    }
+  };
+  object Writes extends scala.AnyRef {
+    def <init>(): Writes.type = {
+      Writes.super.<init>();
+      ()
+    };
+    def apply[A >: Nothing <: Any](f: A => String): Writes[A] = new Writes[A]()
+  };
+  abstract trait F extends scala.AnyRef {
+    def /*F*/$init$(): Unit = {
+      ()
+    };
+    implicit def jw[A >: Nothing <: Any](implicit wa: Writes[A], wj: W[Any]): W[A];
+    implicit <stable> <accessor> def ew: Writes[Any];
+    implicit def rw[E >: Nothing <: Any]: Writes[Seq[E]] = Writes.apply[Seq[E]](((x$1: Seq[E]) => ""));
+    implicit def wr[E >: Nothing <: Any]: <error> = F.this.jw[A](implicitly, implicitly);
+    scala.`package`.Right.apply[Nothing, Int](0).right.flatMap[Nothing, Nothing](((x$2: Int) => new String()))
+  }
+}
+error: uncaught exception during compilation: java.lang.AssertionError
+error: java.lang.AssertionError: assertion failed: 
+     while compiling: Minimised.scala
+        during phase: superaccessors
+     library version: version 2.10.4-RC2
+    compiler version: version 2.10.4-RC2
+  reconstructed args: 
+
+  last tree to typer: Function(value $anonfun)
+              symbol: value $anonfun (flags: <synthetic>)
+   symbol definition: val $anonfun: <notype>
+                 tpe: Int => <error>
+       symbol owners: value $anonfun -> value <local F> -> trait F -> package <empty>
+      context owners: type E -> method wr -> trait F -> package <empty>
+
+== Enclosing template or block ==
+
+DefDef( // implicit def wr[E]: <error> in trait F
+  <method> implicit
+  "wr"
+  TypeDef( // E
+    <deferred> <param>
+    "E"
+    []
+    <tpt> // tree.tpe=
+  )
+  Nil
+  <tpt> // tree.tpe=<error>
+  Apply( // implicit def jw[A](implicit wa: Writes[A],implicit wj: W[Any]): W[A] in trait F, tree.tpe=<error>
+    TypeApply( // implicit def jw[A](implicit wa: Writes[A],implicit wj: W[Any]): W[A] in trait F, tree.tpe=(implicit wa: Writes[A], implicit wj: W[Any])W[A]
+      F.this."jw" // implicit def jw[A](implicit wa: Writes[A],implicit wj: W[Any]): W[A] in trait F, tree.tpe=[A](implicit wa: Writes[A], implicit wj: W[Any])W[A]
+      <tpt> // tree.tpe=A
+    )
+    // 2 arguments
+    "implicitly"
+    "implicitly"
+  )
+)
+
+== Expanded type of tree ==
+
+TypeRef(
+  TypeSymbol(abstract trait Function1[-T1, +R] extends AnyRef)
+  args = List(
+    TypeRef(TypeSymbol(final abstract class Int extends AnyVal))
+    <error>
+  )
+)
+
+new String()
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:329)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:333)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer$$anonfun$transformArgs$1.apply(SuperAccessors.scala:84)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer$$anonfun$transformArgs$1.apply(SuperAccessors.scala:81)
+        at scala.reflect.internal.TreeInfo$$anonfun$mapMethodParamsAndArgs$1.apply(TreeInfo.scala:119)
+        at scala.reflect.internal.TreeInfo$$anonfun$mapMethodParamsAndArgs$1.apply(TreeInfo.scala:119)
+        at scala.reflect.internal.util.Collections$class.foreach2(Collections.scala:150)
+        at scala.reflect.internal.SymbolTable.foreach2(SymbolTable.scala:13)
+        at scala.reflect.internal.TreeInfo.foreachMethodParamAndArg(TreeInfo.scala:134)
+        at scala.reflect.internal.TreeInfo.mapMethodParamsAndArgs(TreeInfo.scala:119)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformArgs(SuperAccessors.scala:81)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:330)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+        at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2900)
+        at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2900)
+        at scala.collection.immutable.List.loop$1(List.scala:170)
+        at scala.collection.immutable.List.mapConserve(List.scala:186)
+        at scala.reflect.api.Trees$Transformer.transformTrees(Trees.scala:2900)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer$$anonfun$6.apply(SuperAccessors.scala:198)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer$$anonfun$6.apply(SuperAccessors.scala:198)
+        at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2936)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:362)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformTemplate$1(SuperAccessors.scala:198)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:203)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+        at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2904)
+        at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1280)
+        at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1279)
+        at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2936)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:362)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+        at scala.reflect.internal.Trees$class.itransform(Trees.scala:1278)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+        at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2897)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformClassDef$1(SuperAccessors.scala:180)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:182)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+        at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2927)
+        at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2925)
+        at scala.collection.immutable.List.loop$1(List.scala:170)
+        at scala.collection.immutable.List.mapConserve(List.scala:186)
+        at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2925)
+        at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1298)
+        at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1298)
+        at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2936)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:362)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+        at scala.reflect.internal.Trees$class.itransform(Trees.scala:1297)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+        at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2897)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:44)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$2.apply(TypingTransformers.scala:46)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$2.apply(TypingTransformers.scala:46)
+        at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2936)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:362)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:46)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:338)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+        at scala.tools.nsc.ast.Trees$Transformer.transformUnit(Trees.scala:227)
+        at scala.tools.nsc.transform.Transform$Phase.apply(Transform.scala:30)
+        at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:464)
+        at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:431)
+        at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:431)
+        at scala.collection.Iterator$class.foreach(Iterator.scala:727)
+        at scala.collection.AbstractIterator.foreach(Iterator.scala:1157)
+        at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:431)
+        at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1583)
+        at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1557)
+        at scala.tools.nsc.Global$Run.compileSources(Global.scala:1553)
+        at scala.tools.nsc.Global$Run.compile(Global.scala:1662)
+        at scala.tools.nsc.Driver.doCompile(Driver.scala:33)
+        at scala.tools.nsc.Main$.doCompile(Main.scala:79)
+        at scala.tools.nsc.Driver.process(Driver.scala:54)
+        at scala.tools.nsc.Driver.main(Driver.scala:67)
+        at scala.tools.nsc.Main.main(Main.scala)
+
+Exception in thread "main" java.lang.AssertionError: assertion failed: 
+     while compiling: Minimised.scala
+        during phase: superaccessors
+     library version: version 2.10.4-RC2
+    compiler version: version 2.10.4-RC2
+  reconstructed args: 
+
+  last tree to typer: Function(value $anonfun)
+              symbol: value $anonfun (flags: <synthetic>)
+   symbol definition: val $anonfun: <notype>
+                 tpe: Int => <error>
+       symbol owners: value $anonfun -> value <local F> -> trait F -> package <empty>
+      context owners: type E -> method wr -> trait F -> package <empty>
+
+== Enclosing template or block ==
+
+DefDef( // implicit def wr[E]: <error> in trait F
+  <method> implicit
+  "wr"
+  TypeDef( // E
+    <deferred> <param>
+    "E"
+    []
+    <tpt> // tree.tpe=
+  )
+  Nil
+  <tpt> // tree.tpe=<error>
+  Apply( // implicit def jw[A](implicit wa: Writes[A],implicit wj: W[Any]): W[A] in trait F, tree.tpe=<error>
+    TypeApply( // implicit def jw[A](implicit wa: Writes[A],implicit wj: W[Any]): W[A] in trait F, tree.tpe=(implicit wa: Writes[A], implicit wj: W[Any])W[A]
+      F.this."jw" // implicit def jw[A](implicit wa: Writes[A],implicit wj: W[Any]): W[A] in trait F, tree.tpe=[A](implicit wa: Writes[A], implicit wj: W[Any])W[A]
+      <tpt> // tree.tpe=A
+    )
+    // 2 arguments
+    "implicitly"
+    "implicitly"
+  )
+)
+
+== Expanded type of tree ==
+
+TypeRef(
+  TypeSymbol(abstract trait Function1[-T1, +R] extends AnyRef)
+  args = List(
+    TypeRef(TypeSymbol(final abstract class Int extends AnyVal))
+    <error>
+  )
+)
+
+new String()
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:329)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:333)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer$$anonfun$transformArgs$1.apply(SuperAccessors.scala:84)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer$$anonfun$transformArgs$1.apply(SuperAccessors.scala:81)
+        at scala.reflect.internal.TreeInfo$$anonfun$mapMethodParamsAndArgs$1.apply(TreeInfo.scala:119)
+        at scala.reflect.internal.TreeInfo$$anonfun$mapMethodParamsAndArgs$1.apply(TreeInfo.scala:119)
+        at scala.reflect.internal.util.Collections$class.foreach2(Collections.scala:150)
+        at scala.reflect.internal.SymbolTable.foreach2(SymbolTable.scala:13)
+        at scala.reflect.internal.TreeInfo.foreachMethodParamAndArg(TreeInfo.scala:134)
+        at scala.reflect.internal.TreeInfo.mapMethodParamsAndArgs(TreeInfo.scala:119)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformArgs(SuperAccessors.scala:81)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:330)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+        at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2900)
+        at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2900)
+        at scala.collection.immutable.List.loop$1(List.scala:170)
+        at scala.collection.immutable.List.mapConserve(List.scala:186)
+        at scala.reflect.api.Trees$Transformer.transformTrees(Trees.scala:2900)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer$$anonfun$6.apply(SuperAccessors.scala:198)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer$$anonfun$6.apply(SuperAccessors.scala:198)
+        at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2936)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:362)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformTemplate$1(SuperAccessors.scala:198)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:203)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+        at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2904)
+        at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1280)
+        at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1279)
+        at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2936)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:362)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+        at scala.reflect.internal.Trees$class.itransform(Trees.scala:1278)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+        at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2897)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformClassDef$1(SuperAccessors.scala:180)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:182)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+        at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2927)
+        at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2925)
+        at scala.collection.immutable.List.loop$1(List.scala:170)
+        at scala.collection.immutable.List.mapConserve(List.scala:186)
+        at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2925)
+        at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1298)
+        at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1298)
+        at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2936)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:362)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+        at scala.reflect.internal.Trees$class.itransform(Trees.scala:1297)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+        at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+        at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2897)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:44)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$2.apply(TypingTransformers.scala:46)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$2.apply(TypingTransformers.scala:46)
+        at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2936)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.atOwner(SuperAccessors.scala:362)
+        at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:46)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:338)
+        at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:43)
+        at scala.tools.nsc.ast.Trees$Transformer.transformUnit(Trees.scala:227)
+        at scala.tools.nsc.transform.Transform$Phase.apply(Transform.scala:30)
+        at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:464)
+        at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:431)
+        at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:431)
+        at scala.collection.Iterator$class.foreach(Iterator.scala:727)
+        at scala.collection.AbstractIterator.foreach(Iterator.scala:1157)
+        at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:431)
+        at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1583)
+        at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1557)
+        at scala.tools.nsc.Global$Run.compileSources(Global.scala:1553)
+        at scala.tools.nsc.Global$Run.compile(Global.scala:1662)
+        at scala.tools.nsc.Driver.doCompile(Driver.scala:33)
+        at scala.tools.nsc.Main$.doCompile(Main.scala:79)
+        at scala.tools.nsc.Driver.process(Driver.scala:54)
+        at scala.tools.nsc.Driver.main(Driver.scala:67)
+        at scala.tools.nsc.Main.main(Main.scala)
+```
+
+The culprit is the obviously bogus {noformat}implicit def wr[E] = jw(implicitly, implicitly){noformat} but for some reason the error on this line is suppressed.
+
+Internal note: After some considerable debugging, I think what's happening here is because the error is dropped at the type checking phase, the compiler proceeds to subsequent phases and then it hits a Tree object whose type is null. I stopped debugging after finally managing to reproduce the bug with a minimised test case.
+
+It should probably be investigated whether the root cause of this bug (whatever it is) really has been fixed in 2.11.

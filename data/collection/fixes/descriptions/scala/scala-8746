@@ -1,0 +1,31 @@
+This code compiles and runs on Scala 2.9.3, but throws an NPE when run with 2.10.  The NPE was thrown for multiple types including Strings, Lists, Ints, and Unit.
+
+
+```scala
+object BugTestCase {
+
+  def main(args: Array[String]) {
+    doNothing("string")
+  }
+
+  def doNothing[T](code: => T): T = {
+    null.asInstanceOf
+  }
+}
+```
+
+```
+Exception in thread "main" java.lang.NullPointerException
+	at BugTestCase$.doNothing(QMBugTestCases.scala:12)
+	at BugTestCase$.main(QMBugTestCases.scala:8)
+	at BugTestCase.main(QMBugTestCases.scala)
+```
+
+we have fixed it by adding an type parameter to `asInstanceOf`:
+```scala
+  def doNothing[T](code: => T): T = {
+    null.asInstanceOf[T]
+  }
+```
+
+I imagine that the 2.9 code worked by assuming the type parameter on `asInstanceOf`, but that's just a guess. We would like to know if this change was intended for 2.10+?

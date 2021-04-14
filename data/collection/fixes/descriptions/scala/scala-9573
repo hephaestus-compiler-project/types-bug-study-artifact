@@ -1,0 +1,41 @@
+Scala 2.11.7 doesn't warn me that the match may not be exhaustive on the following code snippet:
+
+```scala
+class Foo {
+
+  def foo = {
+    abstract sealed class Animal
+    case class Goat(age: Int) extends Animal
+    case class Horse(age: Int) extends Animal
+
+    val x: Animal = Goat(1)
+    x match {
+      case Goat(_) ⇒ println("a goat")
+    }
+  }
+}
+```
+
+When I move the sealed class hierarchy outside the foo function, it warns me correctly.
+
+```scala
+class Foo {
+
+  abstract sealed class Animal
+  case class Goat(age: Int) extends Animal
+  case class Horse(age: Int) extends Animal
+
+  def foo = {
+    val x: Animal = Goat(1)
+    x match {
+      case Goat(_) ⇒ println("a goat")
+    }
+  }
+}
+```
+
+Foo.scala:11: match may not be exhaustive
+[warn] It would fail on the following input: Horse(_)
+[warn]     x match {
+[warn]     ^
+[warn] one warning found

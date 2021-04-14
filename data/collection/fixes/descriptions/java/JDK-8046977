@@ -1,0 +1,25 @@
+The following test fails with a CCE:
+
+public class MethodReferenceTestPrivateTypeConversion {
+
+    interface ISi { int m(Short a); }
+    
+    public static void main(String[] args) {
+      (new MethodReferenceTestPrivateTypeConversion()).testUnboxObjectToNumberWiden();
+    }
+
+    public void testUnboxObjectToNumberWiden() {
+        ISi q = (new E<Short>())::xI;
+        q.m((short)77);
+    }
+    
+    class E<T> {
+        private T xI(T t) { return t; }
+    }
+}
+
+The <Short> info is lost and the type of the result (before conversion to the functional interface type) is needed.
+
+Maurizio suggests that something like preserving the type computed by Attr into the JCMemberReference tree should be done.
+
+This problem exists before and after the change from reference bridging to reference to lambda conversion for 8037404 et. al.

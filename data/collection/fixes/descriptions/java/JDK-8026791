@@ -1,0 +1,34 @@
+ 3 public class Test {
+ 4     class Inner {
+ 5         @Annot(0) public Inner(@Annot(1) Test Test.this) {}
+ 6
+ 7         public @Annot(5) Inner foo(@Annot(55) Test.Inner Test.Inner.this) { return new Inner(); }
+ 8     }
+ 9 }
+10
+11 @Retention(RetentionPolicy.RUNTIME)
+12 @Target(ElementType.TYPE_USE)
+13 @interface Annot {
+14     int value();
+15 }
+
+javap output this for the method foo();
+
+ public Test$Inner foo();
+   descriptor: ()LTest$Inner;
+...
+   RuntimeVisibleTypeAnnotations:
+     0: #13(#14=I#21): METHOD_RETURN, location=[INNER_TYPE]
+     1: #13(#14=I#22): METHOD_RECEIVER
+
+and this for the ctor:
+
+public Test$Inner(Test);
+   descriptor: (LTest;)V
+…
+   RuntimeVisibleTypeAnnotations:
+     0: #13(#14=I#15): METHOD_RETURN
+                                                                 ^^^^^^ no location here ...
+     1: #13(#14=I#16): METHOD_RECEIVER
+
+I think it is a bug that the ctor METHOD_RETURN lacks the location/encoded type_path.

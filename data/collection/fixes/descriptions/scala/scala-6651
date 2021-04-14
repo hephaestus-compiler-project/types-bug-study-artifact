@@ -1,0 +1,58 @@
+```scala
+trait Path {
+  type Dep
+}
+
+final class ValueClass[P <: Path](val path: P) extends AnyVal {
+  import path._
+  def apply(dep: Dep): Dep = dep
+}
+```
+
+Gives:
+```
+uncaught exception during compilation: scala.reflect.internal.Types$TypeError
+scala.reflect.internal.Types$TypeError: type mismatch;
+ found   : ValueClass[P]#path.Dep
+ required: ValueClass.this.path.Dep
+	at scala.tools.nsc.typechecker.Contexts$Context.issueCommon(Contexts.scala:375)
+	at scala.tools.nsc.typechecker.Contexts$Context.issue(Contexts.scala:379)
+	at scala.tools.nsc.typechecker.ContextErrors$ErrorUtils$.issueTypeError(ContextErrors.scala:84)
+	at scala.tools.nsc.typechecker.ContextErrors$ErrorUtils$.issueNormalTypeError(ContextErrors.scala:69)
+	at scala.tools.nsc.typechecker.ContextErrors$TyperContextErrors$TyperErrorGen$.AdaptTypeError(ContextErrors.scala:176)
+	at scala.tools.nsc.typechecker.Typers$Typer.fallBack$1(Typers.scala:1249)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1254)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5467)
+	at scala.tools.nsc.interpreter.ReplGlobal$$anon$1$$anon$2.typed(ReplGlobal.scala:29)
+	at scala.tools.nsc.typechecker.Typers$Typer.transformedOrTyped(Typers.scala:5658)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedDefDef(Typers.scala:2169)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5386)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5458)
+	at scala.tools.nsc.interpreter.ReplGlobal$$anon$1$$anon$2.typed(ReplGlobal.scala:29)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5509)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedPos(Typers.scala:5514)
+	at scala.tools.nsc.transform.ExtensionMethods$Extender$$anonfun$transformStats$1$$anonfun$11$$anonfun$apply$7.apply(ExtensionMethods.scala:191)
+	at scala.tools.nsc.transform.ExtensionMethods$Extender$$anonfun$transformStats$1$$anonfun$11$$anonfun$apply$7.apply(ExtensionMethods.scala:191)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.ExtensionMethods$Extender$$anonfun$transformStats$1$$anonfun$11.apply(ExtensionMethods.scala:191)
+	at scala.tools.nsc.transform.ExtensionMethods$Extender$$anonfun$transformStats$1$$anonfun$11.apply(ExtensionMethods.scala:190)
+```
+
+By contrast, this compiles:
+
+```scala
+final class ValueClass[P <: Path](val path: P) extends AnyVal {
+  import path._
+  def apply(dep: Dep): Dep = dep
+}
+```
+
+Although even in the second case, the signature appears incorrect:
+
+```scala
+final def apply$extension[P >: Nothing <: Path]($this: ValueClass[P])(dep: ValueClass.this.path.Dep): Path#Dep = dep;
+```
+
+The formal type of the parameter `dep` should have a substitution applied from `ValueClass.this.type` -> `$this.type`.

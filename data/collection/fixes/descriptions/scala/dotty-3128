@@ -1,0 +1,25 @@
+Dotty sees a difference between `Option` and `[A] => Option[A]`, I think there shoudn't be:
+
+```scala
+trait Functor[F[_]]
+
+object Functor {
+  val a: Functor[Option] = ???
+  val b: Functor[[A] => Option[A]] = a
+
+  // Same result with scalac style type lambda:
+  // val c: Functor[({ type l[A] = Option[A] })#l] = a
+}
+```
+
+```scala
+23 |  val b: Functor[[A] => Option[A]] = a
+   |                                     ^
+   |                                   found:    Functor[Option](Functor''.a)
+   |                                   required: Functor[Option]
+   |
+   |                                   where:    Functor  is a trait
+   |                                             Functor'' is a object
+
+one error found
+```

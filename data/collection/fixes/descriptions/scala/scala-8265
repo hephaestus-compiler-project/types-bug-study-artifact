@@ -1,0 +1,11 @@
+This program is correctly rejected with a variance error in scala 2.7.7. And then it is accepted by 2.8, 2.9, and 2.10.
+```scala
+trait Family[+Base] { type Family = Base }
+```
+I fixed it in a419799f87 at which point it returned to being an error. But it will assuredly break code to change it suddenly. I found it because this not-small project
+
+ https://github.com/ReifyIt/basis
+
+is essentially built around exploiting the bug. And I wasn't able to make uncheckedVariance work on an abstract type member - is it possible? The upshot is that just getting it back to compiling will require touching almost every file in the project, and that's assuming it doesn't have to be redesigned entirely given the far-reaching consequences.
+
+So I don't know what the policy is, but based on past decisions maybe you don't want to roll this out so suddenly. At the very least it warrants an explanatory message, or maybe an opt-in -Yunsafe-variance option.

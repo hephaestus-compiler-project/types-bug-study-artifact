@@ -1,0 +1,48 @@
+I discovered strange behavior of updateDynamic. I trying to compile following code:
+
+```java
+import language.dynamics
+
+class DynamicTest extends Dynamic {
+  def selectDynamic(name: String) = s"value of $name"
+  def updateDynamic(name: String)(value: Any) {
+    println(s"You have just updated property '$name' with value: $value")
+  }
+}
+
+object MyApp extends App {
+  def testing() {
+    val test = new DynamicTest
+    test.firstName = "John"
+  }
+  
+  testing()
+}
+```
+
+Which produces following compilation error:
+
+```scala
+# scalac MyApp.scala
+MyApp.scala:13: error: reassignment to val
+    test.firstName = "John"
+                   ^
+
+one error found
+```
+
+If I will remove **selectDynamic** method from the **DynamicTest** I will receive another error: *"error: value selectDynamic is not a member of DynamicTest"*.
+
+If I will define **MyApp** class like this:
+
+```java
+object MyApp extends App {
+  val test = new DynamicTest
+
+  test.firstName = "John"
+}
+```
+
+Then everything compiles without any errors.
+
+*BTW*, I'm facing the same errors in the REPL. 

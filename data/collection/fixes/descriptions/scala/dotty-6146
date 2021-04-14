@@ -1,0 +1,29 @@
+I think the following should compile (it does in 2.13), but it produces the following errors (note the `LazyRef` in the error message):
+
+```scala
+  trait BS[T, S <: BS[T, S]]
+  trait IS extends BS[Int, IS]
+
+  sealed trait BSElem[T, S <: BS[_, S]] // we cannot make this S <: BS[T, S], as the `_` could be something else from T (that's what the `BSElem` implicit is for)
+
+  /*
+-- [E057] Type Mismatch Error: /Users/adriaan/git/scala/src/library/scala/collection/convert/StreamExtensions.scala:34:36 
+34 |  sealed trait BSElem[T, S <: BS[_, S]]
+   |                                    ^
+   |Type argument S does not conform to upper bound StreamExtensions.this.BS[Any, LazyRef(S)] 
+*/
+
+  object BSElem {
+    implicit val intStreamShape: BSElem[Int, IS] = ???
+  }
+  class Ops[A] {
+    def asJavaSeqStream[S <: BS[_, S]](implicit s: BSElem[A, S]): S = ???
+    /*
+  -- [E057] Type Mismatch Error: /Users/adriaan/git/scala/src/library/scala/collection/convert/StreamExtensions.scala:39:35 
+  39 |    def asJavaSeqStream[S <: BS[_, S]](implicit s: BSElem[A, S]): S = ???
+     |                                   ^
+     |Type argument S does not conform to upper bound StreamExtensions.this.BS[Any, LazyRef(S)] 
+    */
+  }
+```
+

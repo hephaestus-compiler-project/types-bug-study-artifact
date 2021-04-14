@@ -1,0 +1,24 @@
+The code:
+```
+import org.junit.Test
+
+fun <T> bar(i: T): T = i
+fun foo(i: Int) = i
+
+fun dontRun(body: () -> Unit) = Unit
+
+class Case1 {
+   @Test
+   fun test() {
+       dontRun { val x = bar(bar { -> bar { -> 2} }) }
+   }
+}
+```
+
+The error (1.2.41 with -Xnew-inference):
+```
+[ERROR] /home/belyaev/kotlin-spec-tests/src/test/kotlin/org/jetbrains/kotlin/spec/inference/Case1.kt:[13,44] Type mismatch: inferred type is () -> Int but Nothing was expected
+[ERROR] /home/belyaev/kotlin-spec-tests/src/test/kotlin/org/jetbrains/kotlin/spec/inference/Case1.kt:[13,44] Type mismatch: inferred type is () -> TypeVariable(_L) but Nothing was expected
+```
+
+Without -Xnew-inference everything works fine.

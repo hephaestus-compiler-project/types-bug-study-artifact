@@ -1,0 +1,65 @@
+I can't figure out what's wrong with the following piece of code. Seems to me getString necessarily returns a String if inside a null check. In fact, it works on the lines above! Is this a bug?
+
+```
+fun loadExtraBundleIntoIntent(origIntent: Intent, resultIntent: Intent) {
+    origIntent.extras?.let {
+        if (it.getString("peerUid") != null) {
+            resultIntent.putExtra("fragment", "ChatFragment")
+            resultIntent.putExtra("peerUid", it.getString("peerUid"))
+        } else if (it.getString("fragment") != null) {
+            resultIntent.putExtra("fragment", it.getString("fragment"))
+        }
+
+        if (it.getString("action") != null)
+            resultIntent.putExtra("action", it.getString("action"))
+    }
+}
+```
+
+Error on line:
+
+```
+resultIntent.putExtra("fragment", it.getString("fragment"))
+```
+
+Error message:
+
+```
+Error:(80, 30) Overload resolution ambiguity:
+public open fun putExtra(p0: String!, p1: Bundle!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: Parcelable!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: Serializable!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: Array<(out) Parcelable!>!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: Array<(out) CharSequence!>!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: Array<(out) String!>!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: Boolean): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: BooleanArray!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: Byte): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: ByteArray!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: Char): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: CharArray!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: CharSequence!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: Double): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: DoubleArray!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: Float): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: FloatArray!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: Int): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: IntArray!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: Long): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: LongArray!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: Short): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: ShortArray!): Intent! defined in android.content.Intent
+public open fun putExtra(p0: String!, p1: String!): Intent! defined in android.content.Intent
+```
+
+If I change the "else if" to just "if", the code works.
+
+Seems to me it is a compiler bug. Somehow the compiler doesn't know
+```
+it.getString(“string”)
+```
+CAN'T be null if inside a 
+```
+else if ( it.getString(“string”) != null )
+```
+block.

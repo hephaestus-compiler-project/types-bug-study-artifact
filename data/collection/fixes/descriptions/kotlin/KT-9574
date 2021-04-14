@@ -1,0 +1,69 @@
+Here's the code:
+
+```kotlin
+public inline fun <A, T> ((A) -> T).toProvider(arg: A): () -> T = { invoke(arg) }
+
+public fun main(args: Array<String>) {
+    val f = { i: Int -> "[$i]" }
+    val p = f.toProvider(42)
+    println(p())
+}
+```
+
+It makes the compiler crash with the following exception :
+
+{html}<pre>
+Error:Kotlin: [Internal Error] java.lang.UnsupportedOperationException: Don't render receiver parameters
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl$RenderDeclarationDescriptorVisitor.visitReceiverParameterDescriptor(DescriptorRendererImpl.kt:877)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl$RenderDeclarationDescriptorVisitor.visitReceiverParameterDescriptor(DescriptorRendererImpl.kt:838)
+	at org.jetbrains.kotlin.descriptors.impl.AbstractReceiverParameterDescriptor.accept(AbstractReceiverParameterDescriptor.java:52)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.render(DescriptorRendererImpl.kt:472)
+	at org.jetbrains.kotlin.renderer.DescriptorRendererImpl.render(DescriptorRendererImpl.kt:42)
+	at org.jetbrains.kotlin.diagnostics.rendering.DiagnosticRendererUtilKt.renderParameter(DiagnosticRendererUtil.kt:23)
+	at org.jetbrains.kotlin.diagnostics.rendering.RenderingPackage.renderParameter(DiagnosticRendererUtil.kt:1)
+	at org.jetbrains.kotlin.diagnostics.rendering.DiagnosticWithParameters3Renderer.renderParameters(DiagnosticWithParameters3Renderer.java:44)
+	at org.jetbrains.kotlin.diagnostics.rendering.DiagnosticWithParameters3Renderer.renderParameters(DiagnosticWithParameters3Renderer.java:26)
+	at org.jetbrains.kotlin.diagnostics.rendering.AbstractDiagnosticWithParametersRenderer.render(AbstractDiagnosticWithParametersRenderer.java:34)
+	at org.jetbrains.kotlin.diagnostics.rendering.DefaultErrorMessages.render(DefaultErrorMessages.java:79)
+	at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.reportDiagnostic(AnalyzerWithCompilerReport.java:89)
+	at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.reportDiagnostics(AnalyzerWithCompilerReport.java:181)
+	at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.reportDiagnostics(AnalyzerWithCompilerReport.java:191)
+	at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.java:269)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.java:319)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules(KotlinToJVMBytecodeCompiler.java:133)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:175)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:53)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:174)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:135)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execAndOutputXml(CLICompiler.java:63)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:497)
+	at org.jetbrains.kotlin.compilerRunner.CompilerRunnerUtil.invokeExecMethod(CompilerRunnerUtil.java:93)
+	at org.jetbrains.kotlin.compilerRunner.KotlinCompilerRunner.runCompiler(KotlinCompilerRunner.kt:121)
+	at org.jetbrains.kotlin.compilerRunner.KotlinCompilerRunner.runK2JvmCompiler(KotlinCompilerRunner.kt:64)
+	at org.jetbrains.kotlin.jps.build.KotlinBuilder.compileToJvm(KotlinBuilder.kt:590)
+	at org.jetbrains.kotlin.jps.build.KotlinBuilder.doCompileModuleChunk(KotlinBuilder.kt:325)
+	at org.jetbrains.kotlin.jps.build.KotlinBuilder.doBuild(KotlinBuilder.kt:177)
+	at org.jetbrains.kotlin.jps.build.KotlinBuilder.build(KotlinBuilder.kt:109)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.runModuleLevelBuilders(IncProjectBuilder.java:1230)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.runBuildersForChunk(IncProjectBuilder.java:904)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.buildTargetsChunk(IncProjectBuilder.java:976)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.buildChunkIfAffected(IncProjectBuilder.java:870)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.buildChunks(IncProjectBuilder.java:695)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.runBuild(IncProjectBuilder.java:386)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.build(IncProjectBuilder.java:193)
+	at org.jetbrains.jps.cmdline.BuildRunner.runBuild(BuildRunner.java:137)
+	at org.jetbrains.jps.cmdline.BuildSession.runBuild(BuildSession.java:294)
+	at org.jetbrains.jps.cmdline.BuildSession.run(BuildSession.java:125)
+	at org.jetbrains.jps.cmdline.BuildMain$MyMessageHandler$1.run(BuildMain.java:232)
+	at org.jetbrains.jps.service.impl.SharedThreadPoolImpl$1.run(SharedThreadPoolImpl.java:42)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+</pre>{html}
+
+If I remove the `inline` in the extension function declaration, the crash goes away.

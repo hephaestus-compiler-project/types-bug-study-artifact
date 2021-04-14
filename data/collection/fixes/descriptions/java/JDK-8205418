@@ -1,0 +1,17 @@
+There are several places where error recovery and related aspects could be improved, notably:
+-when parsing:
+---
+class C {
+     public <T>
+}
+---
+the "public <T>" is represented by just an ErroneousTree node, with no embedded error trees. It would be more convenient if the ErroneousTree would contain a MethodTree representing the "public <T>".
+-when parsing:
+"class X    "
+the end position of the ClassTree does not include the last space
+-when parsing:
+"class Test { FI fi = (s, "
+the "(s," gets parsed as parethesized expression, while it apparently must be some kind of a lambda expression
+-for code like:
+class Test { void test() { I i = s -> { }; } interface I { public void test(String s); } }
+Trees.getScope(<path-to '{ }' in s -> { }>) will return a Scope that is missing both "s" and "i".

@@ -1,0 +1,41 @@
+$ cat BadClassLiteral.java 
+public class BadClassLiteral {
+    public static void method() {
+        Class c1 = this.class;
+        Class c2 = "".class;
+        Class c3 = 0 .class;
+        Class c4 = null.class;
+        Object x;
+        Class c5 = x.toString().class;
+    }
+}
+
+Compiling this code with java 8 gives the output:
+
+$ ~/jdk8/bin/javac  -XDrawDiagnostics BadClassLiteral.java
+BadClassLiteral.java:3:25: compiler.err.expected: token.identifier
+BadClassLiteral.java:4:23: compiler.err.expected: token.identifier
+BadClassLiteral.java:5:23: compiler.err.expected: token.identifier
+BadClassLiteral.java:6:25: compiler.err.expected: token.identifier
+BadClassLiteral.java:8:33: compiler.err.expected: token.identifier
+5 errors
+
+Compiling this code with java 9 gives the output:
+
+$ ~/jdk9/bin/javac -XDrawDiagnostics BadClassLiteral.java
+BadClassLiteral.java:3:25: compiler.err.expected: token.identifier
+BadClassLiteral.java:3:30: compiler.err.expected: token.identifier
+BadClassLiteral.java:4:23: compiler.err.expected: token.identifier
+BadClassLiteral.java:4:28: compiler.err.expected: token.identifier
+BadClassLiteral.java:5:23: compiler.err.expected: token.identifier
+BadClassLiteral.java:5:28: compiler.err.expected: token.identifier
+BadClassLiteral.java:6:25: compiler.err.expected: token.identifier
+BadClassLiteral.java:6:30: compiler.err.expected: token.identifier
+BadClassLiteral.java:8:33: compiler.err.expected: token.identifier
+BadClassLiteral.java:8:38: compiler.err.expected: token.identifier
+BadClassLiteral.java:10:2: compiler.err.premature.eof
+11 errors
+
+Every duplicated line of these cases is about just one error - incorrect usage of 'class' literal. But java 9 produces two error messages instead of one. It makes the situation unclear.
+
+Also, theextra error at th end is absolutely wrong in this place because the code syntactically correct.

@@ -1,0 +1,119 @@
+FULL PRODUCT VERSION :
+java version "1.8.0-ea"
+Java(TM) SE Runtime Environment (build 1.8.0-ea-b45)
+Java HotSpot(TM) 64-Bit Server VM (build 24.0-b14, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+all platforms
+
+A DESCRIPTION OF THE PROBLEM :
+The attached source code compiles fine with JDK 5,6,7 but fails to compile with JDK 8-ea-b45.
+
+The compiler complains about an unititialized variable, that is always correctly initialized. Problem seems to be that the compiler forgets about the assignment in a nested try...finally block.
+
+The variable is always initialized:
+- If the inner try...finally throws exception, finally block is executed and method ends because exception bubbles up
+- if inner try...finally succeeds, mapping is defined and method returns with return statement
+- if we are in the else block, the mapping variable is also initialized
+
+The attached example code is a simple class extracted from Apache Lucene's 4.0 Alpha Release, with simplifications (see https://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/lucene/core/src/java/org/apache/lucene/store/CompoundFileDirectory.java). With this bug, Apache Lucene version 4.0 will not compile with JDK 8, so users of this search engine will be annoyed. I opened this bug report to prevent similar problems that happened with Java 7 release and Apache Lucene.
+
+REGRESSION.  Last worked in version 7
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Try to compile the attached (simplified) example code, which is originally from Apache Lucene 4.0 alpha release.
+
+
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Should compile with javac 1.8.0-ea-b45
+ACTUAL -
+It does not compile with javac 1.8.0-ea-b45, but compiles fine with JDK5, JDK6, JDK7.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+C:\Users\Uwe Schindler\Projects\javac-bug>javac Test.java
+Test.java:38: error: variable mapping might not have been initialized
+      return mapping;
+             ^
+1 error
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import java.util.HashMap;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Random;
+import java.io.IOException;
+
+public final class Test {
+  
+  static final Map<String,Object> readEntries() throws IOException {
+    final Random rnd = new Random();
+    final Map<String,Object> mapping;
+    try {
+      final int firstInt = rnd.nextInt(2);
+      if (firstInt == 0) {
+        // ... more code ...
+        try {
+          mapping = new HashMap<String,Object>();
+          // ... populate mapping ...
+          return mapping;
+        } finally {
+          rnd.nextInt(); // dummy
+        }
+      } else {
+        // assign mapping here, too!
+        mapping = Collections.emptyMap();
+      }
+      return mapping; // bug occurs here: mapping is always initialized
+    } finally {
+      rnd.nextInt(); // dummy
+    }
+  }
+
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+moving the HashMap initialization out of the inner try block:
+
+
+import java.util.HashMap;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Random;
+import java.io.IOException;
+
+public final class Test {
+  
+  static final Map<String,Object> readEntries() throws IOException {
+    final Random rnd = new Random();
+    final Map<String,Object> mapping;
+    try {
+      final int firstInt = rnd.nextInt(2);
+      if (firstInt == 0) {
+        // ... more code ...
+        mapping = new HashMap<String,Object>();
+        try {
+          // ... populate mapping ...
+          return mapping;
+        } finally {
+          rnd.nextInt(); // dummy
+        }
+      } else {
+        // assign mapping here, too!
+        mapping = Collections.emptyMap();
+      }
+      return mapping; // bug occurs here: mapping is always initialized
+    } finally {
+      rnd.nextInt(); // dummy
+    }
+  }
+
+}

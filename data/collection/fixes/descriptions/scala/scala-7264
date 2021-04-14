@@ -1,0 +1,30 @@
+Scalac does not find implicits when the use site is compiled after the definition site. Attached is a project with two files. If the project is built using `sbt clean compile`, it is fine. Now go into `sbt ~compile` and modify the `Test.scala` file (e.g. by adding a whitespace anywhere). It won't compile anymore:
+
+```scala
+[error] /Users/hhrutz/Desktop/implicits_bug/src/main/scala/implicitsbug/Test.scala:5: could not find implicit value for evidence parameter of type implicitsbug.Preferences.Type[String]
+[error]     p.put("value")
+[error]          ^
+```
+
+
+Note that this is not an sbt issue. The same happens if you successively execute:
+
+```scala
+$ scalac src/main/scala/implicitsbug/Bug.scala 
+$ scalac src/main/scala/implicitsbug/Test.scala 
+```
+
+What's worse, when `Bug.scala` is packaged and exported as a library, the implicit resolution fails for any project that tries to use this library.
+
+------
+
+Another odd thing is, once I refer to the implicit explicitly, the resolution works in successive calls:
+
+```scala
+object PrefsTest {
+  def test(p: Preferences) {
+    p.put("value")(Preferences.Type.string)
+    p.put("ja!")  // now you see me!
+  }
+}
+```

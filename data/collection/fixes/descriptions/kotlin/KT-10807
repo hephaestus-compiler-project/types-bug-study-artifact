@@ -1,0 +1,24 @@
+Consider the following code using RC-1007:
+
+```
+import java.util.*
+import kotlin.comparisons.compareBy
+import kotlin.comparisons.nullsLast
+
+class Foo(val a: String, val b: Int)
+
+fun getComp(): Comparator<Foo?> = when {
+    else -> nullsLast(compareBy({ it.a }, { it.b }))
+}
+
+fun getCompInverted(): Comparator<Foo?> = nullsLast(when {
+    else -> compareBy({ it.a }, { it.b })
+})
+```
+
+Before RC-1007, both methods would compile. Now, `getComp()` won't compile anymore saying 
+```
+Error:(10, 13) Kotlin: Type mismatch: inferred type is java.util.Comparator<kotlin.Any?> but java.util.Comparator<inference.Foo?> was expected
+Error:(10, 38) Kotlin: Unresolved reference: a
+Error:(10, 48) Kotlin: Unresolved reference: b
+```

@@ -1,0 +1,23 @@
+When using the @TupleConstructor with the static type checking, it doesn't like when a constructor without all the fields is used.
+Consider the following example:
+{code}
+import groovy.transform.*
+
+@TupleConstructor
+@TypeChecked
+class Person {
+    String name, city
+    static Person create() {
+        new Person("Guillaume")
+    }
+}
+
+Person.create()
+{code}
+The type checker complains because it could not find a zero-arg constructor:
+{code}
+[Static type checking] - Cannot find matching method Person#<init>(java.lang.String)
+ at line: 8, column: 9
+{code}
+But actually, @TupleConstructor allows to use less args than all the declared.
+Person can be instantiated with new Person("Guillaume", "Paris"), new Person("Guillaume"), or even new Person()

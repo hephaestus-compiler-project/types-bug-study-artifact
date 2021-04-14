@@ -1,0 +1,29 @@
+```
+% git log --oneline  ca9f64d~7 -2
+725c5c9 Encapsulate reporting mode as class of reportBuffer.
+f0fdcc0 Clarify that ThrowErrors is the default
+
+% scalac-hash f0fdcc0 test/benchmarks/src/scala/collection/parallel/benchmarks/arrays/Resetting.scala
+test/benchmarks/src/scala/collection/parallel/benchmarks/arrays/Resetting.scala:3: error: cannot find class tag for element type T
+  gencastarray = new Array[T](0)
+                 ^
+one error found
+
+% scalac-hash 725c5c9 test/benchmarks/src/scala/collection/parallel/benchmarks/arrays/Resetting.scala 2>&1 | head -n 10
+error: java.lang.StackOverflowError
+        at scala.reflect.internal.Types$SimpleTypeProxy$class.boundSyms(Types.scala:153)
+        at scala.reflect.internal.Types$SingletonType.boundSyms(Types.scala:1076)
+        at scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:698)
+        at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:110)
+        at scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:700)
+        at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:148)
+        at scala.reflect.internal.tpe.TypeMaps$SubstMap.apply(TypeMaps.scala:700)
+        at scala.reflect.internal.Types$Type.subst(Types.scala:705)
+        at scala.reflect.internal.Types$Type.instantiateTypeParams(Types.scala:470)
+
+%  cat test/benchmarks/src/scala/collection/parallel/benchmarks/arrays/Resetting.scala
+class Resetting[T] {
+  var gencastarray: Any = null
+  gencastarray = new Array[T](0)
+}
+```

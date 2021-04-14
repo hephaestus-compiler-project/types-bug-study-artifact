@@ -1,0 +1,23 @@
+See also https://issues.scala-lang.org/browse/SI-7453
+
+In `scalac`:
+```scala
+scala> if (false) Array("qwe") else Array()
+java.lang.ClassCastException: [Ljava.lang.Object; cannot be cast to [Ljava.lang.String;
+```
+In dotty, thankfully:
+```scala
+scala> if (false) Array("qwe") else Array() 
+res1: Array[String] | Array[Nothing] = [Ljava.lang.Object;@1dd92fe2
+```
+But still in dotty:
+```scala
+scala> val x = if (false) Array("qwe") else Array() 
+x: Array[String] | Array[Nothing] = [Ljava.lang.Object;@5454d35e
+scala> val y: Array[_ <: String] = x 
+java.lang.ClassCastException: [Ljava.lang.Object; cannot be cast to [Ljava.lang.String;
+```
+
+We either need to disallow `Array[Nothing]`, `Array[Null]`, etc or we need to erase `Array[_ <: X]` to `Object` instead of `[X;`.
+
+It would also be much nicer if we could infer the empty array above to have type `Array[String]` instead of `Array[Nothing]`, I don't know what prevents us from doing this currently.

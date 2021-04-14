@@ -1,0 +1,45 @@
+# Synopsis
+
+Type of change:
+- New diagnostics: errors
+
+Motivation:
+- Compiler generates unobvious bytecode
+
+Impact:
+- Some code that used to compile won’t compile anymore
+
+Migration:
+- All code locations affected by this change can be accurately detected statically
+- Migration can't be automated
+
+# Existing behavior/pattern/bug
+
+#### Code sample
+
+```kotlin
+interface Foo
+
+annotation class Ann
+
+class E : @field:Ann @get:Ann @set:Ann @setparam:Ann Foo 
+```
+
+Such annotations are meaningless, and are not present in the bytecode.
+
+#### Affected version
+
+This problem exists since Kotlin 1.0. 
+
+# Proposed behavior/pattern
+Meaningless target prefix for annotation on a supertype list element should be an error (as it is in other cases).
+
+# Impact of this change
+Since this code is meaningless, and corresponding annotations are not present in the bytecode in any form except Kotlin compiler metadata, it's safe to assume that this code pattern is extremely rare (if ever present in the real-life code).
+
+# Migration 
+
+- Report warning in 1.3.x
+   - Report error in progressive mode
+Corrected code will work and compile fine in a regular (non-progressive) mode
+- Turn the warning into an error in 1.4

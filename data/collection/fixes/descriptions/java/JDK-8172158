@@ -1,0 +1,24 @@
+JMH uses an annotation processor to generate various META-INF resources, but as of the latest jdk9/dev this silently fails.
+
+To reproduce:
+mvn archetype:generate \
+          -DinteractiveMode=false \
+          -DarchetypeGroupId=org.openjdk.jmh \
+          -DarchetypeArtifactId=jmh-java-benchmark-archetype \
+          -DgroupId=org.sample \
+          -DartifactId=test \
+          -Dversion=1.0
+cd test
+mvn compile
+ls target/classes
+
+Should contain:
+META-INF
+org
+perf
+
+Actual:
+org
+perf
+
+This works in 9+149 but not in 9+150, and bisecting over the langtools changes seems to implicate https://bugs.openjdk.java.net/browse/JDK-8133896 as the root cause.

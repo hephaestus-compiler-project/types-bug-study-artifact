@@ -1,0 +1,49 @@
+The following compiled successfully with Kotlin 1.4.21 but fails with 1.4.30.
+
+```kotlin
+// commonMain
+expect inline class Color(val value: ULong)
+
+// androidMain
+actual typealias Color = androidx.compose.ui.graphics.Color
+
+// (compiled) androidx.compose.ui.graphics.Color
+inline class Color(val value: ULong) { /** */ }
+```
+
+With 1.4.30 compilation fails with
+```
+Actual typealias 'Color' has no corresponding expected declaration
+The following declaration is incompatible because modifiers are different (companion, inner, inline):
+    public final expect inline class Color
+```
+despite modifiers *not* being different.
+
+[A minimal sample project to reproduce the issue is shared on GitHub.](https://github.com/justasm/KT-44926)
+
+### Workaround
+Enabling 1.5 language features and using `expect value class` allows using `actual typealias` to a compiled inline class.
+
+```kotlin
+// commonMain
+@JvmInline
+expect value class Color(val value: ULong)
+
+// androidMain
+actual typealias Color = androidx.compose.ui.graphics.Color
+
+// (compiled) androidx.compose.ui.graphics.Color
+inline class Color(val value: ULong) { /** */ }
+```
+
+[The sample project demonstrates this approach.](https://github.com/justasm/KT-44926/pull/1)
+It is unexpected that `expect value class` works with `actual typealias` to an `inline class` despite the modifiers being different, but `expect inline class` fails with a message that "modifiers are different".
+
+### Notes
+An `actual typealias` to an `inline class` declared in the project (as opposed to a dependency) compiles successfully.
+
+[The sample project also demonstrates that compilation succeeds when downgrading to Kotlin 1.4.21.](https://github.com/justasm/KT-44926/pull/2)
+
+The `androidx.compose.ui.graphics.Color` dependency comes from [`androidx.compose.ui:ui:$version` coordinates](https://maven.google.com/web/index.html?q=androidx.compose.ui#androidx.compose.ui:ui).
+- Compilation with Kotlin 1.4.21 and `actual typealias` to compiled inline class succeeds with `androidx.compose.ui:ui:1.0.0-alpha11` (compiled with 1.4.21).
+- Compilation with Kotlin 1.4.30 and `actual typealias` to compiled inline class fails with `androidx.compose.ui:ui:1.0.0-alpha12` (compiled with 1.4.30).

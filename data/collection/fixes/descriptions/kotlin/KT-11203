@@ -1,0 +1,44 @@
+{code lang=kt}
+object A
+
+operator fun A.get(index: Int): Int = index
+operator fun A.set(index: Int, newValue: String) {}
+
+fun main(args: Array<String>) {
+    val x: Int = A[0]++
+}
+{code}
+
+Although `A[0]++` effectively does `A.set(0, A.get(0).inc())`, this code compiles, with VerifyError at run-time:
+
+Exception in thread "main" java.lang.VerifyError: Bad type on operand stack
+Exception Details:
+  Location:
+    kt_tests/getset/InconsistentGetSetKt.main([Ljava/lang/String;)V @20: invokestatic
+  Reason:
+    Type 'java/lang/Integer' (current frame, stack[3]) is not assignable to 'java/lang/String'
+  Current Frame:
+    bci: @20
+    flags: { }
+    locals: { '[Ljava/lang/String;' }
+    stack: { integer, 'kt_tests/getset/A', integer, 'java/lang/Integer' }
+  Bytecode:
+    0x0000000: 2a12 1bb8 000e b200 2003 5cb8 0022 5b04
+    0x0000010: 60b8 0028 b800 2a3c b1                 
+
+{code}
+    GETSTATIC kt_tests/getset/A.INSTANCE : Lkt_tests/getset/A;
+    ICONST_0
+    DUP2
+    INVOKESTATIC kt_tests/getset/InconsistentGetSetKt.get (Lkt_tests/getset/A;I)I
+    DUP_X2
+    ICONST_1
+    IADD
+    INVOKESTATIC java/lang/Integer.valueOf (I)Ljava/lang/Integer;
+    INVOKESTATIC kt_tests/getset/InconsistentGetSetKt.set (Lkt_tests/getset/A;ILjava/lang/String;)V
+    ISTORE 1
+{code}
+
+Should be a compiler error.
+
+Same is true for compound assignment operators.

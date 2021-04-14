@@ -1,0 +1,20 @@
+Given:
+```scala
+trait X
+trait Y
+
+trait Test {
+  def foo[A <: X with Y, B <: Y with A](a: A, b: B): Unit
+}
+```
+Scala 2 erases it as:
+```scala
+def foo(a: X, b: X): Unit
+```
+But Dotty erases it as:
+```scala
+ def foo(a: X, b: Y): Unit
+```
+This is problematic since it can affect which overloads are valid or not.
+The Scala 2 implementation is at https://github.com/scala/scala/blob/a9275b50e425d29c0b7fd45c10317953d5bf7804/src/reflect/scala/reflect/internal/transform/Erasure.scala#L333-L366
+The Dotty implementation is at https://github.com/lampepfl/dotty/blob/868d1995b0f10bacf13d365e12eb2b31061a1928/compiler/src/dotty/tools/dotc/core/TypeErasure.scala#L290-L315

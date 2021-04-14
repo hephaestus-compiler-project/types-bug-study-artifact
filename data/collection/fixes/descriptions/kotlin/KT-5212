@@ -1,0 +1,35 @@
+Code calling Vert.x when registering an event bus handler, shouldn't this be possible to make a closure for the single method interface used here in this example...
+
+Code using dependencies:
+"io.vertx:vertx-core:2.1"
+"io.vertx:vertx-platform:2.1"
+
+{code:lang=kotlin}
+import org.vertx.java.core.Handler
+import org.vertx.java.core.eventbus.Message
+import org.vertx.java.platform.Verticle
+import org.vertx.java.core.json.JsonArray
+import org.vertx.java.core.json.JsonObject
+
+public class CollectorServerAsUglyKotlin : Verticle() {
+
+    override public fun start() {
+        val server = getVertx()!!.createHttpServer().setSSL(true).setKeyStorePath("src/main/resources/server-keystore.jks").setKeyStorePassword("wibble")
+
+        server.requestHandler { req ->
+            if (req.uri() == "/") req.response()!!.sendFile("src/main/resources/index.html")
+            if (req.uri() == "/vertxbus.js") req.response()!!.sendFile("src/main/resources/vertxbus.js")
+            if (req.uri() == "/socksjs-0.3.4.min.js") req.response()!!.sendFile("src/main/resources/socksjs-0.3.4.min.js")
+        }
+
+        getVertx()!!.createSockJSServer(server).bridge(JsonObject().putString("prefix","/eventbus"), JsonArray(), JsonArray())
+
+        server.listen(8080)
+
+        getVertx()!!.eventBus().registerHandler("someaddress", object: Handler<Message<out Any?>?> {
+           // TODO:  closure here instead?!?
+        })
+
+    }
+}
+{code}

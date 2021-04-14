@@ -1,0 +1,33 @@
+Type checking in Groovy 2.1 seems to have issues with "extended" Generics, see sample below, which makes use use explicit cast though we should not need to:
+{code}
+abstract class ComponentAdapter<Fixture extends ComponentFixture> {
+
+	Fixture getFixture() {
+        return fixture;
+    }
+}
+
+abstract class ContainerAdapter<Fixture extends ContainerFixture> extends ComponentAdapter<Fixture> {
+
+}
+	
+@TypeChecked	
+class ButtonComponent extends ComponentAdapter<JButtonFixture> implements Clickable {	
+
+	void setFixtureResolver(final ContainerAdapter<? extends ContainerFixture> containerAdapter) {
+        final ContainerFixture containerFixture   = (ContainerFixture)containerAdapter.getFixture(); //OK
+		final ContainerFixture containerFixture   = containerAdapter.getFixture(); //NOK ... see below
+    }
+}
+{code}
+{code}
+[ERROR] D:\SVN\PROTECT\2200_Test_Development\cats-framework\trunk\cats-agents\cats-agent-festswing-scripting\src\main\groovy\scripts\agent\festswing\adapter\controller\component\ButtonComponent.groovy
+: 102: [Static type checking] - Cannot assign value of type org.fest.swing.fixture.ComponentFixture <org.fest.swing.fixture.ContainerFixture extends org.fest.swing.fixture.ContainerFixture> to variabl
+e of type org.fest.swing.fixture.ContainerFixture
+[ERROR] @ line 102, column 53.
+[ERROR] rFixture containerFixture   = containerA
+[ERROR] ^
+[ERROR]
+[ERROR] 1 error
+[ERROR] -> [Help 1]
+{code}

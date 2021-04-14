@@ -1,0 +1,123 @@
+FULL PRODUCT VERSION :
+javac 1.7.0_09
+
+java version  " 1.7.0_09 " 
+Java(TM) SE Runtime Environment (build 1.7.0_09-b05)
+Java HotSpot(TM) 64-Bit Server VM (build 23.5-b02, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+Darwin hostname.local 11.4.2 Darwin Kernel Version 11.4.2: Thu Aug 23 16:25:48 PDT 2012; root:xnu-1699.32.7~1/RELEASE_X86_64 x86_64
+
+A DESCRIPTION OF THE PROBLEM :
+Mis-enter an annotation by using an array where a single element was expected, like so:
+
+@Foo({@Override, @Override})
+public class Test {
+
+}
+
+@interface Foo {
+Override value();
+}
+
+Now, compile it with javac, _but_, make sure some annotation processor will be run. For example, by putting spi.jar from the spi project (download link to annotation processor jar that should be put on the classpath: http://code.google.com/p/spi/downloads/detail?name=spi.jar&can=2&q= ). Thus, run:
+
+javac -cp spi.jar Test.java
+
+at that point, the compiler will fail with a ClassCastException. If you then add -proc:none or just take spi out of the equation, you get the proper compiler error message.
+
+
+Note that spi doesn't even trigger on the 'Test' annotation -  any annotation processor, even a dummy one, is enough to trigger this bug.
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+1. Download spi.jar or find any other annotation processor.
+
+2. Create a file named 'Test.java' and paste this code in:
+
+@Foo({@Override, @Override})
+public class Test {
+
+}
+
+@interface Foo {
+Override value();
+}
+
+3. execute 'javac -cp spi.jar Test.java'
+
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Compiler should generate an error message describing to the user that an annotation has not been used properly. For example:
+
+Test.java:1: error: annotation value must be an annotation
+@Foo({@Override, @Override})
+     ^
+
+(This is the error you get if there are 0 annotation processors on the classpath / -proc:none is used).
+
+ACTUAL -
+Compiler crashes with a ClassCastException:
+
+An exception has occurred in the compiler (1.7.0_09). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.ClassCastException: com.sun.tools.javac.tree.JCTree$JCNewArray cannot be cast to com.sun.tools.javac.tree.JCTree$JCAnnotation
+at com.sun.tools.javac.comp.Annotate.enterAttributeValue(Annotate.java:229)
+at com.sun.tools.javac.comp.Annotate.enterAnnotation(Annotate.java:181)
+at com.sun.tools.javac.comp.MemberEnter.enterAnnotations(MemberEnter.java:779)
+at com.sun.tools.javac.comp.MemberEnter.access$300(MemberEnter.java:57)
+at com.sun.tools.javac.comp.MemberEnter$5.enterAnnotation(MemberEnter.java:747)
+at com.sun.tools.javac.comp.Annotate.flush(Annotate.java:109)
+at com.sun.tools.javac.comp.Annotate.enterDone(Annotate.java:101)
+at com.sun.tools.javac.comp.Enter.complete(Enter.java:510)
+at com.sun.tools.javac.comp.Enter.main(Enter.java:469)
+at com.sun.tools.javac.main.JavaCompiler.enterTrees(JavaCompiler.java:929)
+at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:824)
+at com.sun.tools.javac.main.Main.compile(Main.java:439)
+at com.sun.tools.javac.main.Main.compile(Main.java:353)
+at com.sun.tools.javac.main.Main.compile(Main.java:342)
+at com.sun.tools.javac.main.Main.compile(Main.java:333)
+at com.sun.tools.javac.Main.compile(Main.java:76)
+at com.sun.tools.javac.Main.main(Main.java:61)
+
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+An exception has occurred in the compiler (1.7.0_09). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.ClassCastException: com.sun.tools.javac.tree.JCTree$JCNewArray cannot be cast to com.sun.tools.javac.tree.JCTree$JCAnnotation
+at com.sun.tools.javac.comp.Annotate.enterAttributeValue(Annotate.java:229)
+at com.sun.tools.javac.comp.Annotate.enterAnnotation(Annotate.java:181)
+at com.sun.tools.javac.comp.MemberEnter.enterAnnotations(MemberEnter.java:779)
+at com.sun.tools.javac.comp.MemberEnter.access$300(MemberEnter.java:57)
+at com.sun.tools.javac.comp.MemberEnter$5.enterAnnotation(MemberEnter.java:747)
+at com.sun.tools.javac.comp.Annotate.flush(Annotate.java:109)
+at com.sun.tools.javac.comp.Annotate.enterDone(Annotate.java:101)
+at com.sun.tools.javac.comp.Enter.complete(Enter.java:510)
+at com.sun.tools.javac.comp.Enter.main(Enter.java:469)
+at com.sun.tools.javac.main.JavaCompiler.enterTrees(JavaCompiler.java:929)
+at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:824)
+at com.sun.tools.javac.main.Main.compile(Main.java:439)
+at com.sun.tools.javac.main.Main.compile(Main.java:353)
+at com.sun.tools.javac.main.Main.compile(Main.java:342)
+at com.sun.tools.javac.main.Main.compile(Main.java:333)
+at com.sun.tools.javac.Main.compile(Main.java:76)
+at com.sun.tools.javac.Main.main(Main.java:61)
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+@Foo({@Override, @Override})
+public class Test {
+
+}
+
+@interface Foo {
+Override value();
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Well, you can stop using annotation processors, or, you can fix your syntax error.

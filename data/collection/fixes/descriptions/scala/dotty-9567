@@ -1,0 +1,37 @@
+Another one from this commit: https://github.com/typelevel/cats-effect/pull/1081/commits/ef891ca90a6245d688c80dbf07ea4a6f1588e6ee Odds seem good this one is easier to minimize…
+
+In this snippet, I *have* to have the `ioa` val:
+
+```scala
+    "allocate does not release until close is invoked" in ticked { implicit ticker =>
+      val released = new java.util.concurrent.atomic.AtomicBoolean(false)
+      val release = Resource.make(IO.unit)(_ => IO(released.set(true)))
+      val resource = Resource.liftF(IO.unit)
+
+      // do not inline: it confuses Dotty
+      val ioa = (release *> resource).allocated
+
+      val prog = for {
+        res <- ioa
+        (_, close) = res
+        _ <- IO(released.get() must beFalse)
+        _ <- close
+        _ <- IO(released.get() must beTrue)
+      } yield ()
+
+      prog must completeAs(())
+    }
+```
+
+If I inline `ioa` into the `for`-comprehension, I get the following error:
+
+```
+[error] -- [E008] Not Found Error: /Users/daniel/Development/Scala/cats-effect/series-3.x/core/shared/src/test/scala/cats/effect/ResourceSpec.scala:187:15 
+[error] 187 |        res <- (release *> resource).allocated
+[error]     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]     |value map is not a member of cats.effect.IO[(Unit, cats.effect.IO[Unit])], but could be made available as an extension method.
+[error]     |
+[error]     |One of the following imports might make progress towards fixing the problem:
+```
+
+Hilariously, `map` is actually a *direct* member of `cats.effect.IO`. There should be no implicit resolution involved at all. I ran into this problem in a couple places, and pulling the expression out into a value solved it every time.

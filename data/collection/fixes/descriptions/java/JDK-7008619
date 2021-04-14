@@ -1,0 +1,96 @@
+SYNOPSIS
+--------
+Generic cast error caused by fix for CR 4916620
+
+OPERATING SYSTEM
+----------------
+All
+
+FULL JDK VERSION
+----------------
+1.5.0_07 - Warning, no error.
+1.5.0_08 - _28 - Error, instead of warning.
+JDK 6 - Warning, no error.
+JDK 7 - Warning, no error.
+
+PROBLEM DESCRIPTION from LICENSEE
+---------------------------------
+The fix for CR 4916620 leads to a regression in javac. Code that previously compiled with a warning now fails to compile. The problem is limited to 5.0 - the Java 6 javac implementation compiles the code with just a warning, even though 4916620 was also fixed in 6 (perhaps there is some other fix that needs to be ported to 5.0?).  JDK 7 throws
+a warning, in 
+
+REPRODUCTION INSTRUCTIONS
+-------------------------
+Attempt to compile the attached testcase with the following command:
+
+   javac -Xlint:unchecked WeakValueHashMap.java
+
+You will see the following results:
+
+1.5.0_07 and earlier:
+=====================
+WeakValueHashMap.java:9: warning: [unchecked] unchecked cast
+found   : java.lang.ref.Reference<capture of ? extends V>
+required: WeakValueHashMap<K,V>.KeyWeakReference<V>
+        KeyWeakReference<V> sr = (KeyWeakReference<V>) this.queue.poll();
+                                                                      ^
+1 warning
+========
+
+1.5.0_08 and later:
+===================
+WeakValueHashMap.java:9: inconvertible types
+found   : java.lang.ref.Reference<capture of ? extends V>
+required: WeakValueHashMap<K,V>.KeyWeakReference<V>
+        KeyWeakReference<V> sr = (KeyWeakReference<V>) this.queue.poll();
+                                                                      ^
+1 error
+========
+
+Any Java 6:
+===========
+WeakValueHashMap.java:9: warning: [unchecked] unchecked cast
+found   : java.lang.ref.Reference<capture#159 of ? extends V>
+required: WeakValueHashMap<K,V>.KeyWeakReference<V>
+        KeyWeakReference<V> sr = (KeyWeakReference<V>) this.queue.poll();
+                                                                      ^
+1 warning
+========
+
+JDK 7:
+======
+WeakValueHashMap.java:193: warning: [unchecked] unchecked cast
+                KeyWeakReference<V> sr = (KeyWeakReference<V>) this.queue.poll();
+                                                                              ^
+  required: WeakValueHashMap<K,V>.KeyWeakReference<V>
+  found:    Reference<CAP#1>
+  where V,K are type-variables:
+    V extends Object declared in class WeakValueHashMap
+    K extends Object declared in class WeakValueHashMap
+  where CAP#1 is a fresh type-variable:
+    CAP#1 extends V from capture of ? extends V
+1 warning
+=========
+
+
+TESTCASE
+--------
+
+Testcase is attached to this bug report.
+
+Note:  To see the warnings with this code you need to comment out the 
+annotation below, which suppresses the warnings:
+//    @SuppressWarnings("unchecked")
+
+
+
+WORKAROUND
+----------
+Change this line in the release() method from:
+
+    KeyWeakReference<V> sr = (KeyWeakReference<V>) this.queue.poll();
+
+to this:
+
+    KeyWeakReference sr = (KeyWeakReference) this.queue.poll();
+
+But it's not clear what side effects this may have.

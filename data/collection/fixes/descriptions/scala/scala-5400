@@ -1,0 +1,31 @@
+The following code compiles with 2.9.1, but fails with the nightly of Jan 23 2012. You may be able to minimize the test even further, not sure if the higher-kinded type is needed.
+
+This could be a duplicate of #5399.
+
+```scala
+class Test {
+  type AnyCyclic = Execute[Task]#CyclicException[_]
+
+  trait Task[T]
+
+  trait Execute[A[_] <: AnyRef] {
+    class CyclicException[T](val caller: A[T], val target: A[T])
+  }
+
+  def convertCyclic(c: AnyCyclic): String =
+    (c.caller, c.target) match {
+      case (caller: Task[_], target: Task[_]) => "bazinga!"
+    }
+}
+```
+
+Errors with current trunk compiler:
+
+```scala
+existential2.scala:13: error: constructor of type (T1, T2) cannot be uniquely instantiated to expected type Tuple2[Test.this.Task[?>: Nothing <: Any], Test.this.Task[?>: Nothing <: Any]]
+ --- because ---
+undetermined type
+      case (caller: Task[_], target: Task[_]) => "bazinga!"
+           ^
+one error found
+```

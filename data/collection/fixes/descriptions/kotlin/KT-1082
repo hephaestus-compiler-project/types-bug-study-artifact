@@ -1,0 +1,29 @@
+{code}
+public fun<TItem> Iterable<TItem>.lazy() : Iterable<TItem>
+{
+    return YieldingIterable {
+        val iterator = this.iterator() // Having a ';' here fixes the error, but the diagnostics don't help
+        { if (iterator.hasNext) iterator.next() else null }
+    }
+}
+
+class YieldingIterator<T>(val yieldingFunction : ()->T?) : Iterator<T>
+{
+    var current : T? = (yieldingFunction)()
+    override fun next(): T {
+        val next = current;
+        if (next != null)
+        {
+            current = (yieldingFunction)()
+            return next
+        }
+        else throw IndexOutOfBoundsException()
+    }
+    override val hasNext: Boolean = current != null
+}
+
+class YieldingIterable<T>(val yielderFactory : ()->(()->T?)) : Iterable<T>
+{
+    override fun iterator(): Iterator<T> = YieldingIterator((yielderFactory)())
+}
+{code}

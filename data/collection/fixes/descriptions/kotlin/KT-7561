@@ -1,0 +1,42 @@
+In the following code
+
+{code lang=Kotlin}
+public fun main(args: Array<String>) {
+    var i : Int?
+    i = 10
+    val j = i++
+}
+{code}
+
+we get the following exception during increment execution. As I could investigate, VM expects to find an object on stack but gets an integer instead. A problem has some correlation with KT-3175 fixed: now frontend knows that i is Int during increment.
+
+{code}
+Exception in thread "main" java.lang.VerifyError: (class: _DefaultPackage$Main$d143f8e0, method: main signature: ([Ljava/lang/String;)V) Expecting to find object/array on stack
+	at _DefaultPackage.main(Main.kt:1)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+	at java.lang.reflect.Method.invoke(Method.java:597)
+	at com.intellij.rt.execution.application.AppMain.main(AppMain.java:140)
+{code}
+
+Byte code fragment:
+
+{code}
+   L4
+    LINENUMBER 9 L4
+    BIPUSH 10
+    INVOKESTATIC java/lang/Integer.valueOf (I)Ljava/lang/Integer;
+    ASTORE 1
+   L5
+    LINENUMBER 10 L5
+    ALOAD 1
+    CHECKCAST java/lang/Number
+    INVOKEVIRTUAL java/lang/Number.intValue ()I
+    DUP
+    ICONST_1
+    IADD
+    INVOKESTATIC java/lang/Integer.valueOf (I)Ljava/lang/Integer;
+    ASTORE 1
+    ASTORE 2
+{code}

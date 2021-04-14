@@ -1,0 +1,34 @@
+When an annotation field's default value is a reference to a `val`, the code compiles but the default value is not emitted.
+
+Note that when the default value is a reference to a `const val`, things work as expected.
+
+Attached is a reproduction.
+Compiler version: 1.0.5-2
+JDK version: 1.8.0_65
+Expected behavior:  It should print `com.bendb.kotlin.Anno(num=100)` (or just fail to compile),
+Actual behavior: It throws `java.lang.annotation.IncompleteAnnotationException: com.bendb.kotlin.Anno missing element num`
+
+Code:
+```
+package com.bendb.kotlin
+
+val Number: Int = 100
+
+@Retention(AnnotationRetention.RUNTIME)
+annotation class Anno(val num: Int = Number)
+
+class SomeClass {
+    @Anno
+    fun method() {
+        // doesn't matter
+    }
+}
+
+fun main(args: Array<String>) {
+    val cls = SomeClass::class.java
+    val method = cls.getDeclaredMethod("method")
+    val anno = method.getAnnotation(Anno::class.java)
+
+    print("anno: ${anno.num}")
+}
+```

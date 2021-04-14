@@ -1,0 +1,48 @@
+```scala
+def wrong(ints: Seq[Int]): Option[Seq[Int]] = {
+  Some(ints.collect{
+    case i if i % 2 == 0 => return None
+    case other => other
+  })
+}
+
+wrong(0 to 10)
+//res0: Option[Seq[Int]] = Some(Vector(None, 1, None, 3, None, 5, None, 7, None, 9, None))
+
+def correct(ints: Seq[Int]): Option[Seq[Int]] = {
+  val a = ints.collect {
+    case i if i % 2 == 0 => return None
+    case other => other
+  }
+  Some(a)
+}
+
+correct(0 to 10)
+//res1: Option[Seq[Int]] = None
+
+
+def wrong2(ints: Seq[Int]): Seq[Seq[Int]] = {
+  Seq(ints.collect{
+    case i if i % 2 == 0 => return Seq()
+    case other => other
+  })
+}
+
+wrong2(1 to 10)
+//res2: Seq[Seq[Int]] = List(Vector(1, List(), 3, List(), 5, List(), 7, List(), 9, List()))
+
+def wrong3(ints: Seq[Int]): Seq[Seq[Int]] = {
+  Seq(ints.collect{
+    case _ => return wrong3(ints.tail)
+  })
+}
+
+wrong3(0 until 0)
+//res3: Seq[Seq[Int]] = List(Vector())
+wrong3(0 until 1)
+//res4: Seq[Seq[Int]] = List(Vector(List(Vector())))
+wrong3(0 until 2)
+//res5: Seq[Seq[Int]] = List(Vector(List(Vector(List(Vector()))), List(Vector(List(Vector())))))
+```
+
+This bug appears both on 2.11.x and 2.12.x

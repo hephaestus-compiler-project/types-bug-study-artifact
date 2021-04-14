@@ -1,0 +1,24 @@
+This program:
+
+public class Bug {
+    @SuppressWarnings("serial") final Throwable[] a = {new Throwable() {}};
+    @SuppressWarnings("serial")       Throwable[] b = {new Throwable() {}};
+    public static void main(String[] args) throws Throwable {
+	@SuppressWarnings("serial") final Throwable[] c = {new Throwable() {}};
+	@SuppressWarnings("serial")       Throwable[] d = {new Throwable() {}};
+    }
+}
+
+should generate either zero or four warnings, but:
+
+$ jver -v 7 javac -Xlint:all Bug.java
+Using JDK /java/re/jdk/7/promoted/latest/binaries/solaris-sparcv9
+Bug.java:2: warning: [serial] serializable class <anonymous Bug$1> has no definition of serialVersionUID
+    @SuppressWarnings("serial") final Throwable[] a = {new Throwable() {}};
+                                                                       ^
+Bug.java:5: warning: [serial] serializable class <anonymous Bug$3> has no definition of serialVersionUID
+	@SuppressWarnings("serial") final Throwable[] c = {new Throwable() {}};
+	                                                                   ^
+2 warnings
+
+Clearly the use of "final" should make no difference.

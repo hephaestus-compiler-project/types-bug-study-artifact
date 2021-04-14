@@ -1,0 +1,47 @@
+```scala
+object UnapplySeqTest {
+  def unapplySeq(any: Any): Option[(Int, Seq[Int])] = None
+}
+
+null match {
+  case UnapplySeqTest(5) => println("Matched!")    // shows the error
+  case UnapplySeqTest(5, 1) => println("Matched!") // compiles
+}
+```
+
+fails to compile with this error:
+
+```
+(the last tuple-component of) the result type of an unapplySeq must be a Seq[_]
+  case UnapplySeqTest(5) => println("Matched!")
+```
+
+This is a regression from 2.9.2 probably introduced in [ee5721e864](https://github.com/adriaanm/scala/commit/ee5721e864de6fff2d54b9fb5452123bcca82483).
+
+I tried changing [this line](https://github.com/adriaanm/scala/commit/ee5721e864de6fff2d54b9fb5452123bcca82483#L2R90) to `if (productArgs.size == 1) {` (v2.10.x branch) because the check should be done on the type of the `unapplySeq` method IMO. However, this then fails later with this exception:
+
+```
+scala.MatchError: <notype> (of class scala.reflect.internal.Types$NoType$)
+	at scala.tools.nsc.typechecker.PatternMatching$MatchTranslation$ExtractorCall.subPatTypes(PatternMatching.scala:642)
+	at scala.tools.nsc.typechecker.PatternMatching$MatchTranslation$class.translateExtractorPattern$1(PatternMatching.scala:405)
+	at scala.tools.nsc.typechecker.PatternMatching$MatchTranslation$class.translatePattern(PatternMatching.scala:458)
+	at scala.tools.nsc.typechecker.PatternMatching$OptimizingMatchTranslator.translatePattern(PatternMatching.scala:132)
+	at scala.tools.nsc.typechecker.PatternMatching$MatchTranslation$class.translateCase(PatternMatching.scala:384)
+	at scala.tools.nsc.typechecker.PatternMatching$OptimizingMatchTranslator.translateCase(PatternMatching.scala:132)
+	at scala.tools.nsc.typechecker.PatternMatching$MatchTranslation$$anonfun$9.apply(PatternMatching.scala:306)
+	at scala.tools.nsc.typechecker.PatternMatching$MatchTranslation$$anonfun$9.apply(PatternMatching.scala:306)
+	at scala.collection.TraversableLike$$anonfun$map$1.apply(TraversableLike.scala:244)
+	at scala.collection.TraversableLike$$anonfun$map$1.apply(TraversableLike.scala:244)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.collection.TraversableLike$class.map(TraversableLike.scala:244)
+	at scala.collection.AbstractTraversable.map(Traversable.scala:105)
+	at scala.tools.nsc.typechecker.PatternMatching$MatchTranslation$class.translateMatch(PatternMatching.scala:306)
+	at scala.tools.nsc.typechecker.PatternMatching$OptimizingMatchTranslator.translateMatch(PatternMatching.scala:132)
+	at scala.tools.nsc.typechecker.PatternMatching$MatchTransformer.transform(PatternMatching.scala:90)
+	at scala.tools.nsc.typechecker.PatternMatching$MatchTransformer.transform(PatternMatching.scala:85)
+	at scala.reflect.internal.Trees$$anonfun$itransform$1.apply(Trees.scala:1221)
+	at scala.reflect.internal.Trees$$anonfun$itransform$1.apply(Trees.scala:1220)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2961)
+```
+
+so there seems to be a deeper problem.

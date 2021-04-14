@@ -1,0 +1,32 @@
+Observed in 1.1-M02.
+
+I found an inconsistency in the type system where an inheritance relationship including variance annotations does not compile in the ordinary way, but does compile when inheriting from a typealias:
+
+{code:lang=kotlin}
+interface I<R, S>
+
+typealias A<S> = I<C.Inner, S>
+
+class C<out S> : A<S> {
+
+  class Inner
+
+}
+{code}
+
+This compiles. Here, `I` is invariant in `S`, so should this type check? It doesn't when I manually expand the type alias:
+
+{code:lang=kotlin}
+class C<out S> : I<C.Inner, S> {
+
+  class Inner
+
+}
+{code}
+
+This yields:
+
+{{Type parameter S is declared as 'out' but occurs in 'invariant' position in type I<C.Inner, S>}}
+
+I'm not sure if there is a simpler example to distill this down to, but I couldn't find one. It seems to be related to the use of the inner class as a type argument so I suspect it's a quirk in the type checker.
+

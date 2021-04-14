@@ -1,0 +1,32 @@
+When calling an overloaded function with a value which is known to be both `null` and a platform type we get different behavior in old and new inference. For example:
+```java
+public abstract class B<T> implements A<T>
+```
+```kotlin
+interface A<T> {
+  val content: T
+}
+
+fun f(x: Any?) {}
+fun f(x: Byte) {}
+fun f(x: Char) {}
+
+fun g(x: B<Int>) {
+  val y = x.content
+  if (y == null) {
+    f(y)
+  }
+}
+```
+Works with old inference, but fails with
+```
+test.kt:12:5: error: overload resolution ambiguity: 
+public fun f(x: Any?): Unit defined in root package in file test.kt
+public fun f(x: Byte): Unit defined in root package in file test.kt
+public fun f(x: Char): Unit defined in root package in file test.kt
+    f(y)
+    ^
+```
+when compiled with new inference.
+
+To make matters worse, with only two overloads, e.g., `f(Any?)` and `f(Int)`, the compilation *succeeds* and the resulting code tries to cast `x` to `Int`. Since it's actually possible to arrange for incorrect nullability information through unchecked casts or Java code, this can lead to a `NullPointerException` at runtime (with a different example which doesn't take such a value as an argument).

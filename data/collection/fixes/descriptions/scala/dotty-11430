@@ -1,0 +1,116 @@
+There is no import in scope and I found it out when I anciently copied piece of code that was missing value `org`.
+
+## Compiler version
+
+`3.0.0-M4-bin-SNAPSHOT-git-53a2dc5` (latest master) as well as `3.0.0-M3`
+
+## Minimized code
+
+```Scala
+// crashes the compiler
+def a(o: String) = Seq(o, org)
+
+// Reports problem property
+def a2(o: String) = Seq[String](o, org) // package org is not a value
+def a3(o: String): Seq[String] = Seq(o, org) // Found:    org.type Required: String
+def a4(o: String): Seq[String] = Seq(o, org) // Found:    org.type Required: String
+```
+
+## Output (click arrow to expand)
+<details>
+
+```scala
+Exception in thread "main" java.lang.AssertionError: assertion failed
+	at scala.runtime.Scala3RunTime$.assertFailed(Scala3RunTime.scala:11)
+	at dotty.tools.dotc.core.TypeOps$.dominators$1(TypeOps.scala:210)
+	at dotty.tools.dotc.core.TypeOps$.approximateOr$1(TypeOps.scala:330)
+	at dotty.tools.dotc.core.TypeOps$.orDominator(TypeOps.scala:338)
+	at dotty.tools.dotc.core.TypeOps$.approximateOr$1(TypeOps.scala:316)
+	at dotty.tools.dotc.core.TypeOps$.orDominator(TypeOps.scala:338)
+	at dotty.tools.dotc.core.Types$OrType.join(Types.scala:3119)
+	at dotty.tools.dotc.core.Types$Type.widenUnionWithoutNull(Types.scala:1256)
+	at dotty.tools.dotc.core.Types$Type.widenUnion(Types.scala:1251)
+	at dotty.tools.dotc.core.ConstraintHandling.widenOr$1(ConstraintHandling.scala:402)
+	at dotty.tools.dotc.core.ConstraintHandling.widenInferred(ConstraintHandling.scala:415)
+	at dotty.tools.dotc.core.ConstraintHandling.widenInferred$(ConstraintHandling.scala:26)
+	at dotty.tools.dotc.core.TypeComparer.widenInferred(TypeComparer.scala:30)
+	at dotty.tools.dotc.core.ConstraintHandling.instanceType(ConstraintHandling.scala:432)
+	at dotty.tools.dotc.core.ConstraintHandling.instanceType$(ConstraintHandling.scala:26)
+	at dotty.tools.dotc.core.TypeComparer.instanceType(TypeComparer.scala:30)
+	at dotty.tools.dotc.core.TypeComparer$.instanceType(TypeComparer.scala:2673)
+	at dotty.tools.dotc.core.Types$TypeVar.instantiate(Types.scala:4394)
+	at dotty.tools.dotc.typer.Inferencing.doInstantiate$1(Inferencing.scala:617)
+	at dotty.tools.dotc.typer.Inferencing.interpolateTypeVars(Inferencing.scala:620)
+	at dotty.tools.dotc.typer.Inferencing.interpolateTypeVars$(Inferencing.scala:488)
+	at dotty.tools.dotc.typer.Typer.interpolateTypeVars(Typer.scala:102)
+	at dotty.tools.dotc.typer.Typer.simplify(Typer.scala:2671)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2657)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2720)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2724)
+	at dotty.tools.dotc.typer.Namer.typedAheadExpr$$anonfun$1(Namer.scala:1305)
+	at dotty.tools.dotc.typer.Namer.typedAhead(Namer.scala:1292)
+	at dotty.tools.dotc.typer.Namer.typedAheadExpr(Namer.scala:1305)
+	at dotty.tools.dotc.typer.Namer.rhsType$1$$anonfun$1(Namer.scala:1447)
+	at dotty.tools.dotc.typer.PrepareInlineable$.dropInlineIfError(PrepareInlineable.scala:223)
+	at dotty.tools.dotc.typer.Namer.rhsType$2(Namer.scala:1447)
+	at dotty.tools.dotc.typer.Namer.cookedRhsType$1(Namer.scala:1458)
+	at dotty.tools.dotc.typer.Namer.lhsType$1(Namer.scala:1459)
+	at dotty.tools.dotc.typer.Namer.inferredType$1(Namer.scala:1470)
+	at dotty.tools.dotc.typer.Namer.valOrDefDefSig(Namer.scala:1479)
+	at dotty.tools.dotc.typer.Namer.defDefSig(Namer.scala:1562)
+	at dotty.tools.dotc.typer.Namer$Completer.typeSig(Namer.scala:703)
+	at dotty.tools.dotc.typer.Namer$Completer.completeInCreationContext(Namer.scala:826)
+	at dotty.tools.dotc.typer.Namer$Completer.complete(Namer.scala:727)
+	at dotty.tools.dotc.core.SymDenotations$SymDenotation.completeFrom(SymDenotations.scala:167)
+	at dotty.tools.dotc.core.Denotations$Denotation.completeInfo$1(Denotations.scala:188)
+	at dotty.tools.dotc.core.Denotations$Denotation.info(Denotations.scala:190)
+	at dotty.tools.dotc.core.SymDenotations$SymDenotation.ensureCompleted(SymDenotations.scala:369)
+	at dotty.tools.dotc.typer.Typer.retrieveSym(Typer.scala:2535)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:2560)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2654)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2720)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2724)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:2746)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2796)
+	at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:2226)
+	at dotty.tools.dotc.typer.Typer.typedTypeOrClassDef$2(Typer.scala:2581)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:2585)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2654)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2720)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2724)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:2746)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2796)
+	at dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:2378)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:2626)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2655)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2720)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2724)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2840)
+	at dotty.tools.dotc.typer.FrontEnd.liftedTree1$1(FrontEnd.scala:79)
+	at dotty.tools.dotc.typer.FrontEnd.typeCheck$$anonfun$1(FrontEnd.scala:84)
+	at dotty.tools.dotc.typer.FrontEnd.monitor(FrontEnd.scala:43)
+	at dotty.tools.dotc.typer.FrontEnd.typeCheck(FrontEnd.scala:85)
+	at dotty.tools.repl.REPLFrontEnd.runOn(ReplFrontEnd.scala:24)
+	at dotty.tools.dotc.Run.runPhases$4$$anonfun$4(Run.scala:205)
+	at scala.runtime.function.JProcedure1.apply(JProcedure1.java:15)
+	at scala.runtime.function.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.ArrayOps$.foreach$extension(ArrayOps.scala:1323)
+	at dotty.tools.dotc.Run.runPhases$5(Run.scala:215)
+	at dotty.tools.dotc.Run.compileUnits$$anonfun$1(Run.scala:223)
+	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.scala:18)
+	at dotty.tools.dotc.util.Stats$.maybeMonitored(Stats.scala:67)
+	at dotty.tools.dotc.Run.compileUnits(Run.scala:230)
+	at dotty.tools.dotc.Run.compileUnits(Run.scala:172)
+	at dotty.tools.repl.ReplCompiler.runCompilationUnit(ReplCompiler.scala:151)
+	at dotty.tools.repl.ReplCompiler.compile(ReplCompiler.scala:161)
+	at dotty.tools.repl.ReplDriver.compile(ReplDriver.scala:234)
+	at dotty.tools.repl.ReplDriver.interpret(ReplDriver.scala:197)
+	at dotty.tools.repl.ReplDriver.loop$1(ReplDriver.scala:130)
+	at dotty.tools.repl.ReplDriver.runUntilQuit$$anonfun$1(ReplDriver.scala:133)
+	at dotty.tools.repl.ReplDriver.withRedirectedOutput(ReplDriver.scala:152)
+	at dotty.tools.repl.ReplDriver.runUntilQuit(ReplDriver.scala:133)
+	at dotty.tools.repl.Main$.main(Main.scala:6)
+	at dotty.tools.repl.Main.main(Main.scala)
+
+```
+</details>

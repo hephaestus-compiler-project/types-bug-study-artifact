@@ -1,0 +1,63 @@
+In the following example
+```scala
+// Main.scala
+import scalaz._, Scalaz._
+
+object Main {
+
+	type WarnedT[F[_], A] = WriterT[F, Vector[String], A]
+	type Warned[A] = WarnedT[Id, A]
+
+	def mkW[A](a: A): Warned[A] = a.pure[Id].liftM[WarnedT]
+
+	trait TYPE_CLASS[T[_]] {
+		def buzz[A](a: T[A]): Int
+	}
+	val INSTANCE1 = new TYPE_CLASS[Warned] {
+		def buzz[A](a: Warned[A]) = 5
+	}
+	def buzz[E[_], A](self: E[A])(implicit ev: TYPE_CLASS[E]): Int = ev.buzz(self)
+
+	// The return type of mkW is incorrectly inferred as Any
+	def foo: Int = buzz(mkW(5).map(a => a))(INSTANCE1)
+}
+```
+
+Adding a type annotation after the map (using either the type alias or the expanded form) causes the compiler to work correctly.
+
+The Build.scala for this is
+```
+// Build.scala
+import sbt._
+import Keys._
+
+object BuildSettings {
+   
+   val buildSettings = Defaults.defaultSettings ++ Seq(
+      version      := "0.0.1-SNAPSHOT"
+    , scalaVersion := "2.11.6"
+    , scalacOptions ++= Seq(
+         "-unchecked"
+       , "-deprecation"
+       , "-feature"
+       , "-language:higherKinds"
+       , "-language:postfixOps"
+       )
+    )
+}
+
+object ErroneousType extends Build {
+   import BuildSettings._
+
+   lazy val root: Project = Project(
+      "root"
+    , file(".")
+    , settings = buildSettings ++ Seq(
+         libraryDependencies ++= Seq(
+            "org.scalaz" %% "scalaz-core" % "7.1.0"
+          )
+       )
+    )
+}
+```
+and I have created a Github Repo illustrating the problem [here](https://github.com/ChrisNeveu/ScalaTypeInferenceFailure/blob/master/Main.scala)

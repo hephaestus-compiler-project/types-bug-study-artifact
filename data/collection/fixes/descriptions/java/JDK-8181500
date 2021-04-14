@@ -1,0 +1,35 @@
+The failures seem to have started in JDK10 on 2017-05-23.
+
+From the log file:
+
+[1104ms] FAILED: Bad line number table size: jdi=36, test=35
+[1104ms] FAILED: Code index mismatch: jdi=105, test=107
+[1104ms] FAILED: Line number mismatch: jdi=37, test=40
+[1104ms] FAILED: Code index mismatch: jdi=107, test=111
+[1104ms] FAILED: Line number mismatch: jdi=40, test=41
+...
+[1107ms] FAILED: Code index mismatch: jdi=366, test=376
+[1107ms] FAILED: Line number mismatch: jdi=73, test=75
+[1107ms] FAILED: Code index mismatch: jdi=376, test=384
+[1108ms] FAILED: Line number mismatch: jdi=75, test=78
+java.lang.ArrayIndexOutOfBoundsException: 35
+	at LineNumberInfo.runTests(LineNumberInfo.java:176)
+	at TestScaffold.startTests(TestScaffold.java:431)
+	at LineNumberInfo.main(LineNumberInfo.java:141)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:563)
+	at com.sun.javatest.regtest.agent.MainWrapper$MainThread.run(MainWrapper.java:115)
+	at java.base/java.lang.Thread.run(Thread.java:844)
+
+So it looks like not only is the Line Number Table size 1 bigger than expected (this is was causes the first FAILED message and the eventually AIOOB exception), but also the line number values are not matching up with what is expected. 
+
+Based on the error messages, it looks like there is an added Line Number Table entry at line 37, and this is causing every expected entry after that to be off by 1.
+
+The test warns of such possible failures:
+
+     * - this test is also sensitive to the compiler's code generation;
+     *   if that changes, this test will likely need updating.
+
+So I suspect a javac change introduced an extra entry, and the test needs to account for it.

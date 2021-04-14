@@ -1,0 +1,38 @@
+The method is JComboBox.setModel(ComboBoxModel<E>), which until JDK 1.7 was not parameterized.
+
+I am constructing an instance of ComboBoxModel using scala-swing's ComboBox.newConstantModel (see
+https://github.com/scala/scala-swing/blob/master/src/main/scala/scala/swing/ComboBox.scala#L121), which has not been updated since before the type parameter was added, and so does not specify a type for the super-interface (but does itself have the type parameter).
+
+That compiles fine, however, when my source includes an attempt to use the resulting value in a call to setModel, the compiler throws an exception in type checking.
+
+Even if scalac cannot accommodate this type of change, it would be much more helpful to get a compiler error with an explanation.
+
+Here's a console session reproducing the problem:
+```
+scala> import scala.swing._
+import scala.swing._
+
+scala> val cb = new ComboBox[Int](Nil)
+cb: scala.swing.ComboBox[Int] = scala.swing wrapper scala.swing.ComboBox$$anon$1[...]
+
+scala> val m = ComboBox.newConstantModel(List(1, 2, 3))
+m: javax.swing.ComboBoxModel = scala.swing.ComboBox$$anon$2@771904ae
+
+scala> cb.peer.setModel(m)
+java.lang.IndexOutOfBoundsException: 0
+	at scala.collection.LinearSeqOptimized$class.apply(LinearSeqOptimized.scala:51)
+	at scala.collection.immutable.List.apply(List.scala:83)
+	at scala.reflect.internal.tpe.TypeMaps$AsSeenFromMap.correspondingTypeArgument(TypeMaps.scala:551)
+	at scala.reflect.internal.tpe.TypeMaps$AsSeenFromMap.loop$3(TypeMaps.scala:585)
+	at scala.reflect.internal.tpe.TypeMaps$AsSeenFromMap.classParameterAsSeen(TypeMaps.scala:590)
+	at scala.reflect.internal.tpe.TypeMaps$AsSeenFromMap.apply(TypeMaps.scala:467)
+	at scala.reflect.internal.tpe.TypeMaps$AsSeenFromMap.apply(TypeMaps.scala:441)
+	at scala.collection.immutable.List.loop$1(List.scala:172)
+	at scala.collection.immutable.List.mapConserve(List.scala:188)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:115)
+	at scala.reflect.internal.tpe.TypeMaps$AsSeenFromMap.apply(TypeMaps.scala:468)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.applyToSymbolInfo(TypeMaps.scala:218)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.loop$1(TypeMaps.scala:227)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.noChangeToSymbols(TypeMaps.scala:229)
+...
+```

@@ -1,0 +1,5 @@
+TreePosTest creates lots of JavacTask, as part of its testing, and by default, each task allows for the use of annotation processors. This causes each task to create a classloader, to check it for annotation processors, but because of the nature of TreePosTest, it doesn't do a full compilation, and so doesn't close resources in the normal manner.
+
+The net effect is to create substantial garbage containing open classloaders, which cases performance problems, such as seen in JDK-8175116.
+
+The solution is to disable the checking of anno processors for TreePosTest. This reduces the number of classloaders created in TreePosTest from 6463 to just 1

@@ -1,0 +1,191 @@
+Originally Reported: https://groups.google.com/d/msg/scala-internals/itLkThK-yOY/fcTP1ePkNkgJ
+
+Regressed in https://github.com/scala/scala/commit/a06d31f6a2df021acc18b10ad9cad0f80d7498f2
+
+```
+tail build.sbt test.scala
+==> build.sbt <==
+scalaVersion := "2.10.2"
+
+libraryDependencies += "net.liftweb" %% "lift-mapper" % "2.5"
+
+==> test.scala <==
+
+class B extends LongKeyedMapper[B] with IdPK {
+  def getSingleton = B
+}
+
+object B extends B with LongKeyedMetaMapper[B]
+
+object Test {
+  def foo(a: A, b: B) = if (true) a else b // LUB triggers StackOverflowError
+}
+
+sbt -scala-home `scala-hash -h f3cdf146709~3`  compile
+[info] f3cdf14670 => /Users/jason/usr/scala-v2.10.0-460-ga06d31f
+Detected sbt version 0.12.1
+Using /Users/jason/.sbt/0.12.1 as sbt dir, -sbt-dir to override.
+[info] Loading global plugins from /Users/jason/.sbt/0.12.1/plugins
+[info] Set current project to default-3d6815 (in build file:/Users/jason/code/scratch3/)
+[info] Defining {.}/*:scala-home
+[info] The new value will be used by no settings or tasks.
+[info] Reapplying settings...
+[info] Set current project to default-3d6815 (in build file:/Users/jason/code/scratch3/)
+[info] Compiling 1 Scala source to /Users/jason/code/scratch3/target/scala-2.10/classes...
+[error]
+[error]      while compiling: /Users/jason/code/scratch3/test.scala
+[error]         during phase: typer
+
+...
+java.lang.StackOverflowError
+        at scala.reflect.internal.Types$TypeMap.mapOver(Types.scala:4160)
+        at scala.reflect.internal.Types$typeVarToOriginMap$.apply(Types.scala:4886)
+        at scala.reflect.internal.Types$typeVarToOriginMap$.apply(Types.scala:4883)
+        at scala.collection.immutable.List.loop$1(List.scala:164)
+        at scala.collection.immutable.List.mapConserve(List.scala:180)
+        at scala.reflect.internal.Types$TypeMap.mapOver(Types.scala:4202)
+        at scala.reflect.internal.Types$typeVarToOriginMap$.apply(Types.scala:4886)
+        at scala.reflect.internal.Types$TypeMap.mapOver(Types.scala:4193)
+        at scala.reflect.internal.Types$typeVarToOriginMap$.apply(Types.scala:4886)
+        at scala.reflect.internal.Types$TypeMap$$anonfun$noChangeToSymbols$1.apply(Types.scala:4257)
+        at scala.reflect.internal.Types$TypeMap$$anonfun$noChangeToSymbols$1.apply(Types.scala:4257)
+        at scala.collection.LinearSeqOptimized$class.forall(LinearSeqOptimized.scala:70)
+        at scala.collection.immutable.List.forall(List.scala:78)
+        at scala.reflect.internal.Types$TypeMap.noChangeToSymbols(Types.scala:4257)
+        at scala.reflect.internal.Types$TypeMap.mapOver(Types.scala:4270)
+        at scala.reflect.internal.Types$TypeMap.mapOver(Types.scala:4208)
+        at scala.reflect.internal.Types$typeVarToOriginMap$.apply(Types.scala:4886)
+        at scala.reflect.internal.Types$TypeMap.mapOver(Types.scala:4194)
+        at scala.reflect.internal.Types$typeVarToOriginMap$.apply(Types.scala:4886)
+        at scala.reflect.internal.Types$TypeMap$$anonfun$noChangeToSymbols$1.apply(Types.scala:4257)
+        at scala.reflect.internal.Types$TypeMap$$anonfun$noChangeToSymbols$1.apply(Types.scala:4257)
+        at scala.collection.LinearSeqOptimized$class.forall(LinearSeqOptimized.scala:70)
+        at scala.collection.immutable.List.forall(List.scala:78)
+        at scala.reflect.internal.Types$TypeMap.noChangeToSymbols(Types.scala:4257)
+        at scala.reflect.internal.Types$TypeMap.mapOver(Types.scala:4270)
+        at scala.reflect.internal.Types$TypeMap.mapOver(Types.scala:4208)
+        at scala.reflect.internal.Types$typeVarToOriginMap$.apply(Types.scala:4886)
+        at scala.reflect.internal.Types$typeVarToOriginMap$.apply(Types.scala:4883)
+        at scala.collection.immutable.List.loop$1(List.scala:164)
+        at scala.collection.immutable.List.mapConserve(List.scala:180)
+        at scala.reflect.internal.Types$TypeMap.mapOver(Types.scala:4202)
+        at scala.reflect.internal.Types$typeVarToOriginMap$.apply(Types.scala:4886)
+        at scala.reflect.internal.Types$Type.isGround(Types.scala:1050)
+        at scala.reflect.internal.Types$SubTypePair.scala$reflect$internal$Types$SubTypePair$$suspend$1(Types.scala:5158)
+        at scala.reflect.internal.Types$SubTypePair$$anonfun$45.apply(Types.scala:5162)
+        at scala.reflect.internal.Types$SubTypePair$$anonfun$45.apply(Types.scala:5162)
+        at scala.collection.TraversableLike$$anonfun$map$1.apply(TraversableLike.scala:244)
+        at scala.collection.TraversableLike$$anonfun$map$1.apply(TraversableLike.scala:244)
+        at scala.collection.IndexedSeqOptimized$class.foreach(IndexedSeqOptimized.scala:33)
+        at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:119)
+        at scala.collection.TraversableLike$class.map(TraversableLike.scala:244)
+        at scala.collection.mutable.ArrayOps$ofRef.map(ArrayOps.scala:119)
+        at scala.reflect.internal.Types$SubTypePair.equals(Types.scala:5162)
+        at scala.collection.mutable.FlatHashTable$class.findEntryImpl(FlatHashTable.scala:125)
+        at scala.collection.mutable.FlatHashTable$class.containsEntry(FlatHashTable.scala:119)
+        at scala.collection.mutable.HashSet.containsEntry(HashSet.scala:41)
+        at scala.collection.mutable.HashSet.contains(HashSet.scala:58)
+        at scala.collection.GenSetLike$class.apply(GenSetLike.scala:43)
+        at scala.collection.mutable.AbstractSet.apply(Set.scala:45)
+        at scala.reflect.internal.Types$class.isSubType(Types.scala:5734)
+        at scala.reflect.internal.SymbolTable.isSubType(SymbolTable.scala:13)
+        at scala.reflect.internal.Types$$anonfun$59.apply(Types.scala:6605)
+        at scala.reflect.internal.Types$$anonfun$59.apply(Types.scala:6605)
+        at scala.collection.TraversableLike$$anonfun$filter$1.apply(TraversableLike.scala:264)
+        at scala.collection.immutable.List.foreach(List.scala:312)
+        at scala.collection.TraversableLike$class.filter(TraversableLike.scala:263)
+        at scala.collection.AbstractTraversable.filter(Traversable.scala:105)
+        at scala.reflect.internal.Types$class.elimSub0$1(Types.scala:6605)
+        at scala.reflect.internal.Types$class.elimSub(Types.scala:6608)
+        at scala.reflect.internal.Types$class.loop$2(Types.scala:6532)
+        at scala.reflect.internal.Types$class.loop$2(Types.scala:6533)
+        at scala.reflect.internal.Types$class.loop$2(Types.scala:6533)
+        at scala.reflect.internal.Types$class.loop$2(Types.scala:6533)
+        at scala.reflect.internal.Types$class.loop$2(Types.scala:6533)
+        at scala.reflect.internal.Types$class.loop$2(Types.scala:6533)
+        at scala.reflect.internal.Types$class.loop$2(Types.scala:6533)
+        at scala.reflect.internal.Types$class.loop$2(Types.scala:6533)
+        at scala.reflect.internal.Types$class.lubList(Types.scala:6560)
+        at scala.reflect.internal.Types$class.lub1$1(Types.scala:6743)
+        at scala.reflect.internal.Types$class.lub0$1(Types.scala:6736)
+        at scala.reflect.internal.Types$class.lub0$1(Types.scala:6725)
+        at scala.reflect.internal.Types$class.scala$reflect$internal$Types$$lub(Types.scala:6831)
+        at scala.reflect.internal.Types$class.lubsym$1(Types.scala:6770)
+        at scala.reflect.internal.Types$$anonfun$69.apply(Types.scala:6792)
+        at scala.reflect.internal.Types$$anonfun$69.apply(Types.scala:6790)
+        at scala.collection.TraversableLike$WithFilter$$anonfun$foreach$1.apply(TraversableLike.scala:772)
+        at scala.reflect.internal.Scopes$Scope.foreach(Scopes.scala:315)
+        at scala.collection.TraversableLike$WithFilter.foreach(TraversableLike.scala:771)
+        at scala.reflect.internal.Types$class.lub1$1(Types.scala:6790)
+        at scala.reflect.internal.Types$class.lub0$1(Types.scala:6736)
+        at scala.reflect.internal.Types$class.scala$reflect$internal$Types$$lub(Types.scala:6831)
+        at scala.reflect.internal.Types$$anonfun$85.apply(Types.scala:7058)
+        at scala.reflect.internal.Types$$anonfun$85.apply(Types.scala:7041)
+        at scala.reflect.internal.util.Collections$class.map2(Collections.scala:51)
+        at scala.reflect.internal.SymbolTable.map2(SymbolTable.scala:13)
+        at scala.reflect.internal.Types$class.mergePrefixAndArgs(Types.scala:7041)
+        at scala.reflect.internal.SymbolTable.mergePrefixAndArgs(SymbolTable.scala:13)
+        at scala.reflect.internal.Types$class.loop$2(Types.scala:6532)
+        at scala.reflect.internal.Types$class.lubList(Types.scala:6560)
+        at scala.reflect.internal.Types$class.lub1$1(Types.scala:6743)
+        at scala.reflect.internal.Types$class.lub0$1(Types.scala:6736)
+        at scala.reflect.internal.Types$class.scala$reflect$internal$Types$$lub(Types.scala:6831)
+        at scala.reflect.internal.Types$class.solveOne$1(Types.scala:6401)
+        at scala.reflect.internal.Types$$anonfun$solve$1.apply(Types.scala:6411)
+        at scala.reflect.internal.Types$$anonfun$solve$1.apply(Types.scala:6411)
+        at scala.reflect.internal.util.Collections$class.foreach3(Collections.scala:160)
+        at scala.reflect.internal.SymbolTable.foreach3(SymbolTable.scala:13)
+        at scala.reflect.internal.Types$class.solve(Types.scala:6411)
+        at scala.reflect.internal.SymbolTable.solve(SymbolTable.scala:13)
+        at scala.reflect.internal.Types$ExistentialType.withTypeVars(Types.scala:2842)
+        at scala.reflect.internal.Types$class.thirdTry$1(Types.scala:6057)
+        at scala.reflect.internal.Types$class.secondTry$1(Types.scala:6016)
+        at scala.reflect.internal.Types$class.firstTry$1(Types.scala:5992)
+        at scala.reflect.internal.Types$class.isSubType2(Types.scala:6135)
+        at scala.reflect.internal.Types$class.isSubType(Types.scala:5739)
+        at scala.reflect.internal.SymbolTable.isSubType(SymbolTable.scala:13)
+        at scala.reflect.internal.Types$class.thirdTry$1(Types.scala:6077)
+        at scala.reflect.internal.Types$class.secondTry$1(Types.scala:6016)
+        at scala.reflect.internal.Types$class.firstTry$1(Types.scala:5992)
+        at scala.reflect.internal.Types$class.isSubType2(Types.scala:6135)
+        at scala.reflect.internal.Types$class.isSubType(Types.scala:5739)
+        at scala.reflect.internal.SymbolTable.isSubType(SymbolTable.scala:13)
+        at scala.reflect.internal.Types$class.scala$reflect$internal$Types$$specializesSym(Types.scala:6176)
+        at scala.reflect.internal.Types$class.specializedBy$1(Types.scala:6159)
+        at scala.reflect.internal.Types$class.specializesSym(Types.scala:6163)
+        at scala.reflect.internal.SymbolTable.specializesSym(SymbolTable.scala:13)
+        at scala.reflect.internal.Types$$anonfun$thirdTry$1$2.apply(Types.scala:6055)
+        at scala.reflect.internal.Types$$anonfun$thirdTry$1$2.apply(Types.scala:6055)
+        at scala.collection.Iterator$class.forall(Iterator.scala:739)
+        at scala.collection.AbstractIterator.forall(Iterator.scala:1157)
+        at scala.collection.IterableLike$class.forall(IterableLike.scala:75)
+        at scala.reflect.internal.Scopes$Scope.forall(Scopes.scala:44)
+        at scala.reflect.internal.Types$class.thirdTry$1(Types.scala:6055)
+        at scala.reflect.internal.Types$class.secondTry$1(Types.scala:6016)
+        at scala.reflect.internal.Types$class.firstTry$1(Types.scala:5992)
+        at scala.reflect.internal.Types$class.isSubType2(Types.scala:6135)
+        at scala.reflect.internal.Types$class.isSubType(Types.scala:5739)
+        at scala.reflect.internal.SymbolTable.isSubType(SymbolTable.scala:13)
+        at scala.reflect.internal.Types$$anonfun$70.apply(Types.scala:6805)
+        at scala.reflect.internal.Types$$anonfun$70.apply(Types.scala:6804)
+        at scala.collection.LinearSeqOptimized$class.forall(LinearSeqOptimized.scala:70)
+        at scala.collection.immutable.List.forall(List.scala:78)
+        at scala.reflect.internal.Types$class.lub1$1(Types.scala:6804)
+        at scala.reflect.internal.Types$class.lub0$1(Types.scala:6736)
+        at scala.reflect.internal.Types$class.scala$reflect$internal$Types$$lub(Types.scala:6831)
+        at scala.reflect.internal.Types$class.solveOne$1(Types.scala:6401)
+        at scala.reflect.internal.Types$$anonfun$solve$1.apply(Types.scala:6411)
+        at scala.reflect.internal.Types$$anonfun$solve$1.apply(Types.scala:6411)
+        at scala.reflect.internal.util.Collections$class.foreach3(Collections.scala:160)
+        at scala.reflect.internal.SymbolTable.foreach3(SymbolTable.scala:13)
+        at scala.reflect.internal.Types$class.solve(Types.scala:6411)
+        at scala.reflect.internal.SymbolTable.solve(SymbolTable.scala:13)
+        at scala.reflect.internal.Types$ExistentialType.withTypeVars(Types.scala:2842)
+        at scala.reflect.internal.Types$class.thirdTry$1(Types.scala:6057)
+        at scala.reflect.internal.Types$class.secondTry$1(Types.scala:6016)
+        at scala.reflect.internal.Types$class.firstTry$1(Types.scala:5992)
+        at scala.reflect.internal.Types$class.isSubType2(Types.scala:6135)
+        at scala.reflect.internal.Types$class.isSubType(Types.scala:5739)
+        at scala.reflect.internal.SymbolTable.isSubType(SymbolTable.scala:13)
+...
+```

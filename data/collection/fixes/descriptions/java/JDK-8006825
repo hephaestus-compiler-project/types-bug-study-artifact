@@ -1,0 +1,35 @@
+This sample code, when compiled, has no annotations in class file:
+import java.lang.annotation.*;
+import static java.lang.annotation.RetentionPolicy.*;
+import static java.lang.annotation.ElementType.*;
+
+public class lambda1 {
+    IntOperation dubble = (@A Integer I) -> I * 2;
+    PrintString  PS = (@A String msg) -> System.out.println(msg);
+    PrintString Debug = (@A String msg) -> { @A @A String dbg="DEBUG:";
+                                             dbg=dbg.concat(msg);
+                                             System.out.println(dbg); };
+
+    public void test(Integer i) {
+       Debug.print("Annotated types in lambda expressions test.");
+       for(int j = 0; j<i; j++)
+          PS.print( dubble.operate(j).toString() );
+    }
+
+    public static void main(String... args) {
+        lambda1 l = new lambda1();
+        l.test(5);
+    }
+
+    interface IntOperation { Integer operate(Integer i); }
+    interface PrintString  { void print(String s); }
+
+    @Retention(RUNTIME)
+    @Target({TYPE_USE})
+    @Repeatable( AC.class)
+    @interface A {}
+
+    @Retention(RUNTIME)
+    @Target({TYPE_USE})
+    @interface AC { A[] value(); }
+}

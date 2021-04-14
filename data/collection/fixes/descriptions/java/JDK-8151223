@@ -1,0 +1,31 @@
+JCK build fails with new jdk9 builds that optimize string concatenation.
+The use case is reduced to:
+
+---- JTF_Slot.java ----
+package p1;
+public class JTF_Slot { public Hold cls_decl = new Hold();}
+class Hold { public String toString() {return "passed"; }}
+
+---- test.java ----
+public class test  {
+    public static void main(String[] argv) {
+        p1.JTF_Slot mainRoot = new p1.JTF_Slot();
+        System.out.println(""+(mainRoot.cls_decl)+"");
+    }
+}
+
+> java -version
+java version "9-ea"
+Java(TM) SE Runtime Environment (build 9-ea+108-2016-03-02-173138.javare.4571)
+Java HotSpot(TM) 64-Bit Server VM (build 9-ea+108-2016-03-02-173138.javare.4571, mixed mode)
+
+> javac -XDstringConcat=inline -cp . -d . JTF_Slot.java test.java ; java -cp . test
+passed
+
+> javac -cp . -d . JTF_Slot.java test.java ; java -cp . test
+Exception in thread "main" java.lang.BootstrapMethodError: java.lang.IllegalAccessError: tried to access class p1.Hold from class test
+	at test.main(test.java:4)
+Caused by: java.lang.IllegalAccessError: tried to access class p1.Hold from class test
+	... 1 more
+> hostname
+scaaa744

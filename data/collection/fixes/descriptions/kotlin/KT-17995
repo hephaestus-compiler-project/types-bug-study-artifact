@@ -1,0 +1,131 @@
+# Classification
+
+* Type of change:
+    * New errors are introduced
+* Motivation types:
+    * Type safety guarantees are not met
+    * Problematic usage patterns need to be blocked
+* Impact types:
+    * Compilation. Some code that used to compile won't compile anymore
+        * There were cases when such code worked with no exceptions
+* Detection and Migration modes:
+    * Migration can't be automated
+
+# Existing behavior
+
+## Code example
+
+```kotlin
+fun test() {
+    foo {
+        when { }
+    }
+}
+
+fun foo(f: () -> Byte) {
+    f().toString()
+}
+```
+
+Note that this code compiles without errors and with one IDE inspection about empty `when` expression.
+
+## What's wrong with it
+
+If one will call the function `test()`, there will be a CCE at runtime:
+```
+Exception in thread "main" java.lang.ClassCastException: kotlin.Unit cannot be cast to java.lang.Number
+ at FileKt.foo (File.kt:8) 
+ at FileKt.test (File.kt:2) 
+ at FileKt.main (File.kt:12) 
+ at FileKt.main (File.kt:-1) 
+```
+
+This exception is pretty fair as parameter `f` expects type of `() -> Byte` but instead it actually has `() -> typeOf(when)`, where type of empty `when` is `Unit` at runtime. As a result, when one will use `f` it'll get a `ClastCastException` due to type mismatch.
+
+This happens due to a bug in the compiler for empty `when` expressions. Note that other similar constructs don't contain this bug:
+```kotlin
+fun test() {
+    foo {
+        if (true) {} else {} // error at compile time
+    }
+    
+    foo {
+        try {} finally {} // error at compile time
+    }
+    
+    foo {
+        when { else -> "" } // error at compile time
+    }
+}
+
+fun foo(f: () -> Byte) {
+    f().toString()
+}
+```
+
+# Affected versions: when did the problem appear first?
+
+The problem exists since 1.0
+
+# Proposed changes
+
+The proposal is to add the required error at compile time to prevent exceptions at runtime, so there will be an error for the following case:
+```kotlin
+fun test() {
+    foo {
+        when { } // error at compile time
+    }
+}
+
+fun foo(f: () -> Byte) {
+    f().toString()
+}
+```
+
+## Impact
+
+It's possible to construct an example which compiles and executes fine but will be invalid after the implementation of proposed changes:
+```kotlin
+fun test() {
+    foo {
+        when { } // error at compile time
+    }
+}
+
+fun foo(f: () -> Byte) {}
+```
+
+Here we don't use result of `f()`, so there will be no problems at runtime, but later this code will not compile.
+
+We evaluated our internal and several open-source projects and haven't met this issue, and didn't met use of empty `when` as well, so we believe this case is quite rare.
+
+# Migration plan
+
+- 1.4.0 Implement proposed changes, add a compiler key for a fallback behavior
+
+
+------ 
+# Original issue
+
+I've got emty an `when` which pretends to be an expression:
+
+```kt
+fun List<String>.whatever() {
+    ByteArray(size) { when (this[it]) {
+
+    } }
+}
+```
+This code gets compiled despite `when` is not exhaustive. The most interesting part of the bytecode:
+```
+    GETSTATIC kotlin/Unit.INSTANCE : Lkotlin/Unit;
+    ASTORE 12
+    ALOAD 10
+    ILOAD 11
+    ALOAD 12 // it is Unit
+    CHECKCAST java/lang/Number // casting Unit to Number can never succeed
+    INVOKEVIRTUAL java/lang/Number.byteValue ()B
+    BASTORE
+```
+
+Using Kotlin 1.1.3-eap-34.

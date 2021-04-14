@@ -1,0 +1,139 @@
+I have following Exception after update of Kotlin from `1.3.61` to `1.3.72`
+
+```
+FATAL EXCEPTION: main
+    Process: com.adeya.android, PID: 11879
+    java.lang.NullPointerException: throw with null exception
+        at com.adeya.android.application.conferececall.ConferenceCallViewModelFactory.create(ConferenceCallViewModelFactory.kt:15)
+        at androidx.lifecycle.ViewModelProvider.get(ViewModelProvider.java:187)
+        at androidx.lifecycle.ViewModelProvider.get(ViewModelProvider.java:150)
+```
+
+Source code:
+
+```
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import dagger.Lazy
+import javax.inject.Inject
+
+class ConferenceCallViewModelFactory @Inject constructor (
+    private val lazyConferenceCallViewModel: Lazy<ConferenceCallViewModel>
+) : ViewModelProvider.Factory {
+
+
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return if (modelClass.isAssignableFrom(ConferenceCallViewModel::class.java)) {
+            createViewModel()
+        } else {
+            throw IllegalArgumentException("Unknown ViewModel class $modelClass")
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T : ViewModel> createViewModel(): T {
+        return lazyConferenceCallViewModel.get() as T
+    }
+}
+```
+
+
+When I de-compile the code in IDEA I see `null` being thrown -   looks like this is a reason of the exception. 
+But it's still not clear **why** it was not the case in `1.3.61` - is it _bug_ or _feature_ ?
+
+Decompiled source code when Kotlin version is set to `1.3.72`
+
+```
+
+import androidx.lifecycle.ViewModel;
+import androidx.lifecycle.ViewModelProvider.Factory;
+import dagger.Lazy;
+import javax.inject.Inject;
+import kotlin.Metadata;
+import kotlin.TypeCastException;
+import kotlin.jvm.internal.Intrinsics;
+import org.jetbrains.annotations.NotNull;
+
+@Metadata(
+   mv = {1, 1, 16},
+   bv = {1, 0, 3},
+   k = 1,
+   d1 = {"\u0000$\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\u0018\u0002\n\u0002\b\u0003\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0004\u0018\u00002\u00020\u0001B\u0015\b\u0007\u0012\f\u0010\u0002\u001a\b\u0012\u0004\u0012\u00020\u00040\u0003¢\u0006\u0002\u0010\u0005J%\u0010\u0006\u001a\u0002H\u0007\"\b\b\u0000\u0010\u0007*\u00020\b2\f\u0010\t\u001a\b\u0012\u0004\u0012\u0002H\u00070\nH\u0016¢\u0006\u0002\u0010\u000bJ\u0017\u0010\f\u001a\u0002H\u0007\"\b\b\u0000\u0010\u0007*\u00020\bH\u0002¢\u0006\u0002\u0010\rR\u0014\u0010\u0002\u001a\b\u0012\u0004\u0012\u00020\u00040\u0003X\u0082\u0004¢\u0006\u0002\n\u0000¨\u0006\u000e"},
+   d2 = {"Lcom/adeya/android/application/conferececall/ConferenceCallViewModelFactory;", "Landroidx/lifecycle/ViewModelProvider$Factory;", "lazyConferenceCallViewModel", "Ldagger/Lazy;", "Lcom/adeya/android/application/conferececall/ConferenceCallViewModel;", "(Ldagger/Lazy;)V", "create", "T", "Landroidx/lifecycle/ViewModel;", "modelClass", "Ljava/lang/Class;", "(Ljava/lang/Class;)Landroidx/lifecycle/ViewModel;", "createViewModel", "()Landroidx/lifecycle/ViewModel;", "com.adeya.android-v6.0.0+0_fullDebug"}
+)
+public final class ConferenceCallViewModelFactory implements Factory {
+   private final Lazy lazyConferenceCallViewModel;
+
+   @NotNull
+   public ViewModel create(@NotNull Class modelClass) {
+      Intrinsics.checkParameterIsNotNull(modelClass, "modelClass");
+      if (modelClass.isAssignableFrom(ConferenceCallViewModel.class)) {
+         this.createViewModel();
+         throw null;
+      } else {
+         throw (Throwable)(new IllegalArgumentException("Unknown ViewModel class " + modelClass));
+      }
+   }
+
+   private final ViewModel createViewModel() {
+      Object var10000 = this.lazyConferenceCallViewModel.get();
+      if (var10000 == null) {
+         throw new TypeCastException("null cannot be cast to non-null type T");
+      } else {
+         return (ViewModel)var10000;
+      }
+   }
+
+   @Inject
+   public ConferenceCallViewModelFactory(@NotNull Lazy lazyConferenceCallViewModel) {
+      Intrinsics.checkParameterIsNotNull(lazyConferenceCallViewModel, "lazyConferenceCallViewModel");
+      super();
+      this.lazyConferenceCallViewModel = lazyConferenceCallViewModel;
+   }
+}
+```
+
+And when Kotlin version was `1.3.61` 
+
+```
+    private final <T extends ViewModel> T createViewModel() {
+        T t = this.lazyConferenceCallViewModel.get();
+        if (t != null) {
+            return (ViewModel) t;
+        }
+        throw new TypeCastException("null cannot be cast to non-null type T");
+    }
+```
+
+Just in case when I replace this class with my new generic viewmodel it's working fine with with kotlin `1.3.72` and no `throw null` is being generated in the byte code.
+
+```
+class ViewModelByDaggerFactory<VM : ViewModel> @Inject constructor(
+    private val viewModelProvider: Provider<VM>
+) : ViewModelProvider.Factory {
+
+    private fun newViewModel(): VM = viewModelProvider.get()
+
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        //ViewModel as declared by generic type of ViewModelByDaggerFactory
+        val newViewModel = newViewModel()
+
+        return safeCast(modelClass, newViewModel)
+    }
+
+    /**
+     * @return newViewModel itself if its class is sub-type generic T or throws otherwise.
+     *
+     * Note: if ViewModel generic type is not matching type of requested view model:
+     * dagger compilation might fail because dagger will not be able to find class matching.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun <T : ViewModel> safeCast(modelClass: Class<T>, newViewModel: VM): T {
+        if (modelClass.isInstance(newViewModel)) {
+            return newViewModel() as T
+        } else {
+            throw IllegalArgumentException("Requested ViewModel type $modelClass is not matching generic type declared on ViewModelByDaggerFactory: " + newViewModel.javaClass)
+        }
+    }
+}
+```

@@ -1,0 +1,46 @@
+class A<T extends Number> {}
+
+public class Test1 {
+    public void run() {
+        A<? super Integer> a0 = new A<Integer>();
+        var c0 = a0;
+        A<? super Integer> tmp = c0; // Compile time error
+    }
+}
+
+Following error message occurs while compiling this code
+error: incompatible types: A<CAP#1> cannot be converted to A<? super Integer>
+        A<? super Integer> tmp = c0; // Compile time error
+                                 ^
+  where CAP#1 is a fresh type-variable:
+    CAP#1 extends Number from capture of ? extends Number
+1 error
+
+From this message it follows that type of c0 was determined as A<? extends Number> however according to spec [4.10.5] it should have been determined as A<? super Integer> and compilation should have succeeded.
+
+The reasoning for this is presented below:
+
+1. a0 is an expression name in assignment, so a0 type is A<[Integer <: CAP <: Number]> where CAP is a capture variable.
+
+2. As c0 is declared as var, type_of(c0) = up_proj(A<[Integer <: CAP <: Number]>).
+
+3. For up_proj(A<[Integer <: CAP <: Number]>), T is A<[Integer <: CAP <: Number]>.
+
+3. As T is a parameterized class type,
+up_proj(A<CAP>) = A<A1'>, further we need to derive A1' from CAP.
+		  
+4. CAP 'mentions' restricted type variable, so:
+
+5. first we find U = up_proj(CAP) = up_proj([Integer <: CAP <: Number]) = up_proj(Number) = Number,
+so U = Number
+			 
+6. then we try to determine A1' as ? extends U. U is not Object but B1=Number is a subtype of U=Number
+so we proceed to the next step trying to determine A1' as ? super L,
+
+7. L = down_proj(A1) = down_proj([Integer <: CAP <: Number]) = down_proj(Integer) = Integer
+so, L = Integer (downward projection is determined successfully)
+
+8. hence A1' = ? super L = ? super Integer and
+up_proj(A<CAP>) = A<A1'> = A<? super Integer>
+
+9. So type_of(c0) = A<? super Integer>.

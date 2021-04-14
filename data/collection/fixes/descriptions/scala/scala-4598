@@ -1,0 +1,51 @@
+In the following code an implicit conversion gets applied even though it is not required. The code works correctly when a full function name (including package) is used.
+
+```scala
+object Main {
+
+  def main(args: Array[String]) {
+    import pkg._
+
+    val p0 = new PrivateI(new Clue)
+    println("I was given a clue, and found a " + p0.found + ".")
+
+    val p1 = new Policeman(new Clue)
+    println("I was given a clue, and found a " + p1.found + ".")
+  }
+}
+
+package pkg {
+
+  class Clue
+  trait Red
+  trait Herring[T]
+  class RedHerring extends Herring[Red]
+
+  class PrivateI(val clue: Clue) {
+    def found = find(clue)
+  }
+
+  class Policeman(val clue: Clue) {
+    def found = pkg.find(clue)
+  }
+}
+
+package object pkg {
+  implicit def convert(s: Clue) :RedHerring = new RedHerring
+
+  def find(clue: Clue) :String = clue.getClass.getSimpleName
+  def find(fish: Herring[_]) :String = fish.getClass.getSimpleName
+}
+```
+
+
+=== What is the expected behavior? ===
+"find(Clue)" should be called both times.
+
+=== What do you see instead? ===
+An implicit conversion gets applied and "find(Herring[_])" is called instead.
+
+=== What versions of the following are you using? ===
+  - Scala: 2.9.0.final
+  - Java: 1.6.0_24
+  - Operating system: Arch64

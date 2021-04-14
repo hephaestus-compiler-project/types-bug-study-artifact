@@ -1,0 +1,38 @@
+The following compiles in 2.10.1, but not in 2.10.2-RC1.  This has a straightforward workaround (see comments) and is not urgent.
+
+```scala
+trait Box[ K[A[x]] ]
+
+object Box {
+   // type constructor composition
+   sealed trait ∙[A[_], B[_]] { type l[T] = A[B[T]] }
+
+   // composes type constructors inside K
+   type SplitBox[K[A[x]], B[x]] = Box[ ({ type l[A[x]] = K[ (A ∙ B)#l] })#l ]
+
+   def split[ K[A[x]], B[x] ](base: Box[K]): SplitBox[K,B] = ???
+
+   class Composed[B[_], K[A[x]] ] {
+      val box: Box[K] = ???
+
+      type Split[ A[x] ] = K[ (A ∙ B)#l ]
+      val a: Box[Split] = Box.split(box)
+
+      //Either of these work:
+      //val a: Box[Split] = Box.split[K,B](box)
+      //val a: Box[ ({ type l[A[x]] = K[ (A ∙ B)#l ] })#l ] = Box.split(box)
+   }
+}
+```
+
+Error:
+
+```
+Box.scala:16: type mismatch;
+ found   : Box[K]
+ required: Box[K with Composed.this.Split]
+Note: K >: K with Composed.this.Split, but trait Box is invariant in type K.
+You may wish to define K as -K instead. (SLS 4.5)
+      val a: Box[Split] = Box.split(box)
+                                    ^
+```

@@ -1,0 +1,71 @@
+FULL PRODUCT VERSION :
+Java version  " 1.8.0-ea " 
+Java(TM) SE Runtime Environment (build 1.8.0-ea-b90)
+Java HotSpot(TM) 64-Bit Server VM (build 25.0-b32, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+Mac OS X 10.7.5 Build 11G63
+
+A DESCRIPTION OF THE PROBLEM :
+For implicit, synthetic constructor arguments to an anonymous inner class, the generated MethodParameters attribute is corrupt.
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile the source file below:
+
+$ javac -parameters ParameterNames.java
+
+Now run javap:
+
+$ javap -c -s -p -l -v ParameterNames\$1.class
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+I was expecting that the MethodParameters attribute for the constructor of ParameterNames$1 was well-formed, with a length of two parameters.
+
+javap is expected to decode those.
+
+
+ACTUAL -
+  ParameterNames$1(ParameterNames, java.lang.String);
+    descriptor: (LParameterNames;Ljava/lang/String;)V
+    flags:
+    Code:
+      stack=2, locals=3, args_size=3
+         0: aload_0
+         1: aload_1
+         2: putfield      #1                  // Field this$0:LParameterNames;
+         5: aload_0
+         6: aload_2
+         7: putfield      #2                  // Field val$message:Ljava/lang/String;
+        10: aload_0
+        11: invokespecial #3                  // Method java/lang/Object. " <init> " :()V
+        14: return
+      LineNumberTable:
+        line 6: 0
+      MethodParameters: length = 0x5
+       02 00 0A 80 10
+                                   ^^^^ More bytes should be here
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import java.util.concurrent.Callable;
+
+public class ParameterNames {
+
+public Callable<String> makeInner(final String message) {
+return new Callable<String>()  {
+public String call() throws Exception {
+return message;
+}
+};
+}
+}
+
+// Compile with -parameters, check in javap
+---------- END SOURCE ----------

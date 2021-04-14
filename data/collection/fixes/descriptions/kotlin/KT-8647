@@ -1,0 +1,24 @@
+Use-site variance can't be used here because the member is deleted from the scope, which is incorrect:
+{code}
+interface Subscriber<T>
+
+interface Observable<T> {
+    fun subscribe(s: Subscriber<in T>)
+}
+
+fun foo(o: Observable<out Any>) = o.subscribe(...)  // unresolved reference
+{code}
+
+However declaration-site variance works, no errors are produced, which is correct:
+{code}
+interface Subscriber<T>
+
+interface Observable<out T> {
+    fun subscribe(s: Subscriber<in T>)
+}
+
+fun foo(o: Observable<Any>) = o.subscribe(...)  // ok
+{code}
+
+Note that this example is a part of [Rx|http://reactivex.io] and so declaration-site variance is not an option here.
+Originally asked on SO: http://stackoverflow.com/questions/31641915/kotlin-generic-methods-and-inheritance/

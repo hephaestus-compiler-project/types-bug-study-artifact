@@ -1,0 +1,90 @@
+I'm not sure how to describe the issue better than just giving this reproducing code:
+
+```kotlin
+typealias Action<RenderingT> = (@UnsafeVariance RenderingT) -> Unit
+
+// When a typealias is used, the compiler crashes.
+data class Tag<out RenderingT>(val action: Action<RenderingT>)
+
+// When no typealias is used, the compiler is fine. 
+//data class Tag<out RenderingT>(val action: (@UnsafeVariance RenderingT) -> Unit)
+
+fun getTag(): Tag<*> = TODO()
+
+fun doAction() {
+    // This line crashes the compiler.
+    getTag().action
+}
+```
+
+The compiler crashes when using the IR backend with this error: 
+```
+e: java.lang.RuntimeException: TypeAliasDescriptor expected: deserialized  class Nothing: KtDotQualifiedExpression:
+getTag().action
+        at org.jetbrains.kotlin.psi2ir.generators.ErrorExpressionGenerator.generateErrorExpression(ErrorExpressionGenerator.kt:87)
+        at org.jetbrains.kotlin.psi2ir.generators.StatementGenerator.genStmt(StatementGenerator.kt:77)
+        at org.jetbrains.kotlin.psi2ir.generators.StatementGenerator.generateStatement(StatementGenerator.kt:65)
+        at org.jetbrains.kotlin.psi2ir.generators.StatementGenerator.generateStatements(StatementGenerator.kt:68)
+        at org.jetbrains.kotlin.psi2ir.generators.BodyGenerator.generateFunctionBody(BodyGenerator.kt:59)
+        at org.jetbrains.kotlin.psi2ir.generators.FunctionGenerator.generateFunctionDeclaration(FunctionGenerator.kt:46)
+        at org.jetbrains.kotlin.psi2ir.generators.DeclarationGenerator.generateMemberDeclaration(DeclarationGenerator.kt:46)
+        at org.jetbrains.kotlin.psi2ir.generators.ModuleGenerator.generateSingleFile(ModuleGenerator.kt:84)
+        at org.jetbrains.kotlin.psi2ir.generators.ModuleGenerator.generateFiles(ModuleGenerator.kt:69)
+        at org.jetbrains.kotlin.psi2ir.generators.ModuleGenerator.generateModuleFragmentWithoutDependencies(ModuleGenerator.kt:44)
+        at org.jetbrains.kotlin.psi2ir.Psi2IrTranslator.generateModuleFragment(Psi2IrTranslator.kt:80)
+        at org.jetbrains.kotlin.backend.jvm.JvmBackendFacade.doGenerateFiles(JvmBackendFacade.kt:104)
+        at org.jetbrains.kotlin.backend.jvm.JvmIrCodegenFactory.generateModule(JvmIrCodegenFactory.kt:37)
+        at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.compileCorrectFiles(KotlinCodegenFacade.java:35)
+        at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.kt:648)
+        at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt:210)
+        at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli$default(KotlinToJVMBytecodeCompiler.kt:162)
+        at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:169)
+        at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:52)
+        at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:88)
+        at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:44)
+        at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:98)
+        at org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunner.runCompiler(IncrementalJvmCompilerRunner.kt:371)
+        at org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunner.runCompiler(IncrementalJvmCompilerRunner.kt:105)
+        at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileIncrementally(IncrementalCompilerRunner.kt:249)
+        at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:89)
+        at org.jetbrains.kotlin.daemon.CompileServiceImplBase.execIncrementalCompiler(CompileServiceImpl.kt:602)
+        at org.jetbrains.kotlin.daemon.CompileServiceImplBase.access$execIncrementalCompiler(CompileServiceImpl.kt:93)
+        at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:1644)
+        at sun.reflect.GeneratedMethodAccessor97.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:357)
+        at sun.rmi.transport.Transport$1.run(Transport.java:200)
+        at sun.rmi.transport.Transport$1.run(Transport.java:197)
+        at java.security.AccessController.doPrivileged(Native Method)
+        at sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+        at sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:573)
+        at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:834)
+        at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:688)
+        at java.security.AccessController.doPrivileged(Native Method)
+        at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:687)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+        at java.lang.Thread.run(Thread.java:748)
+Caused by: java.lang.AssertionError: TypeAliasDescriptor expected: deserialized  class Nothing
+        at org.jetbrains.kotlin.ir.util.TypeTranslator.toIrTypeAbbreviation(TypeTranslator.kt:147)
+        at org.jetbrains.kotlin.ir.util.TypeTranslator.translateType(TypeTranslator.kt:116)
+        at org.jetbrains.kotlin.ir.util.TypeTranslator.translateType(TypeTranslator.kt:83)
+        at org.jetbrains.kotlin.psi2ir.generators.StatementGenerator.toIrType(StatementGenerator.kt:62)
+        at org.jetbrains.kotlin.psi2ir.generators.StatementGeneratorExtension.toIrType(StatementGenerator.kt:494)
+        at org.jetbrains.kotlin.psi2ir.generators.CallGenerator.generatePropertyGetterCall(CallGenerator.kt:179)
+        at org.jetbrains.kotlin.psi2ir.generators.CallGenerator.generateCall(CallGenerator.kt:51)
+        at org.jetbrains.kotlin.psi2ir.generators.CallGenerator.generateCall$default(CallGenerator.kt:42)
+        at org.jetbrains.kotlin.psi2ir.generators.CallGenerator.generateValueReference(CallGenerator.kt:101)
+        at org.jetbrains.kotlin.psi2ir.generators.StatementGenerator.generateExpressionForReferencedDescriptor(StatementGenerator.kt:323)
+        at org.jetbrains.kotlin.psi2ir.generators.StatementGenerator.visitSimpleNameExpression(StatementGenerator.kt:307)
+        at org.jetbrains.kotlin.psi2ir.generators.StatementGenerator.visitSimpleNameExpression(StatementGenerator.kt:50)
+        at org.jetbrains.kotlin.psi.KtNameReferenceExpression.accept(KtNameReferenceExpression.kt:59)
+        at org.jetbrains.kotlin.psi2ir.generators.StatementGenerator.visitDotQualifiedExpression(StatementGenerator.kt:366)
+        at org.jetbrains.kotlin.psi2ir.generators.StatementGenerator.visitDotQualifiedExpression(StatementGenerator.kt:50)
+        at org.jetbrains.kotlin.psi.KtDotQualifiedExpression.accept(KtDotQualifiedExpression.kt:32)
+        at org.jetbrains.kotlin.psi2ir.generators.StatementGenerator.genStmt(StatementGenerator.kt:75)
+        ... 43 more
+```
+
+I've tested with Kotlin 1.4.10 and 1.4.255-SNAPSHOT. Note that the crash does not occur if the function type is inlined instead of using the typealias.

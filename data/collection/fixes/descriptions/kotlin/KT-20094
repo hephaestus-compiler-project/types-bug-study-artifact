@@ -1,0 +1,39 @@
+=Problematic behavior=
+
+```kotlin
+package test
+
+interface I1 {
+    private class Private
+    fun pp() = Private() // Error: EXPOSED_FUNCTION_RETURN_TYPE
+}
+
+private interface I2 {
+    private class Private
+    fun pp() = Private() // No error
+}
+```
+
+Here interface `I2` is private-in-file. This is a different thing from "private (in class)". There can be declarations unrelated to `I2` by inheritance that have access to `I2#pp`. Moreover, on JVM private-in-file declarations are mapped to package-private classes, so Java code in the same package also has access to `I2#pp` (but can't use `I2.Private`):
+```java
+package test;
+
+public class JJ {
+    public static void foo(I2 i2) {
+        i2.pp(); // No error
+    }
+}
+```
+
+In combination with KT-20088 it can also cause IllegalAccessError at run-time (see KT-18244).
+
+
+=Proposed solution=
+
+Since "private-in-file" visibility is less restrictive than "private (in class)", a conservative solution would be to report an error.
+
+
+=Deprecation cycle=
+
+* 1.5: compile-time warning
+* 1.6: compile-time error

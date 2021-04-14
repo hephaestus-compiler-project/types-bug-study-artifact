@@ -1,0 +1,46 @@
+Consider this source code:
+---
+public class Test {
+
+    private static <T> void test(Class<? extends T> clazz, T...
+instances) {}
+
+    public static void main(String[] args) {
+        Object obj = null;
+        test(obj.getClass());
+    }
+
+}
+---
+
+Compiling this on:
+$ javac -fullversion
+javac full version "1.9.0-ea-b54"
+
+Leads to:
+---
+$ javac -source 6 -bootclasspath <path-to-JDK6-rt.jar> Test.java 
+warning: [options] source value 1.6 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+Test.java:7: error: method test in class Test cannot be applied to given types;
+        Test.test(obj.getClass());
+            ^
+  required: Class<? extends T>,T[]
+  found: Class<CAP#1>
+  reason: formal varargs element type CAP#1 is not accessible from class Test
+  where T is a type-variable:
+    T extends Object declared in method <T>test(Class<? extends T>,T...)
+  where CAP#1 is a fresh type-variable:
+    CAP#1 extends Object from capture of ? extends Object
+1 error
+2 warnings
+---
+
+Workaround is to specify the method's parameter explicitly:
+        Test.<Object>test(obj.getClass());
+
+This may be caused by the fix for:
+
+It seems it is caused by the fix for:
+https://bugs.openjdk.java.net/browse/JDK-8039214
+http://hg.openjdk.java.net/jdk9/dev/langtools/rev/414b82835861

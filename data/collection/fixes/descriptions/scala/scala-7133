@@ -1,0 +1,25 @@
+The @varargs anno exhibits some weird behaviour that apparently has to do with types being present, I guess. This code compiles with no issues:
+
+```scala
+scala> def test[A](x: A, repeated: String*): A = x
+test: [A](x: A, repeated: String*)A
+```
+
+while this one does not:
+
+```scala
+scala> @annotation.varargs def test[A](x: A, repeated: String*): A = x
+<console>:7: error: type mismatch;
+ found   : x.type (with underlying type A)
+ required: A
+       @annotation.varargs def test[A](x: A, repeated: String*): A = x
+                               ^
+```
+
+My use-case is a bit more involved, as my actual signature is more along the lines of:
+
+```scala
+@annotation.varargs def test[A <: SomeType](x: A, y: Future[_ <: SomeType]*): Future[A]
+```
+
+but I guess it boils down to the same issue.

@@ -1,0 +1,38 @@
+```scala
+$ cat Test.scala
+package test
+
+sealed trait CL3Literal
+case object IntLit extends CL3Literal
+case object CharLit extends CL3Literal
+case object BooleanLit extends CL3Literal
+case object UnitLit extends CL3Literal
+
+
+sealed trait Tree
+case class LetL(value: CL3Literal) extends Tree
+case object LetP extends Tree
+case object LetC extends Tree
+case object LetF extends Tree
+
+object Test {
+  def transform(tree: Tree) : Any = tree match {
+    case LetL(CharLit) =>
+      ???
+  }
+}
+$ scalac Test.scala
+Test.scala:17: warning: match may not be exhaustive.
+It would fail on the following inputs: ??, LetC, LetF, LetL(IntLit), LetP
+  def transform(tree: Tree) : Any = tree match {
+                                    ^
+one warning found
+$ scalac Test.scala
+Test.scala:17: warning: match may not be exhaustive.
+It would fail on the following inputs: ??, LetC, LetF, LetL(BooleanLit), LetL(IntLit), LetP
+  def transform(tree: Tree) : Any = tree match {
+                                    ^
+one warning found
+```
+
+Running "scalac Test.scala" will output randomly one of the two warning messages above. One of them is more complete than the other, but is still missing the `LetL(UnitLit)` case.

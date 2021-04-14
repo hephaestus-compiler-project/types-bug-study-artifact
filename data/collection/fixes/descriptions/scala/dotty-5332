@@ -1,0 +1,31 @@
+This code attempting to inherit a class from itself through a parameterized alias causes a stack overflow:
+```scala
+object O{
+  type T[R] = X
+  class X extends T[Int]
+}
+```
+Output:
+```
+java.lang.StackOverflowError while compiling CyclicInheritance.scala
+Exception in thread "main" java.lang.StackOverflowError
+	at java.lang.ref.ReferenceQueue$Lock.<init>(ReferenceQueue.java:54)
+	at java.lang.ref.ReferenceQueue.<init>(ReferenceQueue.java:55)
+	at java.util.WeakHashMap.<init>(WeakHashMap.java:180)
+	at java.util.WeakHashMap.<init>(WeakHashMap.java:241)
+	at dotty.tools.dotc.core.SymDenotations$InheritedCacheImpl.addDependent(SymDenotations.scala:2098)
+	at dotty.tools.dotc.core.SymDenotations$MemberNamesImpl.apply(SymDenotations.scala:2149)
+	at dotty.tools.dotc.core.SymDenotations$ClassDenotation.memberNames(SymDenotations.scala:1776)
+	at dotty.tools.dotc.core.SymDenotations$ClassDenotation.$anonfun$computeMemberNames$1(SymDenotations.scala:1783)
+	at dotty.tools.dotc.core.SymDenotations$ClassDenotation.$anonfun$computeMemberNames$1$adapted(SymDenotations.scala:1782)
+	at scala.collection.immutable.List.foreach(List.scala:388)
+	at dotty.tools.dotc.core.SymDenotations$ClassDenotation.computeMemberNames(SymDenotations.scala:1782)
+	at dotty.tools.dotc.core.SymDenotations$MemberNamesImpl.apply(SymDenotations.scala:2144)
+	at dotty.tools.dotc.core.SymDenotations$ClassDenotation.memberNames(SymDenotations.scala:1776)
+	at dotty.tools.dotc.core.SymDenotations$ClassDenotation.$anonfun$computeMemberNames$1(SymDenotations.scala:1783)
+	at dotty.tools.dotc.core.SymDenotations$ClassDenotation.$anonfun$computeMemberNames$1$adapted(SymDenotations.scala:1782)
+	at scala.collection.immutable.List.foreach(List.scala:388)
+	at dotty.tools.dotc.core.SymDenotations$ClassDenotation.computeMemberNames(SymDenotations.scala:1782)
+	at dotty.tools.dotc.core.SymDenotations$MemberNamesImpl.apply(SymDenotations.scala:2144)
+...
+```

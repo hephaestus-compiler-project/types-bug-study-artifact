@@ -1,0 +1,18 @@
+java.lang.Integer and the other wrapper classes contain code like
+
+    @SuppressWarnings("unchecked")
+    public static final Class<Integer>  TYPE = (Class<Integer>) Class.getPrimitiveClass("int");
+
+where Class.getPrimitiveClass is a package-private static method returning a Class<?>.
+
+Despite the @SuppressWarnings annotation, javac still reports an unchecked warning on this code:
+
+src/share/classes/java/lang/Integer.java:72: warning: [unchecked] unchecked cast
+    public static final Class<Integer>  TYPE = (Class<Integer>) Class.getPrimitiveClass("int");
+                                                                                       ^
+  required: Class<Integer>
+  found:    Class<CAP#1>
+  where CAP#1 is a fresh type-variable:
+    CAP#1 extends Object from capture of ?
+
+This behavior is unfortunate since it frustrates efforts to resolve lint warnings in the JDK.

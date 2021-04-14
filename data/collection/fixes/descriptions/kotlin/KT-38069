@@ -1,0 +1,19 @@
+When using `-language-version 1.4 -api-version 1.3`, errors should be reported in the following cases:
+```
+class A {
+    fun foo(s: String = "", vararg xs: Long): String = "foo"
+}
+
+fun coercionToUnit(f: (A, String, LongArray) -> Unit): Any = f
+fun varargToElement(f: (A, String, Long, Long) -> String): Any = f
+fun defaultAndVararg(f: (A) -> String): Any = f
+fun allOfTheAbove(f: (A) -> Unit): Any = f
+
+fun test() {
+    coercionToUnit(<!TYPE_MISMATCH!>A::foo<!>)
+    varargToElement(<!TYPE_MISMATCH!>A::foo<!>)
+    defaultAndVararg(<!TYPE_MISMATCH!>A::foo<!>)
+    allOfTheAbove(<!TYPE_MISMATCH!>A::foo<!>)
+}
+```
+Because runtime implementation of adapted callable references depends on a new class `kotlin.jvm.internal.AdaptedFunctionReference` which is being added to kotlin-stdlib in 1.4.0.

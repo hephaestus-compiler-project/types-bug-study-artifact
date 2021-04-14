@@ -1,0 +1,22 @@
+```
+@DslMarker
+@Target(*arrayOf(AnnotationTarget.CLASS, AnnotationTarget.TYPEALIAS))
+annotation class XMarker
+@XMarker
+class Foo
+class Bar
+@XMarker
+typealias XBar = Bar
+
+fun Foo.foo(body: Foo.()->Unit) = body()
+fun Foo.xbar(body: XBar.()->Unit) = Bar().body()
+
+fun test() {
+    Foo().foo {
+        xbar {
+            foo {  } // no error!
+        }
+    }
+}
+```
+If I move `@XMarker` from XBar to Bar directly, it works. 

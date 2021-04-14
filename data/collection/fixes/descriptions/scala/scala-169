@@ -1,0 +1,30 @@
+Type inference for implicit function calls doesn't work the same as for explicit function calls when there is a contravariant type parameter. Covariant and non-variant type parameters works fine.
+
+Here's an example that gives a compiler error on the last 'val' statement.
+
+```scala
+package test
+
+object MyTest {
+  case class MyClass[A, B] {
+    def getThis = this
+  }
+	
+  implicit def fnToMyClass[A, B](fn : A => B) = MyClass[A, B]
+  implicit def tupleToMyClass[A, B](t : (A, B)) = MyClass[A, B]
+	
+  def testIt = {
+    val t = (10, 20)
+    val t1 : MyClass[Int, Int] = t
+    val t2 : MyClass[Int, Int] = tupleToMyClass(t).getThis
+    val t3 : MyClass[Int, Int] = t.getThis
+    
+    val fn = (x : Int) => x
+    val f1 : MyClass[Int, Int] = fn
+    val f2 : MyClass[Int, Int] = fnToMyClass(fn).getThis
+    val f3 : MyClass[Int, Int] = fn.getThis          // Error!
+    
+    ()
+  }
+}
+```

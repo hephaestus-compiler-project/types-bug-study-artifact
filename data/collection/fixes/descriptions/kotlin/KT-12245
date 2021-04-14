@@ -1,0 +1,28 @@
+Sorry for the broad title, but I want to point to some issues with (at least custom) annotations:
+
+I have the following custom enum & annotation:
+
+```kotlin
+enum class MyType { A, B }
+
+@MustBeDocumented
+@Retention(AnnotationRetention.RUNTIME)
+@Target(AnnotationTarget.CLASS, AnnotationTarget.FIELD, AnnotationTarget.PROPERTY, AnnotationTarget.PROPERTY_GETTER)
+annotation class MyAnnot(
+		val type: MyType
+)
+```
+
+*When I do this:
+
+```kotlin
+import com.package.MyAnnot
+
+class MyClass(@MyAnnot(BLABLA) val thing: Int)
+```
+
+IDEA marks BLABLA as red (because it doesn't exist or it has not been imported, doesn't matter), but the Gradle plugin (at least) will happily compile this code)
+
+*Also, if you replace BLABLA with a valid value using auto completion, IDEA will add the full package path of the value inside the annotation. If you try to use the quick fix to add an static import automatically, IDEA won't remove the fully qualified path inside the annotation.
+
+*Even worse, in some cases (although I'm not sure yet which ones) IDEa will completely remove the static import of the enum because it thinks nobody is using it (and that's how I found this problem, IDEA removed all my static imports for the enum values, but the code continued to compile & I was getting a strange `IncompleteAnnotationException`)

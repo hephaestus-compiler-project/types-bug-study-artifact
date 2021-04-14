@@ -1,0 +1,26 @@
+```scala
+object Test {
+  def foo[B[X <: B[X]]] = 0
+  foo[List] // incorrectly allowed
+
+  def baz[B[X <: String]] = 0
+  baz[List] // incorrectly allowed
+
+  def bar[B[+X]] = 0
+  class C[X]
+  bar[C] // correctly rejected.
+}
+
+```
+
+From `Infer#checkBounds`:
+
+```scala
+        //@M validate variances & bounds of targs wrt variances & bounds of tparams
+        //@M TODO: better place to check this?
+        //@M TODO: errors for getters & setters are reported separately
+        val kindErrors = checkKindBounds(tparams, targs, pre, owner)
+        kindErrors match {
+```
+
+

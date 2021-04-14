@@ -1,0 +1,12 @@
+The compiler should not crash when reading class files containing JSR 292 constructs.
+
+In particular, the new constant pool entries described here should not cause the ClassReader to crash:
+
+http://cr.openjdk.java.net/~jrose/pres/indy-javadoc-mlvm/
+
+These entries are CONSTANT_InvokeDynamic (decimal 17) of length 5 bytes including tag byte, CONSTANT_MethodType (decimal 16) of length 3 bytes, and CONSTANT_MethodHandle (decimal 15) of length 4 bytes.  None of these constant pool types affect the external API of a classfile, so the compiler's class reader can skip their bytes.
+
+
+This bug affects the javap command also.  The "-c" mode of javap will want to decode the new constant pool entries.
+
+This bug is similar to one for Pack200 (6981776), which also needs to process the new constant pool entries.

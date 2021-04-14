@@ -1,0 +1,24 @@
+Consider the following example:
+{code}
+def with(@DelegatesTo.Target Object target, @DelegatesTo(strategy = Closure.DELEGATE_FIRST) Closure arg) {
+    arg.delegate = target
+    arg.setResolveStrategy(Closure.DELEGATE_FIRST)
+    arg()
+}
+
+@CompileStatic
+def test() {
+    def obj = [1, 2]
+    with(obj, {
+        print(last()) //error is here
+    },)
+}
+
+test()
+{code}
+
+last() is DGM for List. 
+
+There is two ways to resolve the issue:
+1. resolve 'last()' to 'obj.last()'. So the code will work
+2. register an error if you think that injected methods should not be resolved in 'DelegatesTo' context 

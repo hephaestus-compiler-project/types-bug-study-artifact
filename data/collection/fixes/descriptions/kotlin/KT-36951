@@ -1,0 +1,71 @@
+The code is:
+```
+class Base<T : T> : HashSet<T>() {
+    fun foo() {
+        super.remove("")
+    }
+}
+```
+
+The exception in OI:
+```
+[EXCEPTION_FROM_ANALYZER] Internal Error occurred while analyzing this expression 
+(Please use the "
+ 
+" icon in the bottom-right corner to report this error):
+ 
+java.lang.IllegalStateException: [Report version 3] There is no common supertype for: [String, T]  Info about kotlin.String, typeConstructor debug: descriptor=deserialized  class String@187146a5, moduleDescriptor=  is a module[ModuleDescriptorImpl@780e8f0b], supertypes=LockBasedNotNullLazyValueWithPostCompute, storageManager=LockBasedStorageManager@3800f055 (sdk):  - Supertypes:  -- kotlin.Comparable , typeConstructor debug: descriptor=deserialized  class Comparable@65cdffc1, moduleDescriptor=  is a module[ModuleDescriptorImpl@780e8f0b], supertypes=LockBasedNotNullLazyValueWithPostCompute, storageManager=LockBasedStorageManager@3800f055 (sdk) -- kotlin.CharSequence, typeConstructor debug: descriptor=deserialized  class CharSequence@5b1c28e4, moduleDescriptor=  is a module[ModuleDescriptorImpl@780e8f0b], supertypes=LockBasedNotNullLazyValueWithPostCompute, storageManager=LockBasedStorageManager@3800f055 (sdk) -- java.io.Serializable, typeConstructor debug: descriptor=class Serializable@5fe68932, moduleDescriptor=  is a module[ModuleDescriptorImpl@780e8f0b], supertypes=LockBasedNotNullLazyValueWithPostCompute, storageManager=LockBasedStorageManager@3800f055 (sdk) -- kotlin.Any, typeConstructor debug: descriptor=deserialized  class Any@79e45b97, moduleDescriptor=  is a module[ModuleDescriptorImpl@780e8f0b], supertypes=LockBasedNotNullLazyValueWithPostCompute, storageManager=LockBasedStorageManager@3800f055 (sdk) - DeclarationDescriptor class: class org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedClassDescriptor  Info about T, typeConstructor debug: descriptor=T@616a5e0d, moduleDescriptor=  is a module[ModuleDescriptorImpl@31312769], supertypes=LockBasedNotNullLazyValueWithPostCompute, storageManager=LockBasedStorageManager@11c598aa (project source roots and libraries):  - Supertypes:  -- [ERROR : Cyclic upper bounds], typeConstructor debug: [E...
+```
+
+The exception in NI:
+~~~
+Error:Kotlin: [Internal Error] org.jetbrains.kotlin.util.KotlinFrontEndException: Exception while analyzing expression at (3,9) in /Users/.../IdeaProjects/kotlin-sandbox/src/main/kotlin/main.kt
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.logOrThrowException(ExpressionTypingVisitorDispatcher.java:251)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.lambda$getTypeInfo$0(ExpressionTypingVisitorDispatcher.java:222)
+	at org.jetbrains.kotlin.util.PerformanceCounter.time(PerformanceCounter.kt:101)
+...
+Caused by: java.lang.IllegalStateException: Expected some types
+	at org.jetbrains.kotlin.types.checker.IntersectionTypeKt.intersectTypes(IntersectionType.kt:31)
+	at org.jetbrains.kotlin.types.checker.IntersectionTypeKt.intersectTypes(IntersectionType.kt:27)
+	at org.jetbrains.kotlin.types.checker.ClassicTypeSystemContext$DefaultImpls.intersectTypes(ClassicTypeSystemContext.kt:307)
+	at org.jetbrains.kotlin.resolve.calls.components.ClassicTypeSystemContextForCS.intersectTypes(ClassicTypeSystemContextForCS.kt:23)
+	at org.jetbrains.kotlin.resolve.calls.inference.model.NewConstraintSystemImpl.intersectTypes(NewConstraintSystemImpl.kt)
+	at org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator.findSuperTypeConstructorsAndIntersectResult(NewCommonSuperTypeCalculator.kt:228)
+	at org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator.commonSuperTypeForNotNullTypes(NewCommonSuperTypeCalculator.kt:199)
+	at org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator.commonSuperTypeForSimpleTypes(NewCommonSuperTypeCalculator.kt:109)
+	at org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator.commonSuperType(NewCommonSuperTypeCalculator.kt:69)
+	at org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator.commonSuperType(NewCommonSuperTypeCalculator.kt:34)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.ResultTypeResolver.computeCommonSuperType(ResultTypeResolver.kt:141)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.ResultTypeResolver.findSubType(ResultTypeResolver.kt:99)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.ResultTypeResolver.findResultTypeOrNull(ResultTypeResolver.kt:52)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.ResultTypeResolver.findResultType(ResultTypeResolver.kt:37)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.KotlinConstraintSystemCompleter.fixVariable(KotlinConstraintSystemCompleter.kt:316)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.KotlinConstraintSystemCompleter.fixVariable(KotlinConstraintSystemCompleter.kt:307)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.KotlinConstraintSystemCompleter.runCompletion(KotlinConstraintSystemCompleter.kt:120)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.KotlinConstraintSystemCompleter.runCompletion(KotlinConstraintSystemCompleter.kt:55)
+	at org.jetbrains.kotlin.resolve.calls.components.KotlinCallCompleter.runCompletion(KotlinCallCompleter.kt:130)
+	at org.jetbrains.kotlin.resolve.calls.components.KotlinCallCompleter.runCompletion$default(KotlinCallCompleter.kt:127)
+	at org.jetbrains.kotlin.resolve.calls.components.KotlinCallCompleter.runCompletion(KotlinCallCompleter.kt:118)
+	at org.jetbrains.kotlin.resolve.calls.components.KotlinCallCompleter.runCompletion(KotlinCallCompleter.kt:55)
+	at org.jetbrains.kotlin.resolve.calls.KotlinCallResolver.choseMostSpecific(KotlinCallResolver.kt:151)
+	at org.jetbrains.kotlin.resolve.calls.KotlinCallResolver.resolveCall(KotlinCallResolver.kt:94)
+	at org.jetbrains.kotlin.resolve.calls.tower.PSICallResolver.runResolutionAndInference(PSICallResolver.kt:99)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.doResolveCallOrGetCachedResults(CallResolver.java:581)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.lambda$computeTasksAndResolveCall$0(CallResolver.java:212)
+	at org.jetbrains.kotlin.util.PerformanceCounter.time(PerformanceCounter.kt:101)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:210)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:198)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.resolveFunctionCall(CallResolver.java:326)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getResolvedCallForFunction(CallExpressionResolver.kt:98)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfoWithoutFinalTypeCheck(CallExpressionResolver.kt:220)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getUnsafeSelectorTypeInfo(CallExpressionResolver.kt:335)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getSafeOrUnsafeSelectorTypeInfo(CallExpressionResolver.kt:375)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getQualifiedExpressionTypeInfo(CallExpressionResolver.kt:472)
+	at org.jetbrains.kotlin.types.expressions.BasicExpressionTypingVisitor.visitQualifiedExpression(BasicExpressionTypingVisitor.java:721)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.visitQualifiedExpression(ExpressionTypingVisitorDispatcher.java:381)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher$ForBlock.visitQualifiedExpression(ExpressionTypingVisitorDispatcher.java:58)
+	at org.jetbrains.kotlin.psi.KtVisitor.visitDotQualifiedExpression(KtVisitor.java:302)
+	at org.jetbrains.kotlin.psi.KtDotQualifiedExpression.accept(KtDotQualifiedExpression.kt:32)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.lambda$getTypeInfo$0(ExpressionTypingVisitorDispatcher.java:173)
+	... 62 more
+~~~

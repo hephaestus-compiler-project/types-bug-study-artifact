@@ -1,0 +1,119 @@
+Type annotation on elements of an inner class in an anonymous class show up as regular annotations rather than type annotations.
+Using the same type annotations on class, anonymous class and inner class of anonymous class,
+compile below and run javap -v:
+
+javap -v Test1                         // Runtime(In)visibleTypeAnnotations
+javap -v Test1$1                     // Runtime(In)visibleTypeAnnotations
+javap -v TEst1$1$InnerAnon    // Runtime(In)visibleAnnotations
+
+8<- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+import java.lang.annotation.*;
+import static java.lang.annotation.RetentionPolicy.*;
+import static java.lang.annotation.ElementType.*;
+
+class Test1 {                          // Test1.class
+    @A @B String data = "test";
+    @A @B String m(){ return null; };
+    Object mtest(  Test1 t){ return null;  }
+    public void test() {
+        mtest( new Test1() {           // Test1$1.class
+                @A @B String a_data = "test";
+                @A @B String a_m(){ return null; };
+                class InnerAnon {      // Test1$1$InnerAnon.class
+                     @A @B String ai_data = "test";
+                     @A @B String ai_m(){ return null; };
+                }
+                 InnerAnon IA = new  InnerAnon();
+           });
+   }
+}
+
+@Retention(RUNTIME) @Target(TYPE_USE)  @interface A { }
+@Retention(CLASS) @Target(TYPE_USE) @interface B { }
+8<- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+javap -v Test1$1$InnerAnon output:
+
+class Test1$1$InnerAnon
+  SourceFile: "Test1.java"
+  InnerClasses:
+       #14; //class Test1$1
+       #31= #5 of #14; //InnerAnon=class Test1$1$InnerAnon of class Test1$1
+  minor version: 0
+  major version: 52
+  flags: ACC_SUPER
+Constant pool:
+   #1 = Fieldref           #5.#26         //  Test1$1$InnerAnon.this$1:LTest1$1;
+   #2 = Methodref          #6.#27         //  java/lang/Object."<init>":()V
+   #3 = String             #28            //  test
+   #4 = Fieldref           #5.#29         //  Test1$1$InnerAnon.ai_data:Ljava/lang/String;
+   #5 = Class              #30            //  Test1$1$InnerAnon
+   #6 = Class              #32            //  java/lang/Object
+   #7 = Utf8               ai_data
+   #8 = Utf8               Ljava/lang/String;
+   #9 = Utf8               RuntimeVisibleAnnotations
+  #10 = Utf8               LA;
+  #11 = Utf8               RuntimeInvisibleAnnotations
+  #12 = Utf8               LB;
+  #13 = Utf8               this$1
+  #14 = Class              #33            //  Test1$1
+  #15 = Utf8
+  #16 = Utf8               InnerClasses
+  #17 = Utf8               LTest1$1;
+  #18 = Utf8               <init>
+  #19 = Utf8               (LTest1$1;)V
+  #20 = Utf8               Code
+  #21 = Utf8               LineNumberTable
+  #22 = Utf8               ai_m
+  #23 = Utf8               ()Ljava/lang/String;
+  #24 = Utf8               SourceFile
+  #25 = Utf8               Test1.java
+  #26 = NameAndType        #13:#17        //  this$1:LTest1$1;
+  #27 = NameAndType        #18:#34        //  "<init>":()V
+  #28 = Utf8               test
+  #29 = NameAndType        #7:#8          //  ai_data:Ljava/lang/String;
+  #30 = Utf8               Test1$1$InnerAnon
+  #31 = Utf8               InnerAnon
+  #32 = Utf8               java/lang/Object
+  #33 = Utf8               Test1$1
+  #34 = Utf8               ()V
+{
+  java.lang.String ai_data;
+    flags:
+    RuntimeVisibleAnnotations:
+      0: #10()
+    RuntimeInvisibleAnnotations:
+      0: #12()
+
+  final Test1$1 this$1;
+    flags: ACC_FINAL, ACC_SYNTHETIC
+
+  Test1$1$InnerAnon(Test1$1);
+    flags:
+    Code:
+      stack=2, locals=2, args_size=2
+         0: aload_0
+         1: aload_1
+         2: putfield      #1                  // Field this$1:LTest1$1;
+         5: aload_0
+         6: invokespecial #2                  // Method java/lang/Object."<init>":()V
+         9: aload_0
+        10: ldc           #3                  // String test
+        12: putfield      #4                  // Field ai_data:Ljava/lang/String;
+        15: return
+      LineNumberTable:
+        line 13: 0
+        line 14: 9
+
+  java.lang.String ai_m();
+    flags:
+    Code:
+      stack=1, locals=1, args_size=1
+         0: aconst_null
+         1: areturn
+      LineNumberTable:
+        line 15: 0
+    RuntimeVisibleAnnotations:
+      0: #10()
+    RuntimeInvisibleAnnotations:
+      0: #12()
+}

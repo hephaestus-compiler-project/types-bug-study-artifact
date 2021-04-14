@@ -1,0 +1,11 @@
+```scala
+scala> List(1)
+val res0: List[Int] = List(1)
+
+scala> res0.tail
+val res1: List[Int @uncheckedVariance] = List()
+```
+
+We could drop `@uncheckedVariance` in asSeenFrom but that breaks overrides which rely on the inferred type coming from the overridden definition containing the annotation, for example https://github.com/lampepfl/dotty/blob/9450bf2c9725c3616743e9617844e6c55c86c67a/tests/run/CollectionTests.scala#L168
+
+Maybe we can drop them when inferring a result type (that does not come from overriding something), in the same way we drop skolems: https://github.com/lampepfl/dotty/blob/9450bf2c9725c3616743e9617844e6c55c86c67a/compiler/src/dotty/tools/dotc/typer/Namer.scala#L1463 but that doesn't help with chained expressions

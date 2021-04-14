@@ -1,0 +1,124 @@
+## reproduction steps
+
+using Scala 2.13.3,
+
+```scala
+object Main {
+  type Foo[+A] <: A
+
+  final class Bar {
+    def bar = ???
+  }
+
+  class Ops[A](private val self: Foo[A]) {
+    def baz: A = self match {
+      case x: Bar => x.bar
+    }
+  }
+}
+```
+
+## problem
+
+```
+[error] java.lang.IllegalArgumentException: Bad type: Main.Foo[?]
+[error] scala.tools.nsc.transform.patmat.ScalaLogic$TreesAndTypesDomain.scala$tools$nsc$transform$patmat$ScalaLogic$TreesAndTypesDomain$$widenToClass(Logic.scala:799)
+[error] scala.tools.nsc.transform.patmat.ScalaLogic$TreesAndTypesDomain$TypeConst.<init>(Logic.scala:816)
+[error] scala.tools.nsc.transform.patmat.ScalaLogic$TreesAndTypesDomain$TypeConst$.$anonfun$apply$7(Logic.scala:806)
+[error] scala.tools.nsc.transform.patmat.ScalaLogic$TreesAndTypesDomain$Const$.unique(Logic.scala:745)
+[error] scala.tools.nsc.transform.patmat.ScalaLogic$TreesAndTypesDomain$TypeConst$.apply(Logic.scala:806)
+[error] scala.tools.nsc.transform.patmat.ScalaLogic$TreesAndTypesDomain$Var.symForStaticTp$lzycompute(Logic.scala:704)
+[error] scala.tools.nsc.transform.patmat.ScalaLogic$TreesAndTypesDomain$Var.symForStaticTp(Logic.scala:704)
+[error] scala.tools.nsc.transform.patmat.Logic$PropositionalLogic.$anonfun$removeVarEq$5(Logic.scala:447)
+[error] scala.tools.nsc.transform.patmat.Logic$PropositionalLogic.$anonfun$removeVarEq$5$adapted(Logic.scala:437)
+[error] scala.collection.mutable.HashSet$Node.foreach(HashSet.scala:435)
+[error] scala.tools.nsc.transform.patmat.Logic$PropositionalLogic.removeVarEq(Logic.scala:437)
+[error] scala.tools.nsc.transform.patmat.Logic$PropositionalLogic.removeVarEq$(Logic.scala:407)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.removeVarEq(PatternMatching.scala:101)
+[error] scala.tools.nsc.transform.patmat.MatchAnalysis$MatchAnalyzer.unreachableCase(MatchAnalysis.scala:459)
+[error] scala.tools.nsc.transform.patmat.MatchAnalysis$MatchAnalyzer.unreachableCase$(MatchAnalysis.scala:444)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.unreachableCase(PatternMatching.scala:101)
+[error] scala.tools.nsc.transform.patmat.MatchAnalysis$MatchAnalyzer.analyzeCases(MatchAnalysis.scala:903)
+[error] scala.tools.nsc.transform.patmat.MatchAnalysis$MatchAnalyzer.analyzeCases$(MatchAnalysis.scala:901)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.analyzeCases(PatternMatching.scala:101)
+[error] scala.tools.nsc.transform.patmat.MatchTreeMaking$TreeMakers.$anonfun$combineCasesNoSubstOnly$6(MatchTreeMaking.scala:649)
+[error] scala.tools.nsc.transform.patmat.MatchTreeMaking$TreeMakers.combineCasesNoSubstOnly(MatchTreeMaking.scala:632)
+[error] scala.tools.nsc.transform.patmat.MatchTreeMaking$TreeMakers.combineCasesNoSubstOnly$(MatchTreeMaking.scala:594)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.combineCasesNoSubstOnly(PatternMatching.scala:101)
+[error] scala.tools.nsc.transform.patmat.MatchTreeMaking$TreeMakers.combineCases(MatchTreeMaking.scala:590)
+[error] scala.tools.nsc.transform.patmat.MatchTreeMaking$TreeMakers.combineCases$(MatchTreeMaking.scala:587)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.combineCases(PatternMatching.scala:101)
+[error] scala.tools.nsc.transform.patmat.MatchTranslation$MatchTranslator.translateMatch(MatchTranslation.scala:232)
+[error] scala.tools.nsc.transform.patmat.MatchTranslation$MatchTranslator.translateMatch$(MatchTranslation.scala:200)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.translateMatch(PatternMatching.scala:101)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:68)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:63)
+[error] scala.reflect.internal.Trees$DefDef.$anonfun$transform$5(Trees.scala:453)
+[error] scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2625)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:43)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:38)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:32)
+[error] scala.reflect.internal.Trees$DefDef.transform(Trees.scala:451)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:57)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:89)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:63)
+[error] scala.reflect.api.Trees$Transformer.$anonfun$transformStats$1(Trees.scala:2614)
+[error] scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2612)
+[error] scala.reflect.internal.Trees$Template.transform(Trees.scala:544)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.$anonfun$transform$1(TypingTransformers.scala:53)
+[error] scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2625)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:43)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:38)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:89)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:63)
+[error] scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2587)
+[error] scala.reflect.internal.Trees$ClassDef.$anonfun$transform$2(Trees.scala:361)
+[error] scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2625)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:43)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:38)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:32)
+[error] scala.reflect.internal.Trees$ClassDef.transform(Trees.scala:360)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:57)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:89)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:63)
+[error] scala.reflect.api.Trees$Transformer.$anonfun$transformStats$1(Trees.scala:2614)
+[error] scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2612)
+[error] scala.reflect.internal.Trees$Template.transform(Trees.scala:544)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.$anonfun$transform$1(TypingTransformers.scala:53)
+[error] scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2625)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:43)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:38)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:89)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:63)
+[error] scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2587)
+[error] scala.reflect.internal.Trees$ModuleDef.$anonfun$transform$3(Trees.scala:396)
+[error] scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2625)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:43)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:38)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:32)
+[error] scala.reflect.internal.Trees$ModuleDef.transform(Trees.scala:395)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:57)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:89)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:63)
+[error] scala.reflect.api.Trees$Transformer.$anonfun$transformStats$1(Trees.scala:2614)
+[error] scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2612)
+[error] scala.reflect.internal.Trees$PackageDef.$anonfun$transform$1(Trees.scala:342)
+[error] scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2625)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:43)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:38)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:32)
+[error] scala.reflect.internal.Trees$PackageDef.transform(Trees.scala:342)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.$anonfun$transform$2(TypingTransformers.scala:55)
+[error] scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2625)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:43)
+[error] scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:38)
+[error] scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:89)
+[error] scala.tools.nsc.ast.Trees$Transformer.transformUnit(Trees.scala:162)
+[error] scala.tools.nsc.transform.Transform$Phase.apply(Transform.scala:32)
+[error] scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:454)
+[error] scala.tools.nsc.Global$GlobalPhase.run(Global.scala:401)
+[error] scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1515)
+[error] scala.tools.nsc.Global$Run.compileUnits(Global.scala:1499)
+[error] scala.tools.nsc.Global$Run.compileSources(Global.scala:1491)
+[error] scala.tools.nsc.Global$Run.compile(Global.scala:1626)
+```

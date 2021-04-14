@@ -1,0 +1,84 @@
+FULL PRODUCT VERSION :
+java version "1.9.0-ea"
+Java(TM) SE Runtime Environment (build 1.9.0-ea-b68)
+Java HotSpot(TM) 64-Bit Server VM (build 1.9.0-ea-b68, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Microsoft Windows [Version 6.1.7601]
+
+A DESCRIPTION OF THE PROBLEM :
+with classpath with double quotes as an environment in windows commandline environment, javac fails. 
+
+When using java8 or java9 with classpath as a parameter it works
+
+When not using double quotes it works
+
+REGRESSION.  Last worked in version 8u5
+
+ADDITIONAL REGRESSION INFORMATION: 
+javac full version "1.9.0-ea-b68" --> fails
+javac full version "1.8.0_05-b13" --> works
+javac full version "1.6.0_37-b06" --> works
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+javac -cp . X9.java
+jar -cvf X9.jar X9.class
+set CLASSPATH="X9.jar;."
+javac J9.java
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+no error
+ACTUAL -
+javac return InvalidPathException
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+An exception has occurred in the compiler (1.9.0-ea). Please file a bug at the Java Bug Database (http://bugreport.java.com/bugreport/) after checking the database for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.nio.file.InvalidPathException: Illegal char <"> at index 0: "X9.jar
+        at sun.nio.fs.WindowsPathParser.normalize(WindowsPathParser.java:182)
+        at sun.nio.fs.WindowsPathParser.parse(WindowsPathParser.java:153)
+        at sun.nio.fs.WindowsPathParser.parse(WindowsPathParser.java:77)
+        at sun.nio.fs.WindowsPath.parse(WindowsPath.java:94)
+        at sun.nio.fs.WindowsFileSystem.getPath(WindowsFileSystem.java:255)
+        at java.nio.file.Paths.get(Paths.java:84)
+        at com.sun.tools.javac.file.Locations.getPathEntries(Locations.java:156)
+        at com.sun.tools.javac.file.Locations.access$300(Locations.java:88)
+        at com.sun.tools.javac.file.Locations$SearchPath.addFiles(Locations.java:225)
+        at com.sun.tools.javac.file.Locations$SearchPath.addFiles(Locations.java:231)
+        at com.sun.tools.javac.file.Locations$ClassPathLocationHandler.computePath(Locations.java:501)
+        at com.sun.tools.javac.file.Locations$SimpleLocationHandler.setLocation(Locations.java:448)
+        at com.sun.tools.javac.file.Locations$ClassPathLocationHandler.lazy(Locations.java:513)
+        at com.sun.tools.javac.file.Locations$ClassPathLocationHandler.getLocation(Locations.java:477)
+        at com.sun.tools.javac.file.Locations.getLocation(Locations.java:749)
+        at com.sun.tools.javac.file.JavacFileManager.getLocation(JavacFileManager.java:917)
+        at com.sun.tools.javac.file.JavacFileManager.getClassLoader(JavacFileManager.java:643)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.initProcessorClassLoader(JavacProcessingEnvironment.java:236)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.<init>(JavacProcessingEnvironment.java:210)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.instance(JavacProcessingEnvironment.java:170)
+        at com.sun.tools.javac.main.JavaCompiler.initProcessAnnotations(JavaCompiler.java:1018)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:829)
+        at com.sun.tools.javac.main.Main.compile(Main.java:253)
+        at com.sun.tools.javac.main.Main.compile(Main.java:141)
+        at com.sun.tools.javac.Main.compile(Main.java:56)
+        at com.sun.tools.javac.Main.main(Main.java:42)
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+J9.java:
+public class J9 {
+  public static void main(String argv[])
+  {
+    System.out.println("Hello world");
+  }
+}
+
+X9.java: 
+public class X9 {}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+javac -classpath %CLASSPATH% J9.java
+

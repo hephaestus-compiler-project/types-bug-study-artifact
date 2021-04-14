@@ -1,0 +1,111 @@
+I got this assertion failure when, in ChangeStruct, I tried to add a type member mirroring the type parameter T, without renaming it.
+
+Not very high priority I guess, since the crash follows a valid type error, but I thought I should file an issue anyway.
+
+```scala
+object IlcWithState {
+  trait ChangeStruct[T] {
+    type T = T
+    type DT
+    def oplus(a: T, da: DT): T
+  }
+
+  trait Fun2[T1, T2, R] {
+    val T1: ChangeStruct[T1]
+    val T2: ChangeStruct[T2]
+    val R: ChangeStruct[R]
+    type Cache
+    def apply(x1: T1, x2: T2): (R, Cache)
+    def dapply(dx1: T1.DT, dx2: T2.DT)(c: Cache): (R.DT, Cache)
+  }
+
+
+  //type IntChange = ChangeStruct { type T = Int; type DT = Int }
+  trait IntChange extends ChangeStruct[Int] { type DT = Int }
+  val IntChange: IntChange =
+    new IntChange {
+      def oplus(a: T, da: T): T = a + da
+    }
+
+
+  // Actually implementing the Fun2 interface is insane.
+  val Div: Fun2[Int, Int, Int] {val T1: IntChange.type; val T2: IntChange.type; val R: IntChange.type} =
+    new Fun2 {
+      val T1: IntChange.type = IntChange
+      val T2: IntChange.type = IntChange
+      val R: IntChange.type = IntChange
+      type Cache = (Int, Int)
+      def apply(num: Int, den: Int) = (num / den, (num, den))
+      def dapply(dnum: Int, dden: Int)(c: Cache) = {
+        val (num, den) = c
+        val num2 = T1.oplus(num, dnum)
+        val den2 = T1.oplus(den, dden)
+        (num2 / den2, (num2, den2))
+      }
+    }
+  Div(2, 3)
+
+}
+```
+
+```
+[info] Compiling 1 Scala source to /Users/pgiarrusso/AeroFS/Repos/ilc-ldiff-bluevelvet/scala-stateful-ilc/target/scala-2.11/classes...
+[error] /Users/pgiarrusso/AeroFS/Repos/ilc-ldiff-bluevelvet/scala-stateful-ilc/IlcWithState.scala:3: illegal cyclic reference involving type T
+[error]     type T = T
+[error]              ^
+[error] /Users/pgiarrusso/AeroFS/Repos/ilc-ldiff-bluevelvet/scala-stateful-ilc/IlcWithState.scala:22: type mismatch;
+[error]  found   : a.type (with underlying type this.T)
+[error]  required: ?{def +(x$1: ? >: this.T): ?}
+[error]     (which expands to)  ?{def +(x$1: ? >: <error>): ?}
+[error] Note that implicit conversions are not applicable because they are ambiguous:
+[error]  both method unaugmentString in object Predef of type (x: scala.collection.immutable.StringOps)String
+[error]  and method Byte2byte in object Predef of type (x: Byte)Byte
+[error]  are possible conversion functions from a.type to ?{def +(x$1: ? >: this.T): ?}
+[error]       def oplus(a: T, da: T): T = a + da
+[error]                                   ^
+[error] /Users/pgiarrusso/AeroFS/Repos/ilc-ldiff-bluevelvet/scala-stateful-ilc/IlcWithState.scala:28: trait Fun2 takes type parameters
+[error]     new Fun2 {
+[error]         ^
+[error] /Users/pgiarrusso/AeroFS/Repos/ilc-ldiff-bluevelvet/scala-stateful-ilc/IlcWithState.scala:38: type mismatch;
+[error]  found   : num2.type (with underlying type this.T1.T)
+[error]  required: ?{def /(x$1: ? >: this.T1.T): ?}
+[error]     (which expands to)  ?{def /(x$1: ? >: <error>): ?}
+[error] Note that implicit conversions are not applicable because they are ambiguous:
+[error]  both method Byte2byte in object Predef of type (x: Byte)Byte
+[error]  and method Short2short in object Predef of type (x: Short)Short
+[error]  are possible conversion functions from num2.type to ?{def /(x$1: ? >: this.T1.T): ?}
+[error]         (num2 / den2, (num2, den2))
+[error]          ^
+[error] /Users/pgiarrusso/AeroFS/Repos/ilc-ldiff-bluevelvet/scala-stateful-ilc/IlcWithState.scala:38: value / is not a member of this.T1.T
+[error]         (num2 / den2, (num2, den2))
+[error]               ^
+[trace] Stack trace suppressed: run 'last compile:compileIncremental' for the full output.
+[error] (compile:compileIncremental) java.lang.AssertionError: assertion failed: 
+[error]   (AnyRef{val T1: IlcWithState.IntChange.type; val T1: IlcWithState.IntChange.type; val T2: IlcWithState.IntChange.type; val T2: IlcWithState.IntChange.type; val R: IlcWithState.IntChange.type; val R: IlcWithState.IntChange.type; type Cache = (Int, Int); def apply(num: Int,den: Int): (Int, (Int, Int)); def dapply(dnum: Int,dden: Int)(c: this.Cache): <error>},IlcWithState.Fun2[Int,Int,Int]{val T1: IlcWithState.IntChange.type; val T2: IlcWithState.IntChange.type; val R: IlcWithState.IntChange.type})
+[error]      while compiling: /Users/pgiarrusso/AeroFS/Repos/ilc-ldiff-bluevelvet/scala-stateful-ilc/IlcWithState.scala
+[error]         during phase: typer
+[error]      library version: version 2.11.7
+[error]     compiler version: version 2.11.7
+[error]   reconstructed args: -classpath /Users/pgiarrusso/AeroFS/Repos/ilc-ldiff-bluevelvet/scala-stateful-ilc/target/scala-2.11/classes -bootclasspath /Library/Java/JavaVirtualMachines/jdk1.8.0_40.jdk/Contents/Home/jre/lib/resources.jar:/Library/Java/JavaVirtualMachines/jdk1.8.0_40.jdk/Contents/Home/jre/lib/rt.jar:/Library/Java/JavaVirtualMachines/jdk1.8.0_40.jdk/Contents/Home/jre/lib/sunrsasign.jar:/Library/Java/JavaVirtualMachines/jdk1.8.0_40.jdk/Contents/Home/jre/lib/jsse.jar:/Library/Java/JavaVirtualMachines/jdk1.8.0_40.jdk/Contents/Home/jre/lib/jce.jar:/Library/Java/JavaVirtualMachines/jdk1.8.0_40.jdk/Contents/Home/jre/lib/charsets.jar:/Library/Java/JavaVirtualMachines/jdk1.8.0_40.jdk/Contents/Home/jre/lib/jfr.jar:/Library/Java/JavaVirtualMachines/jdk1.8.0_40.jdk/Contents/Home/jre/classes:/Users/pgiarrusso/.ivy2/cache/org.scala-lang/scala-library/jars/scala-library-2.11.7.jar
+[error] 
+[error]   last tree to typer: Select(New, <init>)
+[error]        tree position: line 28 of /Users/pgiarrusso/AeroFS/Repos/ilc-ldiff-bluevelvet/scala-stateful-ilc/IlcWithState.scala
+[error]             tree tpe: ()AnyRef{val T1: IlcWithState.IntChange.type; val T1: IlcWithState.IntChange.type; val T2: IlcWithState.IntChange.type; val T2: IlcWithState.IntChange.type; val R: IlcWithState.IntChange.type; val R: IlcWithState.IntChange.type; type Cache = (Int, Int); def apply(num: Int,den: Int): (Int, (Int, Int)); def dapply(dnum: Int,dden: Int)(c: this.Cache): <error>}
+[error]               symbol: constructor $anon
+[error]    symbol definition: def <init>(): $anon (a MethodSymbol)
+[error]       symbol package: <empty>
+[error]        symbol owners: constructor $anon -> <$anon: AnyRef> -> value Div -> object IlcWithState
+[error]            call site: object IlcWithState in package <empty>
+[error] 
+[error] == Source file context for tree position ==
+[error] 
+[error]     25   // Actually implementing the Fun2 interface is insane.
+[error]     26   val Div: Fun2[Int, Int, Int] {val T1: IntChange.type; val T2: IntChange.type; val R: IntChange.type} =
+[error]     27     new Fun2 {
+[error]     28       val T1: IntChange.type = IntChange
+[error]     29       val T2: IntChange.type = IntChange
+[error]     30       val R: IntChange.type = IntChange
+[error]     31       type Cache = (Int, Int)
+[error] Total time: 0 s, completed Feb 11, 2016 2:06:53 AM
+> 
+```

@@ -1,0 +1,75 @@
+Repro:
+
+=== P.java
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Set;
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.lang.model.element.TypeElement;
+import javax.tools.JavaFileObject;
+
+@SupportedAnnotationTypes("*")
+public class P extends AbstractProcessor {
+
+  boolean first = true;
+
+  @Override
+  public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+    if (first) {
+      try {
+        JavaFileObject jfo =
+            processingEnv
+                .getFiler()
+                .createClassFile("T", roundEnv.getRootElements().iterator().next());
+        try (OutputStream out = jfo.openOutputStream()) {
+          Files.copy(Paths.get("T.class"), out);
+        }
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+      try {
+        JavaFileObject jfo =
+            processingEnv
+                .getFiler()
+                .createClassFile("T$1", roundEnv.getRootElements().iterator().next());
+        try (OutputStream out = jfo.openOutputStream()) {
+          Files.copy(Paths.get("T$1.class"), out);
+        }
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+      first = false;
+    }
+    return false;
+  }
+}
+=== T.java
+class T {
+  void f() {
+    new Object() {};
+  }
+}
+=== Test.java
+class Test {}
+===
+
+$ javac T.java P.java
+$ javac -processor P Test.java -d out
+...
+An exception has occurred in the compiler (11-ea). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.NullPointerException
+        at jdk.compiler/com.sun.tools.javac.processing.JavacProcessingEnvironment$Round.enterClassFiles(JavacProcessingEnvironment.java:1182)
+        at jdk.compiler/com.sun.tools.javac.processing.JavacProcessingEnvironment$Round.<init>(JavacProcessingEnvironment.java:1076)
+        at jdk.compiler/com.sun.tools.javac.processing.JavacProcessingEnvironment$Round.next(JavacProcessingEnvironment.java:1100)
+        at jdk.compiler/com.sun.tools.javac.processing.JavacProcessingEnvironment.doProcessing(JavacProcessingEnvironment.java:1332)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.processAnnotations(JavaCompiler.java:1258)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:936)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:311)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:170)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:57)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:43)

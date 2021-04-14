@@ -1,0 +1,92 @@
+Compile the following interface:
+
+public interface Z1 {
+    default Runnable getAction() {
+        return () -> {
+            System.out.println(this);
+        };
+    }
+}
+
+This results in the following exception being thrown:
+
+An exception has occurred in the compiler (1.8.0-ea). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.NullPointerException
+	at com.sun.tools.javac.jvm.Code.emitop0(Code.java:557)
+	at com.sun.tools.javac.jvm.Items$SelfItem.load(Items.java:367)
+	at com.sun.tools.javac.jvm.Gen.genArgs(Gen.java:951)
+	at com.sun.tools.javac.jvm.Gen.visitApply(Gen.java:1827)
+	at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1459)
+	at com.sun.tools.javac.jvm.Gen.genExpr(Gen.java:932)
+	at com.sun.tools.javac.jvm.Gen.visitExec(Gen.java:1764)
+	at com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1290)
+	at com.sun.tools.javac.jvm.Gen.genDef(Gen.java:722)
+	at com.sun.tools.javac.jvm.Gen.genStat(Gen.java:757)
+	at com.sun.tools.javac.jvm.Gen.genStat(Gen.java:743)
+	at com.sun.tools.javac.jvm.Gen.genStats(Gen.java:794)
+	at com.sun.tools.javac.jvm.Gen.visitBlock(Gen.java:1142)
+	at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:903)
+	at com.sun.tools.javac.jvm.Gen.genDef(Gen.java:722)
+	at com.sun.tools.javac.jvm.Gen.genStat(Gen.java:757)
+	at com.sun.tools.javac.jvm.Gen.genMethod(Gen.java:1017)
+	at com.sun.tools.javac.jvm.Gen.visitMethodDef(Gen.java:980)
+	at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:772)
+	at com.sun.tools.javac.jvm.Gen.genDef(Gen.java:722)
+	at com.sun.tools.javac.jvm.Gen.genClass(Gen.java:2435)
+	at com.sun.tools.javac.main.JavaCompiler.genCode(JavaCompiler.java:744)
+	at com.sun.tools.javac.main.JavaCompiler.generate(JavaCompiler.java:1544)
+	at com.sun.tools.javac.main.JavaCompiler.generate(JavaCompiler.java:1508)
+	at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:900)
+	at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:859)
+	at com.sun.tools.javac.main.Main.compile(Main.java:523)
+	at com.sun.tools.javac.main.Main.compile(Main.java:381)
+	at com.sun.tools.javac.main.Main.compile(Main.java:370)
+	at com.sun.tools.javac.main.Main.compile(Main.java:361)
+	at com.sun.tools.javac.Main.compile(Main.java:64)
+	at com.sun.tools.javac.Main.main(Main.java:50)
+
+A slight variation, such as adding a random unrelated line, will change the behavior. For example,
+
+public interface Z2 {
+    default Runnable getAction() {
+        return () -> {
+            int x = 0; // a random line                                                                                                 
+            System.out.println(this);  // prints "null"                                                                                 
+	};
+    }
+
+    public static void main(String[] args)
+    {
+     	Z2 z2 = new Z2() { };
+	z2.getAction().run();
+    }
+}
+
+The original reporter says that this prints "null" but this was with b105. When I tried this on b106, I get the exception below. This is probably a related bug.
+
+Exception in thread "main" java.lang.VerifyError: Bad local variable type
+Exception Details:
+  Location:
+    Z2.lambda$0()V @5: aload_0
+  Reason:
+    Type integer (current frame, locals[0]) is not assignable to reference type
+  Current Frame:
+    bci: @5
+    flags: { }
+    locals: { integer }
+    stack: { 'java/io/PrintStream' }
+  Bytecode:
+    0000000: 033b b200 062a b600 07b1               
+
+	at java.lang.Class.getDeclaredMethods0(Native Method)
+	at java.lang.Class.privateGetDeclaredMethods(Class.java:2594)
+	at java.lang.Class.getMethod0(Class.java:2835)
+	at java.lang.Class.getMethod(Class.java:1711)
+	at sun.launcher.LauncherHelper.validateMainClass(LauncherHelper.java:531)
+	at sun.launcher.LauncherHelper.checkAndLoadMain(LauncherHelper.java:513)
+
+----------
+
+Originally reported by Zhong Yu on lambda-dev:
+
+http://mail.openjdk.java.net/pipermail/lambda-dev/2013-September/010926.html

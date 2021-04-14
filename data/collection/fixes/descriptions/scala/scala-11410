@@ -1,0 +1,35 @@
+When omitting the type parameters from a `new` call, there is an assertion error, as seen below.
+
+This occurs because `Zip` is declared `trait Zip[A,B]` but we're calling `new` on line 13 without the type parameters. 
+
+Here is a minimal [scastie](https://scastie.scala-lang.org/FytRxKtJT06h95jf7oTvHA) to reproduce this. Currently occurs on 2.12.8 and 2.13.0-M5.
+
+~~~
+sbt: [trace] Stack trace suppressed: run 'last compile:compileIncremental' for the full output.
+sbt: [error] (compile:compileIncremental) java.lang.AssertionError: assertion failed:
+sbt: [error]   AdaptTypeError - foundType is Erroneous: <error>{type Out = (A, B); def apply(a: A,b: B): (A, B)}
+sbt: [error]      while compiling: /tmp/scastie3271568458781766163/src/main/scala/main.scala
+sbt: [error]         during phase: typer
+sbt: [error]      library version: version 2.12.8
+sbt: [error]     compiler version: version 2.12.8
+sbt: [error]   reconstructed args: -deprecation -feature -classpath /tmp/scastie3271568458781766163/target/scala-2.12/classes:/home/scastie/.ivy2/local/org.scastie/api_2.12/0.27.0+463ca06fefcc084725ca397f6c13dddb0189ffbd/jars/api_2.12.jar:/home/scastie/.ivy2/local/org.scastie/runtime-scala_2.12/0.27.0+463ca06fefcc084725ca397f6c13dddb0189ffbd/jars/runtime-scala_2.12.jar:/home/scastie/.cache/coursier/v1/http/scala-webapps.epfl.ch%3A8081/artifactory/scastie-maven/com/fasterxml/jackson/core/jackson-databind/2.8.9/jackson-databind-2.8.9.jar:/home/scastie/.cache/coursier/v1/http/scala-webapps.epfl.ch%3A8081/artifactory/scastie-maven/com/fasterxml/jackson/datatype/jackson-datatype-jdk8/2.8.9/jackson-datatype-jdk8-2.8.9.jar:/home/scastie/.cache/coursier/v1/http/scala-webapps.epfl.ch%3A8081/artifactory/scastie-maven/com/typesafe/play/play-json_2.12/2.6.9/play-json_2.12-2.6.9.jar:/home/scastie/.cache/coursier/v1/http/scala-webapps.epfl.ch%3A8081/artifactory/scastie-maven/com/fasterxml/jackson/core/jackson-core/2.8.9/jackson-core-2.8.9.jar:/home/scastie/.cache/coursier/v1/http/scala-webapps.epfl.ch%3A8081/artifactory/scastie-maven/joda-time/joda-time/2.9.9/joda-time-2.9.9.jar:/home/scastie/.cache/coursier/v1/http/scala-webapps.epfl.ch%3A8081/artifactory/scastie-maven/com/fasterxml/jackson/datatype/jackson-datatype-jsr310/2.8.9/jackson-datatype-jsr310-2.8.9.jar:/home/scastie/.cache/coursier/v1/http/scala-webapps.epfl.ch%3A8081/artifactory/scastie-maven/com/typesafe/play/play-functional_2.12/2.6.9/play-functional_2.12-2.6.9.jar:/home/scastie/.cache/coursier/v1/http/scala-webapps.epfl.ch%3A8081/artifactory/scastie-maven/com/fasterxml/jackson/core/jackson-annotations/2.8.9/jackson-annotations-2.8.9.jar:/home/scastie/.cache/coursier/v1/http/scala-webapps.epfl.ch%3A8081/artifactory/scastie-maven/org/typelevel/macro-compat_2.12/1.1.1/macro-compat_2.12-1.1.1.jar:/home/scastie/.cache/coursier/v1/http/scala-webapps.epfl.ch%3A8081/artifactory/scastie-maven/org/scala-lang/scala-reflect/2.12.8/scala-reflect-2.12.8.jar -bootclasspath /usr/lib/jvm/java-1.8-openjdk/jre/lib/resources.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/rt.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/sunrsasign.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/jsse.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/jce.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/charsets.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/jfr.jar:/usr/lib/jvm/java-1.8-openjdk/jre/classes:/home/scastie/.cache/coursier/v1/http/scala-webapps.epfl.ch%3A8081/artifactory/scastie-maven/org/scala-lang/scala-library/2.12.8/scala-library-2.12.8.jar -unchecked
+sbt: [error]
+sbt: [error]   last tree to typer: Select(New, <init>)
+sbt: [error]        tree position: line 13 of /tmp/scastie3271568458781766163/src/main/scala/main.scala
+sbt: [error]             tree tpe: ()<error>{type Out = (A, B); def apply(a: A,b: B): (A, B)}
+sbt: [error]               symbol: constructor $anon
+sbt: [error]    symbol definition: def <init>(): $anon (a MethodSymbol)
+sbt: [error]       symbol package: <empty>
+sbt: [error]        symbol owners: constructor $anon -> <$anon: <error>> -> method values -> object Zip -> class Playground
+sbt: [error]            call site: method values in object Zip in package <empty>
+sbt: [error]
+sbt: [error] == Source file context for tree position ==
+sbt: [error]
+sbt: [error]     10 object Zip {
+sbt: [error]     11   type Aux[A, B, AB] = Zip[A, B] { type Out = AB }
+sbt: [error]     12   implicit def values[A, B]: Zip.Aux[A, B, (A, B)] =
+sbt: [error]     13     new Zip {
+sbt: [error]     14       type Out = (A, B)
+sbt: [error]     15       def apply(a: A, b: B) = (a, b)
+sbt: [error]     16     }
+~~~

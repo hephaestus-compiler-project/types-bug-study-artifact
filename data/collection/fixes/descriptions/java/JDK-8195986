@@ -1,0 +1,63 @@
+The following example involves an annotation that transitively references a missing enum class file, annotation processing, and javac's native header support (-h). The missing class file does not cause the compilation to fail, and instead results in an incorrect native header file being produced.
+
+I tested with JDK 10-ea+37.
+
+Repro:
+
+=== ./A.java
+@B(E.FOO)
+@interface A {}
+=== ./B.java
+@interface B {
+  E value() default E.FOO;
+}
+=== ./E.java
+public enum E {
+  FOO
+}
+=== ./T.java
+@A
+class T {
+  public static native void f(int i, long l, String s);
+}
+=== ./P.java
+import java.util.Set;
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.TypeElement;
+
+@SupportedAnnotationTypes("*")
+public final class P extends AbstractProcessor {
+
+  @Override
+  public SourceVersion getSupportedSourceVersion() {
+    return SourceVersion.latestSupported();
+  }
+
+  @Override
+  public final boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+    return true;
+  }
+}
+===
+
+Note that the header for T.f changes after the class for for E is removed from the classpath:
+
+$ javac -fullversion
+javac full version "10-ea+37"
+$ javac A.java B.java E.java P.java
+$ javac -processor P -implicit:none -sourcepath : -h h T.java && grep -A 1 Java_T_f h/T.h
+...
+JNIEXPORT void JNICALL Java_T_f
+  (JNIEnv *, jclass, jint, jlong, jstring);
+
+$ rm E.class
+$ javac -processor P -implicit:none -sourcepath : -h h T.java && grep -A 1 Java_T_f h/T.h
+...
+warning: unknown enum constant E.FOO
+  reason: class file for E not found
+...
+JNIEXPORT void JNICALL Java_T_f
+  (JNIEnv *, jclass, jint, jlong, jobject);

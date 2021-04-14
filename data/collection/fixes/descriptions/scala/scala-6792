@@ -1,0 +1,687 @@
+I got a strange error message, when putting a def in a {..} block:
+
+```scala
+scala> case class MemoizateArray4D[R](f: ((Int, Int, Int, Int) => R) => (Int, Int, Int, Int) => R, ru: (Int, Int), rv: (Int, Int), rw: (Int, Int), rx: (Int, Int)) {
+     |   def this(g: ((Int, Int, Int) => R) => (Int, Int, Int) => R, ru: (Int, Int), rv: (Int, Int), rw: (Int, Int)){
+     |     this({def wrapper(rec: (Int, Int, Int, Int) => R)(x: Int, y: Int, z: Int, ignored: Int) = { 
+     |           g( (u, v, w) => rec(u,v,w,0) )(x,y,z)  
+     |         }; wrapper}, ru, rv, rw, (0,0));
+     |   }
+     |   val su = ru._2 - ru._1 + 1;
+     |   val sv = rv._2 - rv._1 + 1;
+     |   val sw = rw._2 - rw._1 + 1;
+     |   val sx = rx._2 - rx._1 + 1;
+     |   private var cache = Array.fill(su*sv*sw*sx)(Option.empty[R]);
+     | 
+     |   def apply(u: Int, v: Int, w: Int, x: Int): R = {
+     |     val i = su * (sv * ( sw * (x - rx._1) + (w - rw._1) ) + (v - rv._1) ) + u - ru._1;  
+     |     cache(i) match {
+     |       case None => val z = f(apply)(u,v,w,x); cache(i) = Some(z); z
+     |       case Some(z) => z
+     |     }
+     |   }
+     | }
+ReplGlobal.abort: no-symbol does not have an owner
+error: no-symbol does not have an owner
+
+     while compiling: <console>
+        during phase: global=lambdalift, atPhase=constructors
+     library version: version 2.10.0-RC3
+    compiler version: version 2.10.0-RC3
+  reconstructed args: 
+
+  last tree to typer: term cache 
+              symbol: variable cache in class MemoizateArray4D (flags: <mutable> <triedcooking> private[this])
+   symbol definition: private[this] var cache: Array[Option]
+                 tpe: <notype>
+       symbol owners: variable cache -> class MemoizateArray4D -> object $iw -> object $iw -> object $read -> package $line3
+      context owners: value ignored -> method apply -> anonymous class $anonfun$apply$1 -> method apply -> anonymous class 1 -> constructor MemoizateArray4D -> class MemoizateArray4D -> object $iw -> object $iw -> object $read -> package $line3
+
+== Enclosing template or block ==
+
+DefDef( // final def apply(x$1: Int,x$2: Int,x$3: Int,x$4: Int): Object
+  <method> final <triedcooking>
+  "apply"
+  []
+  // 1 parameter list
+  ValDef( // x: Int
+    <param> <synthetic> <triedcooking>
+    "x"
+    <tpt> // tree.tpe=Int
+    <empty>
+  )
+  ValDef( // y: Int
+    <param> <synthetic> <triedcooking>
+    "y"
+    <tpt> // tree.tpe=Int
+    <empty>
+  )
+  ValDef( // z: Int
+    <param> <synthetic> <triedcooking>
+    "z"
+    <tpt> // tree.tpe=Int
+    <empty>
+  )
+  ValDef( // ignored: Int
+    <param> <synthetic> <triedcooking>
+    "ignored"
+    <tpt> // tree.tpe=Int
+    <empty>
+  )
+  <tpt> // tree.tpe=Object
+  Apply( // final def wrapper$1(rec: Function4,x: Int,y: Int,z: Int,ignored: Int,g$1: Function1): Object in class MemoizateArray4D, tree.tpe=Object
+    "wrapper" // final def wrapper$1(rec: Function4,x: Int,y: Int,z: Int,ignored: Int,g$1: Function1): Object in class MemoizateArray4D, tree.tpe=(rec: Function4, x: Int, y: Int, z: Int, ignored: Int)Object
+    // 5 arguments
+    "rec" // rec: Function4, tree.tpe=Function4
+    "x" // x: Int, tree.tpe=Int
+    "y" // y: Int, tree.tpe=Int
+    "z" // z: Int, tree.tpe=Int
+    "ignored" // ignored: Int, tree.tpe=Int
+  )
+)
+
+== Expanded type of tree ==
+
+<notype>
+
+unhandled exception while transforming <console>
+error: 
+     while compiling: <console>
+        during phase: lambdalift
+     library version: version 2.10.0-RC3
+    compiler version: version 2.10.0-RC3
+  reconstructed args: 
+
+  last tree to typer: term cache 
+              symbol: variable cache in class MemoizateArray4D (flags: <mutable> <triedcooking> private[this])
+   symbol definition: private[this] var cache: Array[Option]
+                 tpe: <notype>
+       symbol owners: variable cache -> class MemoizateArray4D -> object $iw -> object $iw -> object $read -> package $line3
+      context owners: value ignored -> method apply -> anonymous class $anonfun$apply$1 -> method apply -> anonymous class 1 -> constructor MemoizateArray4D -> class MemoizateArray4D -> object $iw -> object $iw -> object $read -> package $line3
+
+== Enclosing template or block ==
+
+DefDef( // final def apply(x$1: Int,x$2: Int,x$3: Int,x$4: Int): Object
+  <method> final <triedcooking>
+  "apply"
+  []
+  // 1 parameter list
+  ValDef( // x: Int
+    <param> <synthetic> <triedcooking>
+    "x"
+    <tpt> // tree.tpe=Int
+    <empty>
+  )
+  ValDef( // y: Int
+    <param> <synthetic> <triedcooking>
+    "y"
+    <tpt> // tree.tpe=Int
+    <empty>
+  )
+  ValDef( // z: Int
+    <param> <synthetic> <triedcooking>
+    "z"
+    <tpt> // tree.tpe=Int
+    <empty>
+  )
+  ValDef( // ignored: Int
+    <param> <synthetic> <triedcooking>
+    "ignored"
+    <tpt> // tree.tpe=Int
+    <empty>
+  )
+  <tpt> // tree.tpe=Object
+  Apply( // final def wrapper$1(rec: Function4,x: Int,y: Int,z: Int,ignored: Int): Object in class MemoizateArray4D, tree.tpe=Object
+    "wrapper" // final def wrapper$1(rec: Function4,x: Int,y: Int,z: Int,ignored: Int): Object in class MemoizateArray4D, tree.tpe=(rec: Function4, x: Int, y: Int, z: Int, ignored: Int)Object
+    // 5 arguments
+    "rec" // rec: Function4, tree.tpe=Function4
+    "x" // x: Int, tree.tpe=Int
+    "y" // y: Int, tree.tpe=Int
+    "z" // z: Int, tree.tpe=Int
+    "ignored" // ignored: Int, tree.tpe=Int
+  )
+)
+
+== Expanded type of tree ==
+
+<notype>
+
+uncaught exception during compilation: scala.reflect.internal.FatalError
+scala.reflect.internal.FatalError: 
+     while compiling: <console>
+        during phase: global=lambdalift, atPhase=constructors
+     library version: version 2.10.0-RC3
+    compiler version: version 2.10.0-RC3
+  reconstructed args: 
+
+  last tree to typer: term cache 
+              symbol: variable cache in class MemoizateArray4D (flags: <mutable> <triedcooking> private[this])
+   symbol definition: private[this] var cache: Array[Option]
+                 tpe: <notype>
+       symbol owners: variable cache -> class MemoizateArray4D -> object $iw -> object $iw -> object $read -> package $line3
+      context owners: value ignored -> method apply -> anonymous class $anonfun$apply$1 -> method apply -> anonymous class 1 -> constructor MemoizateArray4D -> class MemoizateArray4D -> object $iw -> object $iw -> object $read -> package $line3
+
+== Enclosing template or block ==
+
+DefDef( // final def apply(x$1: Int,x$2: Int,x$3: Int,x$4: Int): Object
+  <method> final <triedcooking>
+  "apply"
+  []
+  // 1 parameter list
+  ValDef( // x: Int
+    <param> <synthetic> <triedcooking>
+    "x"
+    <tpt> // tree.tpe=Int
+    <empty>
+  )
+  ValDef( // y: Int
+    <param> <synthetic> <triedcooking>
+    "y"
+    <tpt> // tree.tpe=Int
+    <empty>
+  )
+  ValDef( // z: Int
+    <param> <synthetic> <triedcooking>
+    "z"
+    <tpt> // tree.tpe=Int
+    <empty>
+  )
+  ValDef( // ignored: Int
+    <param> <synthetic> <triedcooking>
+    "ignored"
+    <tpt> // tree.tpe=Int
+    <empty>
+  )
+  <tpt> // tree.tpe=Object
+  Apply( // final def wrapper$1(rec: Function4,x: Int,y: Int,z: Int,ignored: Int,g$1: Function1): Object in class MemoizateArray4D, tree.tpe=Object
+    "wrapper" // final def wrapper$1(rec: Function4,x: Int,y: Int,z: Int,ignored: Int,g$1: Function1): Object in class MemoizateArray4D, tree.tpe=(rec: Function4, x: Int, y: Int, z: Int, ignored: Int)Object
+    // 5 arguments
+    "rec" // rec: Function4, tree.tpe=Function4
+    "x" // x: Int, tree.tpe=Int
+    "y" // y: Int, tree.tpe=Int
+    "z" // z: Int, tree.tpe=Int
+    "ignored" // ignored: Int, tree.tpe=Int
+  )
+)
+
+== Expanded type of tree ==
+
+<notype>
+
+no-symbol does not have an owner
+	at scala.reflect.internal.SymbolTable.abort(SymbolTable.scala:48)
+	at scala.tools.nsc.Global.abort(Global.scala:253)
+	at scala.tools.nsc.interpreter.IMain$$anon$1.scala$tools$nsc$interpreter$ReplGlobal$$super$abort(IMain.scala:265)
+	at scala.tools.nsc.interpreter.ReplGlobal$class.abort(ReplGlobal.scala:21)
+	at scala.tools.nsc.interpreter.IMain$$anon$1.abort(IMain.scala:265)
+	at scala.reflect.internal.Symbols$NoSymbol.owner(Symbols.scala:3198)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.outerSelect(ExplicitOuter.scala:229)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.outerPath(ExplicitOuter.scala:256)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.memberRef(LambdaLift.scala:327)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.postTransform(LambdaLift.scala:472)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1190)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$$anonfun$itransform$2.apply(Trees.scala:1206)
+	at scala.reflect.internal.Trees$$anonfun$itransform$2.apply(Trees.scala:1204)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1203)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2863)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2861)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2861)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:523)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1247)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:44)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2840)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1251)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1250)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1249)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2863)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2861)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2861)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:523)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1209)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$$anonfun$itransform$2.apply(Trees.scala:1206)
+	at scala.reflect.internal.Trees$$anonfun$itransform$2.apply(Trees.scala:1204)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1203)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2863)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2861)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2861)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:523)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1247)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:44)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2840)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1251)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1250)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1249)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2863)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2861)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2861)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:523)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1209)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1209)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1209)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2836)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2836)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformTrees(Trees.scala:2836)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1190)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2863)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2861)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2861)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:523)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1209)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$$anonfun$itransform$2.apply(Trees.scala:1206)
+	at scala.reflect.internal.Trees$$anonfun$itransform$2.apply(Trees.scala:1204)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1203)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2863)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2861)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2861)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:523)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1247)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:44)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2840)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1251)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1250)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1249)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2863)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2861)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2861)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:523)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1247)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:44)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2840)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1251)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1250)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1249)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2863)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2861)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2861)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:523)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1247)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:44)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2840)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1251)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1250)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1249)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2863)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2861)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2861)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:523)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1247)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$1.apply(TypingTransformers.scala:44)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2840)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1251)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1250)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1249)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2863)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:2861)
+	at scala.collection.immutable.List.loop$1(List.scala:164)
+	at scala.collection.immutable.List.mapConserve(List.scala:180)
+	at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2861)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:523)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformStats(LambdaLift.scala:42)
+	at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1269)
+	at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1269)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1268)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:12)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2833)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$super$transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$2.apply(TypingTransformers.scala:46)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$anonfun$transform$2.apply(TypingTransformers.scala:46)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2872)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:46)
+	at scala.tools.nsc.transform.ExplicitOuter$OuterPathTransformer.transform(ExplicitOuter.scala:272)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.preTransform(LambdaLift.scala:496)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:504)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transform(LambdaLift.scala:42)
+	at scala.tools.nsc.ast.Trees$Transformer.transformUnit(Trees.scala:227)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.scala$tools$nsc$transform$LambdaLift$LambdaLifter$$super$transformUnit(LambdaLift.scala:529)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter$$anonfun$transformUnit$1.apply(LambdaLift.scala:529)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter$$anonfun$transformUnit$1.apply(LambdaLift.scala:529)
+	at scala.reflect.internal.SymbolTable.atPhase(SymbolTable.scala:201)
+	at scala.reflect.internal.SymbolTable.afterPhase(SymbolTable.scala:210)
+	at scala.tools.nsc.transform.LambdaLift$LambdaLifter.transformUnit(LambdaLift.scala:528)
+	at scala.tools.nsc.transform.Transform$Phase.apply(Transform.scala:30)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:461)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:428)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:428)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:727)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1156)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:428)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1574)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1548)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1544)
+	at scala.tools.nsc.interpreter.IMain.compileSourcesKeepingRun(IMain.scala:425)
+	at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compileAndSaveRun(IMain.scala:798)
+	at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compile(IMain.scala:758)
+	at scala.tools.nsc.interpreter.IMain$Request.compile$lzycompute(IMain.scala:933)
+	at scala.tools.nsc.interpreter.IMain$Request.compile(IMain.scala:928)
+	at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:600)
+	at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:565)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:745)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:763)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:790)
+	at scala.tools.nsc.interpreter.ILoop.command(ILoop.scala:702)
+	at scala.tools.nsc.interpreter.ILoop.processLine$1(ILoop.scala:566)
+	at scala.tools.nsc.interpreter.ILoop.innerLoop$1(ILoop.scala:573)
+	at scala.tools.nsc.interpreter.ILoop.loop(ILoop.scala:576)
+	at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply$mcZ$sp(ILoop.scala:867)
+	at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply(ILoop.scala:822)
+	at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply(ILoop.scala:822)
+	at scala.tools.nsc.util.ScalaClassLoader$.savingContextLoader(ScalaClassLoader.scala:135)
+	at scala.tools.nsc.interpreter.ILoop.process(ILoop.scala:822)
+	at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:83)
+	at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:96)
+	at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:105)
+	at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+
+That entry seems to have slain the compiler.  Shall I replay
+your session? I can re-run each line except the last one.
+```

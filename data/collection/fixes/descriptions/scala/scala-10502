@@ -1,0 +1,43 @@
+Not a bug report, but a feature request.
+
+It would be useful to preserve exhaustivity checking if the custom extractor is declared to return `Some`.
+
+```scala
+object Perhaps {
+  def unapply[A](oa: Option[A]): Some[Option[A]] = Some(oa)
+}
+```
+
+`Perhaps.unapply` is statically known to always succeed, because its return type is `Some`.
+
+Yet
+
+```scala
+scala> Option("hello") match {
+     |   case Perhaps(Some(s)) => println(s)
+     | }
+hello
+
+scala> 
+```
+
+doesn't produce any warnings, even though the match would fail on `None`; and
+
+```scala
+scala> List(Option("hello")) match {
+     |   case Perhaps(Some(s)) :: t => println(s)
+     |   case Perhaps(None   ) :: t => ()
+     |   case Nil                   => ()
+     | }
+<console>:13: warning: match may not be exhaustive.
+It would fail on the following input: List(_)
+       List(Option("hello")) match {
+           ^
+hello
+
+scala> 
+```
+
+produces a warning, even though the match is exhaustive.
+
+This would be useful to pattern match on data types that are not defined as ADTs (or their definition as ADT is not publicly visible), but can be converted to a pattern matchable type.

@@ -1,0 +1,43 @@
+scalac can compile but dotc crashes.
+
+$ dotc -version
+```
+Dotty compiler version 0.5.0-bin-SNAPSHOT-git-4fefb64 -- Copyright 2002-2017, LAMP/EPFL
+```
+
+$ cat abc.scala
+```
+object Test {
+  def main(args: Array[String]): Unit = {
+    val i2s = (x: Int) => ""
+    assert(asInstanceOf.asInstanceOf[AnyRef => String].apply(null) == "")
+    val i2i = (x: Int) => x + 1
+    assert(i2i.asInstanceOf[AnyRef => Int].apply(null) == 1)
+  }
+}
+```
+
+$ dotc abc.scala
+```
+-- Error: abc.scala:4:36 -------------------------------------------------------
+4 |    assert(asInstanceOf.asInstanceOf[AnyRef => String].apply(null) == "")
+  |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |           class Nothing in package scala does not take type parameters
+
+exception occurred while compiling abc.scala
+Exception in thread "main" java.lang.ClassCastException: dotty.tools.dotc.core.Types$$anon$9 cannot be cast to dotty.tools.dotc.core.Types$MethodType
+	at dotty.tools.dotc.transform.ElimRepeated.$anonfun$1(ElimRepeated.scala:79)
+	at dotty.tools.dotc.core.Periods.atPhase(Periods.scala:26)
+	at dotty.tools.dotc.core.Phases.atPhase(Phases.scala:36)
+	at dotty.tools.dotc.transform.ElimRepeated.transformApply(ElimRepeated.scala:79)
+	at dotty.tools.dotc.transform.MegaPhase.goApply(MegaPhase.scala:576)
+	at dotty.tools.dotc.transform.MegaPhase.transformUnnamed$1(MegaPhase.scala:250)
+	at dotty.tools.dotc.transform.MegaPhase.transformTree(MegaPhase.scala:365)
+	at dotty.tools.dotc.transform.MegaPhase.transformNamed$1(MegaPhase.scala:211)
+	at dotty.tools.dotc.transform.MegaPhase.transformTree(MegaPhase.scala:364)
+	at dotty.tools.dotc.transform.MegaPhase.transformUnnamed$1(MegaPhase.scala:248)
+	at dotty.tools.dotc.transform.MegaPhase.transformTree(MegaPhase.scala:365)
+	at dotty.tools.dotc.transform.MegaPhase.mapValDef$1(MegaPhase.scala:217)
+	at dotty.tools.dotc.transform.MegaPhase.transformNamed$1(MegaPhase.scala:221)
+<snipped>
+```

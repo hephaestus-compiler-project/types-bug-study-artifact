@@ -1,0 +1,100 @@
+FULL PRODUCT VERSION :
+java version "1.9.0-ea"
+Java(TM) SE Runtime Environment (build 1.9.0-ea-b49)
+Java HotSpot(TM) 64-Bit Server VM (build 1.9.0-ea-b49, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+x86_64 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+If the final round of annotation processing is finished and annotation processing has not completed successfully, additional errors should not be emitted. Recent versions of javac9 continue to emit additional diagnostics.
+
+This behaviour was introduced by the fix for https://bugs.openjdk.java.net/browse/JDK-8038455
+
+REGRESSION.  Last worked in version 8u31
+
+ADDITIONAL REGRESSION INFORMATION: 
+java version "1.8.0_31"
+Java(TM) SE Runtime Environment (build 1.8.0_31-b13)
+Java HotSpot(TM) 64-Bit Server VM (build 25.31-b07, mixed mode)
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+javac MyProcessor.java && javac -processor MyProcessor Main.java
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+The compilation should stop after annotation processing fails, as it does with JDK8:
+
+Main.java:2: error: MyProcessor failed
+public class Main {
+       ^
+1 error
+
+ACTUAL -
+Instead, an additional diagnostic is emitted after annotation processing has already failed:
+
+Main.java:5: error: cannot find symbol
+    new MyProcessor_Generated();
+        ^
+  symbol:   class MyProcessor_Generated
+  location: class Main
+
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+Main.java:2: error: MyProcessor failed
+public class Main {
+       ^
+Main.java:5: error: cannot find symbol
+    new MyProcessor_Generated();
+        ^
+  symbol:   class MyProcessor_Generated
+  location: class Main
+2 errors
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+=== MyProcessor.java ===
+import java.util.Set;
+
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.TypeElement;
+import javax.tools.Diagnostic.Kind;
+
+
+@SupportedAnnotationTypes("*")
+public class MyProcessor extends AbstractProcessor {
+  @Override
+  public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+    if (!roundEnv.getRootElements().isEmpty()) {
+      processingEnv.getMessager().printMessage(Kind.ERROR, "MyProcessor failed",
+          roundEnv.getRootElements().iterator().next());
+    }
+
+    return false;
+  }
+  
+  @Override
+  public SourceVersion getSupportedSourceVersion() {
+    return SourceVersion.latest();
+  }
+}
+===
+
+=== Main.java ===
+public class Main {
+  public void m() {
+    // A class that we expect our annotation process to generate.
+    new MyProcessor_Generated();
+  }
+}
+===
+---------- END SOURCE ----------
+

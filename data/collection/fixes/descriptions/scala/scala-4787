@@ -1,0 +1,32 @@
+The following crashes scalac 2.9 and the current nightly build:
+
+```scala
+trait MatrixImpl[@specialized A, @specialized B] {
+  def mapTo[ A2,  B2, That <: MatrixImpl[A2, B2]](that: That)(f: A => A2) {
+  }
+}
+```
+
+The stack trace is
+
+```scala
+Exception in thread "main" scala.tools.nsc.symtab.Types$TypeError: inferred type arguments [A2,Nothing,That] do not conform to method mapTo's type parameter bounds [A2,B2,That <: MatrixImpl[A2,B2]]
+	at scala.tools.nsc.typechecker.Contexts$Context.error(Contexts.scala:291)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.error(Infer.scala:205)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.checkBounds(Infer.scala:1022)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.inferMethodInstance(Infer.scala:1159)
+	at scala.tools.nsc.typechecker.Typers$Typer.doTypedApply(Typers.scala:2485)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedApply$1(Typers.scala:3344)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:4062)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4217)
+	at scala.tools.nsc.typechecker.Typers$Typer.transformedOrTyped(Typers.scala:4363)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedDefDef(Typers.scala:1754)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:3877)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4217)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4266)
+	at scala.tools.nsc.transform.SpecializeTypes$$anon$6.transform(SpecializeTypes.scala:1492)
+. . .
+```
+
+
+(Actually, the nightly build will also crash with the much simpler {code}trait Mat[@specialized A]{code} but I assume this is a temporary glitch)

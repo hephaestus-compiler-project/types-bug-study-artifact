@@ -1,0 +1,21 @@
+```kotlin
+fun main() {
+    Foo<String>().bar("Test") // Works just fine
+    Foo<String>().bar<String> { false } // Is not properly resolved with NI
+}
+
+class Foo<T> {
+
+    fun <M : T> bar(predicate: M.() -> Boolean) {}
+    fun <M : T> bar(modifier: M) {}
+
+}
+```
+
+The new inference algorithm reports the call to `bar ` in line 3 as ambiguous. This is cleary a regression as it compiles and runs fine using the old inference engine. (The example above is the most simple example I managed to replicate the issue with.)
+
+```
+Error:(3, 19) Kotlin: Overload resolution ambiguity: 
+public final fun <M : String> has(modifier: TypeVariable(M)): Unit defined in Foo
+public final fun <M : String> has(predicate: TypeVariable(M).() -> Boolean): Unit defined in Foo
+```

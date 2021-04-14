@@ -1,0 +1,53 @@
+The Type.map 'virtual' methods feel at odds with the rest of javac; non-trivial type functions should really live in Types and should preferrably be implemented as visitors, to avoid excessive use of cast. But it seems like we currently have two ways for 'mapping' (i.e. transforming) a type into a new type:
+
+Type.map
+Types.MapVisitor
+
+Here's an example of a mapping using the Type.map framework:
+
+public InferenceContext(List<Type> inferencevars) {
+            this.undetvars = Type.map(inferencevars, fromTypeVarFun);
+            this.inferencevars = inferencevars;
+        }
+        //where
+            Mapping fromTypeVarFun = new Mapping("fromTypeVarFunWithBounds") {
+                // mapping that turns inference variables into undet vars
+                public Type apply(Type t) {
+                    if (t.hasTag(TYPEVAR)) {
+                        TypeVar tv = (TypeVar)t;
+                        if (tv.isCaptured()) {
+                            return new CapturedUndetVar((CapturedType)tv, types);
+                        } else {
+                            return new UndetVar(tv, types);
+                        }
+                    } else {
+                        return t.map(this);
+                    }
+                }
+            };
+
+While this is an example of a MapVisitor in action:
+
+    public Type createMethodTypeWithParameters(Type original, List<Type> newParams) {
+        return original.accept(methodWithParameters, newParams);
+    }
+    // where
+        private final MapVisitor<List<Type>> methodWithParameters = new MapVisitor<List<Type>>() {
+            public Type visitType(Type t, List<Type> newParams) {
+                throw new IllegalArgumentException("Not a method type: " + t);
+            }
+            public Type visitMethodType(MethodType t, List<Type> newParams) {
+                return new MethodType(newParams, t.restype, t.thrown, t.tsym);
+            }
+            public Type visitForAll(ForAll t, List<Type> newParams) {
+                return new ForAll(t.tvars, t.qtype.accept(this, newParams));
+            }
+        };
+
+
+There are few problems with Type.map:
+
+* it is a monolithic function working on a Type - all interesting things will require some amount of cast/narrowing
+* there's no way to pass an argument to the mapping - meaning that if the mapping needs extra info, you need to capture some field in the enclosing instance, or add some state to the mapping itself.
+* it is not extensible - i.e. you cannot define a slightly different mapping that i.e. skips method arguments - the iteration logic is fixed in the Type.map method overrides
+* it has been slightly obsoleted by JDK 8 - after all Type.map(List<Type>) is not different than Stream.map and friends...

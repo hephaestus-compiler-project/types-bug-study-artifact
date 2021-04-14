@@ -1,0 +1,79 @@
+FULL PRODUCT VERSION :
+JDK checked out Wrom: ZCMHVIBGDADRZFSQHYUCDDJBLVLMHAALPTCXLYRWTQTIPWIGYOKSTTZRCLBDXRQBG
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux lahvac-laptop 2.6.20-16-generic #2 SMP Wed May 23 01:46:23 UTC 2007 i686 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+The com.sun.tools.javac.jvm.ClassReader.readInputStream may run forever in some cases (the method never finishes in some cases). Happens when "buf.length - bp == 0" on line 1912.
+
+  See also NetBeans bug:
+http://www.netbeans.org/issues/show_bug.cgi?id=104831
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Consider this test (to be placed in j2se/test/tools/javac/T9999999.java):
+/*
+ * @test @(#)T999999.java
+ * @bug 9999999
+ * @summary
+ */
+
+import com.sun.tools.javac.jvm.ClassReader;
+import java.io.IOException;
+import java.util.*;
+import javax.annotation.processing.*;
+import javax.lang.model.*;
+import javax.lang.model.element.*;
+import com.sun.source.tree.*;
+import com.sun.source.util.*;
+import com.sun.tools.javac.jvm.ClassReader;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+
+public class T9999999 {
+    
+    public static void main(String[] args) throws Exception {
+        InputStream ins = new TestInputStream(new ByteArrayInputStream("01234567890123456789012345678901234567890123456789".getBytes()));
+        
+        ClassReader.readInputStream(new byte[30], ins);
+    }
+    
+    private static final class TestInputStream extends InputStream {
+
+        private InputStream delegateTo;
+
+        public TestInputStream(InputStream delegateTo) {
+            this.delegateTo = delegateTo;
+        }
+        
+        public int read() throws IOException {
+            //not used by ClassReader.readInputStream:
+            throw new UnsupportedOperationException("Not supported yet.");
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            return delegateTo.read(b, off, Math.min(10, len));
+        }
+
+        @Override
+        public int available() throws IOException {
+            return 30;
+        }
+        
+    }
+}
+
+
+The test needs com.sun.tools.javac.jvm.ClassReader.readInputStream to be made public (so it can access directly this method). This test never finishes.
+
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+CUSTOMER SUBMITTED WORKAROUND :
+The problem can be fixed by changing line 1911 from:
+buf = ensureCapacity(buf, bp);
+to:
+buf = ensureCapacity(buf, buf.length == bp ? bp + 1 : bp);

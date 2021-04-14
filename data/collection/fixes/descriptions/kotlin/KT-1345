@@ -1,0 +1,108 @@
+I'm trying to make an Akka sample code work. It's original from Scala. I ported it to Java (below the errors), then Kotlin (below Java code). The Java version works fine but the Kotlin version gives the following error:
+
+[ERROR] [02/19/2012 00:50:07.891] [mysysname-akka.actor.default-dispatcher2] [akka://mysysname/user/$a] error while creating actor
+java.lang.AbstractMethodError: namespace$2.create()Ljava/lang/Object;
+at akka.actor.Props$$anonfun$$init$$1.apply(Props.scala:122)
+at akka.actor.Props$$anonfun$$init$$1.apply(Props.scala:122)
+at akka.actor.ActorCell.newActor(ActorCell.scala:343)
+at akka.actor.ActorCell.create$1(ActorCell.scala:360)
+at akka.actor.ActorCell.systemInvoke(ActorCell.scala:450)
+at akka.dispatch.Mailbox.processAllSystemMessages(Mailbox.scala:195)
+at akka.dispatch.Mailbox.run(Mailbox.scala:164)
+at java.util.concurrent.ThreadPoolExecutor$Worker.runTask(ThreadPoolExecutor.java:886)
+at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:908)
+at java.lang.Thread.run(Thread.java:662)
+
+
+Original Scala code:
+https://github.com/jboner/akka/blob/master/akka-samples/akka-sample-hello/src/main/scala/sample/hello/Main.scala
+
+The Java version:
+
+import akka.actor.ActorRef;
+import akka.actor.ActorSystem;
+import akka.actor.Props;
+import akka.actor.UntypedActor;
+import akka.actor.UntypedActorFactory;
+
+public class AkkaTest {
+    public static void main(String[] args) throws Exception {
+        final ActorSystem system = ActorSystem.create();
+        system.actorOf(new Props(new UntypedActorFactory() {
+            public UntypedActor create() {
+                return new HelloActor();
+            }
+        })).tell("start");
+    }
+    
+    static class HelloActor extends UntypedActor {
+        private ActorRef worldActor;
+        public HelloActor() {
+            worldActor = getContext().actorOf(new Props(new UntypedActorFactory() {
+                public UntypedActor create() {
+                    return new WorldActor();
+                }
+            }));
+        }
+
+        public void onReceive(Object message) {
+            if (message instanceof String) {
+                if (((String)message).equalsIgnoreCase("start"))
+                    worldActor.tell("Hello", getSelf());
+                else {
+                    System.out.println("Received message: " + (String)message);
+                    getContext().system().shutdown();
+                }
+            }
+        }
+    }
+
+    static class WorldActor extends UntypedActor {
+        public void onReceive(Object message) {
+            if (message instanceof String) {
+                System.out.println("Received message: " + (String)message);
+                getSender().tell((String)message + " world!");
+            }
+        }
+    }
+}
+
+The Kotlin version:
+
+import akka.actor.ActorSystem
+import akka.actor.UntypedActor
+import akka.actor.UntypedActorFactory
+import akka.actor.Props
+
+class HelloActor(): UntypedActor() {
+    val worldActor = getContext()?.actorOf(Props(object: UntypedActorFactory {
+        override fun create(): UntypedActor = WorldActor()
+    }))
+
+    override fun onReceive(var msg: Any?): Unit {
+        when (msg) {
+            is "start" -> worldActor?.tell("Hello")
+            is String -> {
+                println("Received message: $msg")
+                getContext()?.system()?.shutdown()
+            }
+            else -> println("not processed message: $msg")
+        }
+    }
+}
+
+class WorldActor(): UntypedActor() {
+    override fun onReceive(msg: Any?): Unit {
+        when(msg) {
+            is String -> getSender()?.tell(msg.toUpperCase() + " world!")
+            else -> println("not processed message: $msg")
+        }
+    }
+}
+
+fun main(args: Array<String>) {
+    val system = ActorSystem.create("mysysname")
+    system?.actorOf(Props(object: UntypedActorFactory {
+        override fun create(): UntypedActor = HelloActor()
+    }))?.tell("start")
+}

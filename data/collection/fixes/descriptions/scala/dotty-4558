@@ -1,0 +1,15 @@
+When using a valdef to unapply a by-name parameter, we don't insert the required adaptation, leading to a runtime exception:
+```scala
+object Foo {
+  def f(z: => (Int, String)) = {
+    val (x, y) = z
+  }
+}
+
+object HelloWorld { def main(args: Array[String]): Unit = { Foo.f { (1, "a") } } }
+```
+results in
+```
+java.lang.ClassCastException: scala.Tuple2 cannot be cast to scala.Function0
+```
+in the body of `f`.

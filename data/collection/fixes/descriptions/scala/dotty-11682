@@ -1,0 +1,49 @@
+## Compiler version
+
+`3.0.0-M4-bin-SNAPSHOT`, `3.0.0-RC1`
+
+## Minimized code
+
+```Scala
+object Test {
+  trait Tag[T]
+
+  // works: Int = Z = Y = T
+  def func1[Z >: Int <: Int, Y >: Z <: Z, T >: Y <: Y]: T = {
+    0
+  }
+
+  // works: Int = Z = Y = T
+  def func2[Z >: Int <: Int, Y >: Z <: Z, T]: Tag[T] => T = {
+    case _ : Tag[Y] => 0
+  }
+
+  // works: Int = Z = Y = X = T
+  def func3[Z >: Int <: Int, Y >: Z <: Z, X >: Y <: Y, T >: X <: X]: T = {
+    0
+  }
+
+  // expect: Int = Z = Y = X = T
+  // actual: can not derive T = Int
+  def func4[Z >: Int <: Int, Y >: Z <: Z, X >: Y <: Y, T]: Tag[T] => T = {
+    case _ : Tag[X] => 0  // error
+  }
+}
+```
+
+## Output
+
+```
+-- [E007] Type Mismatch Error: foobar/gadt-poly.scala:24:23 --------------------
+24 |    case _ : Tag[X] => 0
+   |                       ^
+   |                       Found:    (0 : Int)
+   |                       Required: T
+1 error found
+```
+
+## Expectation
+
+It should infer the constraint `T = X = Y = Z = Int`.
+
+@abgruszecki 

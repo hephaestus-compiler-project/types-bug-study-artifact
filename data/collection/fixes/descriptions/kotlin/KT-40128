@@ -1,0 +1,47 @@
+New inference brings several features that can change resolution of existing calls.
+For example, one of such features is callable reference adaptation:
+```
+fun <T> foo(f: () -> T): T = f()
+
+fun bar(x: Int = 0): String = ""
+
+fun test() {
+    val result = foo(::bar) // OK in new inference, error in OI
+}
+```
+
+Note that in old inference (before 1.4) it's a _resolution_ error meaning that if there is an applicable candidate somewhere else, then the compiler will pick it:
+```
+fun bar() {} // (1)
+
+object Scope {
+    fun foo(f: () -> Unit) {}
+
+    fun bar(x: Int = 0) {} // (2)
+
+    fun test() {
+        val result = foo(::bar) // OK for OI as candidate (1) is fine
+    }
+}
+```
+
+So, it means if we introduce this feature just as is, there will be potential breaking changes as the compiler will choose the closest applicable candidate.
+To mitigate this problem, we introduced compatibility resolution mechanism: if there aren't any candidates except new ones (first example), then the compiler picks this new candidate but if there are some candidates as in the second example, the compiler will pick the same candidate as before 1.4 and issue a warning that there is candidate which is closer and someday in future, it will be chosen by default. 
+
+As a result, since 1.4, there will be a warning in the second case and to fix it, one has to change reference `::bar` to the one from `Scope`:
+```
+fun bar() {} // (1)
+
+object Scope {
+    fun foo(f: () -> Unit) {}
+
+    fun bar(x: Int = 0) {} // (2)
+
+    fun test() {
+        val r1 = foo(::bar) // warning, ::bar is resolved to (1)
+        val r2 = foo(Scope::bar) // OK, bar is resolved to Scope.bar 
+    }
+}
+```
+
+This mechanism works for new users but it's incorrect if someone was using new inference before 1.4. For example, Kotlin Gradle Scripts use new inference for more than a year and they don't need this compatibility resolution mechanism. Moreover, there will be an error if we enable it for them as the resolution will be different (the other way), see KT-40113. The proposal is to introduce a compiler key that will disable this compatibility resolution mechanism. Plus, it should be enabled if one used new inference before 1.4 as well.

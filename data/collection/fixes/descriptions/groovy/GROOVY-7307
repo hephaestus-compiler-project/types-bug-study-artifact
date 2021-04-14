@@ -1,0 +1,41 @@
+Given the following class:
+{code}
+@TypeChecked
+class A { 
+    static <T extends Number> T id(T value) {
+        value
+    }   
+
+    // Narrower generic type: doesn't compile
+    static <T extends Integer> T id2(T value) {
+        id(value)
+    }   
+
+    // Narrower generic type: doesn't compile either
+    static <T extends Integer> T id3(T value) {
+        A.<T>id(value)
+    }   
+
+    // Fixed type: compiles
+    static Integer id4(Integer value) {
+        id(value)
+    }   
+}
+{code}
+{{id2}} and {{id3}} generate compilation errors by the static type checker:
+{noformat}
+[ERROR] Failed to execute goal org.codehaus.gmavenplus:gmavenplus-plugin:1.3:compile (default) on project generic-return-type: Error occurred while calling a method on a Groovy class from classpath. InvocationTargetException: startup failed: 
+[ERROR] /Users/fpavageau/devs/bugs/generic-return-type/src/main/groovy/A.groovy: 26: [Static type checking] - Cannot return value of type T on method returning type T
+[ERROR] @ line 26, column 9.
+[ERROR] id(value)
+[ERROR] ^
+[ERROR] 
+[ERROR] /Users/fpavageau/devs/bugs/generic-return-type/src/main/groovy/A.groovy: 31: [Static type checking] - Cannot return value of type T on method returning type T
+[ERROR] @ line 31, column 9.
+[ERROR] A.<T>id(value)
+[ERROR] ^
+[ERROR] 
+[ERROR] 2 errors
+{noformat}
+
+I've attached a test case, which is also available on [Github|https://github.com/fpavageau/generic-return-type]. It also contains a Java class ({{B}}) doing the same things, but without error.

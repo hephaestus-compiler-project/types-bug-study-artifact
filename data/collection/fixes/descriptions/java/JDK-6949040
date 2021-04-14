@@ -1,0 +1,13 @@
+Three names in the java.dyn have polymorphic signatures, and are marked as such in source code with a private annotation (@PolymorphicSignature) and in class files with a new attribute (PolymorphicSignature).
+
+If the java.dyn package is compiled with -target 6 (or earlier), there is a risk that javac will emit the PolymorphicSignature attribute into the classfile (for InvokeDynamic or MethodHandle), but due to the retrograde class file version, the attribute will be ignored.  This in turn will cause JSR 292 code to surprisingly fail to compile (since no signatures will be polymorphic).
+
+The solution is twofold:
+
+1. Do not allow @PolymorphicSignature to be used unless the -target option is 7 or better.  This logic is already in sun.tools.javac.jvm.ClassFile in the changeset for bug 6939134.
+
+2. Even if class files have retrograde version numbers, accept PolymorphicSignature attributes at face value.
+
+Step 2 will expire after a grace period, since step 1 ensures that class files will no longer need step 2.  This bug track the end of the grace period.
+
+The fix is simple:  Change ClassReader to read the attribute only in the correct classfile versions.

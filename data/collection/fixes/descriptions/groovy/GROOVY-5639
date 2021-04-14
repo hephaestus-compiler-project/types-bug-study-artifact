@@ -1,0 +1,49 @@
+Compiling this fails:
+
+{code}
+import groovy.transform.TypeChecked
+
+@TypeChecked
+class Foo {
+
+    private void doIt() {
+        Closure<Void> c = {
+            List<String> list = new ArrayList<String>()
+            String s = "foo"
+            10.times {
+                list.add(s)
+            }
+        }
+    }
+}
+{code}
+
+{noformat}
+org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
+Foo.groovy: 11: [Static type checking] - A closure shared variable [list] has been assigned with various types and the method [add(java.lang.Object <E>)] does not exist in the lowest upper bound of those types: [java.util.ArrayList <java.lang.String>]. In general, this is a bad practice (variable reuse) because the compiler cannot determine safely what is the type of the variable at the moment of the call in a multithreaded context.
+ @ line 11, column 17.
+                   list.add(s)
+                   ^
+
+1 error
+{noformat}
+
+
+
+
+The error only occurs when a closure is involved. The following works fine:
+
+{code}
+import groovy.transform.TypeChecked
+
+@TypeChecked
+class Bar {
+    void doIt() {
+        List<String> list = new ArrayList<String>()
+        String s = "foo"
+        10.times {
+            list.add(s)
+        }
+    }
+}
+{code}

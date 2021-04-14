@@ -1,0 +1,90 @@
+I have been dealing with a compilation failure in one of my projects for the past several days and finally got it down to a small example.
+
+=Description=
+
+I have an interface with a default implementation like so:
+
+```kotlin
+interface HasIncluded {
+    @JsonProperty("included")
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    fun getIncluded(): List<Any> {
+        return listOf()
+    }
+}
+```
+
+If I don't override `getIncluded`, the compilation fails with the stacktrace below.
+
+=Repo=
+
+https://github.com/inssein/jackson-test
+
+=Steps to Reproduce=
+
+Run the test and you should get a compilation failure. To get the test to pass, you can override the default implementation and everything works (https://github.com/inssein/jackson-test/blob/master/src/test/kotlin/com/test/Test.kt#L31)
+
+=Stack Trace=
+
+```
+[ERROR] java.lang.IllegalStateException: Don't know how to compile annotation value Unresolved enum entry: com/fasterxml/jackson/annotation/JsonInclude$Include.NON_EMPTY
+[ERROR] at org.jetbrains.kotlin.codegen.AnnotationCodegen$2.visitUnsupportedValue(AnnotationCodegen.java:421)
+[ERROR] at org.jetbrains.kotlin.codegen.AnnotationCodegen$2.visitErrorValue(AnnotationCodegen.java:410)
+[ERROR] at org.jetbrains.kotlin.codegen.AnnotationCodegen$2.visitErrorValue(AnnotationCodegen.java:325)
+[ERROR] at org.jetbrains.kotlin.resolve.constants.ErrorValue.accept(constantValues.kt:166)
+[ERROR] at org.jetbrains.kotlin.codegen.AnnotationCodegen.genCompileTimeValue(AnnotationCodegen.java:428)
+[ERROR] at org.jetbrains.kotlin.codegen.AnnotationCodegen.genAnnotationArguments(AnnotationCodegen.java:316)
+[ERROR] at org.jetbrains.kotlin.codegen.AnnotationCodegen.genAnnotation(AnnotationCodegen.java:306)
+[ERROR] at org.jetbrains.kotlin.codegen.AnnotationCodegen.genAnnotations(AnnotationCodegen.java:134)
+[ERROR] at org.jetbrains.kotlin.codegen.AnnotationCodegen.genAnnotations(AnnotationCodegen.java:92)
+[ERROR] at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodAnnotations(FunctionCodegen.java:320)
+[ERROR] at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodAnnotations(FunctionCodegen.java:303)
+[ERROR] at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:219)
+[ERROR] at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:175)
+[ERROR] at org.jetbrains.kotlin.codegen.ImplementationBodyCodegen.generateDelegationToDefaultImpl(ImplementationBodyCodegen.java:1313)
+[ERROR] at org.jetbrains.kotlin.codegen.ImplementationBodyCodegen.generateTraitMethods(ImplementationBodyCodegen.java:1304)
+[ERROR] at org.jetbrains.kotlin.codegen.ImplementationBodyCodegen.generateSyntheticParts(ImplementationBodyCodegen.java:352)
+[ERROR] at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:132)
+[ERROR] at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:295)
+[ERROR] at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:279)
+[ERROR] at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateClassOrObject(PackageCodegenImpl.java:162)
+[ERROR] at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateClassesAndObjectsInFile(PackageCodegenImpl.java:86)
+[ERROR] at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateFile(PackageCodegenImpl.java:124)
+[ERROR] at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generate(PackageCodegenImpl.java:66)
+[ERROR] at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.generatePackage(KotlinCodegenFacade.java:99)
+[ERROR] at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.doGenerateFiles(KotlinCodegenFacade.java:77)
+[ERROR] at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.compileCorrectFiles(KotlinCodegenFacade.java:44)
+[ERROR] at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.kt:417)
+[ERROR] at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyzeAndGenerate(KotlinToJVMBytecodeCompiler.kt:328)
+[ERROR] at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileBunchOfSources(KotlinToJVMBytecodeCompiler.kt:208)
+[ERROR] at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:198)
+[ERROR] at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:54)
+[ERROR] at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:178)
+[ERROR] at org.jetbrains.kotlin.maven.KotlinCompileMojoBase.execCompiler(KotlinCompileMojoBase.java:220)
+[ERROR] at org.jetbrains.kotlin.maven.K2JVMCompileMojo.execCompiler(K2JVMCompileMojo.java:180)
+[ERROR] at org.jetbrains.kotlin.maven.K2JVMCompileMojo.execCompiler(K2JVMCompileMojo.java:43)
+[ERROR] at org.jetbrains.kotlin.maven.KotlinCompileMojoBase.execute(KotlinCompileMojoBase.java:203)
+[ERROR] at org.jetbrains.kotlin.maven.KotlinTestCompileMojo.execute(KotlinTestCompileMojo.java:87)
+[ERROR] at org.apache.maven.plugin.DefaultBuildPluginManager.executeMojo(DefaultBuildPluginManager.java:134)
+[ERROR] at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:207)
+[ERROR] at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:153)
+[ERROR] at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:145)
+[ERROR] at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject(LifecycleModuleBuilder.java:116)
+[ERROR] at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject(LifecycleModuleBuilder.java:80)
+[ERROR] at org.apache.maven.lifecycle.internal.builder.singlethreaded.SingleThreadedBuilder.build(SingleThreadedBuilder.java:51)
+[ERROR] at org.apache.maven.lifecycle.internal.LifecycleStarter.execute(LifecycleStarter.java:128)
+[ERROR] at org.apache.maven.DefaultMaven.doExecute(DefaultMaven.java:307)
+[ERROR] at org.apache.maven.DefaultMaven.doExecute(DefaultMaven.java:193)
+[ERROR] at org.apache.maven.DefaultMaven.execute(DefaultMaven.java:106)
+[ERROR] at org.apache.maven.cli.MavenCli.execute(MavenCli.java:863)
+[ERROR] at org.apache.maven.cli.MavenCli.doMain(MavenCli.java:288)
+[ERROR] at org.apache.maven.cli.MavenCli.main(MavenCli.java:199)
+[ERROR] at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+[ERROR] at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+[ERROR] at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+[ERROR] at java.lang.reflect.Method.invoke(Method.java:498)
+[ERROR] at org.codehaus.plexus.classworlds.launcher.Launcher.launchEnhanced(Launcher.java:289)
+[ERROR] at org.codehaus.plexus.classworlds.launcher.Launcher.launch(Launcher.java:229)
+[ERROR] at org.codehaus.plexus.classworlds.launcher.Launcher.mainWithExitCode(Launcher.java:415)
+[ERROR] at org.codehaus.plexus.classworlds.launcher.Launcher.main(Launcher.java:356)
+```

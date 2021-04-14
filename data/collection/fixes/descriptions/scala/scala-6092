@@ -1,0 +1,12 @@
+This leak manifests inside the IDE, but it stems from the way LazyAnnotationInfos are created. I have a unit test for the IDE project that can reproduce the issue (anyone typing a few minutes inside `Implicits.scala` would see the same thing).
+
+In short, its call-by-name parameter becomes a field, and it never releases the closure, which in turn, through the $outer pointer, hangs on to a whole namer, on each typer run (even when the annotation is forced).
+
+```scala
+final class LazyAnnotationInfo(lazyInfo: => AnnotationInfo) extends AnnotationInfo {
+    private var forced = false
+    private lazy val forcedInfo = try {
+     .. 
+    } finally forced = true
+..
+```

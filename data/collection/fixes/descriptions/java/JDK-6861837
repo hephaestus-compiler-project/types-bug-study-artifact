@@ -1,0 +1,86 @@
+The following test fails at precompilation step:
+
+api/java_util/concurrent/ExecutorCompletionService/index.html#ExecutorCompletionService
+
+jtr file is attached.
+The following minitest (extracted from ExecutorCompletionServiceTest.java) fails to compile with NPE since b64:
+--------------------------------------------------------------------
+import java.util.concurrent.*;
+
+public class ExecutorCompletionServiceTest {
+    ExecutorService e = new ThreadPoolExecutor(
+            1, 1, 30L, TimeUnit.SECONDS,
+            new ArrayBlockingQueue<Runnable>(1)) {
+        protected <T> RunnableFuture<T> newTaskFor(Runnable t, T r) {
+            return null;
+        }
+    };
+}
+--------------------------------------------------------------------
+The work around from CR 6860795(-XDoldDiags) doesn't work.
+Please find the stack trace in attached minitest.log.
+The following test fails at precompilation stage as well:
+
+api/javax_lang/model/element/UnknownElementException/index.html#UElementException
+
+See 6861840 for jtr file is attached.
+
+In short, the following java class fails to compile with the stack trace similar to reported:
+
+-----------------
+package javasoft.sqe.tests.api.javax.lang.model.element.UnknownElementException;
+
+import java.lang.annotation.Annotation;
+import java.util.List;
+import java.util.Set;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ElementVisitor;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.element.Name;
+import javax.lang.model.element.UnknownElementException;
+import javax.lang.model.type.TypeMirror;
+
+
+public class UElementExceptionTests {
+
+    public void ctor0001() {
+        Element[] elements = {
+            new Element() {
+
+                public List<? extends AnnotationMirror> getAnnotationMirrors() {
+                    return null;
+                }
+
+                public <A extends Annotation> A getAnnotation(
+                        Class<A> annotationType) {
+                    return null;
+                }
+
+                public Set<Modifier> getModifiers() {
+                    return null;
+                }
+
+                public Name getSimpleName() {
+                    return null;
+                }
+
+                public Element getEnclosingElement() {
+                    return null;
+                }
+
+                public List<? extends Element> getEnclosedElements() {
+                    return null;
+                }
+
+                public <R, P> R accept(ElementVisitor<R, P> v, P p) {
+                    return null;
+                }
+            }
+        };
+
+      
+    }
+}
+--------------

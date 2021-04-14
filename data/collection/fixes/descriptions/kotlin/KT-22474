@@ -1,0 +1,167 @@
+# Classification
+
+* Type of change:
+    * New errors are introduced
+* Motivation types:
+    * Type safety guarantees are not met
+    * Problematic usage patterns need to be blocked
+* Impact types:
+    * Compilation. Some code that used to compile won't compile anymore
+        * There were cases when such code worked with no exceptions
+            * Some such code could compile without any warnings
+* Detection and Migration modes:
+    * Migration can't be automated
+
+# Existing behavior
+
+## Code example
+
+```
+interface In<in T> {
+    fun foo(t: T)
+}
+
+class InString : In<String> {
+    override fun foo(t: String) {
+        println(t.length)
+    }
+}
+
+fun <S> select(x: S, y: S): S = x
+
+object AnyObject
+
+fun <T> foo(a: In<T>, b: In<String>) {
+    select(a, b).foo(AnyObject)
+}
+
+fun main() {
+    val a = InString()
+    foo(a, a)
+}
+```
+
+Note that this program compiles without any warnings.
+
+## What's wrong with it
+
+The problem is that this program fails at runtime with the exception:
+```
+Exception in thread "main" java.lang.ClassCastException: org.jetbrains.kotlin.resolve.AnyObject cannot be cast to java.lang.String
+	at org.jetbrains.kotlin.resolve.Specialized.foo(Main.kt:12)
+	at org.jetbrains.kotlin.resolve.MainKt.foo(Main.kt:23)
+	at org.jetbrains.kotlin.resolve.MainKt.main(Main.kt:28)
+	at org.jetbrains.kotlin.resolve.MainKt.main(Main.kt)
+```
+
+Problematic expression is `select(a, b).foo(AnyObject)`. Semantically, we pick either `a` or `b` and then pass object of any type to function `foo`, while it actually expects `String` object. As a result, there is an exception at runtime.
+
+## Detailed explanation of why and how this happens
+
+Internally, during the call `select(a, b).foo(AnyObject)` the compiler infers type variable `S` for `select` and calls method `foo` on it.
+To infer type variable `S` the compiler builds the following constraint system:
+(`<:` means subtyping relation, `A & B` means intersection type of `A` and `B`)
+```
+In - contravariant by its type parameter
+
+In<T> <: S
+In<String> <: S
+=>
+S := CommonSuperType(In<T>, In<String>) = In<T & String>
+```
+
+Now, on interface `In<in I>`, the compiler call method `foo`:
+```
+interface In<in I> {
+    fun foo(t: I)
+}
+```
+Where `I` is substituted with `T & String`. 
+
+In other words, substituted `foo` takes `T & String` or its subtype, but `foo(AnyObject)` is incorrect as `AnyObject` isn't a subtype of `T & String`
+
+Due to a bug in the old type checker, the compiler failed to properly check subtyping relation for intersection type (last step) and report an error.
+
+### Affected examples
+
+One more example from KT-22885:
+```
+open class Open1 {
+    fun foo() {}
+}
+
+open class Open2 {
+    fun bar() {}
+}
+
+val openToUnit1: (Open1) -> Unit = { it.foo() }
+val openToUnit2: (Open2) -> Unit = { it.bar() }
+
+fun <S> select(x: S, y: S): S = x
+
+fun test(a: Any) {
+    val f = select(openToUnit1, openToUnit2) // result type is `({ Open1 & Open2 }) -> Unit`
+    f(a) // No error, while `Any` is not subtype of `({ Open1 & Open2 }) -> Unit`
+}
+
+fun main() {
+    test(42)
+}
+```
+
+Here to infer type variable `S` for `select`, the compiler computes common supertype between `(Open1) -> Unit` and `(Open2) -> Unit`, which is `({ Open1 & Open2 }) -> Unit` because of contravariance of input types for functional types and later will run into the same problem with type checking.
+
+## Affected versions: when did the problem appear first?
+
+The problem exists since Kotlin 1.0
+
+# Proposed changes
+
+The proposal is to fix the described problem in the type checker and report appropriate error for the case above.
+
+# Impact
+
+Some code will not compile anymore but note that it relates only to *incorrect* code, so this change will not affect any valid code.
+
+# Migration plan
+
+- 1.4.0 Implement proposed changes, add a compiler key for a fallback behavior
+
+------
+
+# Original issue
+
+The following code compiles and crashes at runtime with 
+
+> java.lang.ClassCastException: java.lang.String cannot be cast to java.util.List
+
+```
+interface A
+
+interface I<in T> {
+    fun foo(t: T)
+}
+
+class ErrorHandler : I<List<String>> {
+    override fun foo(t: List<String>) {
+        println(t.size)
+    }
+}
+
+fun foo(vararg handlers: I<A>) {
+    val list = listOf(*handlers, ErrorHandler())
+    for (handler in list) {
+        handler.foo("")
+    }
+}
+
+fun main(args: Array<String>) {
+    foo()
+}
+```
+
+Notice the weird type of `list`
+
+!image.png!
+
+`handler.foo()` will accept every parameter, even `null`.

@@ -1,0 +1,49 @@
+```scala
+Welcome to Scala version 2.11.1-20141007-151233-f67aa50599 (Java HotSpot(TM) 64-Bit Server VM, Java 1.6.0_65).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> object Test {
+     |   def a[R](implicit s: List[R]):Int = 0
+     |   def a_=[R](v: Int)(implicit s: List[R]) = ()
+     | }
+defined object Test
+
+scala> import Test._
+import Test._
+
+scala> implicit val implicitVal:List[Int]=null
+implicitVal: List[Int] = null
+
+scala> a_=(1)
+
+scala> a = 1
+<console>:50: error: reassignment to val
+       a = 1
+         ^
+```
+
+So the syntactic sugar version "a = 1" is rejected while the (I presume) equivalent raw version "a_=(1)" is accepted.
+
+This does not seem to happen when the implicit parameter is of a type that is not parameterized:
+
+```scala
+scala> object Test1 {
+     |   def b(implicit s: String) = 0
+     |   def b_=(v: Int)(implicit s: String) = ()
+     | }
+defined object Test1
+
+scala> import Test1._
+import Test1._
+
+scala> implicit val implicitString = ""
+implicitString: String = ""
+
+scala> b_=(1)
+
+scala> b = 1
+b: Int = 0
+```
+
+Issue #4237 has a title that also covers this problem: "Syntactic sugar for calling mutator doesn't always work"; however it has already been closed.

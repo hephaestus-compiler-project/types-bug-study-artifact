@@ -1,0 +1,21 @@
+This was initially reported [on the dotty gitter channel](https://gitter.im/lampepfl/dotty?at=5cb7af42b489bb6ed77f3959)  by @sorenbug but I did not find an open issue for that.
+
+Level 1 is OK
+```scala
+scala> type Z = [Z[_]] => [T] => Z[T]
+// defined alias type Z = [Z <: [_$109] => Any] => [T] => Z[T]
+
+scala> val l: Z[List][Int] = List(1)
+val l: Z[List][Int] = List(1)
+```
+but not level 2 and more
+```scala
+scala> type YZ = [Y[_]] => [Z[_]] => [T] => Y[Z[T]]
+// defined alias type YZ = [Y <: [_$8] => Any] => [Z <: [_$9] => Any] => [T] => Y[Z[T]]
+
+scala> val l: YZ[List][List][Int] = List(List(1))
+1 |val l: YZ[List][List][Int] = List(List(1))
+  |                              ^^^^^^^^^^^^^
+  |                              Found:    List[List[Int]]
+  |                              Required: YZ[List][List][Int]
+```

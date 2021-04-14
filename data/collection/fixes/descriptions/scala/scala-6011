@@ -1,0 +1,38 @@
+The following macro throws a VerifyError when run.  Variations on the error are possible.  There need to be enough cases to cause a lookupswitch to be generated.
+```scala
+import scala.reflect.makro.Context
+import language.experimental.macros
+
+object Macros {
+  def m(): Unit = macro m_impl
+  def m_impl(c: Context)(): c.Expr[Unit] = {
+    import c.universe._
+    def f(ch: Char): Any = ch match {
+      case 'b' | 'B'                               => 1
+      case 'c' | 'C'                               => 2
+      case 'd' | 'u' | 'i' | 'o' | 'x' | 'X' | 'c' => 3
+      case 'f' | 'e' | 'E' | 'g' | 'G'             => 4
+      case 'h' | 'H'                               => 5
+      case 's'                                     => 6
+      case _                                       => 7
+    }
+    List('a') foreach f
+    c.Expr[Unit](Block(Literal(Constant(()))))
+  }
+}
+```
+```scala
+object Test extends App { Macros.m() }
+
+
+uncaught exception during compilation: java.lang.VerifyError
+error: java.lang.VerifyError: (class: Macros$, method: Macros$$f$1 signature: (C)Ljava/lang/Object;) Unsorted lookup switch
+	at java.lang.Class.forName0(Native Method)
+	at java.lang.Class.forName(Class.java:264)
+	at scala.tools.nsc.typechecker.Macros$$anonfun$scala$tools$nsc$typechecker$Macros$$macroRuntime$2.loadMacroImpl$1(Macros.scala:702)
+	at scala.tools.nsc.typechecker.Macros$$anonfun$scala$tools$nsc$typechecker$Macros$$macroRuntime$2.apply(Macros.scala:745)
+	at scala.tools.nsc.typechecker.Macros$$anonfun$scala$tools$nsc$typechecker$Macros$$macroRuntime$2.apply(Macros.scala:653)
+	at scala.collection.mutable.MapLike$class.getOrElseUpdate(MapLike.scala:189)
+	at scala.collection.mutable.AbstractMap.getOrElseUpdate(Map.scala:91)
+	at scala.tools.nsc.typechecker.Macros$class.scala$tools$nsc$typechecker$Macros$$macroRuntime(Macros.scala:653)
+```

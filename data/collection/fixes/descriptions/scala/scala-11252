@@ -1,0 +1,34 @@
+As of https://github.com/scala/scala/pull/5816, which shipped in Scala 2.12.2, it's possible for users to define their own `apply` and `unapply` methods in case companions.
+
+However, it looks like the pattern matcher isn't aware of this:
+
+```scala
+Welcome to Scala 2.12.7 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_144).
+Type in expressions for evaluation. Or try :help.
+
+scala> :pa
+// Entering paste mode (ctrl-D to finish)
+
+final case class Ttl(duration: Int, other: Boolean)
+
+object Ttl {
+  def apply(duration: Int) = new Ttl(duration, false)
+
+  def unapply(x: Ttl): Option[Int] = if (x eq null) None else Some(x.duration)
+}
+
+// Exiting paste mode, now interpreting.
+
+defined class Ttl
+defined object Ttl
+
+scala> Ttl(1) match { case Ttl(y) => println(y) }
+<console>:13: error: wrong number of arguments for pattern Ttl(duration: Int,other: Boolean)
+       Ttl(1) match { case Ttl(y) => println(y) }
+                              ^
+
+scala> Ttl.unapply(Ttl(1))
+res1: Option[Int] = Some(1)
+```
+
+The context is being able to evolve a class but retain binary compatibility-in the real code (akka/akka) the class is `abstract` (and `sealed`) so there's no `copy` method either, as it isn't bincompat safe.

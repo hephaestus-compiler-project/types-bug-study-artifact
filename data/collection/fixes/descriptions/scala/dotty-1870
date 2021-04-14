@@ -1,0 +1,35 @@
+Given
+
+```scala
+trait Stream[+A] 
+case class Unfold[S,+A](s: S, f: S => Option[(A,S)]) extends Stream[A] 
+```
+
+You get this warning, and an associated *unsound* inferred type, as in [SI-6680 “Unsoundness bug in pattern matcher when pattern reveals existentials”](https://issues.scala-lang.org/browse/SI-6680):
+
+```scala
+scala> def unbox[A](s: Stream[A]) = s match {case Unfold(s, f) => (s, f)} 
+-- Warning: <console> ----------------------------------------------------------
+7 |def unbox[A](s: Stream[A]) = s match {case Unfold(s, f) => (s, f)}
+  |                                           ^^^^^^^^^^^^
+  |           There is no best instantiation of pattern type Unfold[Any^, A^]
+  |           that makes it a subtype of selector type Stream[A].
+  |           Non-variant type variable S cannot be uniquely instantiated.
+  |           (This would be an error under strict mode)
+def unbox[A](s: Stream[A]): [A] => (s: Stream[A])(Any, Any => Option[(A, Any)])
+```
+
+But there is a ‘best’ choice, which is moreover sound, which is to introduce a fresh type variable, as you can write explicitly with type pattern variables.
+
+```scala
+scala> def unbox[A](s: Stream[A]) = s match {
+  case u: Unfold[ts, A] =>
+    u.s: ts  // the name chosen in this block
+    (u.s, u.f)
+} 
+def unbox[A](s: Stream[A]): [A] => (s: Stream[A])(Any, _ => Option[(A, Any)])
+```
+
+This is based on 39c27b6a8aaa2c7303db54011082246ada06c0a0.
+
+/cc @pchiusano

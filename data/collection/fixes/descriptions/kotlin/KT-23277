@@ -1,0 +1,55 @@
+# Synopsis
+
+Type of change:
+* New diagnostics: errors
+
+Motivation:
+
+* Problematic/meaningless usage patterns need to be discouraged/blocked (e.g. counterintuitive behaviors)
+
+Impact:
+
+* Some code that used to compile won’t compile any more
+
+Migration:
+
+* All code locations affected by this change can be accurately detected statically
+* Migration can't be fully automated
+
+# Description
+
+Currently, it's possible to declare a local annotation class in Kotlin:
+```
+fun foo() {
+    annotation class Local
+
+    @Local class L
+}
+```
+
+However, in Java local annotations are prohibited. As far as I can judge, it's for the same reason as local interfaces: because interfaces/annotations are ["inherently static"](https://docs.oracle.com/javase/tutorial/java/javaOO/localclasses.html) and it's not possible for them to capture anything from the context.
+
+In Kotlin, local interfaces are prohibited, but local annotations are not, which is
+1) a bit inconsistent,
+2) inconvenient for the compiler code where annotations are usually referenced by the fully qualified name, and local annotations have no sane FQ name.
+
+# Current Behavior
+
+Local annotations are allowed.
+
+# Proposed Changes
+
+Report an error on the declaration of a local annotation class:
+```
+fun foo() {
+    annotation class Local // error!
+}
+```
+
+# Impact
+
+There may be theoretical applications for local annotations, because it's possible to retrieve them at runtime via Java reflection. However, it's difficult to imagine a real use case where the annotation cannot be declared outside of the method and made private.
+
+# Deprecation Policy
+- Warning in 1.2.50 (KT-23589)
+- Error in 1.3

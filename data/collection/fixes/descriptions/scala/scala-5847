@@ -1,0 +1,55 @@
+Using `def`, I can define an abstract nullary method `const` returning some value of type `Int => Int`. When implementing `const` with a function literal, I need not supply a parameter type, as it can be inferred by the compiler:
+
+```scala
+// D.scala
+trait D {
+  def const: Int => Int
+}
+object D extends D {
+  def const = i => i + 1
+}
+```
+
+Now consider an analogous construction using `val`:
+
+```scala
+// V.scala
+trait V {
+  val const: Int => Int
+}
+object V extends V {
+  val const = i => i + 1
+}
+```
+
+This will not compile, failing with
+
+```
+error: missing parameter type
+  val const = i => i + 1
+              ^
+```
+
+Compiling `V.scala` with `-Xprint:all` results in the following output:
+
+```scala
+abstract trait V extends scala.AnyRef {   
+<stable> <accessor> def const: Int => Int
+};
+
+final object V extends java.lang.Object with V with ScalaObject {
+
+def this(): object V = {
+  V.super.this();
+  ()
+};
+
+private[this] val const: <error> => <error> = ((i: <error>) => i.+(1));
+<stable> <accessor> def const: <error> => <error> = V.this.const
+}
+```
+
+
+This seems inconsistent: I can not assign a value of a type different from the one specified in the trait `V` (the compiler correctly prohibits it), but I still need to make the type explicit when implementing `V` (the compiler demands it).
+
+This bug is based on [a Stack Overflow thread](http://stackoverflow.com/questions/10738137/different-type-inference-for-def-and-val-in-scala).

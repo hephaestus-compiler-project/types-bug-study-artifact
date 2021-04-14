@@ -1,0 +1,15 @@
+Type inference should work the same for `zero` and `one`, but it doesn't, `foo(1).zero` has expected type `1` but this isn't added as a constraint, so we instantiate `T` to `Int` (because the only constraint is `>: 1` and we widen when instantiating a singleton lower bound)
+
+```scala
+class Foo[T] {
+  def zero: T = ???
+  def one(): T = ???
+}
+
+object Test {
+  def foo[T](x: T): Foo[T] = new Foo
+
+  val a: 1 = foo(1).zero // Fails: Found: Int, required: Int(1)
+  val b: 1 = foo(1).one() // OK
+}
+```

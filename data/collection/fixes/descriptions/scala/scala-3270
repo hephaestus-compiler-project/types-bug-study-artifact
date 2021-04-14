@@ -1,0 +1,87 @@
+**Given the following class:**
+
+```scala
+scala> case class ContAB[A,B](a:A, b:B)
+```
+
+**And the following implicit conversion function:**
+
+```scala
+scala> implicit def cabTOpab[A,B, CC <% ContAB[A,B]](cc: CC):
+     |     (A, B) = {
+     |   val contab: ContAB[A,B] = cc
+     |   (contab.a, contab.b)
+     | }
+```
+
+**The following **should** invoke the implicit conversion above, but does not:**
+
+```scala
+scala> ContAB(1, "YO"): (Int, String)
+<console>:8: error: type mismatch;
+ found   : ContAB[Int,java.lang.String]
+ required: (Int, String)
+       ContAB(0, "Yo"): (Int, String)
+```
+
+**But the following explicit invocation of the conversion function works fine:**
+
+```scala
+scala> cabTOpab(ContAB(1, "Yo"))
+res3: (Int, java.lang.String) = (1,Yo)
+```
+
+**If you remove the view bounds in the conversion function, then it works fine:**
+
+```scala
+scala> case class ContAB[A,B](a:A, b:B)
+defined class ContAB
+
+scala> implicit def cabTOpab[A,B](cab: ContAB[A,B]): (A,B) = {
+     |   (cab.a, cab.b)
+     | }
+cabTOpab: [A,B](cab: ContAB[A,B])(A, B)
+
+scala> ContAB(1, "Yo"): (Int, String)
+res0: (Int, String) = (1,Yo)
+```
+
+**The same problem exists when defining a ContABC => (A,B,C) implicit conversion function with a view bound on the input parameter:**
+
+```scala
+scala> case class ContABC[A,B,C](a:A, b:B, c:C)
+defined class ContABC
+
+scala> implicit def cabcTOt3[A,B,C, CC <% ContABC[A,B,C]](cc: CC): (A,B,C) = {
+     |   val cabc: ContABC[A,B,C] = cc
+     |   (cabc.a, cabc.b, cabc.c)
+     | }
+cabcTOt3: [A,B,C,CC](cc: CC)(implicit evidence$$1: (CC) => ContABC[A,B,C])(A, B,
+C)
+
+scala> ContABC(1, "YO", 0.0): (Int, String, Double)
+<console>:8: error: type mismatch;
+ found   : ContABC[Int,java.lang.String,Double]
+ required: (Int, String, Double)
+       ContABC(1, "YO", 0.0): (Int, String, Double)
+              ^
+```
+
+**And the following shows that the reverse, converting Tuple3 => ContABC, works fine:**
+
+```scala
+scala> case class ContABC[A,B,C](a:A, b:B, c:C)
+defined class ContABC
+
+scala> implicit def t3abcTOcabc[A,B,C, CC <% (A,B,C)](cc: CC): ContABC[A,B,C] =
+{
+     |   val t3abc: (A,B,C) = cc
+     |   ContABC(t3abc._1, t3abc._2, t3abc._3)
+     | }
+t3abcTOcabc: [A,B,C,CC](cc: CC)(implicit evidence$$1: (CC) => (A, B, C))ContABC[A,B,C]
+
+scala> (1, "Yo", 0.0): ContABC[Int, String, Double]
+res0: ContABC[Int,String,Double] = ContABC(1,Yo,0.0)
+```
+
+**This problem seems to happen whenever the output type of an implicit conversion is a Pair or a TupleX, and there is a view bounds on the input parameter type.**

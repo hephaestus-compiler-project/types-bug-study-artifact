@@ -1,0 +1,23 @@
+In the following code (taken from [mockk](https://github.com/mockk/mockk/blob/9898da50f59ca866bb54701162fbaa4bf71dcc56/dsl/common/src/main/kotlin/io/mockk/API.kt#L696)) the type parameter of `A(x)` gets incorrectly instantiated with `Any` when using new inference.
+```kotlin
+interface Proxy<in T>
+
+class A<T : Any>(val left: T) : Proxy<T>
+
+abstract class Api {
+  abstract fun <T> magic(): T
+  inline fun <reified T : Any> match(proxy: Proxy<T>): T = magic()
+
+  inline fun <reified T : Any> f(x: T): T = g(x)
+
+  inline fun <reified T : Any> g(x: T) = match(A(x))
+}
+```
+This leads to a compilation failure with
+```
+test.kt:9:45: error: type mismatch: inferred type is Any but T was expected
+  inline fun <reified T : Any> f(x: T): T = g(x)
+```
+when using new inference, while the code compiles without error when using old inference.
+
+The error goes away if any type annotation is added in `g` or if the parameter of `Proxy` is not declared as `in`.

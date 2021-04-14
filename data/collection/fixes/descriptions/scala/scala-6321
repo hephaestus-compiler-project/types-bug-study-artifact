@@ -1,0 +1,8 @@
+In a project I am struggling with spurious compiler crashes with "illegal cyclic reference involving ..." messages. They seem to be triggered by the co-presence of a type and an eponymous singleton object within the same namespace (package).
+
+As noted on scala-internals, I was not able to minimise the problem. I really did an effort (https://github.com/Sciss/ScalacCyclicBug) but no success, the bugs don't appear. So to reproduce the problem, the following should suffice:
+
+- clone branch 'cyclic_bug' from https://github.com/Sciss/SoundProcesses3/tree/cyclic_bug
+- follow the steps in `README.md` (basically just run `sbt test:compile`).
+
+In this project, the tricky situation occurs twice (`Scan` and `ProcGroup`). The mere presence of the type aliases and objects doesn't seem to suffice to produce the bugs, but rather the references to those. Renaming the companion objects, e.g. to `ProcGroupX`, is a workaround, but obviously not the intended design. Also probably replacing the type aliases with traits (`trait Scan`) would help, but again is not possible in my current API.

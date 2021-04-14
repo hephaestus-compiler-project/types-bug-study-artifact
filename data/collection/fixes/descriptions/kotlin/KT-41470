@@ -1,0 +1,52 @@
+Example:
+```kotlin
+@file:OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+
+interface Flow<out T> {
+    fun collect(collector: FlowCollector<T>)
+}
+
+interface FlowCollector<in T> {
+    fun emit(value: T)
+}
+
+fun <T> flow(block: FlowCollector<T>.() -> Unit): Flow<T> =
+    object : Flow<T> {
+        override fun collect(collector: FlowCollector<T>) = collector.block()
+    }
+
+fun <T> Flow<T>.collect(action: (value: T) -> Unit): Unit =
+    collect(object : FlowCollector<T> {
+        override fun emit(value: T) = action(value)
+    })
+
+fun <T, R> Flow<T>.transform(@BuilderInference transform: FlowCollector<R>.(T) -> Unit): Flow<R> =
+    flow { collect { transform(it) } }
+
+fun <T, R> Flow<T>.map(transform: (T) -> R): Flow<R> =
+    transform { emit(transform(it)) }
+
+fun main() {
+    flow<Int> { emit(1) }.map { null }.collect { println(it) }
+}
+```
+
+Should print `null` but instead, it fails with NPE:
+```stacktrace
+Exception in thread "main" java.lang.NullPointerException: transform(it) must not be null
+	at MainKt$map$1.invoke(main.kt:25)
+	at MainKt$map$1.invoke(main.kt)
+	at MainKt$transform$1$1.invoke(main.kt:22)
+	at MainKt$transform$1$1.invoke(main.kt)
+	at MainKt$collect$1.emit(main.kt:18)
+	at MainKt$main$1.invoke(main.kt:28)
+	at MainKt$main$1.invoke(main.kt)
+	at MainKt$flow$1.collect(main.kt:13)
+	at MainKt.collect(main.kt:17)
+	at MainKt$transform$1.invoke(main.kt:22)
+	at MainKt$transform$1.invoke(main.kt)
+	at MainKt$flow$1.collect(main.kt:13)
+	at MainKt.collect(main.kt:17)
+	at MainKt.main(main.kt:28)
+	at MainKt.main(main.kt)
+```

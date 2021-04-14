@@ -1,0 +1,69 @@
+When static type checks are enabled, then groovyc sometimes fails to assign compatible (with the same generic type selected) java Collection to java Iterable.
+
+This code fails to compile with groovyc (tested with 3.0.7 and 4.0.0-alpha-2)
+{code:groovy}
+@Grab(group='org.apache.kafka', module='kafka-clients', version='2.7.0')
+@Grab(group='org.apache.kafka', module='kafka-streams', version='2.7.0')
+
+import org.apache.kafka.streams.KafkaStreams
+import org.apache.kafka.common.MetricName
+import org.apache.kafka.common.Metric
+
+import java.lang.Iterable
+import java.util.Collections
+import java.util.Map
+
+import groovy.transform.CompileStatic
+
+@CompileStatic
+class TestStaticChecks {
+  KafkaStreams streams
+
+  void method1() {
+    Map<MetricName, ? extends Metric> metricsMap = Collections.emptyMap()
+    Iterable<? extends Metric> metrics = metricsMap.values()
+  }
+
+  void method2() {
+    Map<MetricName, ? extends Metric> metricsMap = streams.metrics()
+    Iterable<? extends Metric> metrics = metricsMap.values()
+  }
+
+  void method3() {
+    Iterable<? extends Metric> metrics = streams.metrics().values()
+  }
+}
+{code}
+method2 and method3 will fail to compile with error
+{code:java}
+[Static type checking] - Incompatible generic argument types. Cannot assign java.util.Collection <? extends org.apache.kafka.common.Metric> to: java.lang.Iterable <? extends org.apache.kafka.common.Metric>{code}
+ 
+
+Same code reworked to Java compiles just fine with javac (when dependencies are in classapath)
+{code:java}
+import org.apache.kafka.streams.KafkaStreams;
+import org.apache.kafka.common.MetricName;
+import org.apache.kafka.common.Metric;
+
+import java.lang.Iterable;
+import java.util.Collections;
+import java.util.Map;
+
+class TestStaticChecks {
+  KafkaStreams streams;
+
+  void method1() {
+    Map<MetricName, ? extends Metric> metricsMap = Collections.emptyMap();
+    Iterable<? extends Metric> metrics = metricsMap.values();
+  }
+
+  void method2() {
+    Map<MetricName, ? extends Metric> metricsMap = streams.metrics();
+    Iterable<? extends Metric> metrics = metricsMap.values();
+  }
+
+  void method3() {
+    Iterable<? extends Metric> metrics = streams.metrics().values();
+  }
+}
+ {code}

@@ -1,0 +1,20 @@
+Contrived example, but situations like that _can_ arise during implicit search and they make the difference between success and failure:
+```scala
+def foo[A](implicit ev: (Int, String) =:= (Int, A)): (Int, A) = null
+def bar[A](implicit ev: (Int, A) =:= (Int, String)): (Int, A) = null
+foo // nope
+bar // ok
+```
+The cause for this?
+```scala
+scala> val wild = appliedType(typeOf[(_,_)].typeConstructor, IntTpe, WildcardType)
+wild: $r.intp.global.Type = (Int, ?)
+
+scala> lub(wild :: typeOf[(Int, String)] :: Nil)
+res2: $r.intp.global.Type = (Int, ?)
+
+scala> lub(typeOf[(Int, String)] :: wild :: Nil)
+res3: $r.intp.global.Type = (Int, String)
+```
+It doesn't look right to me. What if `TypeVar` constraints were not added in reverse order?
+  

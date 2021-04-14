@@ -1,0 +1,23 @@
+If you have a map:
+{code}Map<Date,Integer>{code}
+and that you use the {{entrySet()}} method, the inferred type is:
+{code}Set<Map.Entry<K,V>>{code}
+but it should be:
+{code}Set<Map.Entry<Date,Integer>>{code}
+
+(multiple levels of generics)
+
+Here's the test case:
+{code}
+Map<Date, Integer> map
+
+@ASTTest(phase=INSTRUCTION_SELECTION, value={
+    def infType = node.getNodeMetaData(INFERRED_TYPE)
+    assert infType == make(Set)
+    def entryInfType = infType.genericsTypes[0].type
+    assert entryInfType == make(Map.Entry)
+    assert entryInfType.genericsTypes[0].type == make(Date)
+    assert entryInfType.genericsTypes[1].type == Integer_TYPE
+})
+def entries = map?.entrySet()
+{code}

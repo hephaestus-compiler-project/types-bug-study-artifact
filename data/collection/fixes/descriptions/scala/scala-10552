@@ -1,0 +1,28 @@
+Since whitebox macro expansion is forced [here](https://github.com/scala/scala/blob/2.12.x/src/compiler/scala/tools/nsc/typechecker/Macros.scala#L716), when the typer is an implicit search all exceptions thrown by the macro implementation are caught and swallowed as "implicit not found", including fatal errors like out of memory or stack overflow.
+
+This doesn't happen with blackbox macros, because they are delayed and expanded after the implicit search.
+
+Example:
+```scala
+object Macros {
+  trait BlackBox[A]
+  object BlackBox {
+    implicit def materialize[A]: BlackBox[A] = macro materializeImpl[A]
+    def materializeImpl[A](c: blackbox.Context): c.Tree = throw new OutOfMemoryError
+  }
+
+  trait WhiteBox[A]
+  object WhiteBox {
+    implicit def materialize[A]: WhiteBox[A] = macro materializeImpl[A]
+    def materializeImpl[A](c: whitebox.Context): c.Tree = throw new OutOfMemoryError
+  }
+}
+
+object Test {
+  import Macros._
+  implicitly[BlackBox[Int]] // out of memory
+  implicitly[WhiteBox[Int]] // implicit not found
+}
+```
+
+This can cause spurious missing implicit errors (see. milessabin/shapeless#776).

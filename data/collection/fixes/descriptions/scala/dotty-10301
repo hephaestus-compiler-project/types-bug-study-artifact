@@ -1,0 +1,41 @@
+## Minimized code
+
+https://scastie.scala-lang.org/c3OTl17bTnOeZ0ISfoYQTA
+
+```scala
+// build.sbt
+libraryDependencies += "de.sciss" % "docking-frames" % "2.0.0"
+```
+
+```Scala
+import bibliothek.gui.dock.common._
+
+/*
+Note:
+public interface CDockable
+public interface SingleCDockable   extends CDockable
+public interface MultipleCDockable extends CDockable
+*/
+
+trait Foo {
+  def ctl: CControl
+  
+  def d: SingleCDockable
+  
+  ctl.addDockable[SingleCDockable](d)
+}
+
+```
+
+## Output
+
+```scala
+Ambiguous overload. The overloaded alternatives of method addDockable in class CControl with types
+ [M <: bibliothek.gui.dock.common.MultipleCDockable](x$0: M): M
+ [S <: bibliothek.gui.dock.common.SingleCDockable](x$0: S): S
+both match type arguments [bibliothek.gui.dock.common.SingleCDockable] and arguments ((Foo.this.d : => bibliothek.gui.dock.common.SingleCDockable))
+```
+
+## Expectation
+
+The method `addDockable` is overloaded for type parameters `SingleCDockable` and `MultipleCDockable` which are not sub-types of each other. Specifying the type parameter application expilcitly should not produce this ambiguity. Strangely, the problem goes away when I just write `ctl.addDockable(d)`

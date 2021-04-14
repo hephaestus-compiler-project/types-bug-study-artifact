@@ -1,0 +1,40 @@
+## reproduction steps
+
+using Scala 2.12.12, 2.13.3
+
+```scala
+class C1[A, B] {
+  private class Node[X] { 
+    def size = 42
+  }
+}
+class D[A, C](val x: C1[A, _]#Node[C]) {
+}
+class Client {
+  def test(d: D[_, _]) = d.x.size
+}
+
+```
+
+## problem
+
+```
+Exception in thread "main" java.util.NoSuchElementException: x
+	at scala.collection.mutable.AnyRefMap$ExceptionDefault.apply(AnyRefMap.scala:505)
+	at scala.collection.mutable.AnyRefMap$ExceptionDefault.apply(AnyRefMap.scala:504)
+	at scala.collection.mutable.AnyRefMap.apply(AnyRefMap.scala:205)
+	at scala.tools.nsc.symtab.classfile.Pickler$Pickle.scala$tools$nsc$symtab$classfile$Pickler$Pickle$$writeRef(Pickler.scala:445)
+	at scala.tools.nsc.symtab.classfile.Pickler$Pickle.writeSymInfo(Pickler.scala:457)
+```
+
+Different failure modes are visible in  https://github.com/mkeskells/scala/tree/2.12.x_compilerCrash, such as
+
+```
+	at scala.reflect.internal.SymbolTable.throwAssertionError(SymbolTable.scala:184)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:401)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.$anonfun$transformArgs$1(SuperAccessors.scala:123)
+	at scala.reflect.internal.TreeInfo.$anonfun$mapMethodParamsAndArgs$1$adapted(TreeInfo.scala:240)
+	at scala.reflect.internal.TreeInfo.foreachMethodParamAndArg(TreeInfo.scala:254)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transformArgs(SuperAccessors.scala:120)
+	at scala.tools.nsc.typechecker.SuperAccessors$SuperAccTransformer.transform(SuperAccessors.scala:402)
+```

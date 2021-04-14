@@ -1,0 +1,83 @@
+The following code crashes the compiler:
+```scala
+object C {
+  def unapply(c: Any): Option[Unit] = None
+}
+
+object O {
+  null match {
+    case C(()) =>
+  }
+}
+```
+
+It works correctly(?) when using the pattern "case C() =>".
+
+The full crash log is attached. Here is the beginning:
+```scala
+     while compiling: unapply-of-unit.scala
+        during phase: patmat
+     library version: version 2.10.3
+    compiler version: version 2.10.3
+  reconstructed args: -Xpluginsdir /usr/share/scala/plugins
+
+  last tree to typer: Literal(Constant(()))
+              symbol: null
+   symbol definition: null
+                 tpe: Unit
+       symbol owners: 
+      context owners: value <local O> -> object O -> package <empty>
+
+== Enclosing template or block ==
+
+Template( // val <local O>: <notype> in object O, tree.tpe=O.type
+  "java.lang.Object" // parents
+  ValDef(
+    private
+    "_"
+    <tpt>
+    <empty>
+  )
+  // 2 statements
+  DefDef( // def <init>(): O.type in object O
+    <method>
+    "<init>"
+    []
+    List(Nil)
+    <tpt> // tree.tpe=O.type
+    Block( // tree.tpe=Unit
+      Apply( // def <init>(): Object in class Object, tree.tpe=Object
+        O.super."<init>" // def <init>(): Object in class Object, tree.tpe=()Object
+        Nil
+      )
+      ()
+    )
+  )
+  Match( // tree.tpe=Unit
+    null
+    CaseDef( // tree.tpe=Unit
+      UnApply( // tree.tpe=Null
+        Apply( // def unapply(c: Any): Option[Unit] in object C, tree.tpe=Option[Unit]
+          "C"."unapply" // def unapply(c: Any): Option[Unit] in object C, tree.tpe=(c: Any)Option[Unit]
+          "<unapply-selector>" // val <unapply-selector>: Null, tree.tpe=Null
+        )
+        List(
+          ()
+        )
+      )
+      ()
+    )
+  )
+)
+
+== Expanded type of tree ==
+
+TypeRef(TypeSymbol(final abstract class Unit extends AnyVal))
+
+unhandled exception while transforming unapply-of-unit.scala
+error: uncaught exception during compilation: java.util.NoSuchElementException
+error: java.util.NoSuchElementException: head of empty list
+        at scala.collection.immutable.Nil$.head(List.scala:337)
+        at scala.collection.immutable.Nil$.head(List.scala:334)
+        at scala.tools.nsc.transform.patmat.ScalaLogic$TreesAndTypesDomain$class.scala$tools$nsc$transform$patmat$ScalaLogic$TreesAndTypesDomain$$widenToClass(Logic.scala:567)
+```

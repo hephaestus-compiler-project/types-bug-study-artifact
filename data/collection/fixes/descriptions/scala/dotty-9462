@@ -1,0 +1,71 @@
+## Minimized code
+
+```Scala
+import scala.language.dynamics
+
+object MyDynamic {
+  object literal extends scala.Dynamic {
+    def applyDynamic(name: String)(args: Any*): Any =
+      "applyDynamic: " + name + " -> " + args
+    def applyDynamicNamed(name: String)(args: (String, Any)*): Any =
+      "applyDynamicNamed: " + name + " -> " + args
+  }
+}
+
+object Test {
+  def main(args: Array[String]): Unit = {
+    println(MyDynamic.literal())
+    println(MyDynamic.literal("foobar"))
+    println(MyDynamic.literal(foo = "Foo", bar = 42))
+  }
+}
+```
+
+## Output
+
+```scala
+-- [E008] Not Found Error: tests\run\hello.scala:14:22 -------------------------
+14 |    println(MyDynamic.literal())
+   |            ^^^^^^^^^^^^^^^^^
+   |value applyDynamic is not a member of object MyDynamic, but could be made available as an extension method.
+   |
+   |The following import might fix the problem:
+   |
+   |  import reflect.Selectable.reflectiveSelectable
+   |
+-- [E008] Not Found Error: tests\run\hello.scala:15:22 -------------------------
+15 |    println(MyDynamic.literal("foobar"))
+   |            ^^^^^^^^^^^^^^^^^
+   |value applyDynamic is not a member of object MyDynamic, but could be made available as an extension method.
+   |
+   |The following import might fix the problem:
+   |
+   |  import reflect.Selectable.reflectiveSelectable
+   |
+-- [E008] Not Found Error: tests\run\hello.scala:16:22 -------------------------
+16 |    println(MyDynamic.literal(foo = "Foo", bar = 42))
+   |            ^^^^^^^^^^^^^^^^^
+   |            value applyDynamicNamed is not a member of object MyDynamic
+3 errors found
+```
+
+## Expectation
+
+It runs and outputs the following:
+```
+applyDynamic: apply -> ArraySeq()
+applyDynamic: apply -> ArraySeq(foobar)
+applyDynamicNamed: apply -> ArraySeq((foo,Foo), (bar,42))
+```
+
+## Notes
+
+This works in Scala 2.
+
+Explicitly calling `.apply` makes it work in Dotty as well:
+```scala
+    println(MyDynamic.literal.apply())
+    println(MyDynamic.literal.apply("foobar"))
+    println(MyDynamic.literal.apply(foo = "Foo", bar = 42))
+```
+This is necessary for Scala.js, because this is how `js.Dynamic.literal` is defined. All code using `js.Dynamic.literal` hits this issue at the moment.

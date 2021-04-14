@@ -1,0 +1,36 @@
+When both apply() and update() are present and apply() takes a simple parameter and an implicit parameter, shorthand operators like += produce a compile error. See the following example.
+
+```scala
+class ImplicitThing
+
+class Foo {
+  def apply(x: Int)(implicit imp: ImplicitThing) = { println("read"); 123 }
+  def update(x: Int, y: Int)(implicit imp: ImplicitThing) { println("updated") }
+  
+  // But the following alternative works!
+  //def apply[T](x: T)(implicit imp: ImplicitThing) = { println("read"); 123 }
+  //def update[T](x: T, y: T)(implicit imp: ImplicitThing) { println("updated") }
+}
+
+object TestCase extends App {
+  implicit val imp = new ImplicitThing
+  val foo = new Foo
+  foo(3)               // works
+  foo(3) = 4           // works
+  foo(3) = foo(3) + 4  // works
+  foo(3) += 4          // <-- compile error
+}
+```
+
+The error is as follows.
+
+```
+../src/TestCase.scala:18: error: type mismatch;
+ found   : ImplicitThing
+ required: Int
+  foo(3) += 4
+     ^
+one error found
+```
+
+Removing the implicit parameter from apply() fixes the error. It doesn't matter whether update() has the implicit parameter. Also, the version with type parameters works for some reason. All cases behaved the same with both 2.9.1 and 2.10.0 RC2.

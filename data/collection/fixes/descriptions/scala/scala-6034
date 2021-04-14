@@ -1,0 +1,31 @@
+Even the simplest use of covariance will not compile:
+```scala
+final class OptPlus[+A](val x: A) extends AnyVal { }
+
+// ./a.scala:1: error: covariant type A occurs in contravariant position in type OptPlus[A] of value $this
+// final class OptPlus[+A](val x: A) extends AnyVal { }
+//             ^
+// one error found
+```
+The reason for this error (and there are additional ones from completely synthetic methods if one declares a case class, but they can be addressed the same way) is the direct exposure of the type parameter in incoming position of extension methods:
+
+```scala
+object OptPlus {
+  final <synthetic> def extension$hashCode[A >: Nothing <: Any]($this: OptPlus[A])(): Int = $this.x.hashCode();
+}
+```
+
+The extension methods should be generated with a bound:
+
+```scala
+  // Not like this
+  def f[A]($this: OptPlus[A])(args) = ...
+  
+  // Like this instead
+  def f[A1 >: A]($this: OptPlus[A1])(args) = ...
+  
+  // In the case of hashCode and others which don't reference the
+  // type parameter at all, they could be like this
+  def f($this: OptPlus[_])(args) = ...
+  // but I don't know if there's any meaningful advantage to that.
+```

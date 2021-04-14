@@ -1,0 +1,27 @@
+Pre-condition: language level is 1.5. Please check attached project for reference.
+There are expected sealed class, its implementation and when expression in common module:
+```kotlin
+expect sealed class TestClass() {}
+
+class CommonImplTestClass : TestClass()
+
+fun checkCommon(t: TestClass): Unit = when (t) {
+    is CommonImplTestClass -> TODO()
+}
+```
+There are actual sealed class and its implementation in some platform specific source-set (for example JVM):
+```kotlin
+actual sealed class TestClass actual constructor() {}
+
+class JvmTestClassImpl : TestClass() {}
+```
+Nothing is highlighted in IDE. But there is the compilation error: `'when' expression must be exhaustive, add necessary 'is JvmTestClassImpl' branch or 'else' branch instead`
+Error text seems to be confusing because we cannot reference platform specific declarations in common source code.
+I am not sure what the problem is here, my assumptions about expected result:
+1) Just fix error text which will suggest to add else branch but not to add types from other platforms source code
+2) Code should compile because all types inherited from `Test Class` in common module are used in when expression. For example in platforms source sets compiler is ok with using `TestClass` implementations from common source set and current platform source-set. And does not care about implementations from other platforms source-sets.
+
+Note: the problem is not actual for 1.4 version because in 1.4 you can not extend from expect sealed class in common module with compiler error `Cannot access '<init>': it is private in 'TestClass'` error (still not highlighted in IDE). And else branch is always needed. Probably that may be solution as well
+
+IU-203.6682.168 + Kotlin Plugin 203-1.4.30-IJ5981.133 + kotlin.multiplatform.gradle.plugin:1.4.30-249
+IU-203.7275 + Kotlin Plugin 203-1.5.0-dev-1769-IJ5981.133 + kotlin.multiplatform.gradle.plugin:1.5.0-dev-1837

@@ -1,0 +1,15 @@
+There is problem related to Miranda methods (target==1.1, still used by J2ME, AFAIK). To reproduce:
+1. download and unpack the attachment.
+2. compile the sources using:
+javac -source 1.2 -target 1.1 miranda/*.java
+
+When using a 1.6 javac, the sources compile fine. When using a recent 1.7 javac, the outcome is:
+miranda/Impl.java:5: the symbol a() conflicts with a
+compiler-synthesized symbol in Impl
+     public void a() {}
+                 ^
+1 error
+
+The problem seem to be in the (new in 1.7) Check.checkConflicts method, which ignores bridge methods, but does not ignore Miranda methods, although it probably should. Tomas did extended the checkConflicts method to ignore Miranda methods, see:
+http://hg.netbeans.org/main/nb-javac/rev/e9b666cd96a3
+We hope that this change is reasonable, and something like this should probably be added also into javac proper.

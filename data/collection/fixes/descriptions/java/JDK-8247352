@@ -1,0 +1,46 @@
+1) public record Foo(int bar) {
+        public Foo() {
+            super();
+            this.bar = 0;
+        }
+    }
+
+Fails to compile with "constructor is not canonical, so its first statement must invoke another constructor". 
+
+change to: "constructor is not canonical, so its first statement must invoke another constructor of class $$$"
+
+2) rather than:
+
+  class is not allowed to extend sealed class: {0}
+
+consider:
+
+  class {0} in unnamed module cannot extend a sealed class in a different package
+
+  class {0} in module {1} cannot extend a sealed class in a different module
+
+reported in amber-dev: https://mail.openjdk.java.net/pipermail/amber-dev/2020-June/006185.html
+
+3) also:
+Compiling this program
+
+public class Main {
+    public static void main(String[] args) {
+        Shape shape = new Shape() {};
+    }
+}
+
+sealed interface Shape {
+}
+
+leads to an error:
+
+error: local classes must not extend sealed classes
+        Shape shape = new Shape() {};
+                                  ^
+
+But the class of `shape` is an anonymous class rather than a local class.
+By definition, a local class must have a name (JLS 14.3). I think the error
+message should say " anonymous classes must not extend sealed classes".
+
+reported at amber-dev: https://mail.openjdk.java.net/pipermail/amber-dev/2020-June/006186.html

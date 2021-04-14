@@ -1,0 +1,53 @@
+Trying to compile the following code:
+
+```scala
+object W {
+  implicit def tuple2[A: W, B: W]: W[(A, B)] = new W[(A, B)] {}
+}
+trait W[P]
+
+class WC[T1: W, T2: W, T3: W]() {
+  val wc = implicitly[
+    W[((T3, T1), T2)]
+  ]
+}
+```
+
+yields the following compiler error:
+
+```scala
+OC.scala:27: diverging implicit expansion for type W[((T3, T1), T2)]
+starting with value evidence$9 in class WC
+  val wc = implicitly[
+                     ^
+```
+
+This is probably a bug, because when I change the WC class to a method, it compiles without errors: 
+
+```scala
+object WC {
+  def wc[T1: W, T2: W, T3: W]() = 
+    implicitly[W[((T3, T1), T2)]]
+}
+```
+
+The error can be also fixed by changing WC to: 
+
+```scala
+class WC[T1: W, T2: W, T3: W]() {
+  val wc = implicitly[
+    W[((T3, T1), T2)]
+  ](W.tuple2[(T3, T1), T2](implicitly, implicitly))
+}
+```
+
+
+This error is probably the reason, why Ordering with nested tuples can not be implicitly constructed in classes:
+
+```scala
+class OC[T1: Ordering, T2: Ordering]() {
+  val ordering = implicitly[
+    Ordering[((Int, T1), T2)]
+  ] // /* uncommenting the following fixes the compile error */ (Ordering.Tuple2[(Int, T1), T2](implicitly, implicitly))
+}
+```

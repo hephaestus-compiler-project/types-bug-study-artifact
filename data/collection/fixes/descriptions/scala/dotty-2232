@@ -1,0 +1,154 @@
+```scala
+object Cats {
+  trait Trivial[A]
+  implicit def trivial[A]: Trivial[A] = new Trivial[A] { }
+
+  type Obj[C[_[_[_], _[_, _]]]] =
+    [A]    => C[({type l[c0[_], c1[_, _]] = c0[A]   })#l]
+  type Cat[C[_[_[_], _[_, _]]]] =
+    [A, B] => C[({type l[c0[_], c1[_, _]] = c1[A, B]})#l]
+
+  trait Category[C[_[_[_], _[_, _]]]] {
+    type ->  = Cats.Cat[C]
+    type Obj = Cats.Obj[C]
+
+    def id[A: Obj]: A -> A
+    def andThen[A, B, C](ab: A -> B, bc: B -> C): A -> C
+  }
+
+  object Category {
+    type ByF[F[_, _]] = Category[_] { type -> = F }
+  }
+
+  type Scal[f[_[_], _[_, _]]] = f[Trivial, Function1]
+
+  implicit val scal: Category[Scal] = new Category[Scal] {
+    def id[A: Obj]: A -> A = a => a
+    def andThen[A, B, C](ab: A -> B, bc: B -> C): A -> C = ab.andThen(bc)
+  }
+
+  implicit class CategoryOps[F[_, _], A, B](ab: F[A, B]) {
+    def >>>[C](bc: F[B, C])(implicit F: Category.ByF[F]): F[A, C] =
+      F.andThen(ab, bc)
+  }
+
+  val f: Int => Int = _ + 1
+  val g: Int => String = _.toString
+  f >>> g
+}
+```
+
+Compiler output:
+```scala
+[info] Running dotty.tools.dotc.Main tests/alex/test.scala -classpath /home/alex/Workspace/dotty/library/target/scala-2.11/dotty-library_2.11-0.1.1-SNAPSHOT.jar
+
+exception occurred while typechecking tests/alex/test.scala
+
+exception occurred while compiling tests/alex/test.scala
+Exception in thread "main" java.lang.AssertionError: assertion failed: Cats.Category.type & Cats.Category & [-scala$Function1$$T1, +scala$Function1$$R] => (?) => (?) / AndType(TermRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,<empty>)),Cats$)),Category)/withSig(Signature(List(),)),TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,<empty>)),Cats$)),Category)) & HKTypeLambda(List(-scala$Function1$$T1, +scala$Function1$$R), List(TypeBounds(TypeRef(ThisType(TypeRef(NoPrefix,scala)),Nothing), TypeRef(ThisType(TypeRef(NoPrefix,scala)),Any)), TypeBounds(TypeRef(ThisType(TypeRef(NoPrefix,scala)),Nothing), TypeRef(ThisType(TypeRef(NoPrefix,scala)),Any))), RefinedType(RefinedType(TypeRef(ThisType(TypeRef(NoPrefix,scala)),Function1), scala$Function1$$T1, TypeAlias(WildcardType(TypeBounds(TypeRef(ThisType(TypeRef(NoPrefix,scala)),Nothing), TypeRef(ThisType(TypeRef(NoPrefix,scala)),Any))), -1)), scala$Function1$$R, TypeAlias(WildcardType(TypeBounds(TypeRef(ThisType(TypeRef(NoPrefix,scala)),Nothing), TypeRef(ThisType(TypeRef(NoPrefix,scala)),Any))), 1)))
+	at scala.Predef$.assert(Predef.scala:165)
+	at dotty.tools.dotc.core.Types$AndType$.apply(Types.scala:2236)
+	at dotty.tools.dotc.core.Types$AndType$.make(Types.scala:2249)
+	at dotty.tools.dotc.typer.ImplicitRunInfo$liftToClasses$2$$anonfun$apply$7.apply(Implicits.scala:388)
+	at dotty.tools.dotc.typer.ImplicitRunInfo$liftToClasses$2$$anonfun$apply$7.apply(Implicits.scala:388)
+	at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:124)
+	at scala.collection.immutable.List.foldLeft(List.scala:84)
+	at scala.collection.TraversableOnce$class.$div$colon(TraversableOnce.scala:136)
+	at scala.collection.AbstractTraversable.$div$colon(Traversable.scala:104)
+	at dotty.tools.dotc.typer.ImplicitRunInfo$liftToClasses$2$.apply(Implicits.scala:388)
+	at dotty.tools.dotc.typer.ImplicitRunInfo$class.computeIScope$1(Implicits.scala:457)
+	at dotty.tools.dotc.typer.ImplicitRunInfo$$anonfun$iscope$1$1.apply(Implicits.scala:474)
+	at dotty.tools.dotc.typer.ImplicitRunInfo$$anonfun$iscope$1$1.apply(Implicits.scala:474)
+	at scala.collection.mutable.AnyRefMap.getOrElse(AnyRefMap.scala:127)
+	at dotty.tools.dotc.typer.ImplicitRunInfo$class.iscope$1(Implicits.scala:474)
+	at dotty.tools.dotc.typer.ImplicitRunInfo$class.implicitScope(Implicits.scala:478)
+	at dotty.tools.dotc.core.Contexts$RunInfo.implicitScope(Contexts.scala:716)
+	at dotty.tools.dotc.typer.Implicits$ImplicitSearch.implicitScope(Implicits.scala:880)
+	at dotty.tools.dotc.typer.Implicits$ImplicitSearch.bestImplicit(Implicits.scala:876)
+	at dotty.tools.dotc.typer.Implicits$$anonfun$inferImplicit$1$$anonfun$apply$24.apply(Implicits.scala:676)
+	at dotty.tools.dotc.typer.Implicits$$anonfun$inferImplicit$1$$anonfun$apply$24.apply(Implicits.scala:671)
+	at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:136)
+	at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+	at dotty.tools.dotc.typer.Implicits$$anonfun$inferImplicit$1.apply(Implicits.scala:671)
+	at dotty.tools.dotc.typer.Implicits$$anonfun$inferImplicit$1.apply(Implicits.scala:666)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+	at dotty.tools.dotc.typer.Implicits$class.inferImplicit(Implicits.scala:666)
+	at dotty.tools.dotc.typer.Typer.inferImplicit(Typer.scala:64)
+	at dotty.tools.dotc.typer.Implicits$class.inferImplicitArg(Implicits.scala:592)
+	at dotty.tools.dotc.typer.Typer.inferImplicitArg(Typer.scala:64)
+	at dotty.tools.dotc.typer.Typer$$anonfun$36.apply(Typer.scala:1903)
+	at dotty.tools.dotc.typer.Typer$$anonfun$36.apply(Typer.scala:1899)
+	at scala.runtime.Tuple2Zipped$$anonfun$map$extension$1.apply(Tuple2Zipped.scala:46)
+	at scala.runtime.Tuple2Zipped$$anonfun$map$extension$1.apply(Tuple2Zipped.scala:44)
+	at scala.collection.immutable.List.foreach(List.scala:381)
+	at scala.runtime.Tuple2Zipped$.map$extension(Tuple2Zipped.scala:44)
+	at dotty.tools.dotc.typer.Typer.dotty$tools$dotc$typer$Typer$$addImplicitArgs$1(Typer.scala:1899)
+	at dotty.tools.dotc.typer.Typer.adaptNoArgs$1(Typer.scala:1929)
+	at dotty.tools.dotc.typer.Typer.adaptInterpolated(Typer.scala:2109)
+	at dotty.tools.dotc.typer.Typer$$anonfun$adapt$1$$anonfun$apply$37.apply(Typer.scala:1744)
+	at dotty.tools.dotc.typer.Typer$$anonfun$adapt$1$$anonfun$apply$37.apply(Typer.scala:1740)
+	at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:136)
+	at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+	at dotty.tools.dotc.typer.Typer$$anonfun$adapt$1.apply(Typer.scala:1740)
+	at dotty.tools.dotc.typer.Typer$$anonfun$adapt$1.apply(Typer.scala:1740)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+	at dotty.tools.dotc.typer.Typer.adapt(Typer.scala:1739)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1594)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1592)
+	at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:136)
+	at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1592)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1627)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1636)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typedClassDef$1.apply(Typer.scala:1327)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typedClassDef$1.apply(Typer.scala:1275)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+	at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1275)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1521)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1575)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1594)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1592)
+	at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:136)
+	at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1592)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1616)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1636)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typedPackageDef$1.apply(Typer.scala:1436)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typedPackageDef$1.apply(Typer.scala:1423)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+	at dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:1423)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1560)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1576)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1594)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1592)
+	at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:136)
+	at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1592)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:1648)
+	at dotty.tools.dotc.typer.FrontEnd$$anonfun$typeCheck$1.apply$mcV$sp(FrontEnd.scala:64)
+	at dotty.tools.dotc.typer.FrontEnd.monitor(FrontEnd.scala:32)
+	at dotty.tools.dotc.typer.FrontEnd.typeCheck(FrontEnd.scala:62)
+	at dotty.tools.dotc.typer.FrontEnd$$anonfun$runOn$3.apply(FrontEnd.scala:93)
+	at dotty.tools.dotc.typer.FrontEnd$$anonfun$runOn$3.apply(FrontEnd.scala:93)
+	at scala.collection.immutable.List.foreach(List.scala:381)
+	at dotty.tools.dotc.typer.FrontEnd.runOn(FrontEnd.scala:93)
+	at dotty.tools.dotc.Run$$anonfun$compileUnits$1$$anonfun$apply$mcV$sp$1.apply(Run.scala:76)
+	at dotty.tools.dotc.Run$$anonfun$compileUnits$1$$anonfun$apply$mcV$sp$1.apply(Run.scala:73)
+	at scala.collection.IndexedSeqOptimized$class.foreach(IndexedSeqOptimized.scala:33)
+	at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:186)
+	at dotty.tools.dotc.Run$$anonfun$compileUnits$1.apply$mcV$sp(Run.scala:73)
+	at dotty.tools.dotc.Run$$anonfun$compileUnits$1.apply(Run.scala:67)
+	at dotty.tools.dotc.Run$$anonfun$compileUnits$1.apply(Run.scala:67)
+	at dotty.tools.dotc.util.Stats$.monitorHeartBeat(Stats.scala:76)
+	at dotty.tools.dotc.Run.compileUnits(Run.scala:67)
+	at dotty.tools.dotc.Run.compileSources(Run.scala:64)
+	at dotty.tools.dotc.Run.compile(Run.scala:48)
+	at dotty.tools.dotc.Driver.doCompile(Driver.scala:26)
+	at dotty.tools.dotc.Driver.process(Driver.scala:124)
+	at dotty.tools.dotc.Driver.process(Driver.scala:93)
+	at dotty.tools.dotc.Driver.process(Driver.scala:105)
+	at dotty.tools.dotc.Driver.main(Driver.scala:132)
+	at dotty.tools.dotc.Main.main(Main.scala)
+java.lang.RuntimeException: Nonzero exit code returned from runner: 1
+	at scala.sys.package$.error(package.scala:27)
+```

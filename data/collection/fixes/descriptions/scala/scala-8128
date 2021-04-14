@@ -1,0 +1,38 @@
+```scala
+cat test/files/pos/patmat-existential.scala
+object G {
+  def unapply(m: Any): Option[_] = Some("")
+}
+
+object H {
+  def unapplySeq(m: Any): Option[Seq[_]] = None
+}
+
+object Test {
+  (0: Any) match {
+    case G(v) => v
+    case H(v) => v
+    case _ =>
+  }
+}
+```
+
+The two patterns above result in:
+
+```
+qbin/scalac test/files/pos/patmat-existential.scala
+test/files/pos/patmat-existential.scala:10: error: error during expansion of this match (this is a scalac bug).
+The underlying error was: type mismatch;
+ found   : _$2(in value <local Test>) where type _$2(in value <local Test>)
+ required: _$2(in method unapplySeq)
+  (0: Any) match {
+           ^
+one error found
+pr/3275 /code/scala qbin/scalac test/files/pos/patmat-existential.scala
+test/files/pos/patmat-existential.scala:10: error: error during expansion of this match (this is a scalac bug).
+The underlying error was: type mismatch;
+ found   : _$1(in value <local Test>) where type _$1(in value <local Test>)
+ required: _$1(in method unapply)
+  (0: Any) match {
+           ^
+```

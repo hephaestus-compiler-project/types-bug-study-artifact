@@ -1,0 +1,97 @@
+The following test case causes the compiler to throw a NullPointerException:
+```scala
+// more than one field is required to trigger crash
+// there must be a default value for one of the parameters
+case class OuterObject(field: Int = 1, anotherField: Int = 2)
+	
+object Test {
+	OuterObject().copy(field = OuterObject().field)
+
+	// declaring something without explicit type, with the same name as OuterObject.field
+	def field = "anything"
+}
+```
+
+Some things to note:
+- the name of the def Test.field is important, if it is not the same as the parameter name in OuterObject, the crash does not occur.
+- if OuterObject.field is the only parameter, the crash does not occur (any number of additional parameter are needed)
+- using the default values is important, i.e. changing the test case to have both parameters specified *within* the copy call avoids the bug: {code}
+OuterObject().copy(field = OuterObject(1, 2).field) {code}
+
+The exception does not occur on 2.10.4 (we are upgrading from that version). Since this bug seems so bizarrely specific, a workaround should be available by changing pretty much anything about the code, e.g. explicitly defining type information.
+
+Compiling with -Ydebug gives the following additional output:
+
+```scala
+warning: !!! exception when typing OuterObject().copy(field = OuterObject().field), pt=?
+warning: !!! exception when typing <module> object Test extends scala.AnyRef {
+  <method> def <init>(): <empty>.this.Test.type = {
+    super.<init>();
+    ()
+  };
+  OuterObject().copy(field = OuterObject().field);
+  <method> <triedcooking> def field: lang.this.String = "anything"
+}, pt=?
+warning: !!! exception when typing package <empty> {
+  case class OuterObject extends scala.Product with scala.Serializable {
+    <caseaccessor> <paramaccessor> <triedcooking> private[this] val field : scala.this.Int = _;
+    <caseaccessor> <paramaccessor> <triedcooking> private[this] val anotherField : scala.this.Int = _;
+    <method> <triedcooking> def <init>(field: Int = 1, anotherField: Int = 2): <empty>.this.OuterObject = {
+      super.<init>();
+      ()
+    }
+  };
+  <module> object Test extends scala.AnyRef {
+    <method> def <init>(): <empty>.this.Test.type = {
+      super.<init>();
+      ()
+    };
+    OuterObject().copy(field = OuterObject().field);
+    <method> <triedcooking> def field: lang.this.String = "anything"
+  }
+}, pt=?
+```
+
+Partial stack trace:
+```scala
+error: java.lang.NullPointerException
+	at scala.tools.nsc.typechecker.Typers$Typer.noExpectedType$1(Typers.scala:3378)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$handleMonomorphicCall$1(Typers.scala:3381)
+	at scala.tools.nsc.typechecker.Typers$Typer.doTypedApply(Typers.scala:3409)
+	at scala.tools.nsc.typechecker.Typers$Typer.tryNamesDefaults$1(Typers.scala:3295)
+	at scala.tools.nsc.typechecker.Typers$Typer.doTypedApply(Typers.scala:3367)
+	at scala.tools.nsc.typechecker.Typers$Typer.tryNamesDefaults$1(Typers.scala:3353)
+	at scala.tools.nsc.typechecker.Typers$Typer.doTypedApply(Typers.scala:3367)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$tryTypedApply$1$1.apply(Typers.scala:4404)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$tryTypedApply$1$1.apply(Typers.scala:4404)
+	at scala.tools.nsc.typechecker.Typers$Typer.silent(Typers.scala:676)
+	at scala.tools.nsc.typechecker.Typers$Typer.tryTypedApply$1(Typers.scala:4404)
+	at scala.tools.nsc.typechecker.Typers$Typer.normalTypedApply$1(Typers.scala:4449)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedApply$1(Typers.scala:4484)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedInAnyMode$1(Typers.scala:5242)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5259)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5295)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5322)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5269)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5273)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedByValueExpr(Typers.scala:5351)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:2977)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$60.apply(Typers.scala:3081)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$60.apply(Typers.scala:3081)
+	at scala.collection.immutable.List.loop$1(List.scala:172)
+	at scala.collection.immutable.List.mapConserve(List.scala:188)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3081)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1880)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1767)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedMemberDef$1(Typers.scala:5209)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5258)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5295)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5322)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5269)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5273)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedByValueExpr(Typers.scala:5351)
+	at ...
+Exception in thread "main" java.lang.NullPointerException
+	at scala.tools.nsc.typechecker.Typers$Typer.noExpectedType$1(Typers.scala:3378)
+	at ...
+```

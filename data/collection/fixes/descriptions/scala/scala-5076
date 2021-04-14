@@ -1,0 +1,128 @@
+Specialization appears to be off by default, despite what "Type Specialization in Scala 2.8" (Iulian Dragos, May 6, 2010, sid-spec.pdf) claims:
+
+/Users/benwing/test-scala 17:01 40832% cat TestShouldSpecialize.scala
+class TestShouldSpecialize[T](foo: T) {
+    def getFoo() = foo
+}
+/Users/benwing/test-scala 17:01 40833% scalac -print TestShouldSpecialize.scala
+[[syntax trees at end of cleanup]]// Scala source: TestShouldSpecialize.scala
+package <empty> {
+  class TestShouldSpecialize extends java.lang.Object with ScalaObject {
+    <paramaccessor> private[this] val foo: java.lang.Object = _;
+    def getFoo(): java.lang.Object = TestShouldSpecialize.this.foo;
+    def this(foo: java.lang.Object): TestShouldSpecialize = {
+      TestShouldSpecialize.this.foo = foo;
+      TestShouldSpecialize.super.this();
+      ()
+    }
+  }
+}
+
+/Users/benwing/test-scala 17:01 40834% scala -version
+Scala code runner version 2.9.1.final -- Copyright 2002-2011, LAMP/EPFL
+
+
+
+(Note, no specialized code output.)
+
+
+
+Furthermore, a trivial test of specialization causes the compiler to crash when run twice:
+
+
+
+
+/Users/benwing/test-scala 17:02 40839% rm *.class
+/Users/benwing/test-scala 17:02 40840% cat TestSpecialize.scala
+
+class TestSpecialize[@specialized T](foo: T) {
+    def getFoo() = foo
+}
+
+/Users/benwing/test-scala 17:03 40841% scalac TestSpecialize.scala
+/Users/benwing/test-scala 17:03 40842% scalac TestSpecialize.scala
+error: Companions 'class TestSpecialize$mcI$sp' and 'object TestSpecialize$mcI$sp' must be defined in same file
+	at scala.tools.nsc.symtab.Symbols$Symbol.isCoDefinedWith(Symbols.scala:1268)
+	at scala.tools.nsc.symtab.Symbols$Symbol$$anonfun$companionClass$1.apply(Symbols.scala:1304)
+	at scala.tools.nsc.symtab.Symbols$Symbol$$anonfun$companionClass$1.apply(Symbols.scala:1304)
+	at scala.tools.nsc.symtab.Symbols$Symbol.filter(Symbols.scala:1046)
+	at scala.tools.nsc.symtab.Symbols$Symbol.suchThat(Symbols.scala:1051)
+	at scala.tools.nsc.symtab.Symbols$Symbol.companionClass(Symbols.scala:1304)
+	at scala.tools.nsc.symtab.Symbols$Symbol.companionSymbol(Symbols.scala:1334)
+	at scala.tools.nsc.symtab.SymbolLoaders$SymbolLoader.complete(SymbolLoaders.scala:116)
+	at scala.tools.nsc.symtab.SymbolLoaders$SymbolLoader.complete(SymbolLoaders.scala:85)
+	at scala.tools.nsc.symtab.Symbols$Symbol.info(Symbols.scala:727)
+	at scala.tools.nsc.symtab.Symbols$Symbol.initialize(Symbols.scala:839)
+	at scala.tools.nsc.symtab.SymbolLoaders$moduleClassLoader$.doComplete(SymbolLoaders.scala:331)
+	at scala.tools.nsc.symtab.SymbolLoaders$SymbolLoader.complete(SymbolLoaders.scala:111)
+	at scala.tools.nsc.symtab.SymbolLoaders$SymbolLoader.complete(SymbolLoaders.scala:85)
+	at scala.tools.nsc.symtab.Symbols$Symbol.info(Symbols.scala:727)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator$$anonfun$addInnerClasses$1$$anonfun$apply$mcV$sp$1.apply(GenJVM.scala:683)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator$$anonfun$addInnerClasses$1$$anonfun$apply$mcV$sp$1.apply(GenJVM.scala:683)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:45)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator$$anonfun$addInnerClasses$1.apply$mcV$sp(GenJVM.scala:683)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator$$anonfun$addInnerClasses$1.apply(GenJVM.scala:683)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator$$anonfun$addInnerClasses$1.apply(GenJVM.scala:683)
+	at scala.tools.nsc.symtab.SymbolTable.atPhase(SymbolTable.scala:95)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator.addInnerClasses(GenJVM.scala:682)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator.emitClass(GenJVM.scala:171)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator.genClass(GenJVM.scala:314)
+	at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase$$anonfun$run$4.apply(GenJVM.scala:86)
+	at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase$$anonfun$run$4.apply(GenJVM.scala:86)
+	at scala.collection.mutable.HashMap$$anon$2$$anonfun$foreach$3.apply(HashMap.scala:102)
+	at scala.collection.mutable.HashMap$$anon$2$$anonfun$foreach$3.apply(HashMap.scala:102)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:660)
+	at scala.collection.mutable.HashTable$$anon$1.foreach(HashTable.scala:157)
+	at scala.collection.mutable.HashTable$class.foreachEntry(HashTable.scala:190)
+	at scala.collection.mutable.HashMap.foreachEntry(HashMap.scala:43)
+	at scala.collection.mutable.HashMap$$anon$2.foreach(HashMap.scala:102)
+	at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase.run(GenJVM.scala:86)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:953)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1038)
+	at scala.tools.nsc.Main$.process(Main.scala:106)
+	at scala.tools.nsc.Main$.main(Main.scala:123)
+	at scala.tools.nsc.Main.main(Main.scala)
+
+Exception in thread "main" Companions 'class TestSpecialize$mcI$sp' and 'object TestSpecialize$mcI$sp' must be defined in same file
+	at scala.tools.nsc.symtab.Symbols$Symbol.isCoDefinedWith(Symbols.scala:1268)
+	at scala.tools.nsc.symtab.Symbols$Symbol$$anonfun$companionClass$1.apply(Symbols.scala:1304)
+	at scala.tools.nsc.symtab.Symbols$Symbol$$anonfun$companionClass$1.apply(Symbols.scala:1304)
+	at scala.tools.nsc.symtab.Symbols$Symbol.filter(Symbols.scala:1046)
+	at scala.tools.nsc.symtab.Symbols$Symbol.suchThat(Symbols.scala:1051)
+	at scala.tools.nsc.symtab.Symbols$Symbol.companionClass(Symbols.scala:1304)
+	at scala.tools.nsc.symtab.Symbols$Symbol.companionSymbol(Symbols.scala:1334)
+	at scala.tools.nsc.symtab.SymbolLoaders$SymbolLoader.complete(SymbolLoaders.scala:116)
+	at scala.tools.nsc.symtab.SymbolLoaders$SymbolLoader.complete(SymbolLoaders.scala:85)
+	at scala.tools.nsc.symtab.Symbols$Symbol.info(Symbols.scala:727)
+	at scala.tools.nsc.symtab.Symbols$Symbol.initialize(Symbols.scala:839)
+	at scala.tools.nsc.symtab.SymbolLoaders$moduleClassLoader$.doComplete(SymbolLoaders.scala:331)
+	at scala.tools.nsc.symtab.SymbolLoaders$SymbolLoader.complete(SymbolLoaders.scala:111)
+	at scala.tools.nsc.symtab.SymbolLoaders$SymbolLoader.complete(SymbolLoaders.scala:85)
+	at scala.tools.nsc.symtab.Symbols$Symbol.info(Symbols.scala:727)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator$$anonfun$addInnerClasses$1$$anonfun$apply$mcV$sp$1.apply(GenJVM.scala:683)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator$$anonfun$addInnerClasses$1$$anonfun$apply$mcV$sp$1.apply(GenJVM.scala:683)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:45)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator$$anonfun$addInnerClasses$1.apply$mcV$sp(GenJVM.scala:683)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator$$anonfun$addInnerClasses$1.apply(GenJVM.scala:683)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator$$anonfun$addInnerClasses$1.apply(GenJVM.scala:683)
+	at scala.tools.nsc.symtab.SymbolTable.atPhase(SymbolTable.scala:95)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator.addInnerClasses(GenJVM.scala:682)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator.emitClass(GenJVM.scala:171)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator.genClass(GenJVM.scala:314)
+	at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase$$anonfun$run$4.apply(GenJVM.scala:86)
+	at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase$$anonfun$run$4.apply(GenJVM.scala:86)
+	at scala.collection.mutable.HashMap$$anon$2$$anonfun$foreach$3.apply(HashMap.scala:102)
+	at scala.collection.mutable.HashMap$$anon$2$$anonfun$foreach$3.apply(HashMap.scala:102)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:660)
+	at scala.collection.mutable.HashTable$$anon$1.foreach(HashTable.scala:157)
+	at scala.collection.mutable.HashTable$class.foreachEntry(HashTable.scala:190)
+	at scala.collection.mutable.HashMap.foreachEntry(HashMap.scala:43)
+	at scala.collection.mutable.HashMap$$anon$2.foreach(HashMap.scala:102)
+	at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase.run(GenJVM.scala:86)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:953)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1038)
+	at scala.tools.nsc.Main$.process(Main.scala:106)
+	at scala.tools.nsc.Main$.main(Main.scala:123)
+	at scala.tools.nsc.Main.main(Main.scala)

@@ -1,0 +1,60 @@
+Consider:
+
+```scala
+class Attr { type V ; class Val }
+class StrAttr extends Attr { type V = String }
+class BoolAttr extends Attr { type V = Boolean }
+
+object Main {
+  def f(x: Attr) = x match {
+    case v: StrAttr  => new v.Val
+    case v: BoolAttr => new v.Val
+  }
+}
+```
+
+After patmat the first case in pattern match is translated to:
+
+```scala
+case <synthetic> val x1: Attr = x;
+case6(){
+if (x1.isInstanceOf[StrAttr])
+  {
+    <synthetic> val x2: StrAttr = (x1.asInstanceOf[StrAttr]: StrAttr);
+    matchEnd5(new x2.Val())
+  }
+else
+  case7()
+};
+```
+
+Note, there's `new x2.Val()` expression that uses local variable `x2` to select `Val` type.
+
+Now, if look more closely at that expression with `-Yshow-trees` we'll see:
+
+```scala
+new x2.Val."<init>" // def <init>(): Attr.this.Val in class Val, tree.tpe=()v.Val
+```
+
+Note that the type refers to `v` variable from a case statement. That variable has been eliminated completely from a tree by patmat. My hypothesis is that patmat should transform the type to use `x2` instead to be consistent with the tree.
+
+This problem leads to a crash in GenICode but to understand why it crashes there we need to look at our expression after uncurry:
+
+```scala
+matchEnd5(new v.Val())
+```
+
+Look, reference to `v` is back! How is this possible if tree declaring `v` has been eliminated? It turns out that uncurry simplifies trees by replacing  Select node that selects a type with a TypeTree node that just uses a type. See [Uncurry.scala#549](https://github.com/scala/scala/blob/master/src/compiler/scala/tools/nsc/transform/UnCurry.scala#L549) for details. Since our type was using `v` we have `v` back.
+
+Now we have set the stage for crash in GenICode when it tries to load `v` and it's not able to find it because it doesn't exist:
+
+```scala
+error: symbol value v does not exist in Main.f
+error: scala.reflect.internal.FatalError: symbol value v does not exist in Main.f
+	at scala.reflect.internal.SymbolTable.abort(SymbolTable.scala:53)
+	at scala.tools.nsc.Global.abort(Global.scala:251)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadIdent$1(GenICode.scala:884)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:890)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1121)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1119)
+```

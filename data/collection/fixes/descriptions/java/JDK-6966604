@@ -1,0 +1,79 @@
+The following lines from JavacProcessingEnvironment show that the processors for the last round are run *before* setting the lastRound status of the JavacFiler:
+
+
+        roots = runLastRound(xout, roundNumber, errorStatus, compiler, roots, taskListener);
+        // Set error status for any files compiled and generated in
+        // the last round
+        if (log.unrecoverableError)
+            errorStatus = true;
+
+        compiler.close(false);
+        currentContext = contextForNextRound(currentContext, true);
+        compiler = JavaCompiler.instance(currentContext);
+
+
+
+
+This is verified by the following trace output:
+
+
+[parsing started RegularFileObject[./examples/ProcFileCreateLastRound/ProcFileCreateLastRound.java]]
+[parsing completed 24ms]
+[search path for source files: dist/Examples.jar]
+[search path for class files: langtools/dist/lib/javac.jar,langtools/dist/lib/javap.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/resources.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/rt.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/sunrsasign.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/jsse.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/jce.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/charsets.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/classes,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/ext/localedata.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/ext/sunec.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/ext/sunpkcs11.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/ext/sunjce_provider.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/ext/dnsns.jar,dist/Examples.jar]
+[loading ZipFileIndexFileObject[/w/opt/jdk/jdk1.7.0-b99-amd64/lib/ct.sym(META-INF/sym/rt.jar/java/lang/Object.class)]]
+Round 1:
+        input files: {ProcFileCreateLastRound}
+        annotations: []
+        last round: false
+AnnoProc: pOver:false
+Processor AnnoProc matches [] and returns false.
+JavacProcessingEnvironment.runLastRound
+Round 2:
+        input files: {}
+        annotations: []
+        last round: true ********************************************************************************************
+AnnoProc: pOver:true
+JavacFiler.createSourceOrClassFile lastRound:false name:Gen lint:true ***********************************************
+[parsing started RegularFileObject[classes/Gen.java]]
+[parsing completed 0ms]
+JavacFiler.newRound: lastRound:true *********************************************************************************
+java.lang.Exception: Stack trace
+        at java.lang.Thread.dumpStack(Thread.java:1353)
+        at com.sun.tools.javac.processing.JavacFiler.newRound(JavacFiler.java:540)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.doProcessing(JavacProcessingEnvironment.java:921)
+        at com.sun.tools.javac.main.JavaCompiler.processAnnotations(JavaCompiler.java:1061)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:796)
+        at com.sun.tools.javac.main.Main.compile(Main.java:409)
+        at com.sun.tools.javac.api.JavacTaskImpl.call(JavacTaskImpl.java:139)
+        at Example.compile_jsr199(Example.java:191)
+        at Example.run(Example.java:158)
+        at Example.run(Example.java:120)
+        at RunExamples.run(RunExamples.java:74)
+        at RunExamples.main(RunExamples.java:14)
+JavacProcessingEnvironment.updateProcessingState: lastRound:true
+JavacFiler.newRound: lastRound:true
+java.lang.Exception: Stack trace
+        at java.lang.Thread.dumpStack(Thread.java:1353)
+        at com.sun.tools.javac.processing.JavacFiler.newRound(JavacFiler.java:540)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.updateProcessingState(JavacProcessingEnvironment.java:1024)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.doProcessing(JavacProcessingEnvironment.java:955)
+        at com.sun.tools.javac.main.JavaCompiler.processAnnotations(JavaCompiler.java:1061)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:796)
+        at com.sun.tools.javac.main.Main.compile(Main.java:409)
+        at com.sun.tools.javac.api.JavacTaskImpl.call(JavacTaskImpl.java:139)
+        at Example.compile_jsr199(Example.java:191)
+        at Example.run(Example.java:158)
+        at Example.run(Example.java:120)
+        at RunExamples.run(RunExamples.java:74)
+        at RunExamples.main(RunExamples.java:14)
+[search path for source files: dist/Examples.jar]
+[search path for class files: langtools/dist/lib/javac.jar,langtools/dist/lib/javap.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/resources.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/rt.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/sunrsasign.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/jsse.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/jce.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/charsets.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/classes,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/ext/localedata.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/ext/sunec.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/ext/sunpkcs11.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/ext/sunjce_provider.jar,/w/opt/jdk/jdk1.7.0-b99-amd64/jre/lib/ext/dnsns.jar,dist/Examples.jar]
+[loading ZipFileIndexFileObject[/w/opt/jdk/jdk1.7.0-b99-amd64/lib/ct.sym(META-INF/sym/rt.jar/java/lang/Object.class)]]
+[checking ProcFileCreateLastRound]
+[wrote RegularFileObject[classes/ProcFileCreateLastRound.class]]
+[checking Gen]
+[wrote RegularFileObject[classes/Gen.class]]
+[total 232ms]
+
+        filer.newRound(currentContext, true);

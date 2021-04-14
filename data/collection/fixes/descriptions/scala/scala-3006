@@ -1,0 +1,20 @@
+This is on Beta1. The trick is to have the Foo object have a method "+", which fails to type check with a String. Here, it should then unroll that implicit and call Predef.anyToStringAdd on A, but it's keeping the Foo conversion around incorrectly.
+
+```scala
+scala> case class A(x: Int);
+defined class A
+
+scala> A(3) + "H"
+res0: java.lang.String = A(3)H
+
+scala> class Foo(a: A) { println("Foo created!"); def +(x: Int) = new A(this.a.x + x); }
+defined class Foo
+
+scala> implicit def aToFoo(x: A) = new Foo(x);
+aToFoo: (x: A)Foo
+
+// This is wrong:
+scala> A(3) + "H"
+Foo created!
+res1: java.lang.String = Foo@1c7ab89dH
+```

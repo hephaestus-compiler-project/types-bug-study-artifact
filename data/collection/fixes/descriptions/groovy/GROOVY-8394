@@ -1,0 +1,44 @@
+{code}
+
+class Root {
+  Parent parent = new Parent()
+
+  def parent(@DelegatesTo(Parent) Closure cl) {
+    cl.delegate = parent
+    cl()
+  }
+}
+
+class Parent {
+  Child child = new Child()
+
+  def child(@DelegatesTo(Child) Closure cl) {
+    cl.delegate = child
+    cl()
+  }
+
+  def foo() { "parent" }
+}
+
+class Child {
+  def foo() { "child" }
+}
+
+@groovy.transform.CompileStatic
+def usage() {
+  new Root().parent {
+    child {
+      foo()
+    }
+  }
+}
+
+println usage()
+{code}
+
+Expected result: {{parent}}
+Actual result: {{child}}
+
+Closure inside {{child &#123;&#125;}} call has default resolve strategy, i.e. owner first. Its owner is a closure passed to {{parent &#123;&#125;}}, which is delegated to {{Parent}}, which in turn has the method {{foo}}.
+
+Works properly without {{@CompileStatic}}.

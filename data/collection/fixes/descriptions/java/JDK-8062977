@@ -1,0 +1,30 @@
+Here's the repro:
+
+===
+import java.util.List;
+
+class Test {
+  interface TypeToken<B> {}
+  interface TypeMap<B> {
+    <T extends B> T getInstance(TypeToken<T> type);
+  }
+
+  void m(TypeMap<Iterable<?>[]> map, TypeToken<List<Integer>[]> type) {
+    List<Integer>[] result = map.getInstance(type);
+  }
+}
+===
+
+$ javac Test.java
+...
+java.lang.NullPointerException
+at com.sun.tools.javac.comp.Infer$IncorporationStep$7.apply(Infer.java:874)
+at com.sun.tools.javac.comp.Infer.checkWithinBounds(Infer.java:596)
+at com.sun.tools.javac.comp.Infer$GraphSolver.solve(Infer.java:1681)
+at com.sun.tools.javac.comp.Infer$InferenceContext.solve(Infer.java:2315)
+at com.sun.tools.javac.comp.Infer$InferenceContext.solve(Infer.java:2307)
+at com.sun.tools.javac.comp.Infer$InferenceContext.solve(Infer.java:2322)
+at com.sun.tools.javac.comp.Infer.instantiateMethod(Infer.java:201)
+at com.sun.tools.javac.comp.Resolve.rawInstantiate(Resolve.java:568)
+at com.sun.tools.javac.comp.Resolve.checkMethod(Resolve.java:606)
+...

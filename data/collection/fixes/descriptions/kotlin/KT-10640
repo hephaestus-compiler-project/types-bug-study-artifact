@@ -1,0 +1,19 @@
+Consider 2 extensions for generic receiver with different upper bounds:
+```
+inline fun <T : Closeable, R> T.myUse(action: (T) -> R): R = TODO()
+inline fun <T : AutoCloseable, R> T.myUse(action: (T) -> R): R = TODO()
+// and Closeable : AutoCloseable
+```
+
+When type parameters are inferred the resolution is ok, but specifying explicit type arguments causes overload resolution ambiguity
+```
+fun testMyUse() {
+    val c: Closeable = RandomAccessFile("foo", "r")
+    val x: Int = c.myUse { 42 }  // resolves to <T : Closeable, R> T.myUse(...)
+
+    // "Overload resolution ambiguity. All these functions match: ..."
+    val y: Int = c.myUse<Closeable, Int> { 42 }
+}
+```
+
+Based on thread https://discuss.kotlinlang.org/t/problems-with-overload-resolution-of-generic-extension-methods-with-multiple-type-parameters/1392

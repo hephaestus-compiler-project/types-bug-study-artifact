@@ -1,0 +1,78 @@
+Compiling this:
+```scala
+object Test {
+
+  class Wrapped(x:Any) {
+    def unwrap() = x
+  }
+
+  implicit def byName[A](x: =>A) = new Wrapped(x)
+
+  implicit def byVal[A](x: A) = x
+  
+  def main(args: Array[String]) = {
+
+//    val res:Wrapped = 7 // works
+
+    val res = 7.unwrap() // doesn't work
+
+    println("=> result: " + res)
+  }
+}
+```
+
+Produces this:
+```scala
+Exception in thread "main" java.lang.StackOverflowError
+	at scala.runtime.ScalaRunTime$$._hashCode(ScalaRunTime.scala:89)
+	at scala.tools.nsc.symtab.Types$$SingleType.hashCode(Types.scala:959)
+	at scala.tools.nsc.symtab.Types$$UniqueSingleType$$1.scala$$tools$$nsc$$symtab$$Types$$UniqueType$$$$super$$hashCode(Types.scala:1988)
+	at scala.tools.nsc.symtab.Types$$UniqueType$$class.$$init$$(Types.scala:819)
+	at scala.tools.nsc.symtab.Types$$UniqueSingleType$$1.<init>(Types.scala:1988)
+	at scala.tools.nsc.symtab.Types$$class.singleType(Types.scala:1989)
+	at scala.tools.nsc.symtab.SymbolTable.singleType(SymbolTable.scala:12)
+	at scala.tools.nsc.symtab.Symbols$$ClassSymbol.typeOfThis(Symbols.scala:1678)
+	at scala.tools.nsc.symtab.Types$$ThisType.underlying(Types.scala:931)
+	at scala.tools.nsc.symtab.Types$$SimpleTypeProxy$$class.baseClasses(Types.scala:165)
+	at scala.tools.nsc.symtab.Types$$SingletonType.baseClasses(Types.scala:853)
+	at scala.tools.nsc.symtab.Types$$Type.findMember(Types.scala:681)
+	at scala.tools.nsc.symtab.Types$$Type.member(Types.scala:386)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedIdent$$1(Typers.scala:2930)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed1(Typers.scala:3292)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:3363)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$typedApply$$1$$1.apply(Typers.scala:2646)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$typedApply$$1$$1.apply(Typers.scala:2646)
+	at scala.tools.nsc.typechecker.Typers$$Typer.silent(Typers.scala:614)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedApply$$1(Typers.scala:2646)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed1(Typers.scala:3259)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedImplicit0(Typers.scala:3592)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedImplicit(Typers.scala:3550)
+	at scala.tools.nsc.typechecker.Typers$$Typer.isApplicable$$1(Typers.scala:3718)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$applicableInfos$$1$$1.apply(Typers.scala:3723)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$applicableInfos$$1$$1.apply(Typers.scala:3721)
+	at scala.List.foreach(List.scala:834)
+	at scala.tools.nsc.typechecker.Typers$$Typer.applicableInfos$$1(Typers.scala:3721)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$60.apply(Typers.scala:3728)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$60.apply(Typers.scala:3728)
+	at scala.List.flatMap(List.scala:1125)
+	at scala.tools.nsc.typechecker.Typers$$Typer.searchImplicit$$1(Typers.scala:3728)
+	at scala.tools.nsc.typechecker.Typers$$Typer.inferImplicit(Typers.scala:3795)
+	at scala.tools.nsc.typechecker.Typers$$Typer.scala$$tools$$nsc$$typechecker$$Typers$$Typer$$$$inferView(Typers.scala:182)
+	at scala.tools.nsc.typechecker.Typers$$Typer.inferView(Typers.scala:205)
+	at scala.tools.nsc.typechecker.Typers$$Typer.adaptToMember(Typers.scala:892)
+	at scala.tools.nsc.typechecker.Typers$$Typer.adaptToName(Typers.scala:901)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedSelect$$1(Typers.scala:2821)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed1(Typers.scala:3282)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:3363)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedSelect$$1(Typers.scala:2822)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed1(Typers.scala:3282)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:3363)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedSelect$$1(Typers.scala:2822)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed1(Typers.scala:3282)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:3363)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedSelect$$1(Typers.scala:2822)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed1(Typers.scala:3282)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:3363)
+```
+
+Note that the error occurs only if the required type is structural (like calling `7.unwrap()` in the code snippet). Explicitly giving `Wrapped` as target type works fine.

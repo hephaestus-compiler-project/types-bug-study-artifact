@@ -1,0 +1,15 @@
+Supposing we have 
+interface I { public static void m(){} } 
+
+public class C implements I { public static void m(){} } 
+
+then javax.lang.model.util.Elements.hides(C.m, I.m) is false but the expected result is true, according to JLS 8.4.8.2 
+
+This is likely to be a regression caused by fix for JDK-8005166, what happens is at 
+http://hg.openjdk.java.net/jdk10/jdk10/langtools/file/5e5a17a1d918/src/jdk.compiler/share/classes/com/sun/tools/javac/model/JavacElements.java#l626 
+
+was being dispatched to the ClassSymbol.isInheritedIn, but with JDK-8005166 it is being dispatched to the overriden method in MethodSymbol, which does something else. 
+
+jtreg based test case as a hg patch attached.
+
+This should have been caught by a JCK test and needs to be fixed in that set as well.

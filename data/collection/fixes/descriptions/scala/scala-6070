@@ -1,0 +1,42 @@
+This is my clumsy attempt to exploit the fact that the new pattern matcher does not store case class members in local variables, but instead it goes through getters each time it's referenced in the rhs.
+
+For a while I thought it is only annoying when debugging, until I realized that case classes can have mutable members. So here is a `ClassCastException` based on the fact that the type checker assumes pattern-bound identifiers to be stable:
+
+```scala
+abstract class Bomb {
+	type T
+	val x: T
+
+	def size(that: T): Int
+}
+
+class StringBomb extends Bomb {
+	type T = String
+	val x = "abc"
+	def size(that: String): Int = that.length
+}
+
+class IntBomb extends Bomb { 
+	type T = Int
+	val x = 10
+
+	def size(that: Int) = x + that
+}
+
+case class Mean(var bomb: Bomb)
+
+object Main extends App {
+	def foo(x: Mean) = x match {
+		case Mean(b) => 
+			// b is assumed to be a stable identifier, but it can actually be mutated
+			println(b.size({ mutate(); b.x }))
+	}
+
+	def mutate() {
+	   	m.bomb = new IntBomb
+	}
+
+	val m = Mean(new StringBomb)
+	foo(m)
+}
+```

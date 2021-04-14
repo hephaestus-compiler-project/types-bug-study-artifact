@@ -1,0 +1,297 @@
+File foo.scala:
+
+```scala
+object Foo {
+  object X { def unapply(x : Int)(y : Option[Int] = None) = None }
+  42 match { case _ X _ => () }
+}
+```
+
+Trying to compile this with
+
+```scala
+scalac foo.scala
+```
+
+causes the compiler to crash with an assertion error:
+
+```scala
+error: java.lang.AssertionError: assertion failed: transformCaseApply: name = X tree = X / class scala.reflect.generic.Trees$$Ident
+        at scala.Predef$$.assert(Predef.scala:100)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer$$$$anonfun$$2.apply$$mcV$$sp(RefChecks.scala:1400)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transformCaseApply(RefChecks.scala:1235)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transform(RefChecks.scala:1398)
+        at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:823)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transform(RefChecks.scala:1424)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transform(RefChecks.scala:1420)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformCaseDefs$$1.apply(Trees.scala:871)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformCaseDefs$$1.apply(Trees.scala:871)
+        at scala.collection.immutable.List.loop$$1(List.scala:117)
+        at scala.collection.immutable.List.mapConserve(List.scala:133)
+        at scala.tools.nsc.ast.Trees$$Transformer.transformCaseDefs(Trees.scala:871)
+        at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:809)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transform(RefChecks.scala:1424)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transformStat(RefChecks.scala:1100)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer$$$$anonfun$$13.apply(RefChecks.scala:979)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer$$$$anonfun$$13.apply(RefChecks.scala:979)
+        at scala.collection.TraversableLike$$$$anonfun$$flatMap$$1.apply(TraversableLike.scala:266)
+        at scala.collection.TraversableLike$$$$anonfun$$flatMap$$1.apply(TraversableLike.scala:266)
+        at scala.collection.LinearSeqOptimized$$class.foreach(LinearSeqOptimized.scala:59)
+        at scala.collection.immutable.List.foreach(List.scala:45)
+        at scala.collection.TraversableLike$$class.flatMap(TraversableLike.scala:266)
+        at scala.collection.immutable.List.flatMap(List.scala:45)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transformStats(RefChecks.scala:979)
+        at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:783)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transform(RefChecks.scala:1424)
+        at scala.tools.nsc.ast.Trees$$Transformer.transformTemplate(Trees.scala:861)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$2.apply(Trees.scala:753)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$2.apply(Trees.scala:752)
+        at scala.tools.nsc.ast.Trees$$Transformer.atOwner(Trees.scala:885)
+        at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:751)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transform(RefChecks.scala:1424)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transformStat(RefChecks.scala:1021)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer$$$$anonfun$$13.apply(RefChecks.scala:979)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer$$$$anonfun$$13.apply(RefChecks.scala:979)
+        at scala.collection.TraversableLike$$$$anonfun$$flatMap$$1.apply(TraversableLike.scala:266)
+        at scala.collection.TraversableLike$$$$anonfun$$flatMap$$1.apply(TraversableLike.scala:266)
+        at scala.collection.LinearSeqOptimized$$class.foreach(LinearSeqOptimized.scala:59)
+        at scala.collection.immutable.List.foreach(List.scala:45)
+        at scala.collection.TraversableLike$$class.flatMap(TraversableLike.scala:266)
+        at scala.collection.immutable.List.flatMap(List.scala:45)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transformStats(RefChecks.scala:979)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$1.apply(Trees.scala:747)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$1.apply(Trees.scala:747)
+        at scala.tools.nsc.ast.Trees$$Transformer.atOwner(Trees.scala:885)
+        at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:746)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transform(RefChecks.scala:1424)
+        at scala.tools.nsc.ast.Trees$$Transformer.transformUnit(Trees.scala:878)
+        at scala.tools.nsc.transform.Transform$$Phase.apply(Transform.scala:30)
+        at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$applyPhase$$1.apply(Global.scala:326)
+        at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$applyPhase$$1.apply(Global.scala:326)
+        at scala.tools.nsc.reporters.Reporter.withSource(Reporter.scala:47)
+        at scala.tools.nsc.Global$$GlobalPhase.applyPhase(Global.scala:326)
+        at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$run$$1.apply(Global.scala:294)
+        at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$run$$1.apply(Global.scala:294)
+        at scala.collection.Iterator$$class.foreach(Iterator.scala:652)
+        at scala.collection.mutable.ListBuffer$$$$anon$$1.foreach(ListBuffer.scala:311)
+        at scala.tools.nsc.Global$$GlobalPhase.run(Global.scala:294)
+        at scala.tools.nsc.Global$$Run.compileSources(Global.scala:896)
+        at scala.tools.nsc.Global$$Run.compile(Global.scala:997)
+        at scala.tools.nsc.Main$$.process(Main.scala:106)
+        at scala.tools.nsc.Main$$.main(Main.scala:123)
+        at scala.tools.nsc.Main.main(Main.scala)
+
+Exception in thread "main" java.lang.AssertionError: assertion failed: transformCaseApply: name = X tree = X / class scala.reflect.generic.Trees$$Ident
+        at scala.Predef$$.assert(Predef.scala:100)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer$$$$anonfun$$2.apply$$mcV$$sp(RefChecks.scala:1400)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transformCaseApply(RefChecks.scala:1235)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transform(RefChecks.scala:1398)
+        at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:823)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transform(RefChecks.scala:1424)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transform(RefChecks.scala:1420)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformCaseDefs$$1.apply(Trees.scala:871)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformCaseDefs$$1.apply(Trees.scala:871)
+        at scala.collection.immutable.List.loop$$1(List.scala:117)
+        at scala.collection.immutable.List.mapConserve(List.scala:133)
+        at scala.tools.nsc.ast.Trees$$Transformer.transformCaseDefs(Trees.scala:871)
+        at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:809)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transform(RefChecks.scala:1424)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transformStat(RefChecks.scala:1100)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer$$$$anonfun$$13.apply(RefChecks.scala:979)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer$$$$anonfun$$13.apply(RefChecks.scala:979)
+        at scala.collection.TraversableLike$$$$anonfun$$flatMap$$1.apply(TraversableLike.scala:266)
+        at scala.collection.TraversableLike$$$$anonfun$$flatMap$$1.apply(TraversableLike.scala:266)
+        at scala.collection.LinearSeqOptimized$$class.foreach(LinearSeqOptimized.scala:59)
+        at scala.collection.immutable.List.foreach(List.scala:45)
+        at scala.collection.TraversableLike$$class.flatMap(TraversableLike.scala:266)
+        at scala.collection.immutable.List.flatMap(List.scala:45)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transformStats(RefChecks.scala:979)
+        at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:783)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transform(RefChecks.scala:1424)
+        at scala.tools.nsc.ast.Trees$$Transformer.transformTemplate(Trees.scala:861)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$2.apply(Trees.scala:753)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$2.apply(Trees.scala:752)
+        at scala.tools.nsc.ast.Trees$$Transformer.atOwner(Trees.scala:885)
+        at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:751)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transform(RefChecks.scala:1424)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transformStat(RefChecks.scala:1021)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer$$$$anonfun$$13.apply(RefChecks.scala:979)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer$$$$anonfun$$13.apply(RefChecks.scala:979)
+        at scala.collection.TraversableLike$$$$anonfun$$flatMap$$1.apply(TraversableLike.scala:266)
+        at scala.collection.TraversableLike$$$$anonfun$$flatMap$$1.apply(TraversableLike.scala:266)
+        at scala.collection.LinearSeqOptimized$$class.foreach(LinearSeqOptimized.scala:59)
+        at scala.collection.immutable.List.foreach(List.scala:45)
+        at scala.collection.TraversableLike$$class.flatMap(TraversableLike.scala:266)
+        at scala.collection.immutable.List.flatMap(List.scala:45)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transformStats(RefChecks.scala:979)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$1.apply(Trees.scala:747)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$1.apply(Trees.scala:747)
+        at scala.tools.nsc.ast.Trees$$Transformer.atOwner(Trees.scala:885)
+        at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:746)
+        at scala.tools.nsc.typechecker.RefChecks$$RefCheckTransformer.transform(RefChecks.scala:1424)
+        at scala.tools.nsc.ast.Trees$$Transformer.transformUnit(Trees.scala:878)
+        at scala.tools.nsc.transform.Transform$$Phase.apply(Transform.scala:30)
+        at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$applyPhase$$1.apply(Global.scala:326)
+        at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$applyPhase$$1.apply(Global.scala:326)
+        at scala.tools.nsc.reporters.Reporter.withSource(Reporter.scala:47)
+        at scala.tools.nsc.Global$$GlobalPhase.applyPhase(Global.scala:326)
+        at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$run$$1.apply(Global.scala:294)
+        at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$run$$1.apply(Global.scala:294)
+        at scala.collection.Iterator$$class.foreach(Iterator.scala:652)
+        at scala.collection.mutable.ListBuffer$$$$anon$$1.foreach(ListBuffer.scala:311)
+        at scala.tools.nsc.Global$$GlobalPhase.run(Global.scala:294)
+        at scala.tools.nsc.Global$$Run.compileSources(Global.scala:896)
+        at scala.tools.nsc.Global$$Run.compile(Global.scala:997)
+        at scala.tools.nsc.Main$$.process(Main.scala:106)
+        at scala.tools.nsc.Main$$.main(Main.scala:123)
+        at scala.tools.nsc.Main.main(Main.scala)
+
+```
+
+This is the simplest such example I can find.
+
+This certainly happens using the following:
+
+  - Scala: Scala 2.9.0 RC1, 
+  - Java: 1.6.0_24-b07
+  - Operating system: Gentoo Linux
+
+It seems like the same problem also happens with Scala 2.8.1 final, with the following output:
+
+```scala
+TREE: X(_, _)
+TREE: case X(_, _) => ()
+TREE: 42 match {
+  case X(_, _) => ()
+}
+TRANSFORM: foo.scala
+TREE: java.lang.Object with ScalaObject {
+  def this(): object Foo = {
+    Foo.super.this();
+    ()
+  };
+  final object X extends java.lang.Object with ScalaObject {
+    <synthetic> def unapply$$default$$2(x: Int): Option[Int] @scala.annotation.unchecked.uncheckedVariance = scala.None;
+    def this(): object Foo.X = {
+      X.super.this();
+      ()
+    };
+    def unapply(x: Int)(y: Option[Int] = scala.None): object None = scala.None
+  };
+  42 match {
+    case X(_, _) => ()
+  }
+}
+TRANSFORM: foo.scala
+TREE: final object Foo extends java.lang.Object with ScalaObject {
+  def this(): object Foo = {
+    Foo.super.this();
+    ()
+  };
+  final object X extends java.lang.Object with ScalaObject {
+    <synthetic> def unapply$$default$$2(x: Int): Option[Int] @scala.annotation.unchecked.uncheckedVariance = scala.None;
+    def this(): object Foo.X = {
+      X.super.this();
+      ()
+    };
+    def unapply(x: Int)(y: Option[Int] = scala.None): object None = scala.None
+  };
+  42 match {
+    case X(_, _) => ()
+  }
+}
+TRANSFORM: null
+TREE: package <empty> {
+  final object Foo extends java.lang.Object with ScalaObject {
+    def this(): object Foo = {
+      Foo.super.this();
+      ()
+    };
+    final object X extends java.lang.Object with ScalaObject {
+      <synthetic> def unapply$$default$$2(x: Int): Option[Int] @scala.annotation.unchecked.uncheckedVariance = scala.None;
+      def this(): object Foo.X = {
+        X.super.this();
+        ()
+      };
+      def unapply(x: Int)(y: Option[Int] = scala.None): object None = scala.None
+    };
+    42 match {
+      case X(_, _) => ()
+    }
+  }
+}
+
+Exception in thread "main" java.lang.AssertionError: assertion failed: X(_, _)
+        at scala.tools.nsc.typechecker.SuperAccessors$$SuperAccTransformer.transform(SuperAccessors.scala:227)
+        at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:779)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.transform(TypingTransformers.scala:53)
+        at scala.tools.nsc.typechecker.SuperAccessors$$SuperAccTransformer.transform(SuperAccessors.scala:234)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformCaseDefs$$1.apply(Trees.scala:863)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformCaseDefs$$1.apply(Trees.scala:863)
+        at scala.collection.immutable.List.loop$$1(List.scala:115)
+        at scala.collection.immutable.List.mapConserve(List.scala:132)
+        at scala.tools.nsc.ast.Trees$$Transformer.transformCaseDefs(Trees.scala:863)
+        at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:801)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.transform(TypingTransformers.scala:53)
+        at scala.tools.nsc.typechecker.SuperAccessors$$SuperAccTransformer.transform(SuperAccessors.scala:234)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformTrees$$1.apply(Trees.scala:851)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformTrees$$1.apply(Trees.scala:851)
+        at scala.collection.immutable.List.loop$$1(List.scala:115)
+        at scala.collection.immutable.List.mapConserve(List.scala:132)
+        at scala.tools.nsc.ast.Trees$$Transformer.transformTrees(Trees.scala:851)
+        at scala.tools.nsc.typechecker.SuperAccessors$$SuperAccTransformer$$$$anonfun$$4.apply(SuperAccessors.scala:180)
+        at scala.tools.nsc.typechecker.SuperAccessors$$SuperAccTransformer$$$$anonfun$$4.apply(SuperAccessors.scala:180)
+        at scala.tools.nsc.ast.Trees$$Transformer.atOwner(Trees.scala:877)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:38)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:31)
+        at scala.tools.nsc.typechecker.SuperAccessors$$SuperAccTransformer.atOwner(SuperAccessors.scala:248)
+        at scala.tools.nsc.typechecker.SuperAccessors$$SuperAccTransformer.transform(SuperAccessors.scala:180)
+        at scala.tools.nsc.ast.Trees$$Transformer.transformTemplate(Trees.scala:853)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$3.apply(Trees.scala:750)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$3.apply(Trees.scala:749)
+        at scala.tools.nsc.ast.Trees$$Transformer.atOwner(Trees.scala:877)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:38)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:31)
+        at scala.tools.nsc.typechecker.SuperAccessors$$SuperAccTransformer.atOwner(SuperAccessors.scala:248)
+        at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:748)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.transform(TypingTransformers.scala:53)
+        at scala.tools.nsc.typechecker.SuperAccessors$$SuperAccTransformer.transform(SuperAccessors.scala:170)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformStats$$1.apply(Trees.scala:869)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformStats$$1.apply(Trees.scala:867)
+        at scala.collection.immutable.List.loop$$1(List.scala:115)
+        at scala.collection.immutable.List.mapConserve(List.scala:132)
+        at scala.tools.nsc.ast.Trees$$Transformer.transformStats(Trees.scala:867)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$1.apply(Trees.scala:739)
+        at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$1.apply(Trees.scala:739)
+        at scala.tools.nsc.ast.Trees$$Transformer.atOwner(Trees.scala:877)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:38)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:31)
+        at scala.tools.nsc.typechecker.SuperAccessors$$SuperAccTransformer.atOwner(SuperAccessors.scala:248)
+        at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:738)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.scala$$tools$$nsc$$transform$$TypingTransformers$$TypingTransformer$$$$super$$transform(TypingTransformers.scala:49)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer$$$$anonfun$$transform$$2.apply(TypingTransformers.scala:51)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer$$$$anonfun$$transform$$2.apply(TypingTransformers.scala:51)
+        at scala.tools.nsc.ast.Trees$$Transformer.atOwner(Trees.scala:877)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:38)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:31)
+        at scala.tools.nsc.typechecker.SuperAccessors$$SuperAccTransformer.atOwner(SuperAccessors.scala:248)
+        at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.transform(TypingTransformers.scala:51)
+        at scala.tools.nsc.typechecker.SuperAccessors$$SuperAccTransformer.transform(SuperAccessors.scala:234)
+        at scala.tools.nsc.ast.Trees$$Transformer.transformUnit(Trees.scala:870)
+        at scala.tools.nsc.transform.Transform$$Phase.apply(Transform.scala:30)
+        at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$applyPhase$$1.apply(Global.scala:282)
+        at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$applyPhase$$1.apply(Global.scala:282)
+        at scala.tools.nsc.reporters.Reporter.withSource(Reporter.scala:48)
+        at scala.tools.nsc.Global$$GlobalPhase.applyPhase(Global.scala:282)
+        at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$run$$1.apply(Global.scala:256)
+        at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$run$$1.apply(Global.scala:256)
+        at scala.collection.Iterator$$class.foreach(Iterator.scala:631)
+        at scala.collection.mutable.ListBuffer$$$$anon$$1.foreach(ListBuffer.scala:304)
+        at scala.tools.nsc.Global$$GlobalPhase.run(Global.scala:256)
+        at scala.tools.nsc.Global$$Run.compileSources(Global.scala:741)
+        at scala.tools.nsc.Global$$Run.compile(Global.scala:822)
+        at scala.tools.nsc.Main$$.process(Main.scala:106)
+        at scala.tools.nsc.Main$$.main(Main.scala:120)
+        at scala.tools.nsc.Main.main(Main.scala)
+
+```

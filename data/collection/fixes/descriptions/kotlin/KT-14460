@@ -1,0 +1,22 @@
+The following code compile with unnecessary cast warning on line "res!!", removing cast inferred type is "String?" and compilation breaks.
+
+"map.getOrEsle" line works well.
+
+{code:lang=kotlin}
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+
+val lock = ReentrantLock()
+val map = mapOf<Int, String>()
+
+fun foo(): String =
+        map[0] ?:
+                lock.withLock { // ko
+             // map.getOrElse(0) { // ok
+            var res = map[0]
+            if (res == null) {
+                res = ""
+            }
+            res!! // unnecessary cast is required using lock variable
+        }
+{code}

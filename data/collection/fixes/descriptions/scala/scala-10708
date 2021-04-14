@@ -1,0 +1,30 @@
+Discovered by @retronym: https://github.com/scala/scala-java8-compat/issues/97 and minimized to,
+
+```scala
+trait BaseStream[T, S <: BaseStream[T, S]]
+trait Stream[T] extends BaseStream[T, Stream[T]]
+trait IntStream extends BaseStream[Integer, IntStream]
+
+sealed trait SS[T, S <: BaseStream[_, S]]
+object SSImplicits extends Low {
+  implicit val IntValue: SS[Int, IntStream] = null
+}
+trait Low {
+  implicit def anyStreamShape[T]: SS[T, Stream[T]] = null
+}
+
+import SSImplicits.{IntValue, anyStreamShape}
+
+class Test {
+  implicit def f[A, S <: BaseStream[_, S], CC](a: A)(implicit ss: SS[A, S]): S = ???
+
+  // switch these lines and typechecking the body of `def x` fails in 2.13.x
+  x
+  y
+
+  def x = f(0): IntStream
+  def y = f[String, Stream[String], Vector[String]]("")
+
+}
+```
+Identified as a regression caused by https://github.com/scala/scala/pull/6140 ... see https://github.com/scala/scala/pull/6140#discussion_r163753480.

@@ -1,0 +1,23 @@
+Consider the following source:
+
+import java.util.Collection;
+class Test<S extends Runnable> extends ArrayList<S> {
+    <T extends S & S> void test() {}
+}
+
+when compiling it using JDK 7 compiler you get 3 error messages:
+
+TestX.java:3: cyclic inheritance involving S
+    <T extends S & S> void test() {}
+     ^
+TestX.java:3: a type variable may not be followed by other bounds
+    <T extends S & S> void test() {}
+                   ^
+TestX.java:2: type parameter S is not within its bound
+class Test<S extends Runnable> extends ArrayList<S> {
+                                                 ^
+3 errors
+
+Both the first and the last error messages are wrong: there's no cyclic inheritance involving S - only, T's bound is ill-formed. Moreover it's not true that S is not within its bound (the bound of ArrayList's type parameter is Object!).
+
+This affects netbeans IDE badly - as multiple spourious diagnostics are generated (and NB has to patch javac to obtain the correct behavior)

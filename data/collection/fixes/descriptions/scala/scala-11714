@@ -1,0 +1,20 @@
+the compiler will accept the `@varargs` annotation in situations where it shouldn't and gamely generate bad bytecode
+
+for `@varargs` to work, the variable length argument must be the _last_ argument in the _last_ parameter list. if you have multiple parameter lists, later on downstream you'll get an error like
+
+```
+ class file: /Users/tisue/community.211-11/target-0.9.16/project-builds/twitter-util-715c1151a337e4a30659436b6cafc90bf8f35c6f/util-stats/target/scala-2.11/classes/com/twitter/finagle/stats/StatsReceiver.class
+class file contains malformed variable arity method: provideGauge(java.lang.String[],scala.Function0<java.lang.Object>)
+```
+
+for a method such as
+
+```
+@varargs def provideGauge(name: String*)(f: => Float): Unit = { ...
+```
+
+this example comes from https://github.com/twitter/util/pull/255
+
+(...where the problem only cropped up on JDK 11 not JDK 8, so apparently Oracle added some stricter checking on the Java side? but then also it had come up earlier on an earlier JDK at https://github.com/twitter/util/issues/200, so I'm a bit confused about that, but it doesn't matter, the compiler ought to reject it)
+
+this would be a good little getting-started compiler-hacking project for somebody

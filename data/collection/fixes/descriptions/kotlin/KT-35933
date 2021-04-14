@@ -1,0 +1,43 @@
+Original code https://github.com/gradle/gradle/blob/205f635ff7fb69c7ba8e5cb0ddfbab7bca8ecb40/subprojects/docs/src/snippets/userguide/dependencyManagement/modelingFeatures/crossProjectPublications/advanced/kotlin/consumer/build.gradle.kts#L68-L69
+
+Sample (new inference enabled):
+```build.gradle.kts
+plugins {
+    kotlin("jvm") version "1.3.70-eap-42"
+}
+
+group = "org.example"
+version = "1.0-SNAPSHOT"
+
+repositories {
+    maven { setUrl("https://dl.bintray.com/kotlin/kotlin-eap") }
+    mavenCentral()
+}
+
+dependencies {
+    implementation(kotlin("stdlib-jdk8"))
+}
+
+tasks {
+    compileKotlin {
+        kotlinOptions.jvmTarget = "1.8"
+    }
+    compileTestKotlin {
+        kotlinOptions.jvmTarget = "1.8"
+    }
+}
+
+tasks.register("showTestClasspath") {
+    inputs.files(configurations.testCompileClasspath)
+    inputs.files(configurations.testRuntimeClasspath)
+    doLast {
+        println(configurations.testCompileClasspath.get().files.map(File::name))
+        println(configurations.testRuntimeClasspath.get().files.map(File::name))
+    }
+}
+```
+
+Error message: [UNSUPPORTED] Unsupported [reference to the synthetic extension property for a Java get/set method]
+
+IntelliJ IDEA 2019.3.2 Preview Build #IU-193.6015.11 + **Kotlin plugin 1.3.70-eap-42**
+**With kotlin plugin 1.3.61 works fine**

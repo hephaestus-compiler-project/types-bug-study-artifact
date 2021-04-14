@@ -1,0 +1,47 @@
+See https://github.com/winitzki/scala-bug-1/blob/master/src/main/scala/example/Bug1.scala for a minimal runnable example of code that crashes the compiler. I am using Scala 2.12.4 with all default compiler options. The file `build.sbt` contains nothing but the Scala version.
+
+This is the code that causes a compiler crash:
+
+```scala
+implicit def safeInt(x: Int): Either[String, Int] = Right(x)
+
+for {
+    x <- Left("error")
+    y <- 1 + x
+  } yield x
+
+```
+
+```
+Error:scalac: Error while emitting Bug1.scala
+<error> (of class scala.reflect.internal.Types$ErrorType$)
+Error:scalac: Error while emitting Bug1.scala
+assertion failed: ClassBType.info not yet assigned: Lexample/Bug1$;
+Warning:scalac: an unexpected type representation reached the compiler backend while compiling Bug1.scala: <error>. If possible, please file a bug on https://github.com/scala/bug/issues.
+Warning:scalac: scala.MatchError: <error> (of class scala.reflect.internal.Types$ErrorType$)
+Warning:scalac:
+Warning:scalac: 	at scala.tools.nsc.backend.jvm.BTypesFromSymbols.typeToBType(BTypesFromSymbols.scala:195)
+Warning:scalac: 	at scala.tools.nsc.backend.jvm.BTypesFromSymbols.methodBTypeFromMethodType(BTypesFromSymbols.scala:129)
+Warning:scalac: 	at scala.tools.nsc.backend.jvm.BTypesFromSymbols.methodBTypeFromSymbol(BTypesFromSymbols.scala:120)
+...
+```
+
+Small changes to this code will make it compile:
+
+```scala
+val c: Either[String, Int] = Left("error")
+
+// works
+  for {
+    x <- c
+    y <- 1 + x
+  } yield x
+
+// works
+ for {
+    x <- Left("error")
+    y <- Right(1 + x)
+  } yield x
+```
+
+I am reporting this bug because the compiler error message suggests that I do so.

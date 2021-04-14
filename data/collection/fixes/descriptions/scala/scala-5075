@@ -1,0 +1,31 @@
+I attached a minimal example reproducing the bug. Compiling it and checking the error messages *might* be faster than reading my description, but I still include a walkthrough of the bug. Suppose we have the following definitions (the values are irrelevant as you might verify, only the argument types count):
+
+```scala
+implicit def function[D[_]](t: TypeWithHigherKindParam[D]) = 1
+val param: TypeWithHigherKindParam[PartialApply1Of2[Tuple2, Int]#Apply] = null
+```
+where PartialApply1Of2#Apply is a type function (it comes from [Scalaz](https://github.com/scalaz/scalaz/blob/1303b09595d012858a8a738d5201ede31b7eff74/core/src/main/scala/scalaz/PartialApplys.scala), is included in the attachment). Let's apply function to param:
+
+```scala
+function[PartialApply1Of2[Tuple2, Int]#Apply](param): Int //Compiles
+function(param) //Does not compile
+```
+
+So, type inference cannot figure out the needed parameter. However, the error message hints that unification has the right inputs and is simply failing:
+
+```scala
+various/BugReport.scala:14: error: no type parameters for method function: (t: BugReport.TypeWithHigherKindParam[D])Int exist so that it can be applied to arguments (BugReport.TypeWithHigherKindParam[[B](Int, B)])
+ --- because ---
+argument expression's type is not compatible with formal parameter type;
+ found   : BugReport.TypeWithHigherKindParam[[B](Int, B)]
+ required: BugReport.TypeWithHigherKindParam[?D]
+
+    function(param) //Does not compile
+```
+
+?D was declared as D[_] and has thus kind * -> * (in Haskell notation), like [B](Int, B), so unification should easily succeed.
+
+Moreover, when making function implicit, I'd expect the compiler to be able to use it (as in the example) - that's (a reduced version of) my original use case, actually. More complex tests can be found commented out in the attachment.
+
+FYI, I retested this also on a (hopefully) more recent version, getting the same results (plus extra unrelated warnings).
+It was yesterday's HEAD of scala-virtualized (git://github.com/TiarkRompf/scala-virtualized.git), branch virtualized-master, commit 158bc26c7bf9552c99eba00690b15f5d351abfb6 (which seems to have last resynced to scala on this commit: https://github.com/scala/scala/commit/b0d5648254d68b81bf539b2fca82fc3750c6a720).

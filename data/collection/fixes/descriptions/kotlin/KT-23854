@@ -1,0 +1,34 @@
+Consider the following example:
+```
+class Inv<V>
+
+fun <K> select(x: K, y: K): K = x
+fun <T> generic(x: Inv<T>) {}
+
+fun bar(a: Inv<out Any>, b: Inv<out Any>) {
+    generic(select(a, b)) // error in NI, ok in OI
+
+    // but:
+    val x = select(a, b)
+    generic(x) // OK everywhere, because of local inference
+}
+```
+
+Currently there is an error on `select` call because of captured conversion and common system for the whole call `generic(select(a, b))`. 
+Note that the same code in Java works correctly:
+
+```
+class A {
+    static <T> T select(T x, T y) { return x; }
+    
+    static <K> void generic(K k) {}
+
+    static class C<E> {
+        E foo() {return null;}
+    }
+
+    void foo(C<?> a, C<?> b) {
+        generic(select(a, b));
+    }
+}
+```

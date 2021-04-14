@@ -1,0 +1,46 @@
+Consider this code:
+---
+public class A {
+    Integer i;
+    private void test() {
+        i++;
+        this.i++;
+    }
+}
+---
+
+The desugared code for "this.i++" is:
+---
+(let /*synthetic*/ final A $680576081 = this in (let /*synthetic*/ final Integer $1088872417 = (Integer)$680576081.i in (let /*synthetic*/ final Integer $453523494 = $680576081.i = Integer.valueOf((int)($680576081.i.intValue() + 1)) in $1088872417)));
+---
+
+Copying "this" into a local variable is unnecessary, and could be avoided. The desugared code could be similar to the desugared code for "i++":
+---
+(let /*synthetic*/ final Integer $436546048 = i in (let /*synthetic*/ final Integer $146370526 = i = Integer.valueOf((int)(i.intValue() + 1)) in $436546048));
+---
+
+After the proposed fix for JDK-8143388, something similar happens for super field references, consider this code:
+---
+package a;
+
+public class S {
+     protected Integer i;
+}
+package b;
+
+public class A extends a.S {
+
+    class I {
+        private void test() {
+            A.super.i++;
+        }
+    }
+}
+---
+
+The desugared code for "A.super.i++" is:
+---
+(let /*synthetic*/ final Integer $2008966511 = (Integer)A.access$001(this$0) in (let /*synthetic*/ final Integer $97652294 = (let /*synthetic*/ final A $1489092624 = this$0 in A.access$202($1489092624, Integer.valueOf((int)(A.access$300($1489092624).intValue() + 1)))) in $2008966511));
+---
+
+The copying of "this$0" into the local variable is unnecessary.

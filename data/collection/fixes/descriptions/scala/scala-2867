@@ -1,0 +1,32 @@
+On both scala 2.7.7 final and the latest nightly scala 2.8:
+
+While this works:
+
+scala> class A(l: List[_]*)
+
+defined class A
+
+The following fails:
+
+scala> case class A(l: List[_]*)
+
+<console>:4: error: no type parameters for method sameElements: (Iterable[B])Boolean exist so that it can be applied to arguments (List[_]*)
+ --- because ---
+undetermined type
+       case class A(l: List[_]*)
+
+
+Using an explicit existential type does not work either:
+
+scala> case class A(l: List[T] forSome {type T}*)
+
+<console>:4: error: no type parameters for method sameElements: (Iterable[B])Boolean exist so that it can be applied to arguments (List[_]*)
+ --- because ---
+undetermined type
+       case class A(l: List[T] forSome {type T}*)
+
+Either:
+
+1. The compilation failure is a bug OR
+
+2. if for some strange reason that escaped me, this contruct is illegal then the error message is not clear - so the bug is the error message.

@@ -1,0 +1,29 @@
+```scala
+trait Ring[A <: Ring[A]]
+
+object Test {
+  def crash[T <: Ring[_ <: T]]: Ring[T] = ???
+}
+```
+scalac:
+```scala
+error: illegal cyclic reference involving type T
+  def crash[T <: Ring[_ <: T]]: Ring[T] = ???
+                      ^
+```
+dotty:
+```scala
+Exception in thread "main" java.lang.StackOverflowError
+        at dotty.tools.dotc.core.Types$TypeMap$$Lambda$238/1866161430.<init>(Unknown Source)
+        at dotty.tools.dotc.core.Types$TypeMap$$Lambda$238/1866161430.get$Lambda(Unknown Source)
+        at dotty.tools.dotc.core.Types$TypeMap.mapOver(Types.scala:3786)
+        at dotty.tools.dotc.core.Substituters.subst1(Substituters.scala:35)
+        at dotty.tools.dotc.core.Substituters.subst1$(Substituters.scala:24)
+        at dotty.tools.dotc.core.Contexts$Context.subst1(Contexts.scala:67)
+        at dotty.tools.dotc.core.Substituters$Subst1Map.apply(Substituters.scala:202)
+        at dotty.tools.dotc.core.Types$TypeMap.$anonfun$mapOver$6(Types.scala:3811)
+        at dotty.tools.dotc.core.Types$VariantTraversal.atVariance(Types.scala:3741)
+        at dotty.tools.dotc.core.Types$TypeMap.mapArgs$1(Types.scala:3811)
+        at dotty.tools.dotc.core.Types$TypeMap.mapOver(Types.scala:3819)
+...
+```

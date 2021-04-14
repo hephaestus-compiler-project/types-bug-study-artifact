@@ -1,0 +1,59 @@
+Starting in JDK 9, the more aggressive path canonicalization causes diagnostics for entries in archives to use canonical paths.
+
+Here's an example of a 'bad class file' diagnostic that references the path of a class file in a jar archive, and where the compilation refers to the jar via a symlink:
+
+```
+mkdir p
+echo 'garbage' > p/B.class
+jar cvf lib.jar p/B.class
+mv lib.jar CLASSPATH
+ln -s CLASSPATH lib.jar
+echo 'class T extends p.B {}' > T.java
+
+javac -cp lib.jar T.java
+```
+
+With JDK 8, the diagnostic path is `lib.jar(p/B.class)`:
+
+```
+T.java:1: error: cannot access B
+class T extends p.B {}
+                 ^
+  bad class file: lib.jar(p/B.class)
+    illegal start of class file
+    Please remove or make sure it appears in the correct subdirectory of the classpath.
+```
+
+With JDK >= 9, the diagnostic path is absolute and uses the symlink instead of the user-provided path, e.g. it is now: `/tmp/some/absolute/path/CLASSPATH(/p/B.class)`
+
+```
+T.java:1: error: cannot access B
+class T extends p.B {}
+                 ^
+  bad class file: /tmp/some/absolute/path/CLASSPATH(/p/B.class)
+    illegal start of class file
+    Please remove or make sure it appears in the correct subdirectory of the classpath.
+1 error
+```
+
+JDK-8181897 are JDK-8178017 related issues where the fix was to restore the pre-JDK 9 behaviour, and stop canonicalizing paths when they appear in diagnostics. I think we should do the same here.
+
+The fix might be something like:
+
+```
+--- a/src/jdk.compiler/share/classes/com/sun/tools/javac/file/JavacFileManager.java
++++ b/src/jdk.compiler/share/classes/com/sun/tools/javac/file/JavacFileManager.java
+@@ -313,10 +313,10 @@ synchronized Container getContainer(Path path) throws IOException {
+ 
+         if (attr != null) {
+             if (attr.isDirectory()) {
+-                fs = new DirectoryContainer(realPath);
++                fs = new DirectoryContainer(path);
+             } else {
+                 try {
+-                    fs = new ArchiveContainer(realPath);
++                    fs = new ArchiveContainer(path);
+                 } catch (ProviderNotFoundException | SecurityException ex) {
+                     throw new IOException(ex);
+                 }
+```

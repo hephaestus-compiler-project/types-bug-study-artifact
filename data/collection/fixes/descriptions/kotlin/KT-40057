@@ -1,0 +1,56 @@
+```kotlin
+import kotlin.properties.ReadOnlyProperty
+import kotlin.reflect.KProperty
+
+operator fun <C, T> T.provideDelegate(thisRef: C, property: KProperty<*>) =
+    object : ReadOnlyProperty<C, T> {
+        override operator fun getValue(thisRef: C, property: KProperty<*>) = this@provideDelegate
+    }
+
+val foo by 1
+```
+@zarechenskiy the above code used to compile (and work as expected) in 1.3.72. In 1.4-M3 it leads to the following compilation error:
+```
+Exception in thread "main" org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: wrong bytecode generated for static initializer
+<no bytecode>
+File being compiled: (1,1) in /File.kt
+The root cause org.jetbrains.kotlin.codegen.CompilationException was thrown at: org.jetbrains.kotlin.codegen.TransformationMethodVisitor.visitEnd(TransformationMethodVisitor.kt:92)
+ at org.jetbrains.kotlin.codegen.FunctionCodegen.endVisit (FunctionCodegen.java:959) 
+ at org.jetbrains.kotlin.codegen.FunctionCodegen.endVisit (FunctionCodegen.java:942) 
+ at org.jetbrains.kotlin.codegen.MemberCodegen.done (MemberCodegen.java:181) 
+Caused by: org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: wrong bytecode generated for static initializer
+<no bytecode>
+File being compiled: (1,1) in /File.kt
+The root cause org.jetbrains.kotlin.codegen.CompilationException was thrown at: org.jetbrains.kotlin.codegen.TransformationMethodVisitor.visitEnd(TransformationMethodVisitor.kt:92)
+at org.jetbrains.kotlin.codegen.FunctionCodegen .endVisit(FunctionCodegen.java:959)
+at org.jetbrains.kotlin.codegen.FunctionCodegen .endVisit(FunctionCodegen.java:942)
+at org.jetbrains.kotlin.codegen.MemberCodegen .done(MemberCodegen.java:181)
+Caused by: org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: wrong bytecode generated for static initializer
+<no bytecode>
+File being compiled: (1,1) in /File.kt
+The root cause org.jetbrains.kotlin.codegen.CompilationException was thrown at: org.jetbrains.kotlin.codegen.TransformationMethodVisitor.visitEnd(TransformationMethodVisitor.kt:92)
+at org.jetbrains.kotlin.codegen.FunctionCodegen .endVisit(FunctionCodegen.java:959)
+at org.jetbrains.kotlin.codegen.FunctionCodegen .endVisit(FunctionCodegen.java:942)
+at org.jetbrains.kotlin.codegen.MemberCodegen .done(MemberCodegen.java:181)
+Caused by: org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: wrong bytecode generated for static initializer
+<no bytecode>
+File being compiled: (1,1) in /File.kt
+The root cause org.jetbrains.kotlin.codegen.CompilationException was thrown at: org.jetbrains.kotlin.codegen.TransformationMethodVisitor.visitEnd(TransformationMethodVisitor.kt:92)
+at org.jetbrains.kotlin.codegen.FunctionCodegen .endVisit(FunctionCodegen.java:959)
+at org.jetbrains.kotlin.codegen.FunctionCodegen .endVisit(FunctionCodegen.java:942)
+at org.jetbrains.kotlin.codegen.MemberCodegen .done(MemberCodegen.java:181)
+Caused by: org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: wrong bytecode generated for static initializer
+<no bytecode>
+File being compiled: (1,1) in /File.kt
+The root cause org.jetbrains.kotlin.codegen.CompilationException was thrown at: org.jetbrains.kotlin.codegen.TransformationMethodVisitor.visitEnd(TransformationMethodVisitor.kt:92)
+at org.jetbrains.kotlin.codegen.FunctionCodegen .endVisit(FunctionCodegen.java:959)
+at org.jetbrains.kotlin.codegen.FunctionCodegen .endVisit(FunctionCodegen.java:942)
+at org.jetbrains.kotlin.codegen.MemberCodegen .done(MemberCodegen.java:181)
+Caused by: org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: wrong bytecode generated for static initializer
+<no bytecode>
+File being compiled: (1,1) in /File.kt
+The root cause org.jetbrains.kotlin.codegen.CompilationException was thrown at: org.jetbrains.kotlin.codegen.TransformationMethodVisitor.visitEnd(TransformationMethodVisitor.kt:92)
+at org.jetbrains.kotlin.codegen.FunctionCodegen .endVisit(FunctionCodegen.java:959)
+at org.jetbrains.kotlin.codegen.FunctionCodegen .endVisit(FunctionCodegen.java:942)
+at org.jetbrains.kotlin.codegen.MemberCodegen .done(MemberCodegen.java:181)
+```

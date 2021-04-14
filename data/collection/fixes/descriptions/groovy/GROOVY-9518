@@ -1,0 +1,41 @@
+Consider this Java class:
+
+{code:java}
+package test64;
+
+import java.util.List;
+import java.util.function.BiConsumer;
+
+public class Test64J<Integer> {
+
+	public Test64J(String foo, BiConsumer<String, ? super List<Integer>> bar) {
+	}
+	
+	public void doSomething(String foo, BiConsumer<String, ? super List<Integer>> bar) {
+	}
+}
+{code}
+
+and this Groovy class:
+
+{code:groovy}
+package test64
+
+import groovy.transform.CompileStatic
+
+@CompileStatic
+class Test64 {
+
+	void foobar() {
+		Test64J j = new Test64J('hello', { foo, bar ->
+			println(bar.size())
+		})
+		
+		j.doSomething('hello') { foo, bar ->
+			println(bar.size())
+		}
+	}
+}
+{code}
+
+The static type checker fails to infer types for {{foo}} and {{bar}} closure arguments in the constructor call (hence compilation fails on the first {{println}} call, because it does not know {{bar}} is a {{List}}), while it succeeds to do the same thing in the method call.

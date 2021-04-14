@@ -1,0 +1,32 @@
+The discussion on [SI-3237](https://issues.scala-lang.org/browse/SI-3237) seems to conclude that if an implicit view that has a by-name parameter is used on an expression of several statements then the view should apply only to the final statement of the expression.  In other words the following code should print "barring", since `int2Foo` will only be applied to `0` and not the whole `println("barring"); 0` expression:
+
+```scala
+import scala.language.implicitConversions
+class Foo
+object Foo { 
+	implicit def int2Foo(a: => Int): Foo = new Foo //Never evaluate the argument
+ 	def bar(foo: Foo) = ()
+}
+
+object TestFoo extends App {
+	Foo.bar { println("barring"); 0 }
+}
+```
+
+However, if an apparently innocuous overload of the `bar` method is added, the behavior changes, and "barring" does not print:
+
+```scala
+import scala.language.implicitConversions
+class Foo
+object Foo { 
+  	implicit def int2Foo(a: => Int): Foo = new Foo //Never evaluate the argument
+	 def bar(foo: Foo) = ()
+	 def bar(foo: Boolean) = () //unrelated overload
+}
+
+object TestFoo extends App {
+	Foo.bar { println("barring"); 0 }
+}
+```
+
+The fact that the overload affects this behavior is counterintuitive and bug prone.  The specification of implicit views and by-name parameters might be ambiguous about whether or not the view should apply to the whole expression or just the last statement, but it seems to me that it should be consistent.  That an overload changes the behavior here seems to be an implementation detail of method dispatch or overload resolution that should not affect this behavior.

@@ -1,0 +1,25 @@
+Note that each of the failing methods below compiles if the overload which it is not calling is removed. Note also that if the polymorphic f is [A: Ordering] instead of [A: c.Foo] then it compiles with both methods present.
+```scala
+class Bippy { trait Foo[A] }
+
+object p {
+  final class Implicits[C <: Bippy](val c: C) {
+    def f: Int = 1
+    def f[A: c.Foo](x: A): Int = 2
+  }
+  implicit def mkImplicits(c: Bippy): Implicits[c.type] = new Implicits[c.type](c)
+
+  (null: Bippy).f
+  // a.scala:10: error: ambiguous reference to overloaded definition,
+  // both method f in class Implicits of type ([A](implicit evidence$1: _1.c.Foo[A])Int) forSome { val _1: p.Implicits[c.type] }
+  // and  method f in class Implicits of type => Int
+  // match expected type ?
+  //   (null: Bippy).f
+  //                 ^
+
+  (null: Bippy).f[Int](5)
+  // a.scala:18: error: method f of type ([A](implicit evidence$1: _1.c.Foo[A])Int) forSome { val _1: p.Implicits[c.type] } does not take type parameters.
+  //   (null: Bippy).f[Int](null)
+  //                  ^
+}
+```

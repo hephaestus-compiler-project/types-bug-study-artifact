@@ -1,0 +1,52 @@
+From javadoc-dev:
+
+Hello and Merry Christmas,
+
+I discovered this odd javac behavior with jdk8 up to jdk15 (didn't
+check the latest head). This source file (note the anchor tag over
+multiple lines):
+
+/**
+ * Lucene internals or asking for help on <a
+ * href="mailto:java-user at lucene.apache.org">java-user at lucene.apache.org</a>
+  */
+public class Breaks {}
+
+When compiled with
+
+javac -Xdoclint:all/protected Breaks.java
+
+generates this:
+
+Breaks.java:2: error: malformed HTML
+ * Lucene internals or asking for help on <a
+                                          ^
+Breaks.java:3: error: bad use of '>'
+ * href="mailto:java-user at lucene.apache.org">java-user at lucene.apache.org</a>
+                                            ^
+Breaks.java:3: error: unexpected end tag: </a>
+ * href="mailto:java-user at lucene.apache.org">java-user at lucene.apache.org</a>
+                                                                        ^
+What's interesting is that the following two alternatives compile just fine:
+
+/**
+ * Lucene internals or asking for help on <a
+ * href="http://lucene.apache.org">java-user at lucene.apache.org</a>
+  */
+public class Passes {}
+
+/**
+ * Lucene internals or asking for help on <a
+href="mailto:java-user at lucene.apache.org">java-user at lucene.apache.org</a>
+to figure out why.
+  */
+public class Passes2 {}
+
+Is it just me or all these should compile just fine?...
+
+Dawid
+
+[1] Just in case mail clients attempt to reformat the pasted examples,
+here's a gist with
+the sources:
+https://gist.github.com/dweiss/c1c9f218c6a8e5d2f253193806a9f472

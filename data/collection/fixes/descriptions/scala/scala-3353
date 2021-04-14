@@ -1,0 +1,45 @@
+[extempore says: this is an intersection of implicit + default + unapply.  If we let it get past the NPE (which is from a Block not having a symbol) we see what has happened:
+```scala
+"foo" match {
+  case {
+    val x$$1: java.lang.String = <unapply-selector>;
+    val x$$2: Option[String] = TestingObject.this.Matcher.unapply$$default$$2(x$$1);
+    TestingObject.this.Matcher.unapply(x$$1)(x$$2)
+  } <unapply> ((x @ _)) => scala.this.Predef.println(x)
+};
+```
+There is nothing in place to deal with symbol-free Blocks popping up inside patterns.
+
+ - original report follows --
+
+Here's the class being compiled.
+It compiles fine if an implicit val is defined in main().
+
+```scala
+object TestingObject {
+
+    "foo" match {
+      case Matcher(result) => println(result)
+    }
+
+  object Matcher{
+    def unapply(s: String)(implicit secondParam: Option[String] = None) = Some("Got: " + s + " and " + secondParam)
+  }
+}
+```
+
+Here's the error the compiler throws:
+```scala
+Exception in thread "main" java.lang.NullPointerException
+	at scala.tools.nsc.typechecker.Unapplies$$class.unapplyTypeList(Unapplies.scala:30)
+	at scala.tools.nsc.Global$$analyzer$$.unapplyTypeList(Global.scala:291)
+	at scala.tools.nsc.typechecker.Typers$$Typer.doTypedApply(Typers.scala:2509)
+	at scala.tools.nsc.typechecker.Typers$$Typer.doTypedApply(Typers.scala:2424)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedApply$$1(Typers.scala:3285)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed1(Typers.scala:3919)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:4073)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedPattern(Typers.scala:4161)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedCase(Typers.scala:1904)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$typedCases$$1.apply(Typers.scala:1927)
+	...
+```

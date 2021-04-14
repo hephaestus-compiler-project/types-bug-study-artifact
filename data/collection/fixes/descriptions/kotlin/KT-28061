@@ -1,0 +1,49 @@
+# Synopsis
+
+Motivation
+* User code fails with exception(s)
+* Type safety guarantees are not met
+
+Impact
+* Some code that used to compile won't compile any more: 
+  * _erroneous cases will be reported as errors_
+* There were cases when such code worked with no exceptions: 
+  * backend generated missing `return` with default value, so with enough luck, program could work fine
+
+# Description
+
+Consider the following code:
+
+```kotlin
+fun foo(x: Any?): String {
+    x?.equals(return "")
+    // No error about missing return
+}
+```
+
+Due to the compiler bug in diagnostic about "missing return", this code compiles fine. On runtime, if `x == null`, default value is returned (`null` for reference types). 
+Looks like it hasn't ever been reported (probably due to the highly weird code). 
+
+In 1.3.0, the same bug reincarnates in a much more severe form, due to the experimental feature "contracts":
+
+```kotlin
+@UseExperimental(ExperimentalContracts::class)
+inline fun Any.test(block: () -> Unit) {
+    contract {
+        callsInPlace(block, InvocationKind.EXACTLY_ONCE)
+    }
+    block()
+}
+
+fun foo(x: Any?): String {
+    x?.test {
+        return "hey"
+    }
+} // No error "A 'return' expression required in a function with a block body ('{...}')"
+```
+
+**NB**. In 1.3.0, `let`, `run`, `also` and other similar functions from stdlib have similar contracts, which makes this bug **very** common and therefore critical.
+
+# Proposal
+
+Ideally, we'd fix bug in case with contracts right now and introduce a deprecation cycle for the initial case. However, due to technical details of the compiler implementation, it's going to be very hard to distinguish those two cases reliably. Given that the initial issue is reproduced only on the very esoteric code and was never reported, we propose to *fix both issues immediately, without any deprecation cycle* in the Kotlin 1.3.20 incremental update.

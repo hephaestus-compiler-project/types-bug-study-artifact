@@ -1,0 +1,30 @@
+```scala
+trait Setting {
+  type T
+  def value: T
+}
+
+object Test {
+  def test(x: Some[Setting]) = x match {
+    case Some(dep) => Some(dep.value) map (_ => true)
+  }
+}
+```
+
+```
+scalac-hash v2.11.5 -optimize -Ydelambdafy:method sandbox/test.scala
+sandbox/test.scala:8: error: type mismatch;
+ found   : x$1.type (with underlying type dep.T)
+ required: x1.x.T
+    case Some(dep) => Some(dep.value) map (_ => true)
+                                             ^
+one error found
+```
+
+Only shows up under -optimize. 
+
+Under -Ydebug, this warning is logged:
+
+```
+warning: !!! Unexpected substitution of non-Ident into TypeTree `dep.T`, subst= Substitution((dep,x1.x))
+```

@@ -1,0 +1,26 @@
+When instantiating SAMs, type refinement is not checked, allowing contradicting types.
+
+This compiles but fails at runtime:
+```scala
+trait SAM {
+  type T >: Int
+  def apply(x: Int): Int
+  def t: T = 1
+}
+
+object O{
+  def main(a:Array[String])={
+    val fn: SAM {type T = String} = (i:Int) => i
+    def cce: String = fn.t 
+    println(cce)
+  }
+}
+```
+
+Output:
+```
+Exception in thread "main" java.lang.ClassCastException: java.lang.Integer cannot be cast to java.lang.String
+	at O$.cce$1(SamUnsound.scala:10)
+	at O$.main(SamUnsound.scala:11)
+	at O.main(SamUnsound.scala)
+```

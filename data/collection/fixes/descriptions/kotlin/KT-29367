@@ -1,0 +1,21 @@
+Test `nullabilityGenerics`:
+```
+public class A<T> {
+    @MyNullable
+    public <X> X baz() {
+        return null;
+    }
+
+}
+
+// FILE: main.kt
+
+class X<T>(t: T?) {
+    init {
+        val a = A<T>()
+        val y: T = a.baz<T>()
+    }
+}
+```
+
+New inference doesn't wrap type of expression `a.baz<T>()` into `TypeWithEnhancement`, so `JavaNullabilityChecker` in `doCheckType` method thinks that actual type of that expression came from kotlin and ignores it

@@ -1,0 +1,20 @@
+Consider the following code:
+{code}
+class A {}
+class B {
+    Object m(Object[] args) {
+        new Object()
+    }
+}
+class C extends B {
+    A m(Object[] args) {
+        new A()
+    }
+}
+C c = new C()
+A a = c.m()
+{code}
+
+It has 50% chance of failing the static type check at the last line, because the STC can resolve to the base definition (with an {{Object}} return type) instead of the override, as it doesn't give precedence to the most specific definition in the "varargs with 0 argument" case.
+
+Like for GROOVY-7710, I have a fix for the bug, but it's also based on my pull request for GROOVY-7420 as it's once again in the same method. It's actually in the same commit, because once refactored a bit, the 2 missing method calls become obvious.

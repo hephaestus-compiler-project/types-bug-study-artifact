@@ -1,0 +1,51 @@
+Trying to compile:
+```scala
+object MNWE extends App {
+  def crash[R <: AnyRef](f: R)(implicit ev: R): Any = ???
+  crash(42)
+}
+```
+
+Correct behaviour in 2.10.1:
+
+```
+[info] Compiling 1 Scala source to C:\MNWE\target\scala-2.10\classes...
+[error] C:\MNWE\src\main\scala\MNWE.scala:3: inferred type arguments [Int] do not conform to method crash's type parameter bounds [R <: AnyRef]
+[error]   crash(42)
+[error]   ^
+[error] C:\MNWE\src\main\scala\MNWE.scala:3: type mismatch;
+[error]  found   : Int(42)
+[error]  required: R
+[error]   crash(42)
+[error]         ^
+[error] C:\MNWE\src\main\scala\MNWE.scala:3: could not find implicit value for parameter ev: R
+[error]   crash(42)
+[error]        ^
+[error] three errors found
+```
+
+In 2.10.2-RC1: (see Attachment)
+
+```
+MNWE.this.crash[R](42)
+	at scala.tools.nsc.typechecker.Typers$Typer.tryNamesDefaults$1(Typers.scala:3273)
+	at scala.tools.nsc.typechecker.Typers$Typer.doTypedApply(Typers.scala:3309)
+	at scala.tools.nsc.typechecker.Typers$Typer.normalTypedApply$1(Typers.scala:4589)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedApply$1(Typers.scala:4621)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5526)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5604)
+	at scala.tools.nsc.typechecker.Typers$Typer.adaptToImplicitMethod$1(Typers.scala:870)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1126)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5622)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:2926)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$60.apply(Typers.scala:3030)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$60.apply(Typers.scala:3030)
+	at scala.collection.immutable.List.loop$1(List.scala:170)
+	at scala.collection.immutable.List.mapConserve(List.scala:186)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3030)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1919)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1800)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5546)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5604)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:2926)
+```

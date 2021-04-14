@@ -1,0 +1,29 @@
+I'm using method annotations that have a string property. When reflecting on the annotation at runtime, I'm unable to see the property value. Code to reproduce:
+
+{code:lang=kotlin}Retention(RetentionPolicy.RUNTIME) annotation class foo(name : String)
+
+class Test() {
+    foo("Bob") fun hello(input : String) {
+        println("hello: ${input}")
+    }
+}
+
+fun main(args : Array<String>) {
+    val test = Test()
+    for (method in test.javaClass.getMethods()) {
+        val anns = method?.getAnnotations() as Array<Annotation>
+        if (!anns.isEmpty()) {
+            for (ann in anns) {
+                val fooAnn = ann as? foo
+                if (fooAnn != null)
+                    println("  foo: ${fooAnn.toString()}")
+            }
+        }
+    }
+}{code}
+
+This produces the following output:
+
+{monospace}foo: @foo(){monospace}
+
+As you can see, the property isn't listed. If I try to access the name property explicitly, it won't compile.

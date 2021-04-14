@@ -1,0 +1,26 @@
+Steps to reproduce:
+
+In first package add:
+
+```
+class MyDelegate<T>(init:() -> T) { var value:T = init() }
+operator fun <T> MyDelegate<T>.getValue(thisObj: Any?, property: KProperty<*>): T = value
+```
+
+In another package add:
+
+```
+val myVal by MyDelegate { false }
+```
+
+To make `myVal` compile we need to import extension function `MyDelegate<T>.getValue`.
+
+Intellij can't find `MyDelegate<T>.getValue` -> it doesn't suggest it as an import and it suggests to create a new function `getValue`.
+**You end up manually writing import**.
+
+If we have 
+```
+val myVal by MyDelegate<Boolean> { false }
+```
+
+Intellij suggests correct import. However an explicit type argument is redundant and shouldn't be a requirement for correct work of the IDE.

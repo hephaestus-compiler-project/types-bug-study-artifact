@@ -1,0 +1,24 @@
+The obvious overrides of an abstract expect class/interface in expect class should not be treated as abstract.
+
+After implementing KT-16099 the following situation became possible:
+```
+expect interface Base {
+    fun clear()
+}
+
+expect open class BaseImpl() : Base { }
+```
+
+Here we get `BaseImpl` class implementing `Base` interface, but without providing an obvious override of `clear` method. However from the compiler's point of view `clear` remain abstract in `BaseImpl`, therefore if we add (common) inheritors for `BaseImpl` we'd face some strange errors that won't happen in the similar platform code:
+```
+class Derived1() : BaseImpl() { }
+//    ^^^^^^^^ Class 'Derived1' is not abstract and does not implement abstract base class member public abstract expect fun clear(): Unit defined in BaseImpl
+
+class Derived2() : BaseImpl() {
+    override fun clear() {
+        super.clear()
+        //    ^^^^^ Abstract member cannot be accessed directly
+    }
+}
+```
+

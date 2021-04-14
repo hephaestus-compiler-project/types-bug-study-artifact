@@ -1,0 +1,21 @@
+The following code crashes with a `StackOverflowError`:
+
+```scala
+import scala.reflect.runtime.universe
+import scala.tools.reflect.ToolBox
+ 
+val classloader = getClass.getClassLoader
+val toolbox = universe.runtimeMirror(classloader).mkToolBox()
+println(toolbox.compile(toolbox.parse("Array(1, 2, 3).toList")))
+```
+
+This is a regression from 2.11, where it used to work fine.
+
+The stack trace is (excerpt of the loop):
+
+```java
+	at scala.reflect.runtime.SynchronizedOps$SynchronizedBaseTypeSeq$$anon$2.scala$reflect$runtime$SynchronizedOps$SynchronizedBaseTypeSeq$$super$map(SynchronizedOps.scala:34)
+	at scala.reflect.runtime.SynchronizedOps$SynchronizedBaseTypeSeq.$anonfun$map$1(SynchronizedOps.scala:27)
+	at scala.reflect.runtime.SynchronizedOps$SynchronizedBaseTypeSeq$$anon$2.map(SynchronizedOps.scala:27)
+	at scala.reflect.runtime.SynchronizedOps$SynchronizedBaseTypeSeq$$anon$2.lateMap(SynchronizedOps.scala:34)
+```

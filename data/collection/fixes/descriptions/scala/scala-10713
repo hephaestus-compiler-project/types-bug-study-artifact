@@ -1,0 +1,38 @@
+Testcase:
+
+```
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration._
+
+object CompilerBug extends App {
+
+  def doSomething(a: Option[Boolean] = None,
+                  b: Option[Long] = None) = Future.successful("bug")
+
+  try {
+    val f    = doSomething(b = Some(1))
+    val res = Await.result(f, Duration.Inf)
+    val a = res
+  } finally {
+    // cleanup
+  }
+
+}
+```
+
+Compiler output:
+
+```
+scalac CompilerBug.scala
+CompilerBug.scala:11: error: recursive value f needs type
+    val res = Await.result(f, Duration.Inf)
+                           ^
+CompilerBug.scala:10: warning: failed to determine if 'a = ...' is a named argument or an assignment expression.
+an explicit type is required for the definition mentioned in the error message above.
+    val f    = doSomething(b = Some(1))
+               ^
+one warning found
+one error found
+```
+
+The issue is present on both scala 2.12.4 and 2.13.0-M1.

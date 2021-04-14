@@ -1,0 +1,42 @@
+Reported here:
+http://mail.openjdk.java.net/pipermail/compiler-dev/2015-July/009687.html
+
+Consider this test case:
+--- CFInImport.java
+/**
+ * @test
+ * @compile Bar.java Super.java
+ * @clean p.Super
+ * @compile CFInImport.java
+ */
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Retention;
+
+import static p.Bar.CONST;
+
+@Retention(RetentionPolicy.RUNTIME)
+@interface Foo {}
+---
+--- Bar.java
+package p;
+
+public class Bar extends Super {}
+---
+--- Super.java
+package p;
+
+public class Super {
+  public static int CONST = 42;
+}
+---
+
+Running it will lead to:
+---
+.../CFInImport.java:12: error: annotation type not applicable to this kind of declaration
+@Retention(RetentionPolicy.RUNTIME)
+^
+1 error
+result: Error. compiler crashed (exit code 4)
+---
+
+The error is incorrect, but is only a consequence of javac crashing with a CompletionFailure.

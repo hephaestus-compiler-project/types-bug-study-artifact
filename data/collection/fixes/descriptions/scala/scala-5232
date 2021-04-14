@@ -1,0 +1,45 @@
+```scala
+object Main {
+
+  class Wrapper(s: String) {
+    trait InnerTrait {
+      override def toString = s
+    }
+
+    object InnerObject {
+      override def toString = s
+      type Trait = InnerTrait
+    }
+  }
+
+  implicit def toWrapper(s: String) = new Wrapper(s)
+
+  def main(args: Array[String]): Unit = {
+    val wrapped = toWrapper("Hello")
+
+    // Good!
+    println(wrapped.InnerObject)
+    // Good!
+    println(new wrapped.InnerObject.Trait { })
+    // Good!
+    println(new wrapped.InnerTrait { })
+
+    val nonWrapped = "World"
+
+    // Good!
+    println(nonWrapped.InnerObject)
+    // Error!
+    println(new nonWrapped.InnerObject.Trait { })
+    // Error!
+    println(new nonWrapped.InnerTrait { })
+  }
+
+}
+```
+
+```scala
+Main.scala:31: error: stable identifier required, but Main.this.toWrapper(nonWrapped).InnerObject found.
+    println(new nonWrapped.InnerObject.Trait { })
+Main.scala:33: error: type InnerTrait is not a member of java.lang.String
+    println(new nonWrapped.InnerTrait { })
+```

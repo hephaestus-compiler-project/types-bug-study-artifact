@@ -1,0 +1,27 @@
+Consider the following code sample:
+
+```kotlin
+class Vec<X: Group<X>> constructor(val vector: ArrayList<X>): List<X> by vector {
+  constructor(vector: Collection<X>): this(ArrayList<X>(vector.size).apply { addAll(vector) })
+  constructor(vararg vector: X): this(arrayListOf(*vector))
+
+  operator fun plus(addend: Vec<X>): Vec<X> =
+    if (size != addend.size) throw IllegalArgumentException("$size != ${addend.size}")
+    else Vec(mapIndexedTo(ArrayList(size)) { index, value -> value + value } as ArrayList<X>)
+}
+
+interface Group<X: Group<X>> {
+  operator fun plus(addend: X): X
+
+  operator fun times(multiplicand: X): X
+}
+```
+
+The compiler incorrectly reports `Warning:(7, 78) Kotlin: No cast needed`. However after removing the explicit cast, the code fails to compile with:
+
+```
+Error:(10, 10) Kotlin: Cannot choose among the following candidates without completing type inference: 
+public constructor Vec<X : Group<X#1 (type parameter of edu.umontreal.kotlingrad.functions.Vec)>>(vararg vector: X#1) defined in edu.umontreal.kotlingrad.functions.Vec
+public constructor Vec<X : Group<X#1>>(vector: kotlin.collections.ArrayList<X#1> /* = java.util.ArrayList<X#1> */) defined in edu.umontreal.kotlingrad.functions.Vec
+public constructor Vec<X : Group<X#1>>(vector: Collection<X#1>) defined in edu.umontreal.kotlingrad.functions.Vec
+```

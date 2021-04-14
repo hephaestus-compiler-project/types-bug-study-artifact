@@ -1,0 +1,357 @@
+Sorry the summary isn't great; this crashed the compiler, it's as minimized as I could get it from my original encounter.
+
+```scala
+object Bug {
+  def foo[V: Ordered] {}
+
+  def bar[V: Ordered] {
+//    object Scope {
+      trait X {
+        def qux = { i: Any => foo }
+      }
+//    }
+  }
+}
+```
+
+causes a compiler crash under both 2.9.2 and 2.10.0-M6. Uncommenting the two commented lines allows us to work around this issue for now.
+
+The output from M6 is:
+
+```
+[info] Compiling 41 Scala sources and 1 Java source to /Users/scott/projects/toolkit/algebra/target/scala-2.10.0-M6/classes...
+[error] No getter for value evidence$2$1 in trait Bug$X$1
+
+     while compiling: /Users/scott/projects/toolkit/algebra/src/main/scala/net/tqft/toolkit/algebra/Bug.scala
+        during phase: mixin
+     library version: version 2.10.0-M6
+    compiler version: version 2.10.0-M6
+  reconstructed args: -d /Users/scott/projects/toolkit/algebra/target/scala-2.10.0-M6/classes -classpath /Users/scott/projects/toolkit/algebra/target/scala-2.10.0-M6/classes:/Users/scott/projects/toolkit/base/target/scala-2.10.0-M6/classes:/Users/scott/projects/toolkit/arithmetic/target/scala-2.10.0-M6/classes:/Users/scott/projects/toolkit/functions/target/scala-2.10.0-M6/classes:/Users/scott/projects/toolkit/collections/target/scala-2.10.0-M6/classes:/Users/scott/.ivy2/cache/org.slf4j/slf4j-log4j12/jars/slf4j-log4j12-1.6.1.jar:/Users/scott/.ivy2/cache/org.slf4j/slf4j-api/jars/slf4j-api-1.6.1.jar:/Users/scott/.ivy2/cache/log4j/log4j/bundles/log4j-1.2.16.jar:/Users/scott/.ivy2/cache/commons-logging/commons-logging/jars/commons-logging-1.1.1.jar:/Users/scott/.ivy2/cache/com.google.guava/guava/jars/guava-12.0.jar:/Users/scott/.ivy2/cache/com.google.code.findbugs/jsr305/jars/jsr305-1.3.9.jar:/Users/scott/.ivy2/cache/org.apache.commons/commons-math/jars/commons-math-2.2.jar:/Users/scott/.ivy2/cache/org.apfloat/apfloat/jars/apfloat-1.6.3.jar -bootclasspath /Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/jsfd.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/classes.jar:/System/Library/Frameworks/JavaVM.framework/Frameworks/JavaRuntimeSupport.framework/Resources/Java/JavaRuntimeSupport.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/ui.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/laf.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/sunrsasign.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/jsse.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/jce.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/charsets.jar:/Users/scott/.sbt/boot/scala-2.10.0-M6/lib/scala-library.jar
+
+  last tree to typer: Ident(positions$1)
+              symbol: value positions$1 (flags: <param> <synthetic> <triedcooking>)
+   symbol definition: positions$1: scala.collection.immutable.IndexedSeq
+                 tpe: scala.collection.immutable.IndexedSeq
+       symbol owners: value positions$1 -> constructor Permutations$$anonfun$preserving$1 -> anonymous class Permutations$$anonfun$preserving$1 -> package permutations
+      context owners: anonymous class Bug$X$1$$anonfun$qux$1 -> package algebra
+
+== Enclosing template or block ==
+
+Template( // val <local $anonfun>: <notype>, tree.tpe=net.tqft.toolkit.algebra.Bug$X$1$$anonfun$qux$1
+  "scala.runtime.AbstractFunction1$mcVL$sp", "scala.Serializable" // parents
+  ValDef(
+    private
+    "_"
+    <tpt>
+    <empty>
+  )
+  // 3 statements
+  DefDef( // final def apply(x$1: Object): Unit
+    <method> final <triedcooking>
+    "apply"
+    []
+    // 1 parameter list
+    ValDef( // i: Object
+      <param>
+      "i"
+      <tpt> // tree.tpe=Object
+      <empty>
+    )
+    <tpt> // tree.tpe=Unit
+    Apply( // def foo(evidence$1: scala.math.Ordered): Unit in object Bug, tree.tpe=Unit
+      Bug.this."foo" // def foo(evidence$1: scala.math.Ordered): Unit in object Bug, tree.tpe=(evidence$1: scala.math.Ordered)Unit
+      Bug$X$1$$anonfun$qux$1.this."$outer "."evidence$2$1" // val evidence$2$1: scala.math.Ordered in class Bug$X$1$class, tree.tpe=scala.math.Ordered
+    )
+  )
+  DefDef( // final def apply(v1: Object): Object
+    <method> final <bridge>
+    "apply"
+    []
+    // 1 parameter list
+    ValDef( // v1: Object
+      <param> <triedcooking>
+      "v1"
+      <tpt> // tree.tpe=Object
+      <empty>
+    )
+    <tpt> // tree.tpe=Object
+    Block( // tree.tpe=scala.runtime.BoxedUnit
+      Apply( // final def apply(x$1: Object): Unit, tree.tpe=Unit
+        Bug$X$1$$anonfun$qux$1.this."apply" // final def apply(x$1: Object): Unit, tree.tpe=(x$1: Object)Unit
+        "v1" // v1: Object, tree.tpe=Object
+      )
+      "scala"."runtime"."BoxedUnit"."UNIT" // final val UNIT: scala.runtime.BoxedUnit in object BoxedUnit, tree.tpe=scala.runtime.BoxedUnit
+    )
+  )
+  DefDef( // def <init>(arg$outer: net.tqft.toolkit.algebra.Bug$X$1): net.tqft.toolkit.algebra.Bug$X$1$$anonfun$qux$1
+    <method> <triedcooking>
+    "<init>"
+    []
+    // 1 parameter list
+    ValDef( // $outer: net.tqft.toolkit.algebra.Bug$X$1
+      <param> <triedcooking>
+      "$outer"
+      <tpt> // tree.tpe=net.tqft.toolkit.algebra.Bug$X$1
+      <empty>
+    )
+    <tpt> // tree.tpe=net.tqft.toolkit.algebra.Bug$X$1$$anonfun$qux$1
+    Block( // tree.tpe=Unit
+      // 2 statements
+      If( // tree.tpe=Unit
+        Apply( // final def eq(x$1: Object): Boolean in class Object, tree.tpe=Boolean
+          "$outer"."eq" // final def eq(x$1: Object): Boolean in class Object, tree.tpe=(x$1: Object)Boolean
+          null
+        )
+        Throw( // tree.tpe=Nothing
+          Apply( // def <init>(): NullPointerException in class NullPointerException, tree.tpe=NullPointerException
+            new NullPointerException."<init>" // def <init>(): NullPointerException in class NullPointerException, tree.tpe=()NullPointerException
+            Nil
+          )
+        )
+        Assign( // tree.tpe=Unit
+          Bug$X$1$$anonfun$qux$1.this."$outer " // private[this] val $outer: net.tqft.toolkit.algebra.Bug$X$1, tree.tpe=net.tqft.toolkit.algebra.Bug$X$1
+          "$outer" // $outer: net.tqft.toolkit.algebra.Bug$X$1, tree.tpe=net.tqft.toolkit.algebra.Bug$X$1
+        )
+      )
+      Apply( // def <init>(): scala.runtime.AbstractFunction1$mcVL$sp in class AbstractFunction1$mcVL$sp, tree.tpe=scala.runtime.AbstractFunction1$mcVL$sp
+        Bug$X$1$$anonfun$qux$1.super."<init>" // def <init>(): scala.runtime.AbstractFunction1$mcVL$sp in class AbstractFunction1$mcVL$sp, tree.tpe=()scala.runtime.AbstractFunction1$mcVL$sp
+        Nil
+      )
+      ()
+    )
+  )
+)
+
+== Expanded type of tree ==
+
+TypeRef(
+  TypeSymbol(
+    abstract trait IndexedSeq extends Seq with IndexedSeq with GenericTraversableTemplate with IndexedSeqLike
+    
+  )
+)
+
+unhandled exception while transforming Bug.scala
+[error] 
+[error]      while compiling: /Users/scott/projects/toolkit/algebra/src/main/scala/net/tqft/toolkit/algebra/Bug.scala
+[error]         during phase: mixin
+[error]      library version: version 2.10.0-M6
+[error]     compiler version: version 2.10.0-M6
+[error]   reconstructed args: -d /Users/scott/projects/toolkit/algebra/target/scala-2.10.0-M6/classes -classpath /Users/scott/projects/toolkit/algebra/target/scala-2.10.0-M6/classes:/Users/scott/projects/toolkit/base/target/scala-2.10.0-M6/classes:/Users/scott/projects/toolkit/arithmetic/target/scala-2.10.0-M6/classes:/Users/scott/projects/toolkit/functions/target/scala-2.10.0-M6/classes:/Users/scott/projects/toolkit/collections/target/scala-2.10.0-M6/classes:/Users/scott/.ivy2/cache/org.slf4j/slf4j-log4j12/jars/slf4j-log4j12-1.6.1.jar:/Users/scott/.ivy2/cache/org.slf4j/slf4j-api/jars/slf4j-api-1.6.1.jar:/Users/scott/.ivy2/cache/log4j/log4j/bundles/log4j-1.2.16.jar:/Users/scott/.ivy2/cache/commons-logging/commons-logging/jars/commons-logging-1.1.1.jar:/Users/scott/.ivy2/cache/com.google.guava/guava/jars/guava-12.0.jar:/Users/scott/.ivy2/cache/com.google.code.findbugs/jsr305/jars/jsr305-1.3.9.jar:/Users/scott/.ivy2/cache/org.apache.commons/commons-math/jars/commons-math-2.2.jar:/Users/scott/.ivy2/cache/org.apfloat/apfloat/jars/apfloat-1.6.3.jar -bootclasspath /Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/jsfd.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/classes.jar:/System/Library/Frameworks/JavaVM.framework/Frameworks/JavaRuntimeSupport.framework/Resources/Java/JavaRuntimeSupport.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/ui.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/laf.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/sunrsasign.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/jsse.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/jce.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/charsets.jar:/Users/scott/.sbt/boot/scala-2.10.0-M6/lib/scala-library.jar
+[error] 
+[error]   last tree to typer: Ident(positions$1)
+[error]               symbol: value positions$1 (flags: <param> <synthetic> <triedcooking>)
+[error]    symbol definition: positions$1: scala.collection.immutable.IndexedSeq
+[error]                  tpe: scala.collection.immutable.IndexedSeq
+[error]        symbol owners: value positions$1 -> constructor Permutations$$anonfun$preserving$1 -> anonymous class Permutations$$anonfun$preserving$1 -> package permutations
+[error]       context owners: anonymous class Bug$X$1$$anonfun$qux$1 -> package algebra
+[error] 
+[error] == Enclosing template or block ==
+[error] 
+[error] Template( // val <local $anonfun>: <notype>, tree.tpe=net.tqft.toolkit.algebra.Bug$X$1$$anonfun$qux$1
+[error]   "scala.runtime.AbstractFunction1$mcVL$sp", "scala.Serializable" // parents
+[error]   ValDef(
+[error]     private
+[error]     "_"
+[error]     <tpt>
+[error]     <empty>
+[error]   )
+[error]   // 3 statements
+[error]   DefDef( // final def apply(x$1: Object): Unit
+[error]     <method> final <triedcooking>
+[error]     "apply"
+[error]     []
+[error]     // 1 parameter list
+[error]     ValDef( // i: Object
+[error]       <param>
+[error]       "i"
+[error]       <tpt> // tree.tpe=Object
+[error]       <empty>
+[error]     )
+[error]     <tpt> // tree.tpe=Unit
+[error]     Apply( // def foo(evidence$1: scala.math.Ordered): Unit in object Bug, tree.tpe=Unit
+[error]       Bug.this."foo" // def foo(evidence$1: scala.math.Ordered): Unit in object Bug, tree.tpe=(evidence$1: scala.math.Ordered)Unit
+[error]       Bug$X$1$$anonfun$qux$1.this."$outer "."evidence$2$1" // val evidence$2$1: scala.math.Ordered in class Bug$X$1$class, tree.tpe=scala.math.Ordered
+[error]     )
+[error]   )
+[error]   DefDef( // final def apply(v1: Object): Object
+[error]     <method> final <bridge>
+[error]     "apply"
+[error]     []
+[error]     // 1 parameter list
+[error]     ValDef( // v1: Object
+[error]       <param> <triedcooking>
+[error]       "v1"
+[error]       <tpt> // tree.tpe=Object
+[error]       <empty>
+[error]     )
+[error]     <tpt> // tree.tpe=Object
+[error]     Block( // tree.tpe=scala.runtime.BoxedUnit
+[error]       Apply( // final def apply(x$1: Object): Unit, tree.tpe=Unit
+[error]         Bug$X$1$$anonfun$qux$1.this."apply" // final def apply(x$1: Object): Unit, tree.tpe=(x$1: Object)Unit
+[error]         "v1" // v1: Object, tree.tpe=Object
+[error]       )
+[error]       "scala"."runtime"."BoxedUnit"."UNIT" // final val UNIT: scala.runtime.BoxedUnit in object BoxedUnit, tree.tpe=scala.runtime.BoxedUnit
+[error]     )
+[error]   )
+[error]   DefDef( // def <init>(arg$outer: net.tqft.toolkit.algebra.Bug$X$1): net.tqft.toolkit.algebra.Bug$X$1$$anonfun$qux$1
+[error]     <method> <triedcooking>
+[error]     "<init>"
+[error]     []
+[error]     // 1 parameter list
+[error]     ValDef( // $outer: net.tqft.toolkit.algebra.Bug$X$1
+[error]       <param> <triedcooking>
+[error]       "$outer"
+[error]       <tpt> // tree.tpe=net.tqft.toolkit.algebra.Bug$X$1
+[error]       <empty>
+[error]     )
+[error]     <tpt> // tree.tpe=net.tqft.toolkit.algebra.Bug$X$1$$anonfun$qux$1
+[error]     Block( // tree.tpe=Unit
+[error]       // 2 statements
+[error]       If( // tree.tpe=Unit
+[error]         Apply( // final def eq(x$1: Object): Boolean in class Object, tree.tpe=Boolean
+[error]           "$outer"."eq" // final def eq(x$1: Object): Boolean in class Object, tree.tpe=(x$1: Object)Boolean
+[error]           null
+[error]         )
+[error]         Throw( // tree.tpe=Nothing
+[error]           Apply( // def <init>(): NullPointerException in class NullPointerException, tree.tpe=NullPointerException
+[error]             new NullPointerException."<init>" // def <init>(): NullPointerException in class NullPointerException, tree.tpe=()NullPointerException
+[error]             Nil
+[error]           )
+[error]         )
+[error]         Assign( // tree.tpe=Unit
+[error]           Bug$X$1$$anonfun$qux$1.this."$outer " // private[this] val $outer: net.tqft.toolkit.algebra.Bug$X$1, tree.tpe=net.tqft.toolkit.algebra.Bug$X$1
+[error]           "$outer" // $outer: net.tqft.toolkit.algebra.Bug$X$1, tree.tpe=net.tqft.toolkit.algebra.Bug$X$1
+[error]         )
+[error]       )
+[error]       Apply( // def <init>(): scala.runtime.AbstractFunction1$mcVL$sp in class AbstractFunction1$mcVL$sp, tree.tpe=scala.runtime.AbstractFunction1$mcVL$sp
+[error]         Bug$X$1$$anonfun$qux$1.super."<init>" // def <init>(): scala.runtime.AbstractFunction1$mcVL$sp in class AbstractFunction1$mcVL$sp, tree.tpe=()scala.runtime.AbstractFunction1$mcVL$sp
+[error]         Nil
+[error]       )
+[error]       ()
+[error]     )
+[error]   )
+[error] )
+[error] 
+[error] == Expanded type of tree ==
+[error] 
+[error] TypeRef(
+[error]   TypeSymbol(
+[error]     abstract trait IndexedSeq extends Seq with IndexedSeq with GenericTraversableTemplate with IndexedSeqLike
+[error]     
+[error]   )
+[error] )
+[error] 
+[error] uncaught exception during compilation: scala.reflect.internal.FatalError
+[error] {file:/Users/scott/projects/toolkit/}toolkit-algebra/compile:compile: scala.reflect.internal.FatalError: 
+[error]      while compiling: /Users/scott/projects/toolkit/algebra/src/main/scala/net/tqft/toolkit/algebra/Bug.scala
+[error]         during phase: global=mixin, atPhase=cleanup
+[error]      library version: version 2.10.0-M6
+[error]     compiler version: version 2.10.0-M6
+[error]   reconstructed args: -d /Users/scott/projects/toolkit/algebra/target/scala-2.10.0-M6/classes -classpath /Users/scott/projects/toolkit/algebra/target/scala-2.10.0-M6/classes:/Users/scott/projects/toolkit/base/target/scala-2.10.0-M6/classes:/Users/scott/projects/toolkit/arithmetic/target/scala-2.10.0-M6/classes:/Users/scott/projects/toolkit/functions/target/scala-2.10.0-M6/classes:/Users/scott/projects/toolkit/collections/target/scala-2.10.0-M6/classes:/Users/scott/.ivy2/cache/org.slf4j/slf4j-log4j12/jars/slf4j-log4j12-1.6.1.jar:/Users/scott/.ivy2/cache/org.slf4j/slf4j-api/jars/slf4j-api-1.6.1.jar:/Users/scott/.ivy2/cache/log4j/log4j/bundles/log4j-1.2.16.jar:/Users/scott/.ivy2/cache/commons-logging/commons-logging/jars/commons-logging-1.1.1.jar:/Users/scott/.ivy2/cache/com.google.guava/guava/jars/guava-12.0.jar:/Users/scott/.ivy2/cache/com.google.code.findbugs/jsr305/jars/jsr305-1.3.9.jar:/Users/scott/.ivy2/cache/org.apache.commons/commons-math/jars/commons-math-2.2.jar:/Users/scott/.ivy2/cache/org.apfloat/apfloat/jars/apfloat-1.6.3.jar -bootclasspath /Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/jsfd.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/classes.jar:/System/Library/Frameworks/JavaVM.framework/Frameworks/JavaRuntimeSupport.framework/Resources/Java/JavaRuntimeSupport.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/ui.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/laf.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/sunrsasign.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/jsse.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/jce.jar:/Library/Java/JavaVirtualMachines/1.6.0_32-b05-420.jdk/Contents/Classes/charsets.jar:/Users/scott/.sbt/boot/scala-2.10.0-M6/lib/scala-library.jar
+[error] 
+[error]   last tree to typer: Ident(positions$1)
+[error]               symbol: value positions$1 (flags: <param> <synthetic> <triedcooking>)
+[error]    symbol definition: positions$1: scala.collection.immutable.IndexedSeq
+[error]                  tpe: scala.collection.immutable.IndexedSeq
+[error]        symbol owners: value positions$1 -> constructor Permutations$$anonfun$preserving$1 -> anonymous class Permutations$$anonfun$preserving$1 -> package permutations
+[error]       context owners: anonymous class Bug$X$1$$anonfun$qux$1 -> package algebra
+[error] 
+[error] == Enclosing template or block ==
+[error] 
+[error] Template( // val <local $anonfun>: <notype>, tree.tpe=net.tqft.toolkit.algebra.Bug$X$1$$anonfun$qux$1
+[error]   "scala.runtime.AbstractFunction1$mcVL$sp", "scala.Serializable" // parents
+[error]   ValDef(
+[error]     private
+[error]     "_"
+[error]     <tpt>
+[error]     <empty>
+[error]   )
+[error]   // 3 statements
+[error]   DefDef( // final def apply(x$1: Object): Unit
+[error]     <method> final <triedcooking>
+[error]     "apply"
+[error]     []
+[error]     // 1 parameter list
+[error]     ValDef( // i: Object
+[error]       <param>
+[error]       "i"
+[error]       <tpt> // tree.tpe=Object
+[error]       <empty>
+[error]     )
+[error]     <tpt> // tree.tpe=Unit
+[error]     Apply( // def foo(evidence$1: scala.math.Ordered): Unit in object Bug, tree.tpe=Unit
+[error]       Bug.this."foo" // def foo(evidence$1: scala.math.Ordered): Unit in object Bug, tree.tpe=(evidence$1: scala.math.Ordered)Unit
+[error]       Bug$X$1$$anonfun$qux$1.this."$outer "."evidence$2$1" // val evidence$2$1: scala.math.Ordered in class Bug$X$1$class, tree.tpe=scala.math.Ordered
+[error]     )
+[error]   )
+[error]   DefDef( // final def apply(v1: Object): Object
+[error]     <method> final <bridge>
+[error]     "apply"
+[error]     []
+[error]     // 1 parameter list
+[error]     ValDef( // v1: Object
+[error]       <param> <triedcooking>
+[error]       "v1"
+[error]       <tpt> // tree.tpe=Object
+[error]       <empty>
+[error]     )
+[error]     <tpt> // tree.tpe=Object
+[error]     Block( // tree.tpe=scala.runtime.BoxedUnit
+[error]       Apply( // final def apply(x$1: Object): Unit, tree.tpe=Unit
+[error]         Bug$X$1$$anonfun$qux$1.this."apply" // final def apply(x$1: Object): Unit, tree.tpe=(x$1: Object)Unit
+[error]         "v1" // v1: Object, tree.tpe=Object
+[error]       )
+[error]       "scala"."runtime"."BoxedUnit"."UNIT" // final val UNIT: scala.runtime.BoxedUnit in object BoxedUnit, tree.tpe=scala.runtime.BoxedUnit
+[error]     )
+[error]   )
+[error]   DefDef( // def <init>(arg$outer: net.tqft.toolkit.algebra.Bug$X$1): net.tqft.toolkit.algebra.Bug$X$1$$anonfun$qux$1
+[error]     <method> <triedcooking>
+[error]     "<init>"
+[error]     []
+[error]     // 1 parameter list
+[error]     ValDef( // $outer: net.tqft.toolkit.algebra.Bug$X$1
+[error]       <param> <triedcooking>
+[error]       "$outer"
+[error]       <tpt> // tree.tpe=net.tqft.toolkit.algebra.Bug$X$1
+[error]       <empty>
+[error]     )
+[error]     <tpt> // tree.tpe=net.tqft.toolkit.algebra.Bug$X$1$$anonfun$qux$1
+[error]     Block( // tree.tpe=Unit
+[error]       // 2 statements
+[error]       If( // tree.tpe=Unit
+[error]         Apply( // final def eq(x$1: Object): Boolean in class Object, tree.tpe=Boolean
+[error]           "$outer"."eq" // final def eq(x$1: Object): Boolean in class Object, tree.tpe=(x$1: Object)Boolean
+[error]           null
+[error]         )
+[error]         Throw( // tree.tpe=Nothing
+[error]           Apply( // def <init>(): NullPointerException in class NullPointerException, tree.tpe=NullPointerException
+[error]             new NullPointerException."<init>" // def <init>(): NullPointerException in class NullPointerException, tree.tpe=()NullPointerException
+[error]             Nil
+[error]           )
+[error]         )
+[error]         Assign( // tree.tpe=Unit
+[error]           Bug$X$1$$anonfun$qux$1.this."$outer " // private[this] val $outer: net.tqft.toolkit.algebra.Bug$X$1, tree.tpe=net.tqft.toolkit.algebra.Bug$X$1
+[error]           "$outer" // $outer: net.tqft.toolkit.algebra.Bug$X$1, tree.tpe=net.tqft.toolkit.algebra.Bug$X$1
+[error]         )
+[error]       )
+[error]       Apply( // def <init>(): scala.runtime.AbstractFunction1$mcVL$sp in class AbstractFunction1$mcVL$sp, tree.tpe=scala.runtime.AbstractFunction1$mcVL$sp
+[error]         Bug$X$1$$anonfun$qux$1.super."<init>" // def <init>(): scala.runtime.AbstractFunction1$mcVL$sp in class AbstractFunction1$mcVL$sp, tree.tpe=()scala.runtime.AbstractFunction1$mcVL$sp
+[error]         Nil
+[error]       )
+[error]       ()
+[error]     )
+[error]   )
+[error] )
+[error] 
+[error] == Expanded type of tree ==
+[error] 
+[error] TypeRef(
+[error]   TypeSymbol(
+[error]     abstract trait IndexedSeq extends Seq with IndexedSeq with GenericTraversableTemplate with IndexedSeqLike
+[error]     
+[error]   )
+[error] )
+[error] 
+[error] No getter for value evidence$2$1 in trait Bug$X$1
+```

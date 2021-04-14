@@ -1,0 +1,61 @@
+Paste the code example
+```kotlin
+open class One
+
+class Another : One
+```
+Expected: error `[SUPERTYPE_NOT_INITIALIZED] This type has a constructor, and thus must be initialized here` is shown
+Actual: no error, and exception:
+```exception
+java.lang.NoSuchMethodError: 'org.jetbrains.kotlin.diagnostics.Diagnostic org.jetbrains.kotlin.diagnostics.DiagnosticFactory0.cast(org.jetbrains.kotlin.diagnostics.Diagnostic)'
+	at org.jetbrains.kotlin.android.quickfix.KotlinAndroidViewConstructorFix$Factory.createAction(KotlinAndroidViewConstructorFix.kt:76)
+	at org.jetbrains.kotlin.idea.quickfix.KotlinSingleIntentionActionFactory.doCreateActions(KotlinSingleIntentionActionFactory.kt:25)
+	at org.jetbrains.kotlin.idea.quickfix.KotlinIntentionActionsFactory.createActions(KotlinIntentionActionsFactory.kt:42)
+	at org.jetbrains.kotlin.idea.quickfix.KotlinIntentionActionsFactory.createActionsForAllProblems(KotlinIntentionActionsFactory.kt:24)
+	at org.jetbrains.kotlin.idea.highlighter.KotlinPsiCheckerKt.createQuickFixes(KotlinPsiChecker.kt:104)
+	at org.jetbrains.kotlin.idea.highlighter.KotlinPsiCheckerKt.access$createQuickFixes(KotlinPsiChecker.kt:1)
+	at org.jetbrains.kotlin.idea.highlighter.ElementAnnotator.setUpAnnotations(KotlinPsiChecker.kt:263)
+	at org.jetbrains.kotlin.idea.highlighter.ElementAnnotator.registerDiagnosticAnnotations(KotlinPsiChecker.kt:258)
+	at org.jetbrains.kotlin.idea.highlighter.ElementAnnotator.registerDiagnosticsAnnotations(KotlinPsiChecker.kt:182)
+	at org.jetbrains.kotlin.idea.highlighter.KotlinPsiChecker.annotateElement(KotlinPsiChecker.kt:75)
+	at org.jetbrains.kotlin.idea.highlighter.KotlinPsiChecker.annotateElement(KotlinPsiChecker.kt:57)
+	at org.jetbrains.kotlin.idea.highlighter.AbstractKotlinPsiChecker.annotate(AbstractKotlinPsiChecker.kt:20)
+	at com.intellij.codeInsight.daemon.impl.DefaultHighlightVisitor.runAnnotators(DefaultHighlightVisitor.java:136)
+	at com.intellij.codeInsight.daemon.impl.DefaultHighlightVisitor.visit(DefaultHighlightVisitor.java:116)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.runVisitors(GeneralHighlightingPass.java:338)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.lambda$collectHighlights$5(GeneralHighlightingPass.java:271)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.analyzeByVisitors(GeneralHighlightingPass.java:297)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.lambda$analyzeByVisitors$6(GeneralHighlightingPass.java:300)
+	at com.intellij.codeInsight.daemon.impl.DefaultHighlightVisitor.analyze(DefaultHighlightVisitor.java:96)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.analyzeByVisitors(GeneralHighlightingPass.java:300)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.collectHighlights(GeneralHighlightingPass.java:268)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.collectInformationWithProgress(GeneralHighlightingPass.java:214)
+	at com.intellij.codeInsight.daemon.impl.ProgressableTextEditorHighlightingPass.doCollectInformation(ProgressableTextEditorHighlightingPass.java:80)
+	at com.intellij.codeHighlighting.TextEditorHighlightingPass.collectInformation(TextEditorHighlightingPass.java:54)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.lambda$doRun$1(PassExecutorService.java:399)
+	at com.intellij.openapi.application.impl.ApplicationImpl.tryRunReadAction(ApplicationImpl.java:1110)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.lambda$doRun$2(PassExecutorService.java:392)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.registerIndicatorAndRun(CoreProgressManager.java:629)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.executeProcessUnderProgress(CoreProgressManager.java:581)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.executeProcessUnderProgress(ProgressManagerImpl.java:60)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.doRun(PassExecutorService.java:391)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.lambda$run$0(PassExecutorService.java:367)
+	at com.intellij.openapi.application.impl.ReadMostlyRWLock.executeByImpatientReader(ReadMostlyRWLock.java:170)
+	at com.intellij.openapi.application.impl.ApplicationImpl.executeByImpatientReader(ApplicationImpl.java:182)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.run(PassExecutorService.java:365)
+	at com.intellij.concurrency.JobLauncherImpl$VoidForkJoinTask$1.exec(JobLauncherImpl.java:181)
+	at java.base/java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:290)
+	at java.base/java.util.concurrent.ForkJoinPool$WorkQueue.topLevelExec(ForkJoinPool.java:1020)
+	at java.base/java.util.concurrent.ForkJoinPool.scan(ForkJoinPool.java:1656)
+	at java.base/java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1594)
+	at java.base/java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:183)
+```
+
+Reproduced with Kotlin compiler 1.4.30 and master:
+IU-202.8194.7 + Kotlin plugin 1.4.30-RC-174-IJ2020.2-1
+IU-202.8194.7 + Kotlin plugin 1.5.0-dev-1132-IJ2020.2-1
+IU-203.6967 + Kotlin plugin 203-1.4.30-RC-161-IJ5981.133
+
+Not reproduced with Kotlin compiler 1.4.10, 1.4.21:
+IU-203.6682.115 + Kotlin plugin 203-1.4.10-release-IJ6954
+IU-202.8194.7 + Kotlin plugin 1.4.21-release-IJ2020.2-1 (edited)

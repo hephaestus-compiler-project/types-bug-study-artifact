@@ -1,0 +1,17 @@
+Ping @DarkDimius @odersky, I'm not sure how to proceed from here.
+
+The first commit illustrates the issue:
+> When running TreeTypeMap in a miniphase, the tree we're transforming has
+already been transformed by all the miniphases in the same group, but
+the symbols we're looking at might be older than the trees, this means
+that we can miss transforming some symbols as illustrated in details by
+the added testcase which currently fails.
+
+The second commit contains a hack to show that my diagnostic of the issue above is correct, but I don't know how to fix this properly:
+> With this commit, tests/pos/treetypemap-miniphase.scala now compiles,
+but this is only a hack: there are other instances of TreeTypeMap in the
+compiler and they would all need to be run with "atGroupEnd", this is
+tricky since we are not always calling TreeTypeMap in a context where we
+have access to the current TreeTransformer (for example when we create a
+TreeTypeMap inside TypeMap to deal with annotations), ideas and
+alternative fixes welcome.

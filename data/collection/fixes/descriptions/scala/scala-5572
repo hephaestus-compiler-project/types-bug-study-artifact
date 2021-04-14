@@ -1,0 +1,61 @@
+I couldn't minimize, but this is the second time I hit this enigmatic assert.
+To repro, checkout https://github.com/adriaanm/scala/commit/9dc710d9a3, there's a type error in Typers:
+
+```scala
+val (ownType, cases1) = typedAdaptedCases(cases, selectorTp)
+```
+
+should be
+
+```scala
+val (cases1, ownType) = typedAdaptedCases(cases, selectorTp)
+```
+
+this mistake causes a type error in a case in the match below, which seems to trigger the assert
+
+```scala
+(MatchTranslator(this)).translateMatch(selector1, cases1, ownType, matchFailGen) match {
+  // a switch
+  case Block(vd :: Nil, tree@Match(selector, cases)) =>
+    val selector1          = checkDead(typed(selector, EXPRmode | BYVALmode, WildcardType))
+    val (cases1, ownType1) = typedAdaptedCases(cases, packCaptured(selector1.tpe.widen))
+    typed(Block(vd :: Nil, treeCopy.Match(tree, selector1, cases1) setType ownType1))
+  case translated =>
+    typed(translated, mode, ownType) //WildcardType) setType owntype
+}
+```
+
+stacktrace:
+```scala
+
+[scalacfork] /Users/adriaan/git/scala/src/compiler/scala/tools/nsc/typechecker/Typers.scala:3410: error: type mismatch;
+[scalacfork]  found   : Typers.this.global.Type
+[scalacfork]  required: List[Typers.this.global.CaseDef]
+[scalacfork]           (MatchTranslator(this)).translateMatch(selector1, cases1, ownType, matchFailGen) match {
+[scalacfork]                                                             ^
+[scalacfork] error: 
+[scalacfork]      while compiling:  /Users/adriaan/git/scala/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+[scalacfork]        current phase:  typer
+[scalacfork]      library version:  version 2.10.0-M2-0124-gee51b6e1b1-2012-03-12
+[scalacfork]     compiler version:  version 2.10.0-M2-0124-gee51b6e1b1-2012-03-12
+[scalacfork]   reconstructed args:  -classpath /Users/adriaan/git/scala/build/quick/classes/library:/Users/adriaan/git/scala/build/quick/classes/compiler:/Users/adriaan/git/scala/lib/fjbg.jar:/Users/adriaan/git/scala/lib/forkjoin.jar:/Users/adriaan/git/scala/lib/msil.jar:/usr/share/ant/lib/ant.jar:/Users/adriaan/git/scala/lib/extra/scalac-yourkit.jar:/Users/adriaan/git/scala/lib/extra/yjp-controller-api-redist.jar:/Users/adriaan/git/scala/lib/jline.jar -d /Users/adriaan/git/scala/build/quick/classes/compiler
+[scalacfork] 
+[scalacfork] uncaught exception during compilation: java.lang.AssertionError
+[scalacfork] error: java.lang.AssertionError: assertion failed: 
+[scalacfork]      while compiling:  /Users/adriaan/git/scala/src/compiler/scala/tools/nsc/typechecker/Typers.scala
+[scalacfork]        current phase:  typer
+[scalacfork]      library version:  version 2.10.0-M2-0124-gee51b6e1b1-2012-03-12
+[scalacfork]     compiler version:  version 2.10.0-M2-0124-gee51b6e1b1-2012-03-12
+[scalacfork]   reconstructed args:  -classpath /Users/adriaan/git/scala/build/quick/classes/library:/Users/adriaan/git/scala/build/quick/classes/compiler:/Users/adriaan/git/scala/lib/fjbg.jar:/Users/adriaan/git/scala/lib/forkjoin.jar:/Users/adriaan/git/scala/lib/msil.jar:/usr/share/ant/lib/ant.jar:/Users/adriaan/git/scala/lib/extra/scalac-yourkit.jar:/Users/adriaan/git/scala/lib/extra/yjp-controller-api-redist.jar:/Users/adriaan/git/scala/lib/jline.jar -d /Users/adriaan/git/scala/build/quick/classes/compiler
+[scalacfork] 
+[scalacfork] try typed args is ok
+[scalacfork] 	at scala.Predef$.assert(Predef.scala:161)
+[scalacfork] 	at scala.tools.nsc.Global.assert(Global.scala:174)
+[scalacfork] 	at scala.tools.nsc.typechecker.Typers$Typer.onError$2(Typers.scala:3582)
+[scalacfork] 	at scala.tools.nsc.typechecker.Typers$Typer.tryTypedApply$1(Typers.scala:3601)
+[scalacfork] 	at scala.tools.nsc.typechecker.Typers$Typer.typedApply$1(Typers.scala:3650)
+[scalacfork] 	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:4383)
+[scalacfork] 	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4545)
+[scalacfork] 	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4619)
+[scalacfork] 	at scala.tools.nsc.typechecker.Typers$Typer.typedCase(Typers.scala:2052)
+```

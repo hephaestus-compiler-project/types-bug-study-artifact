@@ -1,0 +1,70 @@
+# Synopsis
+Type of change:
+- New diagnostics: errors
+
+Motivation:
+- Compiler generates unobvious bytecode
+
+Impact:
+- Some code that used to compile won’t compile any more
+
+Migration:
+- All code locations affected by this change can be accurately detected statically
+- Migration can’t be automated
+
+# Existing behavior
+#### Minimal code sample
+```
+fun nonConst(): IntArray = intArrayOf(0)
+annotation class Ann(vararg val v: Int)
+
+@Ann(v = nonConst()) // OK
+fun foo() {}
+```
+#### What's wrong with it
+ 
+The problem here is that argument of `@Ann` is a non-const value that is not known at compile-time. 
+Currently, this code accepts by the compiler and after compilation there is no any value of the annotation argument in the bytecode.
+
+This code should be rejected by the compiler, because it's impossible to use actual value of such arguments and generate corresponding bytecode.
+
+#### Detailed explanation of why and how this happens
+
+Important note: prior to the Kotlin 1.2 such code was rejected by the compiler because of type mismatch. For `@Ann(v = <expr>)`, `<expr>` was expected to be a type of the component type (here it is `Int`), not an array type. 
+
+In Kotlin 1.2 we allowed to write `@Ann(v = <expr>)` with `<expr>` as an array type when `<expr>` is assigned to vararg in named form, see KT-20171 for the details. This change cause the main problem because constant evaluator (that should evaluate and check `<expr>` if it is a compile-time constant) still uses old subtyping rules and, if type mismatch was occurred, it doesn't perform any checks. As a result, such code passed to the backend which silently skip non compile-time constant values of annotation arguments.
+
+Note that this bug is occurred only when annotation has a `vararg` parameter and argument of an array type is passed in named form, otherwise a corresponding error is reported.
+
+# Proposed behavior
+
+ The proposal: fix subtyping rules in the constant evaluator and report an error on `@Ann(v = <expr>)` if `<expr>` is not a compile-time constant.
+
+Migration:
+- All code locations affected by this change can be accurately detected statically
+- Migration can’t be automated 
+
+# Affected versions
+
+In 1.2.50
+- Deprecation warning on soon-to-be-forbidden usages (already added)
+
+In 1.3
+- Error on forbidden usages
+
+# Original issue 
+
+It is possible to compile code below (which I believe is a bug itself)
+```Kotlin
+annotation class SomeAnnotation(vararg val value: Long = [])
+
+@SomeAnnotation(value = WEIRD_ARRAY)
+annotation class AnotherAnnotation
+
+private val WEIRD_ARRAY = longArrayOf(0).also { println("WTF") }```
+
+After adding any kapt dependency in build.gradle compilation will fail with error
+
+```AnotherAnnotation.java:7: error: incompatible types: <null> cannot be converted to long @SomeAnnotation(value = null)```
+
+Nevertheless, after deleting default value of vararg error disappearing and code can be compiled again.

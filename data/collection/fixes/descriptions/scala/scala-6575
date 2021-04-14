@@ -1,0 +1,80 @@
+(From at https://groups.google.com/d/topic/scala-user/2pcH-ck46Qg/discussion)
+
+with Scala 2.10.0-RC1 I found an issue with stackable traits that 
+doesn't come up with Scala 2.9.2. Based on trait X 
+
+```scala
+trait X { def foo: PartialFunction[Int, Int] } 
+```
+
+and two stackable traits Y and Z (that extend X): 
+
+```scala
+trait Y extends X { abstract override def foo = { case i => super.foo(i) * 2 } } 
+trait Z extends X { abstract override def foo = { case i => super.foo(i) + 3 } }
+```
+
+I have another stackable trait Comb that combines what Y and Z are doing 
+(and that does some additional work): 
+
+```scala
+trait Comb extends Y with Z { abstract override def foo: 
+PartialFunction[Int, Int] = { case i => super.foo(i) - 2 } } 
+```
+
+This compiles with Scala 2.9.2 without problems but with Scala 
+2.10.0-RC1 I'm getting the following error: 
+
+```scala
+[error] ...: missing parameter type for expanded function 
+[error] The argument types of an anonymous function must be fully known. 
+(SLS 8.5) 
+[error] Expected type was: 
+scala.runtime.AbstractPartialFunction[Int,Int] with Serializable 
+[error]   trait Comb extends Y with Z { abstract override def foo = { 
+case i => super.foo(i) - 2 } } 
+[error] ^ 
+[error] one error found 
+```
+
+Of course I can get around this issue by writing the foo method type 
+explicitly 
+
+```scala
+trait Y extends X { abstract override def foo: PartialFunction[Int, Int] 
+= { case i => super.foo(i) * 2 } } 
+trait Z extends X { abstract override def foo: PartialFunction[Int, Int] 
+= { case i => super.foo(i) + 3 } } 
+trait Comb extends Y with Z { abstract override def foo: 
+PartialFunction[Int, Int] = { case i => super.foo(i) - 2 } } 
+```
+
+but then any concrete class that should be modified with Comb must add 
+the foo method type as well i.e. 
+
+```scala
+class Temp extends X { def foo: PartialFunction[Int, Int] = { case i => 
+i } } 
+val tmp = new Temp with Comb 
+// ... 
+```
+
+which wasn't necessary with Scala 2.9.2 either. If the type is omitted i.e. 
+
+```scala
+class Temp extends X { def foo = { case i => i } } 
+val tmp = new Temp with Comb 
+// ... 
+```
+
+I'm getting 
+
+```scala
+[error] ...: overriding method foo in class Temp of type => 
+scala.runtime.AbstractPartialFunction[Int,Int] with Serializable; 
+[error]  method foo in trait Comb of type => PartialFunction[Int,Int] 
+has incompatible type 
+[error]   val tmp2 = new Temp with Comb 
+[error]                  ^ 
+[error] one error found 
+```

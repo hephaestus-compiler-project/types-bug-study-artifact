@@ -1,0 +1,58 @@
+In the following code ([upsource](https://upsource.jetbrains.com/intellij/file/69fbc0854b2ad29adc38b7f5736dda9761ad1e1f/contrib/vuejs/src/org/jetbrains/vuejs/model/source/VueComponentDetailsProvider.kt?nav=1274:1781:focused&line=0&preview=false)):
+```
+class VueComponentDetailsProvider {
+  companion object {
+    private val BIND_VARIANTS = setOf(".prop", ".camel", ".sync")
+    private val ON_VARIANTS = setOf("*")
+    private val PREFIX_VARIANTS = mapOf(Pair(":", BIND_VARIANTS), Pair("v-bind:", BIND_VARIANTS),
+                                        Pair("@", ON_VARIANTS), Pair("v-on:", ON_VARIANTS),
+                                        Pair("v-slot:", emptySet()))
+    private val EVENT_MODIFIERS = setOf(".stop", ".prevent", ".capture", ".self", ".once", ".passive", ".native")
+    private val NO_VALUE = mapOf(Pair("@", EVENT_MODIFIERS), Pair("v-on:", EVENT_MODIFIERS))
+
+    fun attributeAllowsNoValue(attributeName: String): Boolean {
+      return isVSlot(attributeName) || NO_VALUE.any {
+        val cutPrefix = attributeName.substringAfter(it.key, "")
+        cutPrefix.isNotEmpty() && it.value.any { eventModifier -> cutPrefix.endsWith(eventModifier) }
+      }
+    }
+
+    fun getBoundName(attributeName: String): String? {
+      return PREFIX_VARIANTS.mapNotNull {
+        val after = attributeName.substringAfter(it.key, "")
+        if (after.isNotEmpty()) {
+          return after.substringBefore(".", after)
+        }
+        return@mapNotNull null
+      }.firstOrNull()
+             ?: if (attributeName.contains('.')) {
+               // without prefix, but might be with postfix
+               attributeName.substringBefore(".", "")
+             }
+             // if just attribute name should be used, return null
+             else null
+    }
+  }
+}
+```
+whole content of `getBoundName` is underlined in red with following message:
+```
+[TYPE_MISMATCH] Type mismatch:
+Required: String?
+Found: Any
+```
+However, the code compiles fine. 
+
+IDE infomation:
+> IntelliJ IDEA 2019.3 Snapshot (Ultimate Edition)
+Build #IU-193.514, built on June 24, 2019
+IntelliJ IDEA EAP User
+Expiration date: July 24, 2019
+Runtime version: 11.0.3+12-b304.2 x86_64
+VM: OpenJDK 64-Bit Server VM by JetBrains s.r.o
+macOS 10.14.5
+GC: G1 Young Generation, G1 Old Generation
+Memory: 3500M
+Cores: 12
+Registry: java.completion.argument.hints.internal=false, ide.mac.allowDarkWindowDecorations=true, ide.tooltip.initialDelay=569, git.explicit.commit.renames.prohibit.multiple.calls=false
+Non-Bundled Plugins: CVS, ExploreTrace, Lombook Plugin, TFS, YourKit Java Profiler 2019.1-b117 Integration, Jetbrains TeamCity Plugin, com.intellij.sisyphus, com.jetbrains.upsource, org.jetbrains.idea.grammar, Karma, com.jetbrains.intellij.api.watcher

@@ -1,0 +1,89 @@
+The source code below doesn't compile, fails with the following error. According to this error, the type of varValue is inferred by the compiler as 'A<? super A<? extends Integer>>'. However, according to the specification it should have been A<? super A<? super Integer>>.
+
+Compilation output:
+--------------------------
+Test.java:15: error: incompatible types: A<CAP#1> cannot be converted to A<? super A<Object>>
+        A<? super A<Object>> expectedTypeValue = varValue;
+                                                 ^
+  where CAP#1 is a fresh type-variable:
+    CAP#1 extends Object super: A<? extends Integer> from capture of ? super A<? extends Integer>
+1 error
+
+Source code:
+-----------------
+class A<E> { }
+
+public class Test {
+
+  <T> A<? super T> m(T t) {
+      return null;
+  }
+
+  <U> A<? super A<? super U>> m2(A<? super U> u) {
+    return null;
+  }
+
+  void test() {
+    var varValue = m2(m(10));
+	A<? super A<Object>> expectedTypeValue = varValue;
+  }
+}
+
+Type of var is inferred as follows:
+-------------------------------------------
+
+1. Type variable U in method m2 is inferred by applying Invocation Type Inference (18.5.2) as 'Integer <: Y1 <: Object'
+
+2. As per chapter 15.12.3 capture conversion is applied on return type: A<? super A<? super U>> [U:=Y1]	
+	
+	Capture_conversion(A<? super A<? super Y1>>) -->  A< [A<? super Y1>  <: CAP <: Object>] >
+
+3. Type of varValue results from applying upward projection to A< [A<? super Y1>  <: CAP <: Object>] > :
+
+	T =  A< [A<? super Y1>  <: CAP <: Object >] >
+		
+4. We proceed to following assertion:
+    
+	If T is a parameterized class type or a parameterized interface type, G<A1, ..., An>, then the result is G<A1', ..., An'>, where, for 1 ≤ i ≤ n, Ai' is derived from Ai as follows:
+	
+	A1 = [A<? super Y1>  <: CAP <: Object]
+	    
+5. We proceed to following assertion:
+
+	If Ai is a type that mentions a restricted type variable, then Ai' is a wildcard. Let U be the upward projection of Ai. There are three cases:
+			
+	U = upward_projection([A<? super Y1>  <: CAP <: Object]) = upward_projection(Object) = Object
+	
+	So U = Object
+	
+6. Since U is Object, we proceed to the following assertion:
+
+	Otherwise, if the downward projection of Ai is L, then Ai' is a lower-bounded wildcard, ? super L.
+	
+    L = Downward_projection([A<? super Y1>  <: CAP <: Object]) = Downward_projection(A<? super Y1>)
+	
+	6.1. So we proceed to the following assertion:
+
+		If T is a parameterized class type or a parameterized interface type, G<A1, ..., An>, then the result is G<A1', ..., An'>, if, for 1 ≤ i ≤ n, a type argument Ai' can be derived from Ai as follows; if not, the result is undefined:
+		
+		A1 = ? super [Integer <: Y1 <: Object]
+
+	6.2. So eventually we come to the following assertion:	
+		
+		If Ai is a lower-bounded wildcard that mentions a restricted type variable, then let L be the upward projection of the wildcard bound. Ai' is a wildcard ? super L.
+				
+		L = Upward_projection([Integer <: Y1 <: Object]) = upward_projection(Object) = Object
+
+		So, L = Object
+		A1' = ? super Object
+				
+	6.3. So, Downward_projection([A<? super Y1>  <: CAP <: Object]) = A<? super Object>
+	
+7.  So we return to the calculation of upward projection.
+    
+	L = A<? super Object>
+	A1' = ? super L = ? super A<? super Object>
+	
+8.	Upward_projection(A<[ A<? super Y1>  <: CAP <: Object]) = A<A1'> = A<? super A<? super Object>>
+	
+Type of varValue is inferred as A<? super A<? super Object>>

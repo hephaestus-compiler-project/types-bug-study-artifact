@@ -1,0 +1,56 @@
+When using javax.lang.model (as well as internal javac classes), if a class declares multiple type parameters, any annotation on one of the type parameters appears as if it were applied to all of them.
+
+A test:
+
+@SupportedAnnotationTypes("*")
+@SupportedSourceVersion(SourceVersion.RELEASE_8)
+public class TypeParameterAnnotationsTest
+                <S,
+                 @TypeParameterAnnotationsTest.Foo("T") T,
+                 @TypeParameterAnnotationsTest.Bar("U") U,
+                 V>
+                extends AbstractProcessor {
+
+    @Target(ElementType.TYPE_PARAMETER) @interface Foo { String value(); }
+    @Target(ElementType.TYPE_PARAMETER) @interface Bar { String value(); }
+
+    public boolean process(Set<? extends TypeElement> annots,
+                           RoundEnvironment env) {
+        for (Element root : env.getRootElements()) {
+            if (root.getSimpleName().contentEquals("TypeParameterAnnotationsTest")) {
+                for (TypeParameterElement var : ((TypeElement) root).getTypeParameters()) {
+                    System.out.println("var: " + var);
+                    System.out.println("annotations: " + var.getAnnotationMirrors());
+                    System.out.println("Foo annotation: " + var.getAnnotation(Foo.class));
+                    System.out.println("Bar annotation: " + var.getAnnotation(Bar.class));
+                }
+            }
+        }
+        return true;
+    }
+
+}
+
+To observe the results:
+javac TypeParameterAnnotationsTest.java
+javac -processor TypeParameterAnnotationsTest TypeParameterAnnotationsTest.java
+
+Output:
+var: S
+annotations: @TypeParameterAnnotationsTest.Foo("T"),@TypeParameterAnnotationsTest.Bar("U")
+Foo annotation: @TypeParameterAnnotationsTest$Foo(value=T)
+Bar annotation: @TypeParameterAnnotationsTest$Bar(value=U)
+var: T
+annotations: @TypeParameterAnnotationsTest.Foo("T"),@TypeParameterAnnotationsTest.Bar("U")
+Foo annotation: @TypeParameterAnnotationsTest$Foo(value=T)
+Bar annotation: @TypeParameterAnnotationsTest$Bar(value=U)
+var: U
+annotations: @TypeParameterAnnotationsTest.Foo("T"),@TypeParameterAnnotationsTest.Bar("U")
+Foo annotation: @TypeParameterAnnotationsTest$Foo(value=T)
+Bar annotation: @TypeParameterAnnotationsTest$Bar(value=U)
+var: V
+annotations: @TypeParameterAnnotationsTest.Foo("T"),@TypeParameterAnnotationsTest.Bar("U")
+Foo annotation: @TypeParameterAnnotationsTest$Foo(value=T)
+Bar annotation: @TypeParameterAnnotationsTest$Bar(value=U)
+
+I confirmed that reflection does not share this problem: java.lang.reflect.TypeVariable.getAnnotations() returns correctly results.

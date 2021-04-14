@@ -1,0 +1,37 @@
+[Deleted original report]
+
+I have run into this again and it's going to be a problem for improving the pattern matcher's type parameter handling.  I don't think it actually has anything to do with tailcalls (although it may), I think that's only where it's being revealed, and it originates in the typer.  So I'm reassigning to scala_reviewer to see if it can get another look.
+
+Here is a distillation of the problem.
+```scala
+abstract class Bar[+B] {
+}
+abstract class C1[+B] extends Bar[B] {  
+  private[this] def g(x: C1[B]): Unit = ()
+
+  // this method is fine: notice that it allows the call to g,
+  // which requires C1[B], even though we matched on C1[_].
+  // (That is good news.)
+  private[this] def f1(x: Bar[B]): Unit = x match {
+    case x: C1[_] => g(x)
+  }
+  // this one crashes.
+  private[this] def f2(x: Bar[B]): Unit = x match {
+    case x: C1[_] => f2(x)
+  }
+}
+```
+The crash:
+```scala
+Exception in thread "main" scala.tools.nsc.symtab.Types$$TypeError: type mismatch;
+ found   : C1[_]
+ required: Bar[B]
+ at scala.tools.nsc.typechecker.Contexts$$Context.error(Contexts.scala:280)
+ at scala.tools.nsc.typechecker.Infer$$Inferencer.error(Infer.scala:203)
+ at scala.tools.nsc.typechecker.Infer$$Inferencer.typeError(Infer.scala:213)
+ at scala.tools.nsc.typechecker.Infer$$Inferencer.typeErrorTree(Infer.scala:228)
+ at scala.tools.nsc.typechecker.Typers$$Typer.adapt(Typers.scala:1018)
+ at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:4186)
+ at scala.tools.nsc.typechecker.Typers$$Typer.typedArg(Typers.scala:2209)
+ at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$typedArgs$$3.apply(Typers.scala:2220)  
+```

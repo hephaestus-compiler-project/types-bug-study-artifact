@@ -1,0 +1,56 @@
+Subsystem: probably new inference, but just a guess
+
+Consider the following code:
+```java
+import org.jetbrains.annotations.NotNull;
+
+import java.util.List;
+
+interface MyJavaInterface {
+    @NotNull List<? extends Number> getList();
+}
+```
+
+```kotlin
+interface MyKotlinInterface {
+    val list: List<Number>
+}
+```
+
+Here's a test that stubs both these interfaces via Mockito (helper signatures inlined for easier repro):
+```
+//import com.nhaarman.mockitokotlin2.mock
+fun <T : Any> mock(): T = TODO()
+
+//import org.mockito.stubbing.OngoingStubbing
+interface OngoingStubbing<T> {
+    fun thenReturn(value: T): OngoingStubbing<T>
+}
+
+//import com.nhaarman.mockitokotlin2.whenever
+fun <T> whenever(methodCall: T): OngoingStubbing<T> = TODO()
+
+class Test {
+
+    fun testKotlin() {
+        val mockInterface: MyKotlinInterface = mock()
+        whenever(mockInterface.list).thenReturn(listOf<Number>(1, 2, 3))
+    }
+
+    fun testJava() {
+        val mockInterface: MyJavaInterface = mock()
+        // 1.4-M3: TYPE_MISMATCH: Required: MutableList<out Number!> Found: List<Number>
+        whenever(mockInterface.list).thenReturn(listOf<Number>(1, 2, 3))
+    }
+}
+```
+The above `testJava` method doesn't compile in 1.4-M3 because of this error (it would be expected to work the same way):
+![](image.png)
+
+Checking the inferred types via hints shows the exact same result with Kotlin 1.3.61 and 1.4-M3 (although both are running via Android Studio Kotlin plugin 1.4-M3):
+1.3.61
+![](image1.png)
+1.4-M3
+![](image2.png)
+
+Note: specifying `<? extends @NotNull Number>` to remove the `!` in `<Number!>` doesn't make any difference to this issue.

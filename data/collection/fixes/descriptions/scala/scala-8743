@@ -1,0 +1,32 @@
+When using the @varargs annotation together with generic types, the compiler produces a type mismatch.
+
+```scala
+scala> def foo[A](x: A, xs: String*): A = ???
+foo: [A](x: A, xs: String*)A
+
+scala> @annotation.varargs def foo[A](x: A, xs: String*): A = ???
+<console>:7: error: type mismatch;
+ found   : x.type (with underlying type A)
+ required: A
+       @annotation.varargs def foo[A](x: A, xs: String*): A = ???
+```
+
+It fails with a different message, when using a constructed type (or a type class, for example)
+
+```scala
+scala> def foo[A](x: List[A], xs: String*): A = ???
+foo: [A](x: List[A], xs: String*)A
+
+scala> @annotation.varargs def foo[A](x: List[A], xs: String*): A = ???
+<console>:7: error: type mismatch;
+ found   : List[(some other)A(in method foo)]
+ required: List[A(in method foo)]
+       @annotation.varargs def foo[A](x: List[A], xs: String*): A = ???
+```
+
+However, everything works, if one does not return the generic type
+
+```scala
+scala> @annotation.varargs def foo[A](x: A, xs: String*): Nothing = ???
+foo: [A](x: A, xs: String*)Nothing <and> [A](x: A, xs: Array[String])Nothing
+```

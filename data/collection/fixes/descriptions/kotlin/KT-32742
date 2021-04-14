@@ -1,0 +1,16 @@
+**Steps to reproduce:** Import the archive from the attachment using Gradle. It consists of
+
+- Gradle build file setting up wrappers + dependencies for React, React-DOM, Core-JS, and React-Player.
+- "Type Signature" for the `react-player` component, using `dynamic`
+- A sample React application making use of the external `ReactPlayer` component
+
+When accessing the `attrs` of `ReactPlayer`, which IntelliJ infers to be of Type `dynamic`, I get an error on compilation, and compilation aborts:
+```/src/main/kotlin/Application.kt: (8, 22): Unresolved reference: url```
+
+The compiler **can be pleased** by inserting `.asDynamic()`, but that makes the IDE complain about a `Suspicious asDynamic member invocation`. The compiler can also be pleased by introducing any kind of function that returns dynamic, e.g. an identity function `fun identity(d: dynamic): dynamic = d`, and calling `identity(this).url = ...`
+
+The compiler **can not be pleased** by introducing a generic function `fun <T> T.fix() = this` and invoking `this.fix().url = ...` (though the IDE does not complain)
+
+**Expected behavior:** the application should compile without a call to `asDynamic`.
+
+![](image.png)

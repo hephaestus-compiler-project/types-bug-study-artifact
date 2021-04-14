@@ -1,0 +1,24 @@
+After I've changed `reduce` function signature from
+{code}
+public inline fun <T> Iterable<T>.reduce(operation: (T, T) -> T): T
+{code}
+to
+{code}
+public inline fun <S, T: S> Iterable<T>.reduce(operation: (S, T) -> S): S
+{code}
+
+the following code no longer compiles:
+{code}
+        val f: () -> Unit = {
+            arrayListOf<Int>().reduce { a, b -> a + b }
+        }
+{code}
+but this one do:
+{code}
+        val f: () -> Unit = {
+            run { arrayListOf<Int>().reduce { a, b -> a + b } }
+        }
+{code}
+
+The message is "Error:(155, 32) Kotlin: Type parameter bound for T in fun <S, T : S> kotlin.Iterable<T>.reduce(operation: (S, T) -> S): S
+ is not satisfied: inferred type kotlin.Int! is not a subtype of kotlin.Unit"

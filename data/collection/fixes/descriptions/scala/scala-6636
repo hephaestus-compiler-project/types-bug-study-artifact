@@ -1,0 +1,108 @@
+Macro definition:
+
+```scala
+// macro.scala
+import scala.language.experimental.macros
+import scala.reflect.macros.Context
+
+object TestMacro {
+  def test[T](t: T): Unit = macro testImpl[T]
+
+  def testImpl[T: c.WeakTypeTag](c: Context)(t: c.Expr[T]): c.Expr[Unit] = {
+    c.error(t.tree.pos, "some error")
+    c.universe.reify {
+      println(t.splice)
+    }
+  }
+}
+```
+
+Macro use:
+
+```scala
+// test-macro.scala
+object Test extends App {
+
+  import TestMacro._
+
+  test[Any] {
+    0
+  }
+
+}
+```
+
+Compiling `test-macro.scala` yields the expected error message:
+
+```
+$ scalac -d classes macro.scala
+$ scalac -cp classes -d classes test-macro.scala 
+test-macro.scala:6: error: some error
+    0
+    ^
+one error found
+```
+
+However, using `eval` fails:
+
+```scala
+// test-macro-eval-crash.scala
+import scala.reflect.{ClassTag, classTag}
+
+object Test extends App {
+
+  def intercept[T <: Throwable : ClassTag](body: => Any): T = {
+    try {
+      body
+      throw new Exception(s"Exception of type ${classTag[T]} was not thrown")
+    } catch {
+      case t: Throwable =>
+        if (classTag[T].runtimeClass != t.getClass) throw t
+        else t.asInstanceOf[T]
+    }
+  }
+
+  def eval(code: String, compileOptions: String = ""): Any = {
+    val m = scala.reflect.runtime.currentMirror
+    import scala.tools.reflect.ToolBox
+    val tb: ToolBox[scala.reflect.runtime.universe.type] = m.mkToolBox(options = compileOptions)
+    tb.eval(tb.parse(code))
+  }
+
+  def expectError(errorSnippet: String, compileOptions: String = "")(code: String) {
+    val msg = intercept[scala.tools.reflect.ToolBoxError] {
+      eval(code, compileOptions)
+    }.getMessage
+    assert(msg contains errorSnippet, msg)
+  }
+
+  expectError("some error", "-deprecation -Xfatal-warnings") {
+    """
+      | import TestMacro._
+      | test[Any] {
+      |   0
+      | }
+    """.stripMargin
+  }
+}
+```
+
+```
+$ scalac -d classes macro.scala
+$ scalac -cp classes -d classes test-macro-eval-crash.scala
+$ scala -cp classes Test
+java.lang.AssertionError: assertion failed: reflective compilation has failed: 
+
+macro implementation not found: test (the most common reason for that is that you cannot use macro implementations in the same compilation run that defines them)
+	at scala.Predef$.assert(Predef.scala:179)
+	at Test$.expectError(test-macro-eval-crash.scala:27)
+	at Test$delayedInit$body.apply(test-macro-eval-crash.scala:30)
+	at scala.Function0$class.apply$mcV$sp(Function0.scala:40)
+	at scala.runtime.AbstractFunction0.apply$mcV$sp(AbstractFunction0.scala:12)
+	at scala.App$$anonfun$main$1.apply(App.scala:71)
+	at scala.App$$anonfun$main$1.apply(App.scala:71)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.collection.generic.TraversableForwarder$class.foreach(TraversableForwarder.scala:32)
+	at scala.App$class.main(App.scala:71)
+	at Test$.main(test-macro-eval-crash.scala:3)
+```

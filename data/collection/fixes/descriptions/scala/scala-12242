@@ -1,0 +1,26 @@
+## reproduction steps
+
+using Scala 2.13.4,
+
+```scala
+	trait Box[T]
+
+	trait Adapter[B <: Box[T], T]
+
+	trait SpecialAdapter[B <: Box[T], T] extends Adapter[B, T]
+
+	trait Mixin[+A[B <: Box[S], X], S]
+
+	trait Super[T] extends Mixin[Adapter, T]
+
+	trait Sub[T] extends Super[T] with Mixin[SpecialAdapter, T]
+```
+
+## problem
+```
+illegal inheritance;
+ self-type Playground.Sub[T] does not conform to Playground.Mixin[Playground.SpecialAdapter,T]'s selftype Playground.Mixin[Playground.SpecialAdapter,T]
+	trait Sub[T] extends Super[T] with Mixin[SpecialAdapter, T]
+```
+
+Apparently all type parameters matter: I can't remove any without the error going away.  Crucial here is also the bound `<: Box[S]` in the type parameter of `Mixin`; removing it, or substituting it with `<: Box[_]` compiles. 

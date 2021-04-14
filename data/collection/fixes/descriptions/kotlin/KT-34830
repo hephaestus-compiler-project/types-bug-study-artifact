@@ -1,0 +1,76 @@
+Using up-to-date Android Studio, I just hit this corner case where the compiler and inspection seem to use different type inference algorithms:
+
+It's weird because, in `barQuuxWithNullImplicit`, all the IDE tools detect correctly that I use the extension method and double check the inference without issue.
+But the compiler doesn't like it.
+
+I guess in this case, the compiler should be updated so the type inference is the same as the inspection. Or the inspector should be made aware that this isn't an inference the compiler can make. The first one is preferable IMHO...
+
+```
+class Foo<A>
+{
+	fun foo(a: A?)
+	{
+	}
+}
+
+class Bar<A>
+{
+	fun foo(a: A)
+	{
+	}
+}
+
+fun <A> Bar<A>.foo(a: A?)
+{
+}
+
+fun <A> Bar<A>.bar(a: A?)
+{
+}
+
+data class Quux<A>(private val foo: (A) -> Unit)
+data class QuuxWithNull<A>(private val foo: (A?) -> Unit)
+
+fun <A> fooQuux(foo: Foo<A>): QuuxWithNull<A>
+{
+	return QuuxWithNull(foo::foo) // OK, does not use extension method
+}
+
+fun <A> barQuux(bar: Bar<A>): Quux<A>
+{
+	return Quux(bar::foo) // OK, does not use extension method
+}
+
+fun <A, B> barFuncWithNull(bar: Bar<A>): (A?) -> Unit
+{
+	return bar::foo // OK, doesn't use extension method to infer types, I guess
+}
+
+fun <A, B> barQuuxWithNullDifferentJVM(bar: Bar<A>): QuuxWithNull<A>
+{
+	return QuuxWithNull(bar::bar) // OK, use extension method with different JVM signature
+}
+
+fun <A> barQuuxWithNullExplicit(bar: Bar<A>): QuuxWithNull<A>
+{
+	return QuuxWithNull<A>(bar::foo) // Ok, but "Remove explicit type arguments. Inspection Info: This inspection reports function calls with type arguments that can be safely removed and inferred."
+}
+
+fun <A, B> barQuuxWithNullImplicit(bar: Bar<A>): QuuxWithNull<A>
+{
+	return QuuxWithNull(bar::foo) // (!?) Type inference fails. Please try to specify type arguments explicitly.
+}
+```
+
+Note: I've simplified the code to the extreme in order to have a truly minimal reproduction case. But in my actual, my class and extension methods look more like:
+```
+class Foo<A, B>
+{
+   fun map(a: A): B
+   {
+      // Do stuff here
+    }
+}
+
+fun <A, B> Foo<A, B>.map(a: A?): B? = a?.let { map(it) }
+```

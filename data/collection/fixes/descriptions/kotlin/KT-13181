@@ -1,0 +1,32 @@
+Kotlin Compiler version 1.1-M01
+
+Repro:
+
+```
+//module A
+class Foo<out T>(
+        val t: T
+) {
+    typealias Bar = (T) -> Unit
+
+    fun baz(b: Bar) = b(t)
+}
+```
+
+```
+//module B
+import org.junit.Test
+
+class FooTest {
+
+    @Test
+    fun baz() {
+        val b: Foo<String>.Bar = {}
+        Foo("").baz(b)
+    }
+
+}
+```
+
+Build fails with
+>Error:(9, 28) Kotlin: Unresolved reference: Bar

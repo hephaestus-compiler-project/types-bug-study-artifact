@@ -1,0 +1,24 @@
+The following test cause compiler to fail.
+Here qualified anonymous class instance creation expression with diamond is used.
+Bound of enclosing class type parameter need to be intersection.
+
+Minimal test case:
+
+interface I {}
+class C {}
+class B extends C implements I {}
+
+class Test <T extends C & I>{
+    class A <T>{
+        public A(T b) {
+        }
+    }
+    public void foo(){
+        A a = new Test<>().new A<>(new B()){} ;
+    }
+}
+
+It was tested with jdk 9b68 and 9b74
+
+The failing JCK tests are:
+lang/EXPR/expr629/expr62902m201111/expr62902m201111.html

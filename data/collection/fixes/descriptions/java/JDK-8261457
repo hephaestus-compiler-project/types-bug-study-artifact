@@ -1,0 +1,32 @@
+The test in test/langtools/tools/javac/T8187978 tests that javac emits proper diagnostics when overload method resolution fails for the code being compiled. It uses a reference file ("golden file") technique to verify correct operation.
+
+Unfortunately, the reference file includes information about actual methods in java.util.ArrayList, including the following:
+
+public boolean add(E)
+public void add(int, E)
+private void add(E, Object[], int)
+
+The first two methods are methods in the public API and are unlikely ever to change. However, the third method is a private method, and changing it causes the test to fail. This can be illustrated by applying this patch:
+
+diff --git a/src/java.base/share/classes/java/util/ArrayList.java b/src/java.base/share/classes/java/util/ArrayList.java
+index a36dcd8a796..8cac9e72afa 100644
+--- a/src/java.base/share/classes/java/util/ArrayList.java
++++ b/src/java.base/share/classes/java/util/ArrayList.java
+@@ -449,7 +449,7 @@ public class ArrayList<E> extends AbstractList<E>
+      * bytecode size under 35 (the -XX:MaxInlineSize default value),
+      * which helps when add(E) is called in a C1-compiled loop.
+      */
+-    private void add(E e, Object[] elementData, int s) {
++    private void addx(E e, Object[] elementData, int s) {
+         if (s == elementData.length)
+             elementData = grow();
+         elementData[s] = e;
+@@ -464,7 +464,7 @@ public class ArrayList<E> extends AbstractList<E>
+      */
+     public boolean add(E e) {
+         modCount++;
+-        add(e, elementData, size);
++        addx(e, elementData, size);
+         return true;
+     }
+ 

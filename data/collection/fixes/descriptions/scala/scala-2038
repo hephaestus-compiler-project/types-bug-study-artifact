@@ -1,0 +1,291 @@
+It's a little more complicated than the title suggests, could not think of a better name. Searched trac and could not find any duplicates.
+
+The compiler crashes with both 2.7.4 and nightly build 2.8.0r17986
+
+In any case here is the code:
+```scala
+object TypedConverter {
+  def apply[A,B](from : Class[A], to : Class[B])(convert : (A)=>B) = {
+    new TypedConverter[A,B](from, to, convert)
+  }
+}
+
+class TypedConverter[A,B](val from : Class[A], val to : Class[B], val convert : (A)=>B) {
+}
+
+object StandardConverters {
+  
+  //Gets the combinationr2 of a list
+  //that is for the list [1,2,3] -> [(1,2),(1,3),(2,3)]
+  //Not at all efficient!
+  final def comb2[A](xs : List[A]) : List[(A,A)] = {
+    xs match {
+      case Nil => Nil
+      case x::Nil => Nil
+      case x::xs => xs.map(y=>(x,y)):::comb2(xs)
+    }
+  }
+
+  
+  val ints = comb2(List(java.lang.Integer.TYPE, classOf[java.lang.Integer], classOf[Int])).map {
+    case (f: Class[a],t: Class[b]) =>
+      //CRASHES THE COMPILER!
+      TypedConverter(f,t){x: a => t.cast(x)}
+    }
+}
+```
+
+Here is the 2.8.0 explosion trace (props to showing more than the stack trace, makes it easier to find & work around the problem in large scala projects when you aren't very sure which file is causing the crash)
+```scala
+exception when typing comb2(List(java.lang.Integer.TYPE, classOf[java.lang.Integer], classOf[Int])).map(<empty> match {
+  case scala.Tuple2((f @ _), (t @ _)) => TypedConverter(f, t)((t.cast: (() => <empty>)))
+}), pt = ?
+exception when typing final object StandardConverters extends scala.ScalaObject {
+  def this() = {
+    super.<init>();
+    ()
+  };
+  final def comb2[A >: Nothing <: Any](xs: List[A]): List[(A, A)] = xs match {
+    case Nil => Nil
+    case $$colon$$colon((x @ _), Nil) => Nil
+    case $$colon$$colon((x @ _), (xs @ _)) => {
+      <synthetic> val x$$1 = xs.map(((y) => scala.Tuple2(x, y)));
+      comb2(xs).$$colon$$colon$$colon(x$$1)
+    }
+  };
+  private[this] val ints = comb2(List(java.lang.Integer.TYPE, classOf[java.lang.Integer], classOf[Int])).map(<empty> match {
+    case scala.Tuple2((f @ _), (t @ _)) => TypedConverter(f, t)((t.cast: (() => <empty>)))
+  })
+}, pt = ?
+exception when typing package <empty> {
+  final object TypedConverter extends scala.ScalaObject {
+    def this(): object TypedConverter = {
+      TypedConverter.super.this();
+      ()
+    };
+    def apply[A >: Nothing <: Any, B >: Nothing <: Any](from: Class[A], to: Class[B])(convert: _root_.scala.Function1[A, B]): TypedConverter[A,B] = new TypedConverter[A, B](from, to, convert)
+  };
+  class TypedConverter[A >: Nothing <: Any, B >: Nothing <: Any] extends scala.ScalaObject {
+    <paramaccessor> private[this] val from: Class[A] = _;
+    <paramaccessor> private[this] val to: Class[B] = _;
+    <paramaccessor> private[this] val convert: (A) => B = _;
+    def this(from: Class[A], to: Class[B], convert: _root_.scala.Function1[A, B]): TypedConverter[A,B] = {
+      TypedConverter.super.this();
+      ()
+    };
+    <empty>
+  };
+  final object StandardConverters extends scala.ScalaObject {
+    def this() = {
+      super.<init>();
+      ()
+    };
+    final def comb2[A >: Nothing <: Any](xs: List[A]): List[(A, A)] = xs match {
+      case Nil => Nil
+      case $$colon$$colon((x @ _), Nil) => Nil
+      case $$colon$$colon((x @ _), (xs @ _)) => {
+        <synthetic> val x$$1 = xs.map(((y) => scala.Tuple2(x, y)));
+        comb2(xs).$$colon$$colon$$colon(x$$1)
+      }
+    };
+    private[this] val ints = comb2(List(java.lang.Integer.TYPE, classOf[java.lang.Integer], classOf[Int])).map(<empty> match {
+      case scala.Tuple2((f @ _), (t @ _)) => TypedConverter(f, t)((t.cast: (() => <empty>)))
+    })
+  }
+}, pt = ?
+Exception in thread "main" java.lang.AssertionError: assertion failed: type _1
+	at scala.Predef$$.assert(Predef.scala:97)
+	at scala.tools.nsc.symtab.Symbols$$Symbol.fullNameString(Symbols.scala:1395)
+	at scala.tools.nsc.symtab.Symbols$$Symbol.fullNameString(Symbols.scala:1405)
+	at scala.tools.nsc.symtab.Types$$TypeRef.safeToString(Types.scala:1586)
+	at scala.tools.nsc.symtab.Types$$Type.toString(Types.scala:820)
+	at java.lang.String.valueOf(String.java:2826)
+	at scala.collection.mutable.StringBuilder.append(StringBuilder.scala:247)
+	at scala.collection.generic.TraversableTemplate$$$$anonfun$$addString$$1.apply(TraversableTemplate.scala:744)
+	at scala.collection.generic.TraversableTemplate$$$$anonfun$$addString$$1.apply(TraversableTemplate.scala:741)
+	at scala.collection.generic.LinearSequenceTemplate$$class.foreach(LinearSequenceTemplate.scala:81)
+	at scala.collection.immutable.List.foreach(List.scala:26)
+	at scala.collection.generic.TraversableTemplate$$class.addString(TraversableTemplate.scala:741)
+	at scala.collection.immutable.List.addString(List.scala:26)
+	at scala.collection.generic.TraversableTemplate$$class.mkString(TraversableTemplate.scala:713)
+	at scala.collection.immutable.List.mkString(List.scala:26)
+	at scala.tools.nsc.symtab.Types$$TypeRef.safeToString(Types.scala:1592)
+	at scala.tools.nsc.symtab.Types$$Type.toString(Types.scala:820)
+	at java.lang.String.valueOf(String.java:2826)
+	at scala.collection.mutable.StringBuilder.append(StringBuilder.scala:247)
+	at scala.collection.generic.TraversableTemplate$$$$anonfun$$addString$$1.apply(TraversableTemplate.scala:744)
+	at scala.collection.generic.TraversableTemplate$$$$anonfun$$addString$$1.apply(TraversableTemplate.scala:741)
+	at scala.collection.generic.LinearSequenceTemplate$$class.foreach(LinearSequenceTemplate.scala:81)
+	at scala.collection.immutable.List.foreach(List.scala:26)
+	at scala.collection.generic.TraversableTemplate$$class.addString(TraversableTemplate.scala:741)
+	at scala.collection.immutable.List.addString(List.scala:26)
+	at scala.collection.generic.TraversableTemplate$$class.mkString(TraversableTemplate.scala:713)
+	at scala.collection.immutable.List.mkString(List.scala:26)
+	at scala.collection.generic.TraversableTemplate$$class.toString(TraversableTemplate.scala:760)
+	at scala.collection.generic.SequenceTemplate$$class.toString(SequenceTemplate.scala:488)
+	at scala.collection.immutable.List.toString(List.scala:26)
+	at java.lang.String.valueOf(String.java:2826)
+	at scala.collection.mutable.StringBuilder.append(StringBuilder.scala:247)
+	at scala.collection.mutable.LinkedHashMap$$$$anonfun$$tableString$$1.apply(LinkedHashMap.scala:144)
+	at scala.collection.mutable.LinkedHashMap$$$$anonfun$$tableString$$1.apply(LinkedHashMap.scala:140)
+	at scala.Range.foreach(Range.scala:171)
+	at scala.collection.mutable.LinkedHashMap.tableString(LinkedHashMap.scala:140)
+	at scala.collection.mutable.LinkedHashMap.resize(LinkedHashMap.scala:119)
+	at scala.collection.mutable.HashTable$$class.addEntry(HashTable.scala:83)
+	at scala.collection.mutable.LinkedHashMap.addEntry(LinkedHashMap.scala:29)
+	at scala.collection.mutable.LinkedHashMap.put(LinkedHashMap.scala:51)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.addType$$1(Implicits.scala:522)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.getParts$$1(Implicits.scala:531)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$getParts$$1$$1.apply(Implicits.scala:533)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$getParts$$1$$1.apply(Implicits.scala:532)
+	at scala.collection.generic.LinearSequenceTemplate$$class.foreach(LinearSequenceTemplate.scala:81)
+	at scala.collection.immutable.List.foreach(List.scala:26)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.getParts$$1(Implicits.scala:532)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$getParts$$1$$1.apply(Implicits.scala:533)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$getParts$$1$$1.apply(Implicits.scala:532)
+	at scala.collection.generic.LinearSequenceTemplate$$class.foreach(LinearSequenceTemplate.scala:81)
+	at scala.collection.immutable.List.foreach(List.scala:26)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.getParts$$1(Implicits.scala:532)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$getParts$$1$$1.apply(Implicits.scala:533)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$getParts$$1$$1.apply(Implicits.scala:532)
+	at scala.collection.generic.LinearSequenceTemplate$$class.foreach(LinearSequenceTemplate.scala:81)
+	at scala.collection.immutable.List.foreach(List.scala:26)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.getParts$$1(Implicits.scala:532)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$getParts$$1$$1.apply(Implicits.scala:533)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$getParts$$1$$1.apply(Implicits.scala:532)
+	at scala.collection.generic.LinearSequenceTemplate$$class.foreach(LinearSequenceTemplate.scala:81)
+	at scala.collection.immutable.List.foreach(List.scala:26)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.getParts$$1(Implicits.scala:532)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$getParts$$1$$1.apply(Implicits.scala:533)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$getParts$$1$$1.apply(Implicits.scala:532)
+	at scala.collection.generic.LinearSequenceTemplate$$class.foreach(LinearSequenceTemplate.scala:81)
+	at scala.collection.immutable.List.foreach(List.scala:26)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.getParts$$1(Implicits.scala:532)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$getParts$$1$$1.apply(Implicits.scala:533)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$getParts$$1$$1.apply(Implicits.scala:532)
+	at scala.collection.generic.LinearSequenceTemplate$$class.foreach(LinearSequenceTemplate.scala:81)
+	at scala.collection.immutable.List.foreach(List.scala:26)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.getParts$$1(Implicits.scala:532)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$getParts$$1$$2.apply(Implicits.scala:535)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch$$$$anonfun$$getParts$$1$$2.apply(Implicits.scala:535)
+	at scala.collection.generic.LinearSequenceTemplate$$class.foreach(LinearSequenceTemplate.scala:81)
+	at scala.collection.immutable.List.foreach(List.scala:26)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.getParts$$1(Implicits.scala:535)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.parts(Implicits.scala:565)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.implicitsOfExpectedType(Implicits.scala:574)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.<init>(Implicits.scala:662)
+	at scala.tools.nsc.typechecker.Implicits$$class.inferImplicit(Implicits.scala:59)
+	at scala.tools.nsc.Global$$analyzer$$.inferImplicit(Global.scala:329)
+	at scala.tools.nsc.typechecker.Typers$$Typer.implicitArg$$1(Typers.scala:180)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$2.apply(Typers.scala:185)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$2.apply(Typers.scala:185)
+	at scala.collection.generic.TraversableTemplate$$$$anonfun$$map$$1.apply(TraversableTemplate.scala:153)
+	at scala.collection.generic.TraversableTemplate$$$$anonfun$$map$$1.apply(TraversableTemplate.scala:153)
+	at scala.collection.generic.LinearSequenceTemplate$$class.foreach(LinearSequenceTemplate.scala:81)
+	at scala.collection.immutable.List.foreach(List.scala:26)
+	at scala.collection.generic.TraversableTemplate$$class.map(TraversableTemplate.scala:153)
+	at scala.collection.immutable.List.map(List.scala:26)
+	at scala.tools.nsc.typechecker.Typers$$Typer.applyImplicitArgs(Typers.scala:185)
+	at scala.tools.nsc.typechecker.Typers$$Typer.adapt(Typers.scala:779)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:3750)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:3798)
+	at scala.tools.nsc.typechecker.Typers$$Typer.computeType(Typers.scala:3849)
+	at scala.tools.nsc.typechecker.Namers$$Namer.typeSig(Namers.scala:1099)
+	at scala.tools.nsc.typechecker.Namers$$Namer$$$$anonfun$$typeCompleter$$1.apply(Namers.scala:451)
+	at scala.tools.nsc.typechecker.Namers$$Namer$$$$anonfun$$typeCompleter$$1.apply(Namers.scala:449)
+	at scala.tools.nsc.typechecker.Namers$$$$anon$$1.complete(Namers.scala:1246)
+	at scala.tools.nsc.symtab.Symbols$$Symbol.info(Symbols.scala:688)
+	at scala.tools.nsc.symtab.Symbols$$Symbol.initialize(Symbols.scala:797)
+	at scala.tools.nsc.typechecker.Typers$$Typer.addGetterSetter(Typers.scala:1258)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$11.apply(Typers.scala:1342)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$11.apply(Typers.scala:1342)
+	at scala.collection.generic.TraversableTemplate$$$$anonfun$$flatMap$$1.apply(TraversableTemplate.scala:164)
+	at scala.collection.generic.TraversableTemplate$$$$anonfun$$flatMap$$1.apply(TraversableTemplate.scala:164)
+	at scala.collection.generic.LinearSequenceTemplate$$class.foreach(LinearSequenceTemplate.scala:81)
+	at scala.collection.immutable.List.foreach(List.scala:26)
+	at scala.collection.generic.TraversableTemplate$$class.flatMap(TraversableTemplate.scala:164)
+	at scala.collection.immutable.List.flatMap(List.scala:26)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedTemplate(Typers.scala:1342)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedModuleDef(Typers.scala:1237)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed1(Typers.scala:3475)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:3745)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:3787)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedStat$$1(Typers.scala:1758)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$21.apply(Typers.scala:1815)
+	at scala.tools.nsc.typechecker.Typers$$Typer$$$$anonfun$$21.apply(Typers.scala:1815)
+	at scala.collection.immutable.List$$.loop$$4(List.scala:714)
+	at scala.collection.immutable.List$$.mapConserve(List.scala:731)
+	at scala.collection.immutable.List$$.loop$$4(List.scala:718)
+	at scala.collection.immutable.List$$.mapConserve(List.scala:731)
+	at scala.collection.immutable.List$$.loop$$4(List.scala:718)
+	at scala.collection.immutable.List$$.mapConserve(List.scala:731)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typedStats(Typers.scala:1815)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed1(Typers.scala:3468)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:3745)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:3787)
+	at scala.tools.nsc.typechecker.Analyzer$$typerFactory$$$$anon$$2.apply(Analyzer.scala:80)
+	at scala.tools.nsc.Global$$GlobalPhase.applyPhase(Global.scala:312)
+	at scala.tools.nsc.typechecker.Analyzer$$typerFactory$$$$anon$$2$$$$anonfun$$run$$1.apply(Analyzer.scala:50)
+	at scala.tools.nsc.typechecker.Analyzer$$typerFactory$$$$anon$$2$$$$anonfun$$run$$1.apply(Analyzer.scala:50)
+	at scala.collection.Iterator$$class.foreach(Iterator.scala:500)
+	at scala.collection.mutable.ListBuffer$$$$anon$$1.foreach(ListBuffer.scala:280)
+	at scala.tools.nsc.typechecker.Analyzer$$typerFactory$$$$anon$$2.run(Analyzer.scala:50)
+	at scala.tools.nsc.Global$$Run.compileSources(Global.scala:772)
+	at scala.tools.nsc.Global$$Run.compile(Global.scala:846)
+	at scala.tools.nsc.Main$$.process(Main.scala:73)
+	at scala.tools.nsc.Main$$.main(Main.scala:87)
+	at scala.tools.nsc.Main.main(Main.scala)
+```
+
+and here is the 2.7.4 trace (in case anyone cares)
+```scala
+java.lang.Error: Unknown type: ?
+	at scala.tools.nsc.Global.abort(Global.scala:154)
+	at scala.tools.nsc.backend.icode.TypeKinds$$class.toTypeKind(TypeKinds.scala:453)
+	at scala.tools.nsc.backend.icode.ICodes.toTypeKind(ICodes.scala:21)
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.gen(GenICode.scala:106)
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase$$$$anonfun$$gen$$1.apply(GenICode.scala:71)
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase$$$$anonfun$$gen$$1.apply(GenICode.scala:71)
+	at scala.List.foreach(List.scala:834)
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.gen(GenICode.scala:71)
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.gen(GenICode.scala:136)
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.gen(GenICode.scala:90)
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase$$$$anonfun$$gen$$1.apply(GenICode.scala:71)
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase$$$$anonfun$$gen$$1.apply(GenICode.scala:71)
+	at scala.List.foreach(List.scala:834)
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.gen(GenICode.scala:71)
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.gen(GenICode.scala:81)
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.gen(GenICode.scala:67)
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.apply(GenICode.scala:63)
+	at scala.tools.nsc.Global$$GlobalPhase.applyPhase(Global.scala:268)
+	at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$run$$1.apply(Global.scala:247)
+	at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$run$$1.apply(Global.scala:247)
+	at scala.Iterator$$class.foreach(Iterator.scala:410)
+	at scala.collection.mutable.ListBuffer$$$$anon$$1.foreach(ListBuffer.scala:266)
+	at scala.tools.nsc.Global$$GlobalPhase.run(Global.scala:247)
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.run(GenICode.scala:56)
+	at scala.tools.nsc.Global$$Run.compileSources(Global.scala:579)
+	at scala.tools.nsc.Interpreter$$Request.compile(Interpreter.scala:824)
+	at scala.tools.nsc.Interpreter.interpret(Interpreter.scala:505)
+	at org.scalide.processors.ScalaProcessor$$$$anonfun$$1$$InterpWrapper$$1.interpret(ScalaProcessor.scala:39)
+	at org.scalide.processors.ScalaProcessor$$$$anonfun$$1$$$$anonfun$$apply$$2$$$$anonfun$$apply$$1.interpret$$1(ScalaProcessor.scala:99)
+	at org.scalide.processors.ScalaProcessor$$$$anonfun$$1$$$$anonfun$$apply$$2$$$$anonfun$$apply$$1.apply(ScalaProcessor.scala:145)
+	at org.scalide.processors.ScalaProcessor$$$$anonfun$$1$$$$anonfun$$apply$$2$$$$anonfun$$apply$$1.apply(ScalaProcessor.scala:95)
+	at scala.actors.Actor$$class.receive(Actor.scala:436)
+	at scala.actors.Actor$$$$anon$$1.receive(Actor.scala:89)
+	at scala.actors.Actor$$.receive(Actor.scala:144)
+	at org.scalide.processors.ScalaProcessor$$$$anonfun$$1$$$$anonfun$$apply$$2.apply(ScalaProcessor.scala:95)
+	at org.scalide.processors.ScalaProcessor$$$$anonfun$$1$$$$anonfun$$apply$$2.apply(ScalaProcessor.scala:95)
+	at scala.actors.Actor$$class.scala$$actors$$Actor$$$$seq(Actor.scala:798)
+	at scala.actors.Actor$$$$anon$$7.andThen(Actor.scala:252)
+	at scala.actors.Actor$$.loop(Actor.scala:261)
+	at org.scalide.processors.ScalaProcessor$$$$anonfun$$1.apply(ScalaProcessor.scala:94)
+	at org.scalide.processors.ScalaProcessor$$$$anonfun$$1.apply(ScalaProcessor.scala:26)
+	at scala.actors.Actor$$$$anon$$1.act(Actor.scala:90)
+	at scala.actors.Reaction.run(Reaction.scala:76)
+	at scala.actors.Actor$$$$anonfun$$start$$1.apply(Actor.scala:780)
+	at scala.actors.Actor$$$$anonfun$$start$$1.apply(Actor.scala:778)
+	at scala.actors.Scheduler$$$$anon$$3.run(Scheduler.scala:88)
+	at scala.actors.FJTaskRunner.scanWhileIdling(Unknown Source)
+	at scala.actors.FJTaskRunner.run(Unknown Source)
+```

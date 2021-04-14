@@ -1,0 +1,129 @@
+following code snippet won't compile when new inference enabled, but works fine without new inference.
+
+```kotlin
+fun decodeValue(value: String): Any {
+    return when (value[0]) {
+        'F' -> String::toFloat
+        'B' -> String::toBoolean
+        'I' -> String::toInt
+        else -> throw IllegalArgumentException("Unexpected value prefix: ${value[0]}")
+    }(value.substring(2))
+}
+```
+Stacktrace from gradle:
+
+```
+> Task :compileKotlin FAILED
+e: java.lang.IllegalStateException: Backend Internal error: Exception during code generation
+Cause: Back-end (JVM) Internal error: No resolved call for 'toInt' at (35,24) in <CENSORED>
+Cause: No resolved call for 'toInt' at (35,24) in <CENSORED>
+File being compiled at position: (35,16) in <CENSORED>
+The root cause was thrown at: callUtil.kt:198
+File being compiled at position: file://<CENSORED>
+The root cause was thrown at: ExpressionCodegen.java:322
+	at org.jetbrains.kotlin.codegen.CompilationErrorHandler.lambda$static$0(CompilationErrorHandler.java:24)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generate(PackageCodegenImpl.java:76)
+	at org.jetbrains.kotlin.codegen.DefaultCodegenFactory.generatePackage(CodegenFactory.kt:96)
+	at org.jetbrains.kotlin.codegen.DefaultCodegenFactory.generateModule(CodegenFactory.kt:67)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.doGenerateFiles(KotlinCodegenFacade.java:47)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.compileCorrectFiles(KotlinCodegenFacade.java:39)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.kt:476)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt:164)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:166)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:56)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:84)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:42)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:104)
+	at org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunner.runCompiler(IncrementalJvmCompilerRunner.kt:349)
+	at org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunner.runCompiler(IncrementalJvmCompilerRunner.kt:105)
+	at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileIncrementally(IncrementalCompilerRunner.kt:237)
+	at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.access$compileIncrementally(IncrementalCompilerRunner.kt:37)
+	at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner$compile$2.invoke(IncrementalCompilerRunner.kt:79)
+	at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:91)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.execIncrementalCompiler(CompileServiceImpl.kt:579)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.access$execIncrementalCompiler(CompileServiceImpl.kt:102)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$compile$$inlined$ifAlive$lambda$2.invoke(CompileServiceImpl.kt:455)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$compile$$inlined$ifAlive$lambda$2.invoke(CompileServiceImpl.kt:102)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$$inlined$ifAlive$lambda$2.invoke(CompileServiceImpl.kt:1005)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$$inlined$ifAlive$lambda$2.invoke(CompileServiceImpl.kt:102)
+	at org.jetbrains.kotlin.daemon.common.DummyProfiler.withMeasure(PerfUtils.kt:138)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.checkedCompile(CompileServiceImpl.kt:1047)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.doCompile(CompileServiceImpl.kt:1004)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:454)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:357)
+	at sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:573)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:834)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:688)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:687)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+Caused by: org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: No resolved call for 'toInt' at (35,24) in <CENSORED>
+Cause: No resolved call for 'toInt' at (35,24) in <CENSORED>
+File being compiled at position: (35,16) in <CENSORED>
+The root cause was thrown at: callUtil.kt:198
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:322)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:281)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:354)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:362)
+	at org.jetbrains.kotlin.codegen.when.SwitchCodegen.generateEntries(SwitchCodegen.kt:209)
+	at org.jetbrains.kotlin.codegen.when.SwitchCodegen.generate(SwitchCodegen.kt:82)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.lambda$generateWhenExpression$33(ExpressionCodegen.java:4872)
+	at org.jetbrains.kotlin.codegen.OperationStackValue.putSelector(StackValue.kt:79)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:122)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:115)
+	at org.jetbrains.kotlin.codegen.CallReceiver.putSelector(CallReceiver.java:168)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:122)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:115)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.putReceiverAndInlineMarkerIfNeeded(ExpressionCodegen.java:2551)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.invokeMethodWithArguments(ExpressionCodegen.java:2481)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.invokeMethodWithArguments(ExpressionCodegen.java:2462)
+	at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:41)
+	at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:13)
+	at org.jetbrains.kotlin.codegen.OperationStackValue.putSelector(StackValue.kt:79)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:122)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:115)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.putStackValue(ExpressionCodegen.java:378)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.lambda$visitReturnExpression$11(ExpressionCodegen.java:1598)
+	at org.jetbrains.kotlin.codegen.OperationStackValue.putSelector(StackValue.kt:79)
+	at org.jetbrains.kotlin.codegen.StackValueWithLeaveTask.putSelector(StackValue.kt:67)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:122)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:115)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.putStackValue(ExpressionCodegen.java:378)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:363)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.returnExpression(ExpressionCodegen.java:1687)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$FunctionDefault.doGenerateBody(FunctionGenerationStrategy.java:64)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$CodegenBased.generateBody(FunctionGenerationStrategy.java:84)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:666)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:473)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:260)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:176)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.gen(FunctionCodegen.java:147)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genSimpleMember(MemberCodegen.java:197)
+	at org.jetbrains.kotlin.codegen.PackagePartCodegen.generateBody(PackagePartCodegen.java:95)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:129)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateFile(PackageCodegenImpl.java:148)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generate(PackageCodegenImpl.java:68)
+	... 44 more
+Caused by: java.lang.AssertionError: No resolved call for 'toInt' at (35,24) in <CENSORED>
+	at org.jetbrains.kotlin.resolve.calls.callUtil.CallUtilKt.getResolvedCallWithAssert(callUtil.kt:198)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.visitCallableReferenceExpression(ExpressionCodegen.java:3108)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.visitCallableReferenceExpression(ExpressionCodegen.java:111)
+	at org.jetbrains.kotlin.psi.KtCallableReferenceExpression.accept(KtCallableReferenceExpression.java:43)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:299)
+	... 85 more
+
+
+e: java.lang.IllegalStateException: Backend Internal error: Exception during code generation
+```
+
+Might be related to KT-30244

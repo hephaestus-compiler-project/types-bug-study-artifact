@@ -1,0 +1,114 @@
+In the following example, javac crashes with a stack overflow when compiling a file that references a class file containing a circular hierarchy.
+
+The class file is not well formed, but it would be nice if the compiler reported an error instead of crashing.
+
+Repro:
+
+=== Gen.java ===
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import org.objectweb.asm.AnnotationVisitor;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.FieldVisitor;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
+
+public class Gen implements Opcodes {
+
+  public static void main(String[] args) throws Exception {
+    Files.write(Paths.get("SubInner.class"), dumpSubInner());
+    Files.write(Paths.get("Sub.class"), dumpSub());
+  }
+
+  public static byte[] dumpSubInner() throws Exception {
+
+    ClassWriter classWriter = new ClassWriter(0);
+    FieldVisitor fieldVisitor;
+    MethodVisitor methodVisitor;
+    AnnotationVisitor annotationVisitor0;
+
+    classWriter.visit(
+        V1_8,
+        ACC_SUPER,
+        "SubInner",
+        "<F:Ljava/lang/Object;>Ljava/lang/Object;LSubInner<TF;>;",
+        "java/lang/Object",
+        new String[] {"SubInner"});
+
+    {
+      methodVisitor = classWriter.visitMethod(0, "<init>", "()V", null, null);
+      methodVisitor.visitEnd();
+    }
+    classWriter.visitEnd();
+
+    return classWriter.toByteArray();
+  }
+
+  public static byte[] dumpSub() throws Exception {
+
+    ClassWriter classWriter = new ClassWriter(0);
+    FieldVisitor fieldVisitor;
+    MethodVisitor methodVisitor;
+    AnnotationVisitor annotationVisitor0;
+
+    classWriter.visit(
+        V1_8,
+        ACC_SUPER,
+        "Sub",
+        "<E:Ljava/lang/Object;>LSuper<TE;>;",
+        "Super",
+        null);
+
+    {
+      methodVisitor = classWriter.visitMethod(0, "<init>", "()V", null, null);
+      methodVisitor.visitEnd();
+    }
+    {
+      methodVisitor =
+          classWriter.visitMethod(
+              ACC_PUBLIC,
+              "f",
+              "()Ljava/util/Collection;",
+              "()Ljava/util/Collection<+LSubInner<TE;>;>;",
+              null);
+      methodVisitor.visitEnd();
+    }
+    classWriter.visitEnd();
+
+    return classWriter.toByteArray();
+  }
+}
+=== Lib.java ===
+import java.util.Collection;
+
+abstract class Super<V> {
+  public abstract Collection<? extends SuperInner<V>> f();
+}
+
+interface SuperInner<X> {}
+=== Test.java ===
+class Test {
+
+  <E> void t(Sub<E> x) {
+    x.f();
+  }
+}
+===
+
+```
+$ javac -cp asm-7.2.jar:asm-util-7.2.jar Gen.java
+$ java -cp asm-7.2.jar:asm-util-7.2.jar:. Gen
+$ javac Lib.java
+$ javac -fullversion Test.java |& head
+javac full version "14-ea+30-1385"
+
+
+The system is out of resources.
+Consult the following stack trace for details.
+java.lang.StackOverflowError
+	at jdk.compiler/com.sun.tools.javac.code.Type.equalsIgnoreMetadata(Type.java:512)
+	at jdk.compiler/com.sun.tools.javac.code.Types$Subst.visitTypeVar(Types.java:3295)
+	at jdk.compiler/com.sun.tools.javac.code.Types$Subst.visitTypeVar(Types.java:3271)
+	at jdk.compiler/com.sun.tools.javac.code.Type$TypeVar.accept(Type.java:1685)
+
+```

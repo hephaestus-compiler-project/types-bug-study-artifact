@@ -1,0 +1,102 @@
+# Classification
+
+**Type of change**
+- New errors are introduced
+
+**Motivation**
+- Problematic/meaningless usage patterns need to be discouraged/blocked
+  - Code can't be compiled correctly
+- Inconsistency in the design
+
+**Impact**
+- Some code that used to compile won’t compile anymore
+
+**Migration**
+- All code locations affected by this change can be accurately detected statically
+- Migration can be automated
+
+# Existing behavior 
+
+## Code example
+
+Currently, it's possible to declare type parameters for anonymous objects:
+```
+fun main() {
+    val x = object<T> { } // type of x is <anonymous object><T>
+}
+```
+
+Kotlin compiler doesn't produce any warnings or errors for such expressions.
+
+## What's wrong with it
+
+The problem is that it's impossible to instantiate an anonymous object with a particular type argument, so effectively, type parameters for anonymous objects are senseless.
+Also, note that type parameters of object declarations are prohibited:
+```
+object Sampe<T> { // ERROR: Type parameters are not allowed for objects
+}
+```
+
+Therefore, it also looks like an inconsistency in the language.
+
+## Affected versions: when did the problem appear first? 
+
+The problem exists since Kotlin 1.0.
+
+## List of all affected samples 
+
+- Upper bound inside corner brackets, but can't in `where`:
+
+```
+fun main() {
+    val x = object<T : Number, K: Comparable<K>> { }
+}
+```
+
+- Value with any type can be cast to any object type parameter without upper bound:
+```
+val x = object<T, K: Comparable<K>> {
+    fun test() = 10 as T // OK
+}
+```
+
+- Object type parameters are accessible out of object scope:
+```
+fun main() {
+    val x = object<T> {
+        fun test() = 10 as T
+    }
+
+    val y = x.test() // type y is T
+}
+```
+
+- Returned from object methods type may clash with another type parameter:
+```
+inline fun <reified T> test() {
+    val x = object<T> {
+        fun test() = 10 as T
+    }
+
+    val z = x.test()
+
+    if (z is T) {
+        println(z)
+    }
+}
+```
+
+# Proposed changes
+
+Prohibit type parameters for anonymous objects.
+The compiler will report an error for all the above examples. 
+
+# Impact
+
+We assume that this code pattern is quite rare as it can't be used in a useful way.
+
+# Migration plan
+- Report a warning in 1.3.x
+  - Report an error in progressive mode
+    Corrected code will work and compile fine in a regular (non-progressive) mode
+- Turn the warning into an error in 1.4

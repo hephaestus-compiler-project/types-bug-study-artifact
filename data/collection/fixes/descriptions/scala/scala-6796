@@ -1,0 +1,21 @@
+I was porting some custom type mappers from ScalaQuery on 2.9.2 to Slick on 2.10 and was getting an unexpected error finding an implicit value. I was able to boil it down to the following test which runs on 2.9.2 as expected, but fails to find a value in 2.10.0-RC5. 
+
+```scala
+sealed trait V { def id: Int }
+val X = new V { val id = 1 }
+
+object ValueProviders {
+  trait ValueProvider[T]
+  implicit object ValueProvider extends ValueProvider[V]
+}
+
+import ValueProviders._
+
+def foo[T: ValueProvider](value: T) = null
+
+foo(X) // No implicit found here in 2.10
+```
+
+error: could not find implicit value for evidence parameter of type ValueProviders.ValueProvider[V{val id: Int}]
+
+If you drop the id property or make X an instance of a non-anonymous class, everything seems to work out. In my case, this would mean losing pattern matching safety or a bunch of boiler plate. 

@@ -1,0 +1,48 @@
+The following code causes compiler and IDE inspections to crash with exception:
+
+{code}
+package kfe2
+
+import org.w3c.dom.Node
+
+trait Source<T> {
+    fun f() : T
+}
+fun <T, S : Source<T>> S.woo() : T = this.f()
+
+fun Node.append(block : Source<Int>.() -> Unit) {
+}
+
+fun crashMe(node : Node) {
+    node.append {
+        woo()
+//    Unit      // uncomment it to workaround failure
+    }
+}
+{code}
+
+Due to some reason if I put "Unit" after woo() call it will work as expected
+
+Error:
+Caused by: java.lang.AssertionError: Expected type doesn't exist, but there is an expected type mismatch error
+	at org.jetbrains.kotlin.resolve.calls.tasks.AbstractTracingStrategy.typeInferenceFailed(AbstractTracingStrategy.java:229)
+	at org.jetbrains.kotlin.resolve.calls.CallCompleter.updateResolutionStatusFromConstraintSystem(CallCompleter.kt:188)
+	at org.jetbrains.kotlin.resolve.calls.CallCompleter.completeResolvedCallAndArguments(CallCompleter.kt:125)
+	at org.jetbrains.kotlin.resolve.calls.CallCompleter.completeCall(CallCompleter.kt:74)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.doResolveCallOrGetCachedResults(CallResolver.java:435)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:182)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:170)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.resolveFunctionCall(CallResolver.java:246)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getResolvedCallForFunction(CallExpressionResolver.java:79)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfoWithoutFinalTypeCheck(CallExpressionResolver.java:194)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfo(CallExpressionResolver.java:173)
+	at org.jetbrains.kotlin.types.expressions.BasicExpressionTypingVisitor.visitCallExpression(BasicExpressionTypingVisitor.java:769)
+	at org.jetbrains.kotlin.types.expressions.BasicExpressionTypingVisitor.visitCallExpression(BasicExpressionTypingVisitor.java:90)
+	at org.jetbrains.kotlin.psi.JetCallExpression.accept(JetCallExpression.java:35)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.visitJetElement(ExpressionTypingVisitorDispatcher.java:249)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.visitJetElement(ExpressionTypingVisitorDispatcher.java:36)
+	at org.jetbrains.kotlin.psi.JetVisitor.visitExpression(JetVisitor.java:166)
+	at org.jetbrains.kotlin.psi.JetVisitor.visitReferenceExpression(JetVisitor.java:182)
+	at org.jetbrains.kotlin.psi.JetVisitor.visitCallExpression(JetVisitor.java:258)
+	at org.jetbrains.kotlin.psi.JetCallExpression.accept(JetCallExpression.java:35)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:136)

@@ -1,0 +1,45 @@
+The following tail-recursive funciton `foo` fails to be optimized.
+
+```scala
+import scala.annotation.tailrec
+
+sealed trait HList
+case class HCons[H, T <: HList](head: H, tail: T) extends HList
+case object HNil extends HList
+
+@tailrec
+def foo[L <: HList](l: L): Unit = l match {
+  case HNil => ()
+  case HCons(h, t) => foo(t)
+}
+```
+
+Here is the REPL output:
+
+```
+Welcome to Scala 2.12.0-333187a-nightly (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_60).
+Type in expressions for evaluation. Or try :help.
+
+scala> :paste
+// Entering paste mode (ctrl-D to finish)
+
+import scala.annotation.tailrec
+
+sealed trait HList
+case class HCons[H, T <: HList](head: H, tail: T) extends HList
+case object HNil extends HList
+
+@tailrec
+def foo[L <: HList](l: L): Unit = l match {
+  case HNil => ()
+  case HCons(h, t) => foo(t)
+}
+
+// Exiting paste mode, now interpreting.
+
+<console>:18: error: could not optimize @tailrec annotated method foo: it contains a recursive call not in tail position
+       def foo[L <: HList](l: L): Unit = l match {
+                                         ^
+
+scala> 
+```

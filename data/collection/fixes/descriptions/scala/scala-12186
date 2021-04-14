@@ -1,0 +1,31 @@
+## reproduction steps
+
+using Scala 2.13.4-20201011-114304-1c1fa0c (equivalent roughly to HEAD a few days ago)
+
+```scala
+scala> def test(list: List[Int]): Boolean = list match {
+     |   case h :: t => true
+     |   case _: Nil.type => false
+     | }
+                                            ^
+       warning: match may not be exhaustive.
+       It would fail on the following input: Nil
+def test(list: List[Int]): Boolean
+
+scala> test(Nil)
+val res0: Boolean = false
+
+scala> def test(list: List[Int]): Boolean = list match {
+     |   case h :: t => true
+     |   case _: scala.collection.immutable.Nil.type => false
+     | }
+def test(list: List[Int]): Boolean
+```
+
+## problem
+
+`Nil.type` is the type of `Nil`, so the match is exhaustive.
+
+In 2.13.3, the same code does not raise an exhaustiveness warning.
+
+Note: it only warns if you use the value alias of `Nil` (from the `scala` package, but presumably any value alias as well), and does not warn if you use the fully qualified type.

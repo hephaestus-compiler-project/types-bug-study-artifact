@@ -1,0 +1,324 @@
+The following is taken from Burak Emir's homepage, and modified a bit. I couldn't find similar bug listed on trac. Maybe fixed ticket #42 is the closest.
+
+```scala
+object Test{
+  class Term[X]
+  object App { 
+     // i'm hidden
+     case class InternalApply[Y,Z](fun:Y=>Z, arg:Y) extends Term[Z]
+
+     def apply[Y,Z](fun:Y=>Z, arg:Y): Term[Z] = 
+       new InternalApply[Y,Z](fun,arg)
+
+     def unapply[X](arg: Term[X]): Option[(Y=>Z,Y)] forSome {type Y; type Z} = 
+         arg match {
+           case i:InternalApply[y,z] => Some(i.fun, i.arg)
+           case _                    => None
+         }
+  }
+
+  App({x: Int => x}, 5) match {
+    case App(arg, a) => 
+  }
+}
+```
+
+yields
+
+```scala
+scala.tools.nsc.symtab.Types$$TypeError: type mismatch;
+ found   : Option[((Y(in package <root>)) => Z(in package <root>), Y(in package <root>))] where type Z(in package <root>), type Y(in package <root>)
+ required: Option[((Y(in value <local Test>)) => Z(in value <local Test>), Y(in value <local Test>))] where type Z(in value <local Test>), type Y(in value <local Test>)
+	at scala.tools.nsc.typechecker.Contexts$$Context.error(Contexts.scala:345)
+	at scala.tools.nsc.typechecker.Infer$$Inferencer.error(Infer.scala:251)
+	at scala.tools.nsc.typechecker.Infer$$Inferencer.typeError(Infer.scala:261)
+	at scala.tools.nsc.typechecker.Infer$$Inferencer.typeErrorTree(Infer.scala:267)
+	at scala.tools.nsc.typechecker.Typers$$Typer.adapt(Typers.scala:804)
+	at scala.tools.nsc.typechecker.Typers$$Typer.adapt(Typers.scala:618)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:3172)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:3215)
+	at scala.tools.nsc.matching.CodeFactory$$class.typedValDef(CodeFactory.scala:31)
+	at scala.tools.nsc.transform.ExplicitOuter.typedValDef(ExplicitOuter.scala:19)
+	at scala.tools.nsc.matching.ParallelMatching$$MixUnapply.getTransition(ParallelMatching.scala:400)
+	at scala.tools.nsc.matching.ParallelMatching$$MixUnapply.tree(ParallelMatching.scala:472)
+	at scala.tools.nsc.matching.ParallelMatching$$class.repToTree(ParallelMatching.scala:834)
+	at scala.tools.nsc.transform.ExplicitOuter.repToTree(ExplicitOuter.scala:19)
+	at scala.tools.nsc.matching.TransMatcher$$class.handlePattern(TransMatcher.scala:227)
+	at scala.tools.nsc.transform.ExplicitOuter.handlePattern(ExplicitOuter.scala:19)
+	at scala.tools.nsc.transform.ExplicitOuter$$ExplicitOuterTransformer.transform(ExplicitOuter.scala:473)
+	at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformStats$$1$$$$anonfun$$apply$$3.apply(Trees.scala:1402)
+	at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformStats$$1$$$$anonfun$$apply$$3.apply(Trees.scala:1402)
+	at scala.tools.nsc.ast.Trees$$Transformer.atOwner(Trees.scala:1409)
+	at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:33)
+	at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:27)
+	at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformStats$$1.apply(Trees.scala:1402)
+	at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformStats$$1.apply(Trees.scala:1401)
+	at scala.List$$.loop$$1(List.scala:254)
+	at scala.List$$.mapConserve(List.scala:271)
+	at scala.List$$.loop$$1(List.scala:258)
+	at scala.List$$.mapConserve(List.scala:271)
+	at scala.tools.nsc.ast.Trees$$Transformer.transformStats(Trees.scala:1401)
+	at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:1309)
+	at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.scala$$tools$$nsc$$transform$$TypingTransformers$$TypingTransformer$$$$super$$transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer$$$$anonfun$$transform$$1.apply(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer$$$$anonfun$$transform$$1.apply(TypingTransformers.scala:44)
+	at scala.tools.nsc.ast.Trees$$Transformer.atOwner(Trees.scala:1409)
+	at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:33)
+	at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:27)
+	at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.transform(TypingTransformers.scala:44)
+	at scala.tools.nsc.transform.ExplicitOuter$$OuterPathTransformer.transform(ExplicitOuter.scala:207)
+	at scala.tools.nsc.transform.ExplicitOuter$$ExplicitOuterTransformer.transform(ExplicitOuter.scala:345)
+	at scala.tools.nsc.ast.Trees$$Transformer.transformTemplate(Trees.scala:1387)
+	at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$2.apply(Trees.scala:1281)
+	at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$2.apply(Trees.scala:1281)
+	at scala.tools.nsc.ast.Trees$$Transformer.atOwner(Trees.scala:1409)
+	at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:33)
+	at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:27)
+	at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:1280)
+	at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.transform(TypingTransformers.scala:46)
+	at scala.tools.nsc.transform.ExplicitOuter$$OuterPathTransformer.transform(ExplicitOuter.scala:207)
+	at scala.tools.nsc.transform.ExplicitOuter$$ExplicitOuterTransformer.transform(ExplicitOuter.scala:497)
+	at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformStats$$1.apply(Trees.scala:1403)
+	at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transformStats$$1.apply(Trees.scala:1401)
+	at scala.List$$.loop$$1(List.scala:254)
+	at scala.List$$.mapConserve(List.scala:271)
+	at scala.tools.nsc.ast.Trees$$Transformer.transformStats(Trees.scala:1401)
+	at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$1.apply(Trees.scala:1277)
+	at scala.tools.nsc.ast.Trees$$Transformer$$$$anonfun$$transform$$1.apply(Trees.scala:1277)
+	at scala.tools.nsc.ast.Trees$$Transformer.atOwner(Trees.scala:1409)
+	at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:33)
+	at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.atOwner(TypingTransformers.scala:27)
+	at scala.tools.nsc.ast.Trees$$Transformer.transform(Trees.scala:1276)
+	at scala.tools.nsc.transform.TypingTransformers$$TypingTransformer.transform(TypingTransformers.scala:46)
+	at scala.tools.nsc.transform.ExplicitOuter$$OuterPathTransformer.transform(ExplicitOuter.scala:207)
+	at scala.tools.nsc.transform.ExplicitOuter$$ExplicitOuterTransformer.transform(ExplicitOuter.scala:497)
+	at scala.tools.nsc.ast.Trees$$Transformer.transformUnit(Trees.scala:1404)
+	at scala.tools.nsc.transform.ExplicitOuter$$ExplicitOuterTransformer.scala$$tools$$nsc$$transform$$ExplicitOuter$$ExplicitOuterTransformer$$$$super$$transformUnit(ExplicitOuter.scala:507)
+	at scala.tools.nsc.transform.ExplicitOuter$$ExplicitOuterTransformer$$$$anonfun$$transformUnit$$1.apply(ExplicitOuter.scala:507)
+	at scala.tools.nsc.transform.ExplicitOuter$$ExplicitOuterTransformer$$$$anonfun$$transformUnit$$1.apply(ExplicitOuter.scala:507)
+	at scala.tools.nsc.symtab.SymbolTable.atPhase(SymbolTable.scala:105)
+	at scala.tools.nsc.transform.ExplicitOuter$$ExplicitOuterTransformer.transformUnit(ExplicitOuter.scala:507)
+	at scala.tools.nsc.transform.ExplicitOuter$$ExplicitOuterTransformer.transformUnit(ExplicitOuter.scala:276)
+	at scala.tools.nsc.transform.Transform$$Phase.apply(Transform.scala:30)
+	at scala.tools.nsc.Global$$GlobalPhase.applyPhase(Global.scala:247)
+	at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$run$$1.apply(Global.scala:233)
+	at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$run$$1.apply(Global.scala:233)
+	at scala.Iterator$$class.foreach(Iterator.scala:387)
+	at scala.collection.mutable.ListBuffer$$$$anon$$1.foreach(ListBuffer.scala:255)
+	at scala.tools.nsc.Global$$GlobalPhase.run(Global.scala:233)
+	at scala.tools.nsc.Global$$Run.compileSources(Global.scala:545)
+	at scala.tools.nsc.Global$$Run.compile(Global.scala:629)
+	at scala.tools.nsc.Main$$.process(Main.scala:86)
+	at scala.tools.nsc.Main$$.main(Main.scala:107)
+	at scala.tools.nsc.Main.main(Main.scala)
+exception when transforming java.lang.Object with ScalaObject {
+  def this(): object Test = {
+    Test.super.this();
+    ()
+  };
+  class Term[X >: Nothing <: Any] extends java.lang.Object with ScalaObject {
+    def this(): Test.Term[X] = {
+      Term.super.this();
+      ()
+    }
+  };
+  final class App extends java.lang.Object with ScalaObject {
+    def this(): object Test.App = {
+      App.super.this();
+      ()
+    };
+    @serializable case class InternalApply[Y >: Nothing <: Any, Z >: Nothing <: Any] extends Test.Term[Z] with ScalaObject with Product {
+      <caseaccessor> <paramaccessor> private[this] val fun: (Y) => Z = _;
+      <stable> <caseaccessor> <accessor> <paramaccessor> def fun(): (Y) => Z = InternalApply.this.fun;
+      <caseaccessor> <paramaccessor> private[this] val arg: Y = _;
+      <stable> <caseaccessor> <accessor> <paramaccessor> def arg(): Y = InternalApply.this.arg;
+      def this(fun: (Y) => Z, arg: Y): Test.App.InternalApply[Y,Z] = {
+        InternalApply.super.this();
+        ()
+      };
+      final override def $$tag(): Int = 1492853544;
+      override def hashCode(): Int = ScalaRunTime.this._hashCode(InternalApply.this);
+      override def toString(): java.lang.String = ScalaRunTime.this._toString(InternalApply.this);
+      override def equals(x$$1: Any): Boolean = x$$1 match {
+        case ((Any) => Any,Any)Test.App.InternalApply[Any,Any]((fun$$1 @ _), (arg$$1 @ _)) if x$$1.==(fun()).&&(x$$2.==(arg())) => true
+        case _ => false
+      };
+      final override def productPrefix(): java.lang.String = "InternalApply";
+      final override def productArity(): Int = 2;
+      final override def productElement(x$$1: Int): Any = x$$1 match {
+        case 0 => fun()
+        case 1 => arg()
+        case _ => throw new java.lang.IndexOutOfBoundsException(x$$1.toString())
+      }
+    };
+    def apply[Y >: Nothing <: Any, Z >: Nothing <: Any](fun: (Y) => Z, arg: Y): Test.Term[Z] = new Test.App.InternalApply[Y,Z](fun, arg);
+    def unapply[X >: Nothing <: Any](arg: Test.Term[X]): Option[((Y) => Z, Y)] forSome { type Y; type Z } = arg match {
+      case (i @ (_: Test.App.InternalApply[y,z])) => new Some[((y) => z, y)](new ((y) => z, y)(i.fun(), i.arg()))
+      case _ => scala.None
+    };
+    final <synthetic> class InternalApply extends java.lang.Object with ScalaObject {
+      def this(): object Test.App.InternalApply = {
+        InternalApply.super.this();
+        ()
+      };
+      case <synthetic> def unapply[Y >: Nothing <: Any, Z >: Nothing <: Any](x$$0: Test.App.InternalApply[Y,Z]): Some[((Y) => Z, Y)] = new Some[((Y) => Z, Y)](new ((Y) => Z, Y)(x$$0.fun(), x$$0.arg()));
+      case <synthetic> def apply[Y >: Nothing <: Any, Z >: Nothing <: Any](fun: (Y) => Z, arg: Y): Test.App.InternalApply[Y,Z] = new Test.App.InternalApply[Y,Z](fun, arg)
+    }
+  };
+  Test.this.App.apply[Int, Int]({
+    @serializable final <synthetic> class $$anonfun extends java.lang.Object with (Int) => Int with ScalaObject {
+      def this(): template $$anonfun = {
+        $$anonfun.super.this();
+        ()
+      };
+      final def apply(x: Int): Int = x
+    };
+    (new template $$anonfun(): (Int) => Int)
+  }, 5) match {
+    case Test.this.App.unapply[Int](<unapply-selector>) <unapply> ((arg @ _), (a @ _)) => ()
+  }
+}
+exception when transforming final class Test extends java.lang.Object with ScalaObject {
+  def this(): object Test = {
+    Test.super.this();
+    ()
+  };
+  class Term[X >: Nothing <: Any] extends java.lang.Object with ScalaObject {
+    def this(): Test.Term[X] = {
+      Term.super.this();
+      ()
+    }
+  };
+  final class App extends java.lang.Object with ScalaObject {
+    def this(): object Test.App = {
+      App.super.this();
+      ()
+    };
+    @serializable case class InternalApply[Y >: Nothing <: Any, Z >: Nothing <: Any] extends Test.Term[Z] with ScalaObject with Product {
+      <caseaccessor> <paramaccessor> private[this] val fun: (Y) => Z = _;
+      <stable> <caseaccessor> <accessor> <paramaccessor> def fun(): (Y) => Z = InternalApply.this.fun;
+      <caseaccessor> <paramaccessor> private[this] val arg: Y = _;
+      <stable> <caseaccessor> <accessor> <paramaccessor> def arg(): Y = InternalApply.this.arg;
+      def this(fun: (Y) => Z, arg: Y): Test.App.InternalApply[Y,Z] = {
+        InternalApply.super.this();
+        ()
+      };
+      final override def $$tag(): Int = 1492853544;
+      override def hashCode(): Int = ScalaRunTime.this._hashCode(InternalApply.this);
+      override def toString(): java.lang.String = ScalaRunTime.this._toString(InternalApply.this);
+      override def equals(x$$1: Any): Boolean = x$$1 match {
+        case ((Any) => Any,Any)Test.App.InternalApply[Any,Any]((fun$$1 @ _), (arg$$1 @ _)) if x$$1.==(fun()).&&(x$$2.==(arg())) => true
+        case _ => false
+      };
+      final override def productPrefix(): java.lang.String = "InternalApply";
+      final override def productArity(): Int = 2;
+      final override def productElement(x$$1: Int): Any = x$$1 match {
+        case 0 => fun()
+        case 1 => arg()
+        case _ => throw new java.lang.IndexOutOfBoundsException(x$$1.toString())
+      }
+    };
+    def apply[Y >: Nothing <: Any, Z >: Nothing <: Any](fun: (Y) => Z, arg: Y): Test.Term[Z] = new Test.App.InternalApply[Y,Z](fun, arg);
+    def unapply[X >: Nothing <: Any](arg: Test.Term[X]): Option[((Y) => Z, Y)] forSome { type Y; type Z } = arg match {
+      case (i @ (_: Test.App.InternalApply[y,z])) => new Some[((y) => z, y)](new ((y) => z, y)(i.fun(), i.arg()))
+      case _ => scala.None
+    };
+    final <synthetic> class InternalApply extends java.lang.Object with ScalaObject {
+      def this(): object Test.App.InternalApply = {
+        InternalApply.super.this();
+        ()
+      };
+      case <synthetic> def unapply[Y >: Nothing <: Any, Z >: Nothing <: Any](x$$0: Test.App.InternalApply[Y,Z]): Some[((Y) => Z, Y)] = new Some[((Y) => Z, Y)](new ((Y) => Z, Y)(x$$0.fun(), x$$0.arg()));
+      case <synthetic> def apply[Y >: Nothing <: Any, Z >: Nothing <: Any](fun: (Y) => Z, arg: Y): Test.App.InternalApply[Y,Z] = new Test.App.InternalApply[Y,Z](fun, arg)
+    }
+  };
+  Test.this.App.apply[Int, Int]({
+    @serializable final <synthetic> class $$anonfun extends java.lang.Object with (Int) => Int with ScalaObject {
+      def this(): template $$anonfun = {
+        $$anonfun.super.this();
+        ()
+      };
+      final def apply(x: Int): Int = x
+    };
+    (new template $$anonfun(): (Int) => Int)
+  }, 5) match {
+    case Test.this.App.unapply[Int](<unapply-selector>) <unapply> ((arg @ _), (a @ _)) => ()
+  }
+}
+exception when transforming package <empty> {
+  final class Test extends java.lang.Object with ScalaObject {
+    def this(): object Test = {
+      Test.super.this();
+      ()
+    };
+    class Term[X >: Nothing <: Any] extends java.lang.Object with ScalaObject {
+      def this(): Test.Term[X] = {
+        Term.super.this();
+        ()
+      }
+    };
+    final class App extends java.lang.Object with ScalaObject {
+      def this(): object Test.App = {
+        App.super.this();
+        ()
+      };
+      @serializable case class InternalApply[Y >: Nothing <: Any, Z >: Nothing <: Any] extends Test.Term[Z] with ScalaObject with Product {
+        <caseaccessor> <paramaccessor> private[this] val fun: (Y) => Z = _;
+        <stable> <caseaccessor> <accessor> <paramaccessor> def fun(): (Y) => Z = InternalApply.this.fun;
+        <caseaccessor> <paramaccessor> private[this] val arg: Y = _;
+        <stable> <caseaccessor> <accessor> <paramaccessor> def arg(): Y = InternalApply.this.arg;
+        def this(fun: (Y) => Z, arg: Y): Test.App.InternalApply[Y,Z] = {
+          InternalApply.super.this();
+          ()
+        };
+        final override def $$tag(): Int = 1492853544;
+        override def hashCode(): Int = ScalaRunTime.this._hashCode(InternalApply.this);
+        override def toString(): java.lang.String = ScalaRunTime.this._toString(InternalApply.this);
+        override def equals(x$$1: Any): Boolean = x$$1 match {
+          case ((Any) => Any,Any)Test.App.InternalApply[Any,Any]((fun$$1 @ _), (arg$$1 @ _)) if x$$1.==(fun()).&&(x$$2.==(arg())) => true
+          case _ => false
+        };
+        final override def productPrefix(): java.lang.String = "InternalApply";
+        final override def productArity(): Int = 2;
+        final override def productElement(x$$1: Int): Any = x$$1 match {
+          case 0 => fun()
+          case 1 => arg()
+          case _ => throw new java.lang.IndexOutOfBoundsException(x$$1.toString())
+        }
+      };
+      def apply[Y >: Nothing <: Any, Z >: Nothing <: Any](fun: (Y) => Z, arg: Y): Test.Term[Z] = new Test.App.InternalApply[Y,Z](fun, arg);
+      def unapply[X >: Nothing <: Any](arg: Test.Term[X]): Option[((Y) => Z, Y)] forSome { type Y; type Z } = arg match {
+        case (i @ (_: Test.App.InternalApply[y,z])) => new Some[((y) => z, y)](new ((y) => z, y)(i.fun(), i.arg()))
+        case _ => scala.None
+      };
+      final <synthetic> class InternalApply extends java.lang.Object with ScalaObject {
+        def this(): object Test.App.InternalApply = {
+          InternalApply.super.this();
+          ()
+        };
+        case <synthetic> def unapply[Y >: Nothing <: Any, Z >: Nothing <: Any](x$$0: Test.App.InternalApply[Y,Z]): Some[((Y) => Z, Y)] = new Some[((Y) => Z, Y)](new ((Y) => Z, Y)(x$$0.fun(), x$$0.arg()));
+        case <synthetic> def apply[Y >: Nothing <: Any, Z >: Nothing <: Any](fun: (Y) => Z, arg: Y): Test.App.InternalApply[Y,Z] = new Test.App.InternalApply[Y,Z](fun, arg)
+      }
+    };
+    Test.this.App.apply[Int, Int]({
+      @serializable final <synthetic> class $$anonfun extends java.lang.Object with (Int) => Int with ScalaObject {
+        def this(): template $$anonfun = {
+          $$anonfun.super.this();
+          ()
+        };
+        final def apply(x: Int): Int = x
+      };
+      (new template $$anonfun(): (Int) => Int)
+    }, 5) match {
+      case Test.this.App.unapply[Int](<unapply-selector>) <unapply> ((arg @ _), (a @ _)) => ()
+    }
+  }
+}
+error: fatal error: type mismatch;
+ found   : Option[((Y(in package <root>)) => Z(in package <root>), Y(in package <root>))] where type Z(in package <root>), type Y(in package <root>)
+ required: Option[((Y(in value <local Test>)) => Z(in value <local Test>), Y(in value <local Test>))] where type Z(in value <local Test>), type Y(in value <local Test>)
+
+
+
+
+```

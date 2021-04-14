@@ -1,0 +1,26 @@
+From `TreeInfo`:
+```scala
+  /**  The largest subset of {NoInits, PureInterface} that a
+   *   trait enclosing this statement can have as flags.
+   *   Does tree contain an initialization part when seen as a member of a class or trait?
+   */
+  def defKind(tree: Tree): FlagSet = unsplice(tree) match {
+    case EmptyTree | _: Import =>
+      NoInitsInterface
+    case tree: TypeDef =>
+      if (tree.isClassDef) NoInits else NoInitsInterface
+    case tree: DefDef =>
+      if (tree.unforcedRhs == EmptyTree && tree.vparamss.forall(_.forall(_.unforcedRhs == EmptyTree))) NoInitsInterface else NoInits
+    case tree: ValDef =>
+      if (tree.unforcedRhs == EmptyTree) NoInitsInterface else EmptyFlags
+    case _ =>
+      EmptyFlags
+  }
+```
+This method is called before desugaring, therefore it's easy to miss `val` and `def` that get added by desugaring or later phases, for example:
+```scala
+trait Foo {
+  class Inner(x: Int = 42)
+}
+```
+`Foo` will get the `NoInits` flag even though `Inner` will get a companion object, and therefore a companion `val` with a non-empty rhs. I think there are other cases where we add a companion object, it might be easier to call `defKind` later than to try to account for all of them.

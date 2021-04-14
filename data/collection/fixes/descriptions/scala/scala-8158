@@ -1,0 +1,63 @@
+I had forgotten the outcome of discussion last year about name-based pattern matching, so trying to do patternless boolean extraction, I tried this broken form, which hangs the compiler, also on trunk:
+
+```scala
+package bug
+
+import scala.language.experimental.macros
+import scala.reflect.macros.{ WhiteboxContext => Context }
+//import scala.reflect.macros.whitebox.Context
+
+object Max {
+  def impl(c: Context)(any: c.Expr[Any]): c.Expr[Any] = {
+    import c.universe._
+    def fail(msg: String) = c.abort(c.enclosingPosition, msg)
+    val t = c.macroApplication match {
+      case q"$_.unapply($unargs)" =>
+        /* hangs
+        */
+        q"""
+          new { 
+            def isEmpty = false
+            def get = this
+            def unapply(x: String) = this
+          }.unapply($unargs)
+        """
+        /*
+        if get returns Unit or Boolean:
+        wrong number of patterns for <$anon: AnyRef> offering Unit: expected 1, found 0
+        */
+        /* straightforward
+        q"""
+          new {
+            def unapply(x: String) = true
+          }.unapply($unargs)
+        """
+        */
+      case _ => fail("bad appl")
+    }
+    c.Expr[Any](t)
+  }
+}
+```
+
+with sample usage
+
+```scala
+package bug
+
+import scala.language.experimental.macros
+import org.junit.Test
+
+object X {
+  def unapply(any: Any): Any = macro Max.impl
+} 
+    
+class BugTest {
+  @Test def bug(): Unit = {
+    "any" match {
+      case X() =>
+      case _ => ???
+    }   
+  }
+}
+```

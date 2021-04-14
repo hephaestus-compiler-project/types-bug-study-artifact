@@ -1,0 +1,50 @@
+A DESCRIPTION OF THE PROBLEM :
+When specifying multiple lambda intersection types where there are multiple interfaces having abstract methods, however there are default implementations so that there is only one abstract method, the ordering matters. Abstract method default implementations should be before abstract methods.
+
+I'm not sure if it's Javac bug or a Java bug, but either this code should be rejected or it should work. If it should work, either javac should reorder types or LambdaMetafactory should support unusual type order.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+It should work or fail to compile.
+ACTUAL -
+It fails at runtime.
+
+---------- BEGIN SOURCE ----------
+public class Main {
+    public static void main(String[] args) {
+        Runnable a = ((A & B & AB & C) () -> System.out.println("Called"))::b;
+        a.run();
+    }
+
+    interface A {
+        void a();
+    }
+
+    interface B {
+        void b();
+    }
+
+    interface C {
+        void c();
+    }
+
+    interface AB extends A, B {
+        @Override
+        default void a() {
+            System.out.println("A");
+        }
+
+        @Override
+        default void b() {
+            System.out.println("B");
+        }
+    }
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Use (AB & A & B & C) instead of (A & B & AB & C)
+
+FREQUENCY : always
+
+

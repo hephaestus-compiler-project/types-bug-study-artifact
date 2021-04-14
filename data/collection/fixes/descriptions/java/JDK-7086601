@@ -1,0 +1,35 @@
+Given a method invocation that won't match either of two candidates, I'm getting an error message that prints 'null' where a useful description of the mismatch should go.
+
+Code:
+public class CauseError {
+<S> Iterable<S> glb(Iterable<? super S> s1, Iterable<? super S> s2) { return null; }
+<T> Iterable<T> glb(Iterable<? super T> t) { return null; }
+
+CauseError() {
+ glb((Iterable<String>) null, (Iterable<Integer>) null);
+}
+
+}
+
+Message:
+
+CauseError.java:6: error: no suitable method found for glb(Iterable<String>,Iterable<Integer>)
+ glb((Iterable<String>) null, (Iterable<Integer>) null);
+ ^
+    method CauseError.<T>glb(Iterable<? super T>) is not applicable
+      (cannot instantiate from arguments because actual and formal argument lists differ in length)
+    method CauseError.<S>glb(Iterable<? super S>,Iterable<? super S>) is not applicable
+      (null) <<<<<<<<<< (SHOULD NOT BE NULL)
+  where T,S are type-variables:
+    T extends Object declared in method <T>glb(Iterable<? super T>)
+    S extends Object declared in method <S>glb(Iterable<? super S>,Iterable<? super S>)
+
+Commenting out the other declaration produces a more useful message:
+
+CauseError.java:6: error: method glb in class CauseError cannot be applied to given types
+ glb((Iterable<String>) null, (Iterable<Integer>) null);
+ ^
+  required: Iterable<? super S>,Iterable<? super S>
+  found: Iterable<String>,Iterable<Integer>
+  where S is a type-variable:
+    S extends Object declared in method <S>glb(Iterable<? super S>,Iterable<? super S>)

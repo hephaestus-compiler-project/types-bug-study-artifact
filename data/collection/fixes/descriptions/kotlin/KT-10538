@@ -1,0 +1,19 @@
+Since the upgrade from Kotlin Beta 3 to 4 the *forEach* function on a *HashMap* works inconsistent in a pure simple Kotlin Gradle project and a Kotlin Android Gradle project.
+
+In a simple Kotlin Gradle project the following is *NOT* possible:
+{code lang=kotlin}
+hashMapOf<String, String>().forEach { println("${it.key} ${it.value}") }
+{code}
+
+instead this is suggested:
+{code lang=kotlin}
+hashMapOf<String, String>().forEach { key, value -> println("$key $value") }
+{code}
+
+This is totally fine but it seems to use a Java 8 component internally (java.util.function.BiConsumer). If a library containing this method is used in a Kotlin Android Project with Proguard enabled, Proguard complains about the stated Java 8 interface because Android uses Java 1.7 and thus it can't be found.
+
+When I use the *forEach* on a HashMap directly in a Kotlin Android Project it expects the "old" variant with only one argument for the lambda and can't compile. Here the old *forEach* function seems to work, but IntelliJ IDEA suggests to use the 2 argument version.
+
+All of this *ONLY* applies to the *HashMap* created with *hashMapOf*. For a *Map* created with *mapOf* the "old" variant with 1 argument still works and is suggested by IntelliJ IDEA.
+
+This seems to be related to KT-10479.

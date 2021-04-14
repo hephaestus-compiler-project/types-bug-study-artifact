@@ -1,0 +1,42 @@
+https://github.com/scala/scala/pull/5999 introduces a synthetic val for the unstable LHS of an implicit method application where the method type depends on the LHS. Unfortunately this only handles the case where an expression requires a _single_ stabilizing val: if the expression involves chained method applications, each requiring a stabilizing val, then only the last of these is emitted resulting in a failure during bytecode generation,
+
+```scala
+object Test {
+  class Foo {
+    type Out
+  }
+  object Foo {
+    implicit def foo: Foo { type Out = Bar } = ???
+  }
+
+  class Bar {
+    type Baz = Foo
+    def foo(implicit foo: Baz): foo.Out = ???
+  }
+
+  (new Bar).foo.foo
+}
+```
+```
+[[syntax trees at end of                     typer]]
+object Test extends scala.AnyRef {
+  ...
+  {
+    <synthetic> <stable> <artifact> val stabilizer$2: shapeless.Test.Bar = stabilizer$1.foo(Test.this.Foo.foo);
+    stabilizer$2.foo(Test.this.Foo.foo)
+  }
+}
+
+java.util.NoSuchElementException: value stabilizer$1
+        at scala.collection.mutable.AnyRefMap$ExceptionDefault.apply(AnyRefMap.scala:425)
+        at scala.collection.mutable.AnyRefMap$ExceptionDefault.apply(AnyRefMap.scala:424)
+        at scala.collection.mutable.AnyRefMap.apply(AnyRefMap.scala:180)
+        at scala.tools.nsc.backend.jvm.BCodeSkelBuilder$PlainSkelBuilder$locals$.load(BCodeSkelBuilder.scala:392)
+...
+[error] Error while emitting zipper.scala
+[error] value stabilizer$1
+[error] one error found
+```
+This is because the current implementation only records a single stabilizer on the expression tree which is overwritten by later ones.
+
+PR fixing this incoming ...

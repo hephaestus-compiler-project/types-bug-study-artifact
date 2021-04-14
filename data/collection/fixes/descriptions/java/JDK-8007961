@@ -1,0 +1,22 @@
+The new method getAnnotationsByType(class<T>) added in Java SE 8 for the repeating Annotations feature, fail on several language model API tests.
+Some failures output are described below.
+
+1) Foo is repeatable with FooContainer as its containing annotation type and an @Foo annotation is placed on the subclass. Here @Foo(3) on B is deemed to "override" every @Foo annotation on A. But it does not. 
+
+@Foo(1) @Foo(2) class A {}
+@Foo(3) class B extends A {}
+
+Expected value:
+B.class.getAnnotationsByType(Foo.class) = [@Foo(3)]
+Got output:
+B.class.getAnnotationsByType(Foo.class) = [@Foo(1), @Foo(2), @Foo(3)]
+
+2) Foo is repeatable with FooContainer as its containing annotation type. The contained @Foo annotations on class B override the uncontained @Foo(0) annotation on class A. But it does not.
+
+@Foo(0) class A {}
+@FooContainer({@Foo(1), @Foo(2)}) class B extends A {}
+
+Expected value:
+B.class.getAnnotationsByType(Foo.class) = [@Foo(1), @Foo(2)]
+Got output:
+B.class.getAnnotationsByType(Foo.class) = [@Foo(0), @Foo(1), @Foo(2)]

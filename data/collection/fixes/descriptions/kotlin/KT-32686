@@ -1,0 +1,22 @@
+With the `Enable new type inference algorithm for IDE analysis` option ticked, this will be accepted by the IDE, but wrong type is inferred:
+
+```kotlin
+sealed class Base<T> {
+    class A<T> : Base<T>()
+    class B<T> : Base<T>()
+}
+
+fun getBase(num: Int) = when (num) {
+    1 -> Base.A()
+    else -> Base.B<Int>()
+}
+```
+
+As you can see on this screenshot, the inferred type of `getBase()` is `Base.B<Int>` because it has the <Int> type parameter specified explicitly.
+
+![](image.png)
+
+The compiler's error message is the following:
+`Error:(8, 25) Kotlin: Type inference for control flow expression failed. Please specify its type explicitly.`
+
+When specifying `Base.A<Int>` explicitly, it works correctly with both the old and the new algorithm

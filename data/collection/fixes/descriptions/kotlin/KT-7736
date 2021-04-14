@@ -1,0 +1,37 @@
+I use Android Studio 1.2.1.1 (base IDE platform IntelliJ 14.1.2)
+Kotlin: 0.11.91.4
+
+The IDE does not handle properly the nullability of methods with generics.
+
+
+{code:lang=kotlin|title=Example code}
+private class MyDelegateClass<T>(private val valueType: Class<T>, private val key: String, private val defaultValue: T) : ReadOnlyProperty<Any?, T> {
+    override fun get(thisRef: Any?, desc: PropertyMetadata): T = null
+}
+
+private fun myDelegeteMethod<T>(valueType: Class<T>, defaultValue: T): ReadOnlyProperty<Any?, T> = MyDelegateClass(valueType, "key", defaultValue)
+
+val stringProperty by myDelegeteMethod(javaClass<String>(), "defaultValue")
+// stringProperty = null <- because MyDelegateClass.get() = null
+
+private fun myMethod1<T>(valueType: Class<T>, defaultValue: T): T where T : Any? = null
+// for AndroidStudio this line is OK
+
+private fun myMethod2<T>(valueType: Class<T>, defaultValue: T): T? where T : Any? = null
+// for AndroidStudio this line has a warning.: "'T' has nullable upper bound. This means that a value of this type may be null. Use 'T?' is likely to mislead the reader
+
+private fun MyTest() {
+    // NOTE: Value is always null
+    
+    val string1: String = myMethod1(javaClass<String>(), "defaultValue")
+    // wrong! Value is null, then right type is "String?"
+
+    val string2: String? = myMethod2(javaClass<String>(), "defaultValue")
+    // correct! Type is "String?", but read the warning above
+
+    val string3: String = stringProperty
+    // wrong! Value is null, then right type is "String?"
+}
+{code}
+
+Note: I know "where T : Any?" is implicit

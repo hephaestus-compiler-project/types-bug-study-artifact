@@ -1,0 +1,230 @@
+**Preconditions:**
+* IDEA 2020.1
+* Kotlin plugin 1.4.0-dev-6071-IJ2020.1-1
+* Unzip and import the attached reproducer project (if import fails make sure you have VPN connection - IDEA will need to connect to TC to download artifacts)
+
+The project has the following structure:
+* Two Native modules.
+   * First one is "shared native" (`iosMain`) and targets two Native flavors at the same time: ios_x64 and ios_arm64.
+   * The other is "leaf native" (`iosX64Main`) and targets only ios_x64.
+* There is MPP library "foo". It has two variants.
+   * A variant for ios_x64 + ios_arm64 (it has only expect declarations)
+```
+// ios_x64 + ios_arm64 declarations:
+package testlib
+
+expect class Greeting
+expect class I public constructor(i: kotlin.Int) {
+    expect val i: kotlin.Int
+}
+expect class Length
+expect class S public constructor(s: kotlin.String) {
+    expect val s: kotlin.String
+}
+expect fun concat(s1: testlib.S, s2: testlib.S): testlib.S
+expect fun greet(greeting: testlib.Greeting): testlib.Length
+expect fun length(s: testlib.S): testlib.I
+expect fun sum(i1: testlib.I, i2: testlib.I): testlib.I
+expect fun toString(i: testlib.I): testlib.S
+```
+   * And a variant for ios_x64 (no expect declarations at all, but for every expect declaration from ios_x64 + ios_arm64 library variant there is matching actual declaration).
+```
+// ios_x64 variant declarations:
+package testlib
+
+typealias Greeting = kotlin.String
+typealias Length = kotlin.Int
+class I public constructor(i: kotlin.Int) {
+    val i: kotlin.Int
+}
+class S public constructor(s: kotlin.String) {
+    val s: kotlin.String
+}
+fun concat(s1: testlib.S, s2: testlib.S): testlib.S
+fun greet(greeting: testlib.Greeting): testlib.Length
+fun length(s: testlib.S): testlib.I
+fun sum(i1: testlib.I, i2: testlib.I): testlib.I
+fun toString(i: testlib.I): testlib.S
+```
+* "shared native" module depends on "ios_x64 + ios_arm64" variant of the library.
+* "leaf native" module depends on both variants of the library. The dependencies are indicated by arrows on the picture below.
+```
+     iosMain -----------------> foo
+(ios_x64+ios_arm64)    (ios_x64+ios_arm64; only expects)
+        ^                        ^
+        |                        |
+        |    +-------------------+
+        |    |
+    iosX64Main ---------------> foo
+     (ios_x64)             (ios_x64; no expects)
+```
+
+
+**Steps to reproduce:**
+* Open `platform.kt` (it's a file inside of `iosX64Main`)
+* Try to navigate to `greet()` or `concat()` functions
+
+**Expected behavior:**
+Actually, there are two declarations of `greet()` and two declarations of `concat()` "visible" inside of `iosX64Main` module: a declaration from ios_x64 + ios_arm64 library variant and from ios_x64 library variant. As soon as `iosX64Main` is a leaf module that targets only one Native flavor (ios_x64) it is expected that navigation will happen to the declaration from library variant with the narrower set of supported Native flavors, i.e. to declaration from ios_x64 library variant.
+
+This should be navigation in horizontal direction on the picture below:
+```
+     iosMain -----------------> foo
+(ios_x64+ios_arm64)    (ios_x64+ios_arm64; only expects)
+        ^                        ^
+        |                        |
+        |    +-------------------+
+        |    |
+    iosX64Main ---------------> foo [SHOULD NAVIGATE HERE]
+     (ios_x64)             (ios_x64; no expects)
+```
+
+**Actual behavior:**
+On practice, navigation may happen in either direction. It looks that the choice is indeterministic.
+```
+     iosMain -----------------> foo  [OCCASIONALLY NAVIGATES HERE]
+(ios_x64+ios_arm64)    (ios_x64+ios_arm64; only expects)
+        ^                        ^
+        |                        |
+        |    +-------------------+
+        |    |
+    iosX64Main ---------------> foo [OCCASIONALLY NAVIGATES HERE]
+     (ios_x64)             (ios_x64; no expects)
+```
+
+**Investigation:**
+I've debugged a bit and found out potential root cause:
+* The `KtNamedFunction` PSI element that we want to navigate to has internal reference to a stub function declaration. This could be a stub either from one or from another library variant, but which one is indeterministic. When PSI element is rebuilt (ex: on project reopen) the stub may switch from one to another (or may not - its indeterministic), and then navigation behavior will change accordingly.
+* So how stub choice is made - which one will be used to build PSI? If there are multiple candidates inside the same group of candidates, then the first one is selected! This happens during call resolution process inside of `org.jetbrains.kotlin.resolve.calls.tower.TowerResolver#processTowerData` method. The screenshots below show why `expect` declaration is chosen (just because it's the first one):
+![r1.png](r1.png)
+![r2.png](r2.png)
+* According to comments in `ScopeTowerProcessor` if there are multiple candidates inside of the same group, then they have the same priority:
+```
+interface ScopeTowerProcessor<out C> {
+    // Candidates with matched receivers (dispatch receiver was already matched in ScopeTowerLevel)
+    // Candidates in one groups have same priority, first group has highest priority.
+    fun process(data: TowerData): List<Collection<C>>
+    ...
+```
+* The issue is that such variants should have priority, so that `expect` will be chosen as the last resort.
+* Stacktrace:
+```
+processTowerData:278, TowerResolver (org.jetbrains.kotlin.resolve.calls.tower)
+access$processTowerData:77, TowerResolver (org.jetbrains.kotlin.resolve.calls.tower)
+process:158, TowerResolver$Task (org.jetbrains.kotlin.resolve.calls.tower)
+process:167, TowerResolver$Task (org.jetbrains.kotlin.resolve.calls.tower)
+run:199, TowerResolver$Task (org.jetbrains.kotlin.resolve.calls.tower)
+run:96, TowerResolver (org.jetbrains.kotlin.resolve.calls.tower)
+runResolve:83, TowerResolver (org.jetbrains.kotlin.resolve.calls.tower)
+resolveCall:87, KotlinCallResolver (org.jetbrains.kotlin.resolve.calls)
+runResolutionAndInference:99, PSICallResolver (org.jetbrains.kotlin.resolve.calls.tower)
+doResolveCallOrGetCachedResults:581, CallResolver (org.jetbrains.kotlin.resolve.calls)
+lambda$computeTasksAndResolveCall$0:212, CallResolver (org.jetbrains.kotlin.resolve.calls)
+invoke:-1, 407433156 (org.jetbrains.kotlin.resolve.calls.CallResolver$$Lambda$1993)
+time:101, PerformanceCounter (org.jetbrains.kotlin.util)
+computeTasksAndResolveCall:210, CallResolver (org.jetbrains.kotlin.resolve.calls)
+computeTasksAndResolveCall:198, CallResolver (org.jetbrains.kotlin.resolve.calls)
+resolveFunctionCall:326, CallResolver (org.jetbrains.kotlin.resolve.calls)
+getResolvedCallForFunction:98, CallExpressionResolver (org.jetbrains.kotlin.resolve.calls)
+getCallExpressionTypeInfoWithoutFinalTypeCheck:220, CallExpressionResolver (org.jetbrains.kotlin.resolve.calls)
+getCallExpressionTypeInfo:197, CallExpressionResolver (org.jetbrains.kotlin.resolve.calls)
+visitCallExpression:727, BasicExpressionTypingVisitor (org.jetbrains.kotlin.types.expressions)
+visitCallExpression:388, ExpressionTypingVisitorDispatcher (org.jetbrains.kotlin.types.expressions)
+visitCallExpression:59, ExpressionTypingVisitorDispatcher$ForBlock (org.jetbrains.kotlin.types.expressions)
+accept:35, KtCallExpression (org.jetbrains.kotlin.psi)
+lambda$getTypeInfo$0:175, ExpressionTypingVisitorDispatcher (org.jetbrains.kotlin.types.expressions)
+invoke:-1, 680652849 (org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher$$Lambda$1988)
+time:101, PerformanceCounter (org.jetbrains.kotlin.util)
+getTypeInfo:164, ExpressionTypingVisitorDispatcher (org.jetbrains.kotlin.types.expressions)
+getTypeInfo:134, ExpressionTypingVisitorDispatcher (org.jetbrains.kotlin.types.expressions)
+visitExpression:382, ExpressionTypingVisitorForStatements (org.jetbrains.kotlin.types.expressions)
+visitExpression:64, ExpressionTypingVisitorForStatements (org.jetbrains.kotlin.types.expressions)
+visitReferenceExpression:198, KtVisitor (org.jetbrains.kotlin.psi)
+visitCallExpression:278, KtVisitor (org.jetbrains.kotlin.psi)
+accept:35, KtCallExpression (org.jetbrains.kotlin.psi)
+lambda$getTypeInfo$0:175, ExpressionTypingVisitorDispatcher (org.jetbrains.kotlin.types.expressions)
+invoke:-1, 680652849 (org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher$$Lambda$1988)
+time:101, PerformanceCounter (org.jetbrains.kotlin.util)
+getTypeInfo:164, ExpressionTypingVisitorDispatcher (org.jetbrains.kotlin.types.expressions)
+getTypeInfo:147, ExpressionTypingVisitorDispatcher (org.jetbrains.kotlin.types.expressions)
+getTypeOfLastExpressionInBlock:395, ExpressionTypingServices (org.jetbrains.kotlin.types.expressions)
+getBlockReturnedTypeWithWritableScope:320, ExpressionTypingServices (org.jetbrains.kotlin.types.expressions)
+getBlockReturnedType:200, ExpressionTypingServices (org.jetbrains.kotlin.types.expressions)
+getBlockReturnedType:177, ExpressionTypingServices (org.jetbrains.kotlin.types.expressions)
+visitBlockExpression:425, ExpressionTypingVisitorForStatements (org.jetbrains.kotlin.types.expressions)
+visitBlockExpression:64, ExpressionTypingVisitorForStatements (org.jetbrains.kotlin.types.expressions)
+accept:78, KtBlockExpression (org.jetbrains.kotlin.psi)
+lambda$getTypeInfo$0:175, ExpressionTypingVisitorDispatcher (org.jetbrains.kotlin.types.expressions)
+invoke:-1, 680652849 (org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher$$Lambda$1988)
+time:101, PerformanceCounter (org.jetbrains.kotlin.util)
+getTypeInfo:164, ExpressionTypingVisitorDispatcher (org.jetbrains.kotlin.types.expressions)
+getTypeInfo:147, ExpressionTypingVisitorDispatcher (org.jetbrains.kotlin.types.expressions)
+checkFunctionReturnType:172, ExpressionTypingServices (org.jetbrains.kotlin.types.expressions)
+checkFunctionReturnType:155, ExpressionTypingServices (org.jetbrains.kotlin.types.expressions)
+resolveFunctionBody:985, BodyResolver (org.jetbrains.kotlin.resolve)
+resolveFunctionBody:932, BodyResolver (org.jetbrains.kotlin.resolve)
+functionAdditionalResolve:637, ResolveElementCache (org.jetbrains.kotlin.idea.project)
+performElementAdditionalResolve:355, ResolveElementCache (org.jetbrains.kotlin.idea.project)
+getElementsAdditionalResolve:197, ResolveElementCache (org.jetbrains.kotlin.idea.project)
+resolveToElements:253, ResolveElementCache (org.jetbrains.kotlin.idea.project)
+invoke:71, ModuleResolutionFacadeImpl$analyze$3 (org.jetbrains.kotlin.idea.caches.resolve)
+invoke:39, ModuleResolutionFacadeImpl$analyze$3 (org.jetbrains.kotlin.idea.caches.resolve)
+runWithCancellationCheck:47, ApplicationUtilsKt (org.jetbrains.kotlin.idea.util.application)
+analyze:70, ModuleResolutionFacadeImpl (org.jetbrains.kotlin.idea.caches.resolve)
+analyze:54, ModuleResolutionFacadeImpl (org.jetbrains.kotlin.idea.caches.resolve)
+analyze:43, ResolutionFacadeWithDebugInfo (org.jetbrains.kotlin.idea.caches.resolve)
+analyze:87, ExtendedResolutionApiKt (org.jetbrains.kotlin.idea.caches.resolve)
+analyze:121, ResolutionUtils (org.jetbrains.kotlin.idea.caches.resolve)
+resolveToPsiElements:242, AbstractKtReference$Companion$KotlinReferenceResolver (org.jetbrains.kotlin.idea.references)
+access$resolveToPsiElements:235, AbstractKtReference$Companion$KotlinReferenceResolver (org.jetbrains.kotlin.idea.references)
+invoke:287, AbstractKtReference$Companion$KotlinReferenceResolver$resolve$1 (org.jetbrains.kotlin.idea.references)
+invoke:235, AbstractKtReference$Companion$KotlinReferenceResolver$resolve$1 (org.jetbrains.kotlin.idea.references)
+runWithCancellationCheck:47, ApplicationUtilsKt (org.jetbrains.kotlin.idea.util.application)
+resolve:286, AbstractKtReference$Companion$KotlinReferenceResolver (org.jetbrains.kotlin.idea.references)
+resolve:235, AbstractKtReference$Companion$KotlinReferenceResolver (org.jetbrains.kotlin.idea.references)
+resolve:147, ResolveCache (com.intellij.psi.impl.source.resolve)
+resolveWithCaching:177, ResolveCache (com.intellij.psi.impl.source.resolve)
+resolveWithCaching:169, ResolveCache (com.intellij.psi.impl.source.resolve)
+multiResolve:69, AbstractKtReference (org.jetbrains.kotlin.idea.references)
+resolve:47, PsiPolyVariantReferenceBase (com.intellij.psi)
+invoke:272, KotlinLanguageInjector$injectWithCall$resolvedTo$1 (org.jetbrains.kotlin.idea.injection)
+invoke:55, KotlinLanguageInjector$injectWithCall$resolvedTo$1 (org.jetbrains.kotlin.idea.injection)
+allowResolveInDispatchThread:95, ResolveInDispatchThreadManagerKt (org.jetbrains.kotlin.idea.caches.resolve)
+injectWithCall:272, KotlinLanguageInjector (org.jetbrains.kotlin.idea.injection)
+findInjectionInfo:163, KotlinLanguageInjector (org.jetbrains.kotlin.idea.injection)
+findInjectionInfo$default:161, KotlinLanguageInjector (org.jetbrains.kotlin.idea.injection)
+computeBaseInjection:154, KotlinLanguageInjector (org.jetbrains.kotlin.idea.injection)
+access$computeBaseInjection:55, KotlinLanguageInjector (org.jetbrains.kotlin.idea.injection)
+invoke:97, KotlinLanguageInjector$getLanguagesToInject$baseInjection$1 (org.jetbrains.kotlin.idea.injection)
+getLanguagesToInject:108, KotlinLanguageInjector (org.jetbrains.kotlin.idea.injection)
+processInPlaceInjectorsFor:431, InjectedLanguageManagerImpl (com.intellij.psi.impl.source.tree.injected)
+probeElementsUp:341, InjectedLanguageUtil (com.intellij.psi.impl.source.tree.injected)
+enumerate:166, InjectedLanguageUtil (com.intellij.psi.impl.source.tree.injected)
+enumerateEx:330, InjectedLanguageManagerImpl (com.intellij.psi.impl.source.tree.injected)
+queryLineMarkersForInjected:222, LineMarkersPass (com.intellij.codeInsight.daemon.impl)
+queryProviders:184, LineMarkersPass (com.intellij.codeInsight.daemon.impl)
+lambda$doCollectInformation$3:95, LineMarkersPass (com.intellij.codeInsight.daemon.impl)
+process:-1, 1033434902 (com.intellij.codeInsight.daemon.impl.LineMarkersPass$$Lambda$1817)
+divideInsideAndOutsideInOneRoot:79, Divider (com.intellij.codeInsight.daemon.impl)
+doCollectInformation:90, LineMarkersPass (com.intellij.codeInsight.daemon.impl)
+collectInformation:55, TextEditorHighlightingPass (com.intellij.codeHighlighting)
+lambda$null$1:429, PassExecutorService$ScheduledPass (com.intellij.codeInsight.daemon.impl)
+run:-1, 2080363710 (com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$$Lambda$1784)
+tryRunReadAction:997, ApplicationImpl (com.intellij.openapi.application.impl)
+lambda$doRun$2:422, PassExecutorService$ScheduledPass (com.intellij.codeInsight.daemon.impl)
+run:-1, 1897453621 (com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$$Lambda$1782)
+registerIndicatorAndRun:585, CoreProgressManager (com.intellij.openapi.progress.impl)
+executeProcessUnderProgress:531, CoreProgressManager (com.intellij.openapi.progress.impl)
+executeProcessUnderProgress:59, ProgressManagerImpl (com.intellij.openapi.progress.impl)
+doRun:421, PassExecutorService$ScheduledPass (com.intellij.codeInsight.daemon.impl)
+lambda$run$0:397, PassExecutorService$ScheduledPass (com.intellij.codeInsight.daemon.impl)
+run:-1, 1266002100 (com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$$Lambda$1778)
+executeByImpatientReader:167, ReadMostlyRWLock (com.intellij.openapi.application.impl)
+executeByImpatientReader:157, ApplicationImpl (com.intellij.openapi.application.impl)
+run:395, PassExecutorService$ScheduledPass (com.intellij.codeInsight.daemon.impl)
+exec:161, JobLauncherImpl$VoidForkJoinTask$1 (com.intellij.concurrency)
+doExec:289, ForkJoinTask (java.util.concurrent)
+runTask:1056, ForkJoinPool$WorkQueue (java.util.concurrent)
+runWorker:1692, ForkJoinPool (java.util.concurrent)
+run:157, ForkJoinWorkerThread (java.util.concurrent)
+```

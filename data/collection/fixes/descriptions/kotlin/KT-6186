@@ -1,0 +1,57 @@
+Explanation:
+1. Declare open protected method in a superclass
+2. Override it in 2 different subclasses from different packages
+3. VerifyError happens when one attempts to call subclass' overridden method from another subclass
+
+[https://gist.github.com/yuriiandrieiev/410c6520109293e08c04 Analogous code] in java doesn't compile
+
+Demonstration:
+There is a project of two files:
+
+{code:lang=kotlin|title=File №0}
+package otherpackage
+
+import somepackage.WrapperChild
+
+fun main(args : Array<String>) {
+	WrapperChild(Child()).publicMethod()
+}
+
+open class Parent(){
+	protected open fun protectedMethod(){
+		println("Parent")
+	}
+}
+
+class Child(): Parent(){
+	override fun protectedMethod(){
+		println("Child")
+	}
+}{code}
+
+{code:lang=kotlin|title=File №1}
+package somepackage
+
+import otherpackage.Parent
+
+class WrapperChild(val realInstance: Parent): Parent(){
+	public fun publicMethod(){
+		realInstance.protectedMethod()
+	}
+}
+{code}
+
+And the result is:
+Exception in thread "main" java.lang.VerifyError: Bad access to protected data in invokevirtual
+Exception Details:
+  Location:
+    somepackage/WrapperChild.publicMethod()V @4: invokevirtual
+  Reason:
+    Type 'otherpackage/Parent' (current frame, stack[0]) is not assignable to 'somepackage/WrapperChild'
+  Current Frame:
+    bci: @4
+    flags: { }
+    locals: { 'somepackage/WrapperChild' }
+    stack: { 'otherpackage/Parent' }
+  Bytecode:
+    0x0000000: 2ab4 0010 b600 13b1

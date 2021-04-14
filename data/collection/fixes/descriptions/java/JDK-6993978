@@ -1,0 +1,12 @@
+The initial prototype implementation of simplified varargs method invocation (6945418) used the SuppressedWarnings annotation to indicate a method should be trusted.  The final annotation to indicate trustedness needs to be @Documented so it is part of the method's contract.  The "trust me" annotation is only meaningfully applicable to
+
+* static methods
+* constructors
+* (possibly) final methods
+
+Since method-level annotations are *not* inherited, the annotation cannot be sensibly used on general instance methods.
+
+To "trust but verify," when the annnotation is applied to a method, the compiler will perform some checks to validate the var-args array argument is being used safely.  At a first cut of safety preserving checks:
+
+* The var-args parameter is not aliased to any other reference, especially not to an Object or Object[]
+* The array is only read from and not written to.  Calls to hashCode, toString, etc. would be fine as well.

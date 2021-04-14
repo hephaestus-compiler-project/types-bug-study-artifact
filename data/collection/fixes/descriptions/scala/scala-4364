@@ -1,0 +1,8 @@
+There is a comment in Arrays.scala which says:
+```scala
+def unapplySeq[T](x: Array[T]): Option[IndexedSeq[T]] =
+  if (x == null) None else Some(x.toIndexedSeq) 
+  // !!! the null check should to be necessary, but without it 2241 fails. Seems to be a bug
+  // in pattern matcher.  
+```
+I think the comment contradicts the spec, and the behavior is correct.  The only thing the spec says about null is that typed patterns match non-null values.  In order for the code above not to NPE, we'd have to stop calling extractors when the scrutinee is null.  Since that would make it impossible to write an extractor which deals with null, it seems undesirable.

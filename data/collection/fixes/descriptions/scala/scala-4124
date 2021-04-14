@@ -1,0 +1,79 @@
+=== What steps will reproduce the problem (please be specific and use wikiformatting)? ===
+```scala
+scala> val body: AnyRef = <elem>hi</elem>
+body: AnyRef = <elem>hi</elem>
+
+scala> (body, "foo") match {
+     |   case (node: Node, "bar") => "bye"
+     |   case (ser: Serializable, "foo") => "hi"
+     | }
+```
+
+=== What is the expected behavior? ===
+print "hi"
+
+
+=== What do you see instead? ===
+```scala
+scala.MatchError: (<elem>hi</elem>,foo)
+        at .<init>(<console>:12)
+        at .<clinit>(<console>)
+        at RequestResult$$.<init>(<console>:9)
+        at RequestResult$$.<clinit>(<console>)
+        at RequestResult$$scala_repl_result(<console>)
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+        at java.lang.reflect.Method.invoke(Method.java:597)
+        at scala.tools.nsc.Interpreter$$Request$$$$anonfun$$loadAndRun$$1$$$$anonfun$$apply$$18.apply(Interpreter.scala:981)
+        at scala.tools.nsc.Interpreter$$Request$$$$anonfun$$loadAndRun$$1$$$$anonfun$$apply$$18.apply(Interpreter.scala:981)
+        at scala.util.control.Exception$$Catch.apply(Exception.scala:79)
+        at scala...
+```
+
+=== Additional information ===
+From @retronym:
+scalac -Xprint:erasure is a more direct way to see how the pattern
+match is translated.
+```scala
+<synthetic> val temp1: Tuple2 = new Tuple2(test.this.body(), "foo");
+      if (temp1.ne(null))
+        {
+          <synthetic> val temp2: java.lang.Object = temp1._1();
+          <synthetic> val temp3: java.lang.String =
+temp1._2().$$asInstanceOf[java.lang.String]();
+          if (temp2.$$isInstanceOf[scala.xml.Node]())
+            {
+              if (temp3.==("bar"))
+                {
+                  "bye"
+                }
+              else
+                throw new MatchError(temp1)
+            }
+          else
+            if (temp2.$$isInstanceOf[java.io.Serializable]())
+              {
+                if (temp3.==("foo"))
+                  {
+                    "hi"
+                  }
+                else
+                  throw new MatchError(temp1)
+              }
+            else
+              throw new MatchError(temp1)
+        }
+      else
+        throw new MatchError(temp1)
+    }
+```
+Seems like a close cousin of #2337 and #1697 r1r2. You can read some
+commentary from Paul r3, from the build up to Scala 2.8.
+
+
+
+=== What versions of the following are you using? ===
+  - Scala:2.8.1
+  - Java:1.6
+  - Operating system: windows 7 64

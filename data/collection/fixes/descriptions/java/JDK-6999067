@@ -1,0 +1,26 @@
+The cast required on an invokeExact call gets a redundant cast warning.
+Without the cast it gets an error for incorrect type.
+Sample code below:
+8<----testbug.java-------------------------
+/*
+* javac testbug.java
+* java -enableassertions  -XX:+UnlockExperimentalVMOptions -XX:+EnableMethodHandles -XX:+EnableInvokeDynamic 
+*/
+import java.dyn.*;
+
+public class testbug {
+ public void m() {
+   try {
+    // create a method type that takes a String and returns an int
+    MethodType mt = MethodType.genericMethodType(0).changeReturnType(int.class).insertParameterTypes(0,String.class);
+    // lookup a mt in Integer
+    MethodHandle mh = MethodHandles.lookup().findStatic(java.lang.Integer.class, "parseInt", mt);
+    // invoke the method
+    int s = (int)mh.invokeExact("123");  // warning: [cast] redundant cast to int
+    assert ( s==123 );
+   }catch (Throwable t) {t.printStackTrace(); }
+ }
+ public static void main(String... args) { new testbug().m(); }
+}
+
+ss: add introduced date for test auto-analysis.

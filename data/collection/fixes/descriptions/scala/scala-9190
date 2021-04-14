@@ -1,0 +1,24 @@
+The following snippet results in compilation error with scala 2.11.x (full stacktrace in attachment). Note that only two patterns together (with extractor first) in match clause brings error.
+
+```
+java.lang.AssertionError: assertion failed: (trait Two,type One)
+```
+
+```scala
+trait Test {
+  trait Two[A, B]
+  type One[A] = Two[A, A]
+
+  object Extract {
+    def unapply(o: One[_]): Option[_] = ???
+  }
+
+  def matcher[T](o: One[T]) = o match {
+    case Extract(t) => ??? // extractor alone is ok
+    case _: One[_]  => ??? // other pattern in conjunction with extractor causes error
+    case _          => ??? // wildcard pattern is also ok
+  }
+}
+```
+
+Scala version 2.10.4 compiles fine. This seems to be a regression introduced in 2.11.0 and affected subsequent versions.

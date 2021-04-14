@@ -1,0 +1,27 @@
+It seems that, when dealing with implicit resolution, the order of definition of classes and companion object matters. The minimal example I was able to cook up is:
+```scala
+trait Counter[A] {
+  def count(a: A): Int
+}
+
+object Foo {
+  def foo[A](a: A)(implicit c: Counter[A]) = c.count(a)
+}
+
+case class Bar(id: Int) {
+  import Foo._
+
+  def count = foo(this)
+}
+
+object Bar {
+  implicit object BarCounter extends Counter[Bar] {
+    def count(b: Bar) = b.id
+  }
+}
+```
+This fails to compile saying "could not find implicit value for parameter c: Counter[Bar]"
+
+On the other hand, if we define object Bar before case class Bar, it compiles fine.
+
+I should also mention that this problem only arises with implicit resolution. If we explicitly pass the BarCounter object, everything compiles fine.

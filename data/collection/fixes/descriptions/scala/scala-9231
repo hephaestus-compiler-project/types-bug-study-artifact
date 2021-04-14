@@ -1,0 +1,28 @@
+```scala
+// sandbox/test.scala
+class M[A]
+class C {
+  implicit def M1: M[Int] = null
+  implicit def M2: M[String] = null
+
+  def foo[A](implicit M: M[A]) = null
+
+  foo[DoesNotExist]
+}
+```
+
+```
+% qscalac sandbox/test.scala
+sandbox/test.scala:8: error: not found: type DoesNotExist
+  foo[DoesNotExist]
+      ^
+sandbox/test.scala:8: error: ambiguous implicit values:
+ both method M1 in class C of type => M[Int]
+ and method M2 in class C of type => M[String]
+ match expected type M[<error>]
+  foo[DoesNotExist]
+     ^
+two errors found
+```
+
+I believe we should short circuit implicit search in this case.

@@ -1,0 +1,70 @@
+```scala
+class Foo[T](var elem: T)
+
+object Test {
+  def setFirstInPair[T](pair: (Foo[T], Foo[T])) = {
+    pair._1.elem = pair._2.elem
+  }
+
+  def setFirstInList[T](list: List[Foo[T]]) = {
+    list(0).elem = list(1).elem
+  }
+
+  def test1(): Unit = {
+    val fooInt = new Foo(1)
+    val fooString = new Foo("")
+    val pair: (Foo[_], Foo[_]) = (fooInt, fooString)
+    setFirstInPair(pair) // Should be an error, like in Scala 2
+    println(fooInt.elem + 1) // ClassCastException in Dotty
+  }
+
+  def test2(): Unit = {
+    val fooInt = new Foo(1)
+    val fooString = new Foo("")
+    val list: List[Foo[_]] = List(fooInt, fooString)
+    setFirstInList(list) // Should be an error, like in Scala 2
+    println(fooInt.elem + 1) // ClassCastException in Dotty
+  }
+
+  def main(args: Array[String]): Unit = {
+    test1()
+    test2()
+  }
+}
+```
+The Scala 2 errors are:
+```scala
+try/sound.scala:16: error: no type parameters for method setFirstInPair: (pair: (Foo[T], Foo[T]))Unit exist so that it can be applied to arguments ((Foo[_], Foo[_]))
+ --- because ---
+argument expression's type is not compatible with formal parameter type;
+ found   : (Foo[_], Foo[_])
+ required: (Foo[?T], Foo[?T])
+    setFirstInPair(pair) // Should be an error, like in Scala 2
+    ^
+try/sound.scala:16: error: type mismatch;
+ found   : (Foo[_], Foo[_])
+ required: (Foo[T], Foo[T])
+    setFirstInPair(pair) // Should be an error, like in Scala 2
+                   ^
+try/sound.scala:24: error: no type parameters for method setFirstInList: (list: List[Foo[T]])Unit exist so that it can be applied to arguments (List[Foo[_]])
+ --- because ---
+argument expression's type is not compatible with formal parameter type;
+ found   : List[Foo[_]]
+ required: List[Foo[?T]]
+    setFirstInList(list) // Should be an error, like in Scala 2
+    ^
+try/sound.scala:24: error: type mismatch;
+ found   : List[Foo[_]]
+ required: List[Foo[T]]
+    setFirstInList(list) // Should be an error, like in Scala 2
+                   ^
+```
+
+Note that the following compiles fine in Scala 2, so it's not just applying a blanket ban on unifying with wildcards:
+```scala
+  def foo[T](foo: Foo[T]) = {}
+  val x: Foo[_] = new Foo(1)
+  foo(x)
+```
+
+I'm actually not sure how to reason about the difference in Dotty since we don't have a concept of existential types, /cc @Blaisorblade ?

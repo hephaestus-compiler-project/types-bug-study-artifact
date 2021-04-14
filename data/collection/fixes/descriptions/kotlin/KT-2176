@@ -1,0 +1,30 @@
+{code}
+fun foo(s: String?) {
+    s!!
+    s: String // compiler reports error: type mismatch
+}
+{code}
+
+Compiler can infer that variable "s" is non-nullable after !!.
+
+Similarly:
+
+{code}
+fun foo(a: Any) {
+    a as String
+    a: String // same error here
+}
+{code}
+
+Use case. I implement java callback interface (for example, [PreparedStatementCallback|http://static.springsource.org/spring/docs/3.1.1.RELEASE/javadoc-api/org/springframework/jdbc/core/PreparedStatementCallback.html]).
+
+{code}
+object : PreparedStatementCallback<Unit> {
+    override fun doInPreparedStatement(ps: PreparedStatement) {
+        ps!! // I know ps is not null. I'm calling !! once, to avoid repeating it through the function
+        ps.setInt(1, id)
+        ps.setString(2, login)
+        ...
+    }
+}
+{code}

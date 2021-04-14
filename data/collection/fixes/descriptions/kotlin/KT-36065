@@ -1,0 +1,17 @@
+Following code:
+```
+    fun readLiteralFromParams(call: JSCallExpression): JSObjectLiteralExpression? {
+      (call as? StubBasedPsiElementBase<*>)
+        ?.stub
+        ?.let {
+          return it.findChildStubByType(JSElementTypes.OBJECT_LITERAL_EXPRESSION)?.psi
+        }
+      return call.arguments.getOrNull(0) as? JSObjectLiteralExpression
+    }
+```
+is inspected without errors by IDE inspections, however, Kotlin compiler 1.3.70-eap-42 complains about not enough information to infer types on `it.findChildStubByType(JSElementTypes.OBJECT_LITERAL_EXPRESSION)?.psi` and generic parameters must be added manually:
+```
+          return it.findChildStubByType<JSObjectLiteralExpression, JSObjectLiteralExpressionStub>(JSElementTypes.OBJECT_LITERAL_EXPRESSION)
+            ?.psi as JSObjectLiteralExpression?
+```
+of which the last one is reported as unnecessary by IDE inspection

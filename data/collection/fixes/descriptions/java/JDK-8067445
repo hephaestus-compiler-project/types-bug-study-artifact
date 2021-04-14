@@ -1,0 +1,16 @@
+Some langtools test rely on file manager to pick up classes from the bootclasspath - specifically, from the classes in the property sun.boot.class.path. With the recent modular images changes, the value of this property is always ignored when executing off a modular JDK image.
+
+This causes spurious test failures, as stale classfiles are being fetched by the tests.
+
+Steps to reproduce:
+
+1) create a new source somewhere in jdk.compiler
+2) have the new source name a new diagnostic i.e. System.out.println("this.is.fake");
+3) add "compiler.err.this.is.fake=Hello" to compiler.properties
+4) run CheckResourceKeys
+
+The above test should then fail with the following message:
+
+Error: Resource key not found in code: compiler.err.this.is.fake
+
+

@@ -1,0 +1,26 @@
+Scala version used: 10.4.2
+
+I have encountered what I am fairly sure is broken behavior in case classes when members are declared using backquotes.
+
+I have the following minimized test case:
+```scala
+object HelloScalaBug {
+
+  case class wrong(`a b`: Int, a: Int)
+  case class right(a: Int, `a b`: Int)
+
+  def main(args: Array[String]) {
+    val w = wrong(1, 2) // Should produce a 'wrong' with `a b`=1 and a=2.  Actually produces a 'wrong' w/ `a b`=1 and a=1
+    val r = right(2, 1) // Produces a 'right' with `a b`=1 and a=2
+
+
+    // You would think the above would produce objects whose respective fields were equal ...
+
+    if (r.a == w.a) {
+      println ("Test passes")
+    } else {
+      println ("Test fails")
+    }
+  }
+}
+```

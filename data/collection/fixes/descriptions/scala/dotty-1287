@@ -1,0 +1,80 @@
+`Foo.scala`:
+
+``` scala
+private object Foo {
+  val x: Int = 1
+}                
+```
+
+`Test.scala`:
+
+``` scala
+object Test {
+  val a = Foo.x
+}
+```
+
+``` scala
+% ./bin/dotc Foo.scala Test.scala
+Exception in thread "main" java.lang.AssertionError: assertion failed:
+private object Foo in Foo.scala accessed from
+constructor Test$ in object Test$ in Test.scala
+        at scala.Predef$.assert(Predef.scala:165)
+        at dotty.tools.dotc.transform.ExpandPrivate.ensurePrivateAccessible(ExpandPrivate.scala:75)
+```
+
+Note: here's how `scalac` compiles `Foo.scala`:
+
+``` java
+public final class Foo {
+    public static int x() {
+        return Foo$.MODULE$.x();
+    }
+}
+
+public final class Foo$ {
+    public static final Foo$ MODULE$;
+    private final int x;
+
+    public static {
+        new Foo$();
+    }
+
+    public int x() {
+        return this.x;
+    }
+
+    private Foo$() {
+        MODULE$ = this;
+        this.x = 1;
+    }
+}
+```
+
+And here's how dotty does it:
+
+``` java
+public final class Foo {
+    public static int x() {
+        return Foo$.MODULE$.x();
+    }
+}
+
+private final class Foo$ {
+    public static final Foo$ MODULE$;
+    private final int x$$local;
+
+    public static {
+        new Foo$();
+    }
+
+    public Foo$() {
+        MODULE$ = this;
+        this.x$$local = 1;
+    }
+
+    public int x() {
+        return this.x$$local;
+    }
+}
+```

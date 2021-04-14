@@ -1,0 +1,40 @@
+It was observed that a for comprehension and foreach showed different behavior when iterating over a sorted map.  This led to the discover that the tuple pattern in
+
+  for ((x, y) <- map) println(x)
+
+is not presently considered irrefutable, due to null.  It was irrefutable in 2.8.1, but that was more out of the absence of implementation than out of intention.
+```scala
+// scala 2.8.1
+scala> (null: Any) match { case List(_*) => true }
+res4: Boolean = true
+```
+So the filter call being added in 2.9 (in addition to impacting performance and increasing bytecode size) loses the sortedness of the map.
+
+Irrefutable specification says:
+```scala
+> > A pattern p is irrefutable for a type T , if one of the following applies:
+> > 1. pisavariablepattern,
+> > 2. pisatypedpatternx:T′,andT<:T′,
+> > 3. pisaconstructorpatternc(p1,...,pn),thetypeTisaninstanceofclassc,the primary constructor (�5.3) of type T has argument types T1, ..., Tn, and each pi isirrefutableforTi.
+```
+I suggest it wouldn't hurt to explicitly account for null somewhere in the above lines.  A typed pattern _: T' or a constructor pattern T(..) does not match null, but conditions 2 and 3 above quietly add in null. (I'm not suggesting changing the specified behavior -- in the absence of first class support for NotNull-ness, if null undid irrefutability there would be little left to be irrefutable.)
+
+So I am proceeding under the belief that the 2.8.1 behavior shown below is what we want.
+```scala
+Scala 2.8.1:
+
+scala> val xs: List[(Int, Int)] = List((2, 2), null)
+xs: List[(Int, Int)] = List((2,2), null)
+
+scala> for ((x, y) <- xs) yield x
+scala.MatchError: null
+	at $$anonfun$$1.apply(<console>:7)
+
+Scala 2.9.0:
+
+scala> val xs: List[(Int, Int)] = List((2, 2), null)
+xs: List[(Int, Int)] = List((2,2), null)
+
+scala> for ((x, y) <- xs) yield x
+res0: List[Int] = List(2)
+```

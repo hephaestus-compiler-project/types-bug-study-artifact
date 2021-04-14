@@ -1,0 +1,73 @@
+I get a crash in the type checker when asking for completions after the dot of a class that extends `Dynamic`.
+
+```scala
+import scala.language.dynamics
+
+class F extends Dynamic {
+  def applyDynamic(name: String)(args: Any*) =
+    s"method '$name' called with arguments ${args.mkString("'", "', '", "'")}"
+}
+
+class Foo {
+  val bar = new F
+  
+  bar. // ask for completion, with nothing after the dot
+}
+```
+
+stack trace:
+
+```scala
+java.lang.RuntimeException: bad position: [251:250]
+	at scala.sys.package$.error(package.scala:27)
+	at scala.reflect.internal.util.RangePosition.<init>(Position.scala:273)
+	at scala.reflect.internal.util.RangePosition.withStart(Position.scala:278)
+	at scala.reflect.internal.util.RangePosition.withStart(Position.scala:271)
+	at scala.tools.nsc.typechecker.Typers$Typer$dyna$.mkInvoke(Typers.scala:4063)
+	at scala.tools.nsc.typechecker.Typers$Typer.asDynamicCall$1(Typers.scala:4789)
+	at scala.tools.nsc.typechecker.Typers$Typer.handleMissing$1(Typers.scala:4817)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedSelect$1(Typers.scala:4846)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedSelectOrSuperCall$1(Typers.scala:4933)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5563)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5642)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:2928)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$61.apply(Typers.scala:3032)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$61.apply(Typers.scala:3032)
+	at scala.collection.immutable.List.loop$1(List.scala:170)
+	at scala.collection.immutable.List.mapConserve(List.scala:186)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3032)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1919)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedClassDef(Typers.scala:1759)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5583)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5642)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:2928)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$61.apply(Typers.scala:3032)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$61.apply(Typers.scala:3032)
+	at scala.collection.immutable.List.loop$1(List.scala:170)
+	at scala.collection.immutable.List.mapConserve(List.scala:186)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3032)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedPackageDef$1(Typers.scala:5301)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5587)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5642)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5704)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.apply(Analyzer.scala:99)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:464)
+	at scala.tools.nsc.interactive.Global$TyperRun$$anonfun$applyPhase$1.apply(Global.scala:1173)
+	at scala.tools.nsc.interactive.Global$TyperRun$$anonfun$applyPhase$1.apply(Global.scala:1173)
+	at scala.reflect.internal.SymbolTable.atPhase(SymbolTable.scala:207)
+	at scala.tools.nsc.interactive.Global$TyperRun.applyPhase(Global.scala:1173)
+	at scala.tools.nsc.interactive.Global$TyperRun.typeCheck(Global.scala:1166)
+	at scala.tools.nsc.interactive.Global.scala$tools$nsc$interactive$Global$$typeCheck(Global.scala:592)
+	at scala.tools.nsc.interactive.Global.scala$tools$nsc$interactive$Global$$typedTreeAt(Global.scala:741)
+	at scala.tools.nsc.interactive.Global.scala$tools$nsc$interactive$Global$$scopeMembers(Global.scala:952)
+	at scala.tools.nsc.interactive.Global$$anonfun$getScopeCompletion$2.apply(Global.scala:907)
+	at scala.tools.nsc.interactive.Global$$anonfun$getScopeCompletion$2.apply(Global.scala:907)
+	at scala.tools.nsc.interactive.Global$$anonfun$respond$1.apply(Global.scala:623)
+	at scala.tools.nsc.interactive.Global$$anonfun$respond$1.apply(Global.scala:623)
+	at scala.tools.nsc.interactive.Global.respondGradually(Global.scala:630)
+	at scala.tools.nsc.interactive.Global.respond(Global.scala:623)
+	at scala.tools.nsc.interactive.Global.getScopeCompletion(Global.scala:907)
+	at scala.tools.nsc.interactive.CompilerControl$AskScopeCompletionItem.apply$mcV$sp(CompilerControl.scala:378)
+	at scala.tools.nsc.interactive.Global.pollForWork(Global.scala:395)
+	at scala.tools.nsc.interactive.PresentationCompilerThread.run(PresentationCompilerThread.scala:22)
+```

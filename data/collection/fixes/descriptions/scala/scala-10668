@@ -1,0 +1,58 @@
+Possibly related: https://github.com/scala/bug/issues/10667
+
+This code should compile, but it does not:
+
+```
+Welcome to Scala 2.11.8 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_151).
+Type in expressions for evaluation. Or try :help.
+
+scala> :paste
+// Entering paste mode (ctrl-D to finish)
+
+case class BreakImpl(a: String)(b: String)(implicit c: String) {
+  def self: this.type  = this
+}
+
+object Test extends App {
+
+  val break = BreakImpl("")("")("")
+
+  break match {
+    case b@BreakImpl(s) => println(b)
+  }
+}
+
+// Exiting paste mode, now interpreting.
+
+<console>:20: error: could not find implicit value for parameter c: String
+           case b@BreakImpl(s) => println(b)
+                                          ^
+```
+
+You can work around it by calling `b.self` :
+
+```
+Welcome to Scala 2.11.8 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_151).
+Type in expressions for evaluation. Or try :help.
+
+scala> :paste
+// Entering paste mode (ctrl-D to finish)
+
+case class BreakImpl(a: String)(b: String)(implicit c: String) {
+  def self: this.type  = this
+}
+
+object Test extends App {
+
+  val break = BreakImpl("")("")("")
+
+  break match {
+    case b@BreakImpl(s) => println(b.self)
+  }
+}
+
+// Exiting paste mode, now interpreting.
+
+defined class BreakImpl
+defined object Test
+```

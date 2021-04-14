@@ -1,0 +1,91 @@
+FULL PRODUCT VERSION :
+[pawel@druid]~/jprogs/crazy$ /opt/java/jdk1.6.0_37/bin/java -version
+java version  " 1.6.0_37 " 
+Java(TM) SE Runtime Environment (build 1.6.0_37-b06)
+Java HotSpot(TM) Server VM (build 20.12-b01, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+Oracle Linux 6
+[pawel@druid]~/jprogs/crazy$ uname -a
+Linux druid.goldspot.lan 2.6.39-200.34.1.el6uek.x86_64 #1 SMP Thu Oct 18 17:00:17 PDT 2012 x86_64 x86_64 x86_64 GNU/Linux
+
+
+A DESCRIPTION OF THE PROBLEM :
+Compiler improperly determines method signature when loading class files, if generics are used for inner classes.
+
+I can't say that I know exactly what breaks, but the source code in the  " SOURCE CODE "  section gives a sufficient test case.
+
+A class has a method with signature   'void doSomething(Inner1.Inner2 arg)', which is used from a class that extends the first class. However, compiler treats the signature as 'void soSomething(Inner2 arg)' instead.
+
+Note, that this *only* happens when compiler loads existing classes, and does not happen when compiler has all classes as sources to compile from.
+
+This works:
+[pawel@druid]~/jprogs/crazy$ /opt/java/jdk1.6.0_37/bin/javac -verbose p[123]/*.java
+
+This results in an error:
+[pawel@druid]~/jprogs/crazy$ find . -name \*.class | xargs rm
+[pawel@druid]~/jprogs/crazy$ for i in 1 2 3 ; do /opt/java/jdk1.6.0_37/bin/javac -cp . p$i/*.java ; done
+p3/High.java:7: doSomething(p2.QueueRunner<p3.High.MyItem>.Element) in p2.QueueRunner<p3.High.MyItem> cannot be applied to (p2.QueueRunner<p3.High.MyItem>.MyDLL.Element)
+            doSomething(item);
+            ^
+1 error
+
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Compilation should be successful in both cases
+ACTUAL -
+Compilation is not successful when used classes are loaded from .class files
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+[pawel@druid]~/jprogs/crazy$ /opt/java/jdk1.6.0_37/bin/javac -cp . p3/High.java
+p3/High.java:13: doSomething(p2.QueueRunner<p3.High.MyItem>.Element) in p2.QueueRunner<p3.High.MyItem> cannot be applied to (p2.QueueRunner<p3.High.MyItem>.MyDLL.Element)
+            doSomething(item);
+            ^
+1 error
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+
+Source code is spread across 3 package directories: p1, p2 and p3.
+
+[pawel@druid]~/jprogs/crazy$ cat p1/DLL.java
+package p1;
+public class DLL<T> {
+    public class Element {
+        T object;
+    }
+}
+
+[pawel@druid]~/jprogs/crazy$ cat p2/QueueRunner.java
+package p2;
+import p1.*;
+public abstract class QueueRunner<T> {
+    protected void doSomething(MyDLL.Element e) {}
+    public class MyDLL extends DLL<T> {
+        public class Element extends DLL<T>.Element {}
+    }
+}
+
+[pawel@druid]~/jprogs/crazy$ cat p3/High.java
+package p3;
+import p2.*;
+public class High {
+    static class MyItem {}
+    static class EQueue extends QueueRunner<MyItem> {
+        private void myMethod(MyDLL.Element item) {
+            doSomething(item);
+        }
+    }
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+all involved classes must be compiled in a single javac execution.
+This workaround is not easy to implement in modular applications.

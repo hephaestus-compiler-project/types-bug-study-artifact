@@ -1,0 +1,34 @@
+## reproduction steps
+
+using Scala 2.12.10, 2.13.3, 2.13.4,
+
+```scala
+sealed trait PathAndQuery 
+sealed trait Path extends PathAndQuery
+sealed trait Query extends PathAndQuery
+
+object PathAndQuery {
+  case object Root extends Path
+  case class /(prev: Path, value: String) extends Path
+  case class ===(k: String, v: String) extends Query
+  case class :&(prev: Query, next:(===)) extends Query
+  case class +?(path: Path, next:(===)) extends Query
+}
+
+import PathAndQuery._
+
+val path = /(/(Root, "page"), "1")
+val q1 = ===("k1", "v1")
+val q2 = ===("k2", "v2")
+val pq = :&(+?(path, q1), q2)
+
+(pq: PathAndQuery) match {
+  case Root / "page" / "1" => println("match 1")
+  case Root / "page" / "1" +? ("k1" === "v1") => println("match 2")
+  case Root / "page" / "1" +? ("k1" === "v1") :& ("k2" === "v2") => println("match 3")
+}
+```
+
+## problem
+
+It compiles from few minutes to infinite. I understand that problem related to exhaustiveness check and I see warning about it, but I sure it should not hang the compiler.

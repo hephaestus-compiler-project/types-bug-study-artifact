@@ -1,0 +1,37 @@
+GI intend to conquer the pattern matcher this time.  Have to do some ticketizing.
+
+The following test case reveals multiple significant issues with equality, including calling equals when it's supposed to be using reference equality, and considering a stable identifier `foo` to be unreachable on the basis that _: foo.type had not matched.  (It can actually learn nothing, because the one should be reference equality and the other should be a call to equals.)
+
+```scala
+object Test {
+  val bippy    = new Symbol("bippy")
+  val imposter = new Symbol("bippy")
+  val notBippy = new Symbol("not-bippy")
+  val syms = List(bippy, imposter, notBippy)
+
+  class Symbol(val name: String) {
+    override def equals(other: Any) = other match {
+      case x: Symbol  => name == x.name
+      case _          => false
+    }
+    override def toString = name
+  }
+
+  def f(s: Symbol) = s match {
+    case _: bippy.type  => true
+    case _              => false
+  }
+  def g(s: Symbol) = s match {
+    case _: bippy.type => 1
+    case `bippy`       => 2
+    case _             => 3
+  }
+  
+  def main(args: Array[String]): Unit = {
+    // should be: true false false
+    syms map f foreach println
+    // should be: 1 2 3
+    syms map g foreach println
+  }
+}
+```

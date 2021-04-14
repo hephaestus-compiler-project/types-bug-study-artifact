@@ -1,0 +1,45 @@
+When an invocation of the form Outer.super.m() refers to a protected method in an indirect superclass, the compiler generates an access bridge method.  But the generated invokespecial in this method's body incorrectly qualifies the reference with the indirect superclass, not the direct superclass.
+
+Test:
+
+---
+package p1;
+/* package-access */ class A {
+  protected void m() {}
+}
+---
+package p1;
+public class B extends A {}
+---
+package p2;
+public class C extends p1.B {
+  { new Object() { { C.super.m(); } }; }
+}
+---
+public class Test {
+  public static void main(String... args) { new p2.C(); }
+}
+---
+
+Compiles without error, as expected.
+
+Expected runtime behavior: run without error
+
+Actual runtime behavior:
+Exception in thread "main" java.lang.IllegalAccessError: tried to access class p1.A from class p2.C
+	at p2.C.access$001(C.java:2)
+	at p2.C$1.<init>(C.java:3)
+	at p2.C.<init>(C.java:3)
+	at Test.main(Test.java:2)
+
+javap output for p2.C.access$001
+  static void access$001(p2.C);
+    descriptor: (Lp2/C;)V
+    flags: ACC_STATIC, ACC_SYNTHETIC
+    Code:
+      stack=1, locals=1, args_size=1
+         0: aload_0       
+         1: invokespecial #1                  // Method p1/A.m:()V
+         4: return        
+
+The invokespecial should refer to p1/B.m:()V.

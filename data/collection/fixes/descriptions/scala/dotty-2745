@@ -1,0 +1,33 @@
+The following does not compile:
+
+```scala
+object Test {
+  type Result[A] = Errors | A
+  final case class Errors(msgs: Seq[String])
+
+  implicit class RichRes[A](val res: Result[A]) extends AnyVal {
+    def map[B](f: A => B): Result[B] = res match {
+      case xs: Errors => xs
+      case a: A => f(a)
+    }
+  }
+
+  val foo: Result[String] = ???
+  def f(str: String): Int = ???
+
+  foo.map(f(_)) // error
+}
+```
+
+```
+[error] -- [E007] Type Mismatch Error: /Users/fixel/Projects/dotty/repl/src/dotty/tools/repl/Repl.scala:67:13
+[error] 67 |    x1.map(f(_))
+[error]    |             ^
+[error]    |found:    (dotty.tools.repl.results.Errors | dotty.tools.repl.ReplTyper.Success)(_$1)
+[error]    |required: dotty.tools.repl.ReplTyper.Success
+[error]    |
+[error] one error found
+[error] (dotty-repl/compile:compileIncremental) Compilation failed
+```
+
+ping @odersky 

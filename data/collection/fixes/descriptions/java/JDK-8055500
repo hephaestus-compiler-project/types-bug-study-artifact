@@ -1,0 +1,25 @@
+The fix for 8030046, is incorrect and the problem is two fold.
+
+wrt. http://hg.openjdk.java.net/jdk9/dev/langtools/rev/e6e9f1b096c8
+
+On Windows toURI().resolve will fail with:
+[STDOUT]:
+java.lang.IllegalArgumentException: Illegal character in opaque part at index 2: C:\cygwin\BLAH\scratch\jars\test.jar
+
+The IAE unfortunately  is swallowed, as follows:
++                try {
++                    File f = parent == null ? new File(elt): new File(file.toURI().resolve(elt));
++                    list.add(f);
++                } catch (IllegalArgumentException ex) {}
+
+So thus the jar will never be added to the classpath on Windows, because of the
+drive specifier "c:".
+
+Secondly the test is flawed, in the original changeset:
+The path name to the jar created in line 2.55 is never added to the args, thus
+the test never worked on any platform, and this was masked because only 
+"-cp ." was used.
+
+The issue was unmasked by the fix for JDK-8050429, now the test seems to be
+working correctly but fails on Windows.
+

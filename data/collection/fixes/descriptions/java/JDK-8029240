@@ -1,0 +1,62 @@
+Consider an interface available to pre-8 programs that changes an abstract method to a default method, and adds another default method:
+
+interface I { void m(); }
+// becomes
+interface I {
+  default void m() {}
+  default void n() {}
+}
+
+(The method n is just for illustration -- there's no way to tell the difference between an old method that was converted to a default method and a fresh default method.)
+
+Also consider three subtypes of I:
+interface J extends I {}
+abstract class A implements I {}
+class B implements I {}
+
+javac should be able to cleanly handle the following scenarios:
+
+1) Legacy implementations of I, J, A, and B still compile under -source 7 and don't need to implement I.n
+
+class C1 implements I { @Override public void m() {} }
+// Expected: success
+// Actual: success
+
+class C2 implements J { @Override public void m() {} }
+// Expected: success
+// Actual: success
+
+class C3 extends A { @Override public void m() {} }
+// Expected: success
+// Actual: success
+
+class C4 extends B { @Override public void m() {} }
+// Expected: success
+// Actual: success
+
+2) Legacy invocations of m via I, J, A, and B still compile under -source 7
+
+class Test {
+  public static void test(I i, J j, A a, B b) {
+    i.m();
+    j.m();
+    a.m();
+    b.m();
+  }
+}
+// Expected: success
+// Actual: error -- B does not have an m method
+
+3) Super invocations of m via A and B compile under -source 7:
+
+class SubA extends A {
+  public void test() { super.m(); }
+}
+// Expected: success
+// Actual: success
+
+class SubB extends B {
+  public void test() { super.m(); }
+}
+// Expected: success
+// Actual: error -- B does not have an m method

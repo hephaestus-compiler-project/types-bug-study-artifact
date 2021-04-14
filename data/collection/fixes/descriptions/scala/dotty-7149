@@ -1,0 +1,30 @@
+We're seeing some type inference issues in trying to compile ZIO against the latest version of Dotty that don't entirely make sense to me. See compilation errors [here](https://circleci.com/gh/zio/zio/20852?utm_campaign=vcs-integration-link&utm_medium=referral&utm_source=github-build-link). It appears that two of the issues can be minimized to the following:
+
+```scala
+trait ZIO[-R, +E, +A] { self =>
+
+  final def +++[R1, B, E1 >: E](that: ZIO[R1, E1, B]): ZIO[Either[R, R1], E1, Either[A, B]] =
+    for {
+      e <- ZIO.environment[Either[R, R1]]
+      r <- e.fold(self.map(Left(_)) provide _, that.map(Right(_)) provide _)
+    } yield r
+    // Found:    (Left[A, Any] | Right[Any, B])(r)
+    // Required: Either[A, B]
+
+  def flatMap[R1 <: R, E1 >: E, B](f: A => ZIO[R1, E1, B]): ZIO[R1, E1, B] = ???
+
+  def map[B](f: A => B): ZIO[R, E, B] = ???
+
+  def provide[R](R: R): ZIO[Any, E, A] = ???
+}
+
+object ZIO {
+  def environment[R]: ZIO[R, Nothing, R] = ???
+}
+```
+
+The other two also relate to types being inferred as `Any` and are [here](https://github.com/zio/zio/blob/4b98cbe47a729c1f1b0e4730e9f009c3c33b7f43/core/shared/src/main/scala/zio/Semaphore.scala#L54) and [here](https://github.com/zio/zio/blob/997d14d87a97a43144d24ae1350f8af64e65df02/core/jvm/src/main/scala/zio/blocking/Blocking.scala#L124).
+
+When you have the chance could you please advise whether there is an issue here or something we need to be doing differently? Thanks!
+
+Copying @jdegoes.

@@ -1,0 +1,66 @@
+ADDITIONAL SYSTEM INFORMATION :
+openjdk version "11" 2018-09-25
+OpenJDK Runtime Environment 18.9 (build 11+28)
+OpenJDK 64-Bit Server VM 18.9 (build 11+28, mixed mode)
+
+Reproduced both on Linux and MacOSX
+
+A DESCRIPTION OF THE PROBLEM :
+Existing code mocking a method with a generic throws declaration using mockito does not compile with the JDK11 Javac.
+
+For a full repro and travis ci build logs, see: https://github.com/danielnorberg/jdk11-behavior-change-repro
+
+REGRESSION : Last worked in version 10.0.2
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile the attached source code with JDK 11 Javac.
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+The code successfully compiles.
+ACTUAL -
+Compilation fails with "unreported exception java.lang.Exception; must be caught or declared to be thrown".
+
+---------- BEGIN SOURCE ----------
+import java.io.IOException;
+
+public class Repro {
+
+  /**
+   * Compiles on JDK 8, 9 and 10 but fails to compile on JDK 11:
+   *
+   *   unreported exception java.lang.Exception; must be caught or declared to be thrown
+   */
+  void repro() throws IOException {
+    when(f(any()));
+
+    // The below code compiles on JDK 11. Perhaps when() wrapping the call to f(any()) breaks type inference?
+    // var v = f(any());
+    // when(v);
+  }
+
+  interface G<T, E extends Exception> { }
+
+  <T, E extends Exception> T f(G<T, E> g) throws IOException, E {
+    return null;
+  }
+
+  static <T> T any() {
+    return null;
+  }
+
+  static <T> void when(T methodCall) {
+  }
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Rewriting the code as below makes it compile:
+
+var v = f(any());
+when(v);
+
+FREQUENCY : always
+
+

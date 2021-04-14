@@ -1,0 +1,69 @@
+```
+// FILE: common.kt
+
+package test
+
+expect enum class E
+```
+```
+// FILE: jvm.kt
+
+package test
+
+actual typealias E = F
+
+enum class F
+```
+```
+// FILE: jvm2.kt
+
+import test.E.*
+
+fun foo() {
+}
+```
+
+Compile `jvm2.kt` against the result of compilation of `common.kt`+`jvm.kt`:
+
+```
+exception: java.lang.ClassCastException: org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedTypeAliasDescriptor cannot be cast to org.jetbrains.kotlin.descriptors.PackageViewDescriptor
+	at org.jetbrains.kotlin.resolve.AllUnderImportScope.<init>(AllUnderImportScope.kt:41)
+	at org.jetbrains.kotlin.resolve.QualifiedExpressionResolver.processImportReference(QualifiedExpressionResolver.kt:246)
+	at org.jetbrains.kotlin.resolve.lazy.LazyImportResolver$$special$$inlined$with$lambda$1.invoke(LazyImportScope.kt:96)
+	at org.jetbrains.kotlin.resolve.lazy.LazyImportResolver$$special$$inlined$with$lambda$1.invoke(LazyImportScope.kt:87)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$MapBasedMemoizedFunction.invoke(LockBasedStorageManager.java:440)
+	at org.jetbrains.kotlin.resolve.lazy.LazyImportResolver.getImportScope(LazyImportScope.kt:114)
+	at org.jetbrains.kotlin.resolve.lazy.LazyImportResolverForKtImportDirective$forceResolveImportDirective$1.invoke(LazyImportScope.kt:142)
+	at org.jetbrains.kotlin.resolve.lazy.LazyImportResolverForKtImportDirective$forceResolveImportDirective$1.invoke(LazyImportScope.kt:131)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$MapBasedMemoizedFunction.invoke(LockBasedStorageManager.java:440)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$MapBasedMemoizedFunctionToNotNull.invoke(LockBasedStorageManager.java:515)
+	at org.jetbrains.kotlin.resolve.lazy.LazyImportResolverForKtImportDirective.forceResolveImport(LazyImportScope.kt:203)
+	at org.jetbrains.kotlin.resolve.lazy.LazyImportResolverForKtImportDirective$forceResolveNonDefaultImportsTask$1.invoke(LazyImportScope.kt:156)
+	at org.jetbrains.kotlin.resolve.lazy.LazyImportResolverForKtImportDirective$forceResolveNonDefaultImportsTask$1.invoke(LazyImportScope.kt:131)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedLazyValue.invoke(LockBasedStorageManager.java:346)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedNotNullLazyValue.invoke(LockBasedStorageManager.java:402)
+	at org.jetbrains.kotlin.resolve.lazy.LazyImportResolverForKtImportDirective.forceResolveNonDefaultImports(LazyImportScope.kt:186)
+	at org.jetbrains.kotlin.resolve.lazy.FileScopeFactory$FilesScopesBuilder$importResolver$1.forceResolveNonDefaultImports(FileScopeFactory.kt:166)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.resolveImportsInFile(LazyTopDownAnalyzer.kt:250)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.resolveImportsInAllFiles(LazyTopDownAnalyzer.kt:245)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations(LazyTopDownAnalyzer.kt:227)
+	at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations$default(LazyTopDownAnalyzer.kt:60)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(TopDownAnalyzerFacadeForJVM.kt:110)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration$default(TopDownAnalyzerFacadeForJVM.kt:80)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$analyze$1.invoke(KotlinToJVMBytecodeCompiler.kt:395)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$analyze$1.invoke(KotlinToJVMBytecodeCompiler.kt:65)
+	at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.kt:107)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.kt:386)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt:118)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:161)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:56)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:84)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:42)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:103)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:81)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:49)
+	at org.jetbrains.kotlin.cli.common.CLITool$Companion.doMainNoExit(CLITool.kt:214)
+	at org.jetbrains.kotlin.cli.common.CLITool$Companion.doMain(CLITool.kt:206)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler$Companion.main(K2JVMCompiler.kt:289)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.main(K2JVMCompiler.kt)
+```

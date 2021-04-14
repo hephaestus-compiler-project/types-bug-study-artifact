@@ -1,0 +1,29 @@
+Still not sure whose fault is it, either javac creates invalid bootstrap methods or this is runtime problem. Feel free to forward it to appropriate area.
+
+Minimized testcase: 
+
+interface SAM<T> {
+    T get();
+}
+
+public class Test {
+    public static void main(String[] args) {
+        SAM<SAM> sam = () -> Object::new;
+        SAM temp = sam.get()::get;
+    }
+}
+
+Exception in thread "main" java.lang.BootstrapMethodError: call site initialization exception
+	at java.lang.invoke.CallSite.makeSite(CallSite.java:298)
+	at java.lang.invoke.MethodHandleNatives.linkCallSite(MethodHandleNatives.java:294)
+	at Test.main(Test.java:8)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:491)
+	at com.intellij.rt.execution.application.AppMain.main(AppMain.java:120)
+Caused by: java.lang.invoke.LambdaConversionException: Invalid receiver type class java.lang.Object; not a subtype of implementation type interface SAM
+	at java.lang.invoke.AbstractValidatingLambdaMetafactory.validateMetafactoryArgs(AbstractValidatingLambdaMetafactory.java:225)
+	at java.lang.invoke.LambdaMetafactory.metafactory(LambdaMetafactory.java:214)
+	at java.lang.invoke.CallSite.makeSite(CallSite.java:283)
+	... 7 more

@@ -1,0 +1,72 @@
+I can't quite narrow down the exact cause of this.
+
+This fails:
+
+{code}
+// Note: this interface must be in different script because of GROOVY-6670
+interface Converter<F, T> {
+  T convert(F from)
+}
+
+class Holder<T> {
+  T thing
+
+  Holder(T thing) {
+    this.thing = thing
+  }
+
+  def <R> Holder<R> convert(Converter<? super T, ? extends R> func1) {
+    new Holder(func1.convert(thing))
+  }
+}
+
+@CompileStatic
+void m() {
+  new Holder<Integer>(2).convert {
+    it
+  } convert {
+    it.floatValue() // fails, doesn't know 'it' is an Integer
+  }
+}
+
+m()
+{code}
+
+However, this works and I can't work out what the difference is.
+
+{code}
+interface Action<T> {
+  void execute(T thing)
+}
+
+class Thing<T> {
+  T thing
+  Thing(T thing) {
+    this.thing = thing
+  }
+  
+  void doWith(Action<? super T> action) {
+    action.execute(thing)
+  }
+}
+
+
+class Container {
+  @groovy.transform.CompileStatic 
+  static m() {
+    makeThing("a") doWith { println it.toUpperCase() } // works
+    makeThingFromCallable { "a" } doWith { println it.toUpperCase() } // works
+  }
+  
+  static <T> Thing<? extends T> makeThing(T thing) {
+    new Thing<T>(thing)
+  }
+  
+  static <T> Thing<? extends T> makeThingFromCallable(java.util.concurrent.Callable<T> thing) {
+    new Thing<T>(thing.call())
+  }
+  
+}
+
+Container.m()
+{code}

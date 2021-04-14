@@ -1,0 +1,95 @@
+ADDITIONAL SYSTEM INFORMATION :
+macOS
+
+A DESCRIPTION OF THE PROBLEM :
+The Elasticsearch server codebase is failing to compile, the compiler is failing with
+
+java.lang.NullPointerException
+        at jdk.compiler/com.sun.tools.javac.code.Symbol$ClassSymbol.isSubClass(Symbol.java:1365)
+
+in the compiler on a source file that compiles fine in JDK 13.0.2. The source file that is failing is server/src/main/java/org/elasticsearch/search/suggest/phrase/PhraseSuggestion.java. The failure is happening on line 126. Switching to a lambda expression works around the issue.
+
+
+REGRESSION : Last worked in version 13.0.2
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+git clone https://github.com/elastic/elasticsearch.git && cd elasticsearch && git checkout db572afda8cbead464e1bb1f08a028d4201e464d && JAVA_HOME=<path to JDK 14> ./gradlew :server:compileJava
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Compilation should succeed
+ACTUAL -
+Build fails with
+
+java.lang.NullPointerException
+        at jdk.compiler/com.sun.tools.javac.code.Symbol$ClassSymbol.isSubClass(Symbol.java:1365)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.accessClass(Lower.java:1089)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.accessSymbol(Lower.java:960)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.access(Lower.java:1205)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.visitSelect(Lower.java:3928)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCFieldAccess.accept(JCTree.java:2276)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.translate(Lower.java:2081)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.visitApply(Lower.java:3016)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1736)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.translate(Lower.java:2081)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.visitExec(TreeTranslator.java:256)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1523)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.translate(Lower.java:2081)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:70)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.visitBlock(TreeTranslator.java:167)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.visitBlock(Lower.java:3539)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:1038)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.translate(Lower.java:2081)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.visitMethodDef(TreeTranslator.java:150)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.visitMethodDefInternal(Lower.java:2721)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.visitMethodDef(Lower.java:2633)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:884)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.translate(Lower.java:2081)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.visitClassDef(Lower.java:2223)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:786)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.translate(Lower.java:2081)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.visitClassDef(Lower.java:2223)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:786)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.translate(Lower.java:2081)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.translate(Lower.java:2100)
+        at jdk.compiler/com.sun.tools.javac.comp.Lower.translateTopLevelClass(Lower.java:4005)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1590)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1437)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:972)
+        at jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl.lambda$doCall$0(JavacTaskImpl.java:104)
+        at jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl.handleExceptions(JavacTaskImpl.java:147)
+        at jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl.doCall(JavacTaskImpl.java:100)
+        at jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl.call(JavacTaskImpl.java:94)
+
+---------- BEGIN SOURCE ----------
+server/src/main/java/org/elasticsearch/search/suggest/phrase/PhraseSuggestion.java@ db572afda8cbead464e1bb1f08a028d4201e464d, line 126
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+The following diff *works around* the issue:
+
+diff --git a/server/src/main/java/org/elasticsearch/search/suggest/phrase/PhraseSuggestion.java b/server/src/main/java/org/elasticsearch/search/suggest/phrase/PhraseSuggestion.java
+index fe7c03b11b1..ae23313ebd1 100644
+--- a/server/src/main/java/org/elasticsearch/search/suggest/phrase/PhraseSuggestion.java
++++ b/server/src/main/java/org/elasticsearch/search/suggest/phrase/PhraseSuggestion.java
+@@ -123,7 +123,7 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
+         private static final ObjectParser<Entry, Void> PARSER = new ObjectParser<>("PhraseSuggestionEntryParser", true, Entry::new);
+         static {
+             declareCommonFields(PARSER);
+-            PARSER.declareObjectArray(Entry::addOptions, (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
++            PARSER.declareObjectArray((entry, options) -> entry.addOptions(options), (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
+         }
+ 
+         public static Entry fromXContent(XContentParser parser) {
+
+
+FREQUENCY : always
+
+

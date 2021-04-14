@@ -1,0 +1,57 @@
+scalac can compile but dotc crashes.
+
+$ dotc -version
+```
+Dotty compiler version 0.5.0-bin-SNAPSHOT-git-4fefb64 -- Copyright 2002-2017, LAMP/EPFL
+```
+
+$ dotc abc.scala
+```
+-- [E080] Syntax Error: abc.scala:10:5 -----------------------------------------
+10 |    @f.varargs
+   |     ^
+   | missing parameter type for parameter values, expected = ?{ varargs: ? }
+
+longer explanation available when compiling with `-explain`
+
+exception occurred while typechecking abc.scala
+
+exception occurred while compiling abc.scala
+Exception in thread "main" java.lang.AssertionError: assertion failed
+	at dotty.DottyPredef$.assertFail(DottyPredef.scala:38)
+	at dotty.tools.dotc.core.Types$CachedTermRef.<init>(Types.scala:2014)
+	at dotty.tools.dotc.core.Uniques$NamedTypeUniques.newType$1(Uniques.scala:60)
+	at dotty.tools.dotc.core.Uniques$NamedTypeUniques.enterIfNew(Uniques.scala:66)
+	at dotty.tools.dotc.core.Types$TermRef$.apply(Types.scala:2046)
+	at dotty.tools.dotc.core.Types$TermRef.withPrefix(Types.scala:1998)
+	at dotty.tools.dotc.core.Types$NamedType.derivedSelect(Types.scala:1915)
+	at dotty.tools.dotc.ast.TreeTypeMap$$anon$1.apply(TreeTypeMap.scala:56)
+	at dotty.tools.dotc.ast.TreeTypeMap.mapType(TreeTypeMap.scala:62)
+	at dotty.tools.dotc.ast.TreeTypeMap.transform(TreeTypeMap.scala:89)
+	at dotty.tools.dotc.ast.TreeTypeMap.apply(TreeTypeMap.scala:140)
+	at dotty.tools.dotc.ast.tpd$TreeOps$.loop$1(tpd.scala:650)
+	at dotty.tools.dotc.ast.tpd$TreeOps$.changeOwner$extension(tpd.scala:653)
+	at dotty.tools.dotc.typer.Typer.typedTypedSplice(Typer.scala:1549)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1674)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1690)
+	at dotty.tools.dotc.typer.Typer.op$40(Typer.scala:1707)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1703)
+<snipped>
+```
+
+$ cat abc.scala
+```
+class C1 {
+  @annotation.varargs
+  def f(values: String*) = ()
+}
+class C2 {
+  @scala.annotation.varargs
+  def f(values: String*) = ()
+  def g: String => Int = s => hashCode
+  class C3 {
+    @f.varargs
+    def f(values: String) = ()
+  }
+}
+```

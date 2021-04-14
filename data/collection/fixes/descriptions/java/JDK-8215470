@@ -1,0 +1,69 @@
+ADDITIONAL SYSTEM INFORMATION :
+Any OpenJDK version 1.8 onward, any platform.  Tested and verified on 1.8.0_60-b27 and 18.9 (build 11+28) on Windows 7.
+
+A DESCRIPTION OF THE PROBLEM :
+If an anonymous or local inner class is declared inside of a lambda, the `EnclosingMethod` attribute on that class refers to the compiler-generated "lambda$" method rather than the method that enclosed the original declaration.
+
+This is a violation of JVMS ÃÂ§4.7.7 ("The EnclosingMethod Attribute"):
+
+> It is the responsibility of a Java compiler to ensure that the method identified via the `method_index` is indeed the closest **lexically enclosing** method of the class that contains this `EnclosingMethod` attribute.
+
+Emphasis mine.  Currently, if the class containing an `EnclosingMethod` attribute was declared within a lambda expression, the attribute refers to a method that never existed in the lexical scope.
+
+A particularly vexing side effect of this occurs when the generic signature of a lambda-embedded inner type contains type variables declared by the lexically enclosing method.  Those type variables will be out of scope from the perspective of the method identified by the `EnclosingMethod` attribute.  Consequently, the `java.lang.reflect` APIs cannot resolve them.
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Run attached "source code for an executable test case".  Note the output.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Output should be:
+
+[class LambdaBug$1] EnclosingClass=class LambdaBug; EnclosingMethod=static void LambdaBug.immediateScope()
+[class LambdaBug$1ExplicitToken] EnclosingClass=class LambdaBug; EnclosingMethod=static void LambdaBug.immediateScope()
+[class LambdaBug$2] EnclosingClass=class LambdaBug; EnclosingMethod=static void LambdaBug.lambdaScope()
+[class LambdaBug$2ExplicitToken] EnclosingClass=class LambdaBug; EnclosingMethod=static void LambdaBug.lambdaScope()
+
+ACTUAL -
+Output is actually:
+
+[class LambdaBug$1] EnclosingClass=class LambdaBug; EnclosingMethod=static void LambdaBug.immediateScope()
+[class LambdaBug$1ExplicitToken] EnclosingClass=class LambdaBug; EnclosingMethod=static void LambdaBug.immediateScope()
+[class LambdaBug$2] EnclosingClass=class LambdaBug; EnclosingMethod=private static void LambdaBug.lambda$lambdaScope$0()
+[class LambdaBug$2ExplicitToken] EnclosingClass=class LambdaBug; EnclosingMethod=private static void LambdaBug.lambda$lambdaScope$0()
+
+
+---------- BEGIN SOURCE ----------
+class LambdaBug<T> {
+    protected LambdaBug() {
+        System.out.printf("[%s] EnclosingClass=%s; EnclosingMethod=%s%n",
+                         getClass(),
+                         getClass().getEnclosingClass(),
+                         getClass().getEnclosingMethod());
+    }
+
+    static <X> void immediateScope() {
+        class ExplicitToken extends LambdaBug<X> {}
+        new LambdaBug<X>() {};
+        new ExplicitToken();
+    }
+
+    static <X> void lambdaScope() {
+        Runnable r = () -> {
+            class ExplicitToken extends LambdaBug<X> {}
+            new LambdaBug<X>() {};
+            new ExplicitToken();
+        };
+        r.run();
+    }
+
+    public static void main(final String[] args) {
+        immediateScope();
+        lambdaScope();
+    }
+}
+---------- END SOURCE ----------
+
+FREQUENCY : always
+
+

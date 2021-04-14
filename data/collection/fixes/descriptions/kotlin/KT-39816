@@ -1,0 +1,36 @@
+Consider the following snippet:
+```File.kt
+package sandbox
+
+import kotlin.properties.ReadOnlyProperty
+import kotlin.reflect.KProperty
+
+
+class CaptureContext<A>(val capture: (A) -> Unit) : ReadOnlyProperty<A, () -> Unit> {
+    override fun getValue(thisRef: A, property: KProperty<*>) = { -> capture(thisRef) }
+}
+
+operator fun <A> ((A) -> Unit).provideDelegate(thisRef: A, property: KProperty<*>) = CaptureContext(this)
+
+fun wrong(arg: Wrong) {}
+class Wrong
+class Right { val prop: () -> Unit by ::wrong }
+
+fun main() { Right().prop() }
+```
+In 1.4-M2 this code compiles and crashes at runtime with the following exception:
+```text
+Exception in thread "main" java.lang.ClassCastException: sandbox.Right cannot be cast to sandbox.Wrong
+    at sandbox.Right$prop$2.invoke (File.kt:15) 
+    at sandbox.CaptureContext$getValue$1.invoke (File.kt:8) 
+    at sandbox.CaptureContext$getValue$1.invoke (File.kt:7) 
+```
+In 1.3.72 it used to refuse to compile for the following reason:
+```text
+Property delegate must have a 'provideDelegate(Right, KProperty<*>)' method.
+    None of the following functions is suitable:
+        public operator fun <A> ((???) -> Unit).provideDelegate(thisRef: ???, property: KProperty<*>): CaptureContext<???> defined in sandbox in file File.kt
+
+Type 'KFunction1<Wrong, Unit>' has no method 'getValue(Right, KProperty<*>)' and thus it cannot serve as a delegate
+```
+The 1.3.72 behavior was correct, so this is a regression.

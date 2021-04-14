@@ -1,0 +1,28 @@
+On [Gitter](https://gitter.im/lampepfl/dotty?at=5ae814b6dea1b95c10f276c0), @jiminhsieh reports that Dotty doesn't run on Eclipse OpenJ9 (because of its version of the standard library doesn't match in some internals ABI details), because Dotty outputs (for https://github.com/lampepfl/dotty/blob/0.7.0/compiler/src/dotty/tools/dotc/util/NameTransformer.scala#L98) a call to `java/lang/StringBuilder.append([CII)Ljava/lang/AbstractStringBuilder;` rather than `java/lang/StringBuilder.append:([CII)Ljava/lang/StringBuilder;`, which is what Scalac 2.12.5 produces.
+
+`AbstractStringBuilder` is a package-accessible class that isn't part of the specified Java standard library, and `StringBuilder.append` is declared to return `StringBuilder` not `AbstractStringBuilder`; the signature that Scalac uses exists on the reference implementation, but just because that implementation also defines `public AbstractStringBuilder.append(...): AbstractStringBuilder` which is inherited by `StringBuffer`.
+
+## Minimization
+
+That can be verified by compiling this code on a standard JDK (I'm using Oracle JDK 1.8.0_162) and calling `javap -c *.class` on the result:
+```scala
+object Foo {
+  def main() = {
+    (new java.lang.StringBuilder()).append(Array[Char](), 0, 0)
+  }
+}
+```
+
+## Analysis and blame
+
+Is Dotty or OpenJ9's library at fault?
+
+Scalac's result would work here, and JLS overload resolution would forbid emitting that call from Java, because [§15.12.2](https://docs.oracle.com/javase/specs/jls/se10/html/jls-15.html#jls-15.12.2) says
+> This step uses the name of the method and the argument expressions to locate methods that are both accessible and applicable, that is, declarations that can be correctly invoked on the given arguments.
+
+and accessibility of a method is defined in [§6.6.1](https://docs.oracle.com/javase/specs/jls/se10/html/jls-6.html#jls-6.6.1) and requires the defining class to be accessible too:
+> A member (class, interface, field, or method) of a reference type, or a constructor of a class type, is accessible only if the type is accessible and the member or constructor is declared to permit access:
+
+OTOH, it's not clear from [the JLS binary compatibility spec](https://docs.oracle.com/javase/specs/jls/se10/html/jls-13.html#jls-13.2) that the OpenJ9 definition of `AbstractStringBuilder` is binary compatible with the original one, but I think that might be because the definition isn't specific enough.
+
+EDIT: I meant `*StringBuilder` throughout.

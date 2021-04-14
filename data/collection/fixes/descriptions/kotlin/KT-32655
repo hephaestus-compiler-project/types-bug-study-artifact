@@ -1,0 +1,19 @@
+```kotkin
+package foo
+
+fun main() {
+    val pairs: List<Pair<String, Int>> = listOf(Pair("a", 1), Pair("a", 2), Pair("b", 1))
+    val agg: Map<String, Int> = pairs.groupingBy { it.first }
+        .aggregate { _, acc: Int?, element, first ->
+            if (first) element.second
+            else acc!! + element.second
+        }
+    println(agg.map { e -> Pair(e.key, e.value) }
+        .sortedBy { x -> -x.second })
+}
+```
+
+In the above code the IDEA Kotlin plugin version 1.3.41 (with new type inference enabled) infers `Map<String, Int>` for `agg`. But, the Kotlin compiler 1.3.41 infers `Map<String, Int?>`.
+The above code compiles with the error `Error:(5, 65) Kotlin: Type inference failed. Expected type mismatch: inferred type is Map<String, Int?> but Map<String, Int> was expected`
+
+I believe the plugin with the new type inference enabled is more correct as `Int` is more concise compared to `Int?` in this case.

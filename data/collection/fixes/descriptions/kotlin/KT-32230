@@ -1,0 +1,22 @@
+It is never able to solve the types when not explicit. IDE checks are fine and types are shown correctly, the compiler fails. Enabling the new inference algorithm on Gradle as well solves the issue.
+
+```kotlin
+Observable.combineLatest(
+        getUser.execute(GetUser.Params(false)), // <-- Observable<User>
+        searchQuery,                            // <-- BehaviorRelay<String> (https://github.com/JakeWharton/RxRelay)
+        selectedPlayer                          // <-- BehaviorRelay<String> (https://github.com/JakeWharton/RxRelay)
+) { user, query, selectedId ->                  // <-- Any of the arguments is solved O_O" (types: User, String, String)
+    Triple(user, query, selectedId)
+}
+```
+Here's the trace for this function:
+```text
+e: C:\Users\...\AndroidStudioProjects\...\app\src\main\java\com\...\ui\viewmodel\PlayerCardsViewModel.kt: (72, 20): Type inference failed: fun <T1 : Any!, T2 : Any!, T3 : Any!, R : Any!> combineLatest(p0: ObservableSource<out T1!>!, p1: ObservableSource<out T2!>!, p2: ObservableSource<out T3!>!, p3: io.reactivex.functions.Function3<in T1!, in T2!, in T3!, out R!>!): Observable<R!>!
+cannot be applied to
+(Observable<User>,BehaviorRelay<String!>,BehaviorRelay<String!>,(???, ???, ???) -> ???)
+
+e: C:\Users\...\AndroidStudioProjects\...\app\src\main\java\com\...\ui\viewmodel\PlayerCardsViewModel.kt: (76, 11): Type mismatch: inferred type is (???, ???, ???) -> ??? but io.reactivex.functions.Function3<in User!, in String!, in String!, out (???..???)>! was expected
+e: C:\Users\...\AndroidStudioProjects\...\app\src\main\java\com\...\ui\viewmodel\PlayerCardsViewModel.kt: (76, 13): Cannot infer a type for this parameter. Please specify it explicitly.
+e: C:\Users\...\AndroidStudioProjects\...\app\src\main\java\com\...\ui\viewmodel\PlayerCardsViewModel.kt: (76, 19): Cannot infer a type for this parameter. Please specify it explicitly.
+e: C:\Users\...\AndroidStudioProjects\...\app\src\main\java\com\...\ui\viewmodel\PlayerCardsViewModel.kt: (76, 26): Cannot infer a type for this parameter. Please specify it explicitly.
+```

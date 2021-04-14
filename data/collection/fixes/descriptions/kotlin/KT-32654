@@ -1,0 +1,22 @@
+If I have the following code:
+
+```
+override val animationProgressChannel: ReceiveChannel<Float> = resumeScope.produce {
+    lottieAnimation.addAnimatorUpdateListener { animation ->
+      resumeScope.launch {
+        channel.send(animation.animatedValue as Float)
+      }
+    }
+
+    awaitClose()
+  }
+```
+
+`channel`, and `awaitClose()` both get highlighted as a warning that says:
+
+> Non-applicable call for builder inference
+
+The warning goes away if I change it to `resumeScope.produce<Float> { ... }`, but then the `Remove explicit type arguments` inspection is triggered on the `produce<Flow>`.
+
+Kotlin 1.3.41
+Coroutines  1.3.0-M2

@@ -1,0 +1,45 @@
+For the explicit nulls project, we want to have an extension method that strips away nullability:
+```scala
+implicit class NN[T](x:T|Null) {
+  def nn: T = x.asInstanceOf[T]
+}
+```
+
+This works must of the time, but weirdly fails in the code below:
+```scala
+class Foo {
+  val x1: String|Null = null
+  x1.nn.length
+  val x2: String = x1.nn
+  x1.nn.length
+}
+
+-- [E008] Member Not Found Error: kk.scala:10:8 --------------------------------
+10 |  x1.nn.length
+   |  ^^^^^^^^^^^^
+   |  value length is not a member of T
+   |
+   |  where:    T is a type variable with constraint >: String
+one error found
+```
+Line 10 is the second `x1.nn.length`. However, both
+```scala
+class Foo {
+  val x1: String|Null = null
+  x1.nn.length
+  // val x2: String = x1.nn <---------- commented out
+  x1.nn.length
+}
+```
+ and
+```scala
+class Foo {
+  val x1: String|Null = null
+  x1.nn.length
+  val x2 = x1.nn // <---------- the type of `x2` is inferred
+  x1.nn.length
+}
+```
+typecheck fine.
+
+@liufengyun any hints about what could be going here? 

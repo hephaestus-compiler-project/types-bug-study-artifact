@@ -1,0 +1,67 @@
+FULL PRODUCT VERSION :
+java version "1.7.0-ea"
+Java(TM) SE Runtime Environment (build 1.7.0-ea-b86)
+Java HotSpot(TM) 64-Bit Server VM (build 17.0-b10, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Microsoft Windows [Version 6.1.7600]
+
+A DESCRIPTION OF THE PROBLEM :
+Code that compiles under Java 6 no longer compiles under the latest Java 7 release.
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile the test program.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+The program should compile.
+ACTUAL -
+Fails to compile.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+Test.java:17: type parameters of <T>T cannot be determined; no unique maximal instance exists for type variable T with upper bounds SpecialKey,K
+                        m_key = makeKey(m_key);
+                                       ^
+  where T,K are type-variables:
+    T extends K declared in method <K,T>makeKey(K)
+    K extends Key declared in method <K,T>makeKey(K)
+Note: Test.java uses unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+1 error
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+abstract class Key
+{
+}
+
+class SpecialKey extends Key
+{
+}
+
+public class Test
+{
+	private SpecialKey m_key;
+
+	public SpecialKey getKey()
+	{
+		if (m_key == null)
+		{
+			m_key = makeKey(m_key);
+		}
+
+		return m_key;
+	}
+
+	private static <K extends Key, T extends K> T makeKey(K pk)
+	{
+		return (T)new SpecialKey();
+	}
+}
+---------- END SOURCE ----------
+
+Release Regression From : 6
+The above release value was the last known release where this 
+bug was not reproducible. Since then there has been a regression.

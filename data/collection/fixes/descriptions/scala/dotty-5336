@@ -1,0 +1,38 @@
+```scala
+import scala.reflect.Selectable.reflectiveSelectable
+
+object O {
+
+  class A
+  class B
+
+  type X = {
+    def foo(x: A): Unit
+    def foo(x: B): Unit
+  }
+
+  def bar(x: X): Unit = x.foo(new A)
+}
+```
+
+`scalac` (after commenting out the import):
+```
+$ scalac Bar.scala       
+warning: there was one feature warning; re-run with -feature for details
+one warning found
+```
+
+`dotc`:
+```
+sbt:dotty> dotc Bar.scala
+-- Error: Bar.scala:13:26 ------------------------------------------------------
+13 |  def bar(x: X): Unit = x.foo(new A)                                        
+   |                        ^^^^^                                               
+   | none of the overloaded alternatives of method (x: O.A): Unit with types    
+   |  (x: O.A): Unit                                                            
+   |  (x: O.B): Unit                                                            
+   | match arguments (O.A)                                                      
+one error found                                                                 
+```
+
+The error goes away if we remove `def foo(x: B): Unit` from the structural type.

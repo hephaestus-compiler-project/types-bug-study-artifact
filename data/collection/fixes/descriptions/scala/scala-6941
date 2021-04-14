@@ -1,0 +1,83 @@
+The code for all constructor patterns suffers from two inefficiencies. First, there is an unnecessary null-check (note that isInstanceOf will succeed only if scrutinee is non-null). Second, unused fields are still copied into local variables, even if the variable is a wildcard.
+
+Consider this program
+```scala
+object Test {
+
+  def foo(xs: List[Int]) = xs match {
+    case x :: _ => x
+  }
+
+  def bar(xs: List[Int]) = xs match {
+    case xs: ::[Int] => xs.head
+  }
+}
+```
+
+The two methods should produce equally efficient code. Yet foo takes 48 bytes where bar only takes 34. I have not measured the performance impact of the additional 14 bytes. But in any case 34 vs 48 means that bar can be inlined whereas foo cannot.
+
+Here's the javap output I am seeing:
+```scala
+Compiled from "patmatcode.scala"
+public final class Test$ extends java.lang.Object{
+public static final Test$ MODULE$;
+
+public static {};
+  Code:
+   0:	new	#2; //class Test$
+   3:	invokespecial	#12; //Method "<init>":()V
+   6:	return
+
+public int foo(scala.collection.immutable.List);
+  Code:
+   0:	aload_1
+   1:	astore_2
+   2:	aload_2
+   3:	instanceof	#16; //class scala/collection/immutable/$colon$colon
+   6:	ifeq	40
+   9:	aload_2
+   10:	checkcast	#16; //class scala/collection/immutable/$colon$colon
+   13:	astore_3
+   14:	aload_3
+   15:	ifnull	40
+   18:	aload_3
+   19:	invokevirtual	#20; //Method scala/collection/immutable/$colon$colon.hd$1:()Ljava/lang/Object;
+   22:	invokestatic	#26; //Method scala/runtime/BoxesRunTime.unboxToInt:(Ljava/lang/Object;)I
+   25:	istore	4
+   27:	aload_3
+   28:	invokevirtual	#30; //Method scala/collection/immutable/$colon$colon.tl$1:()Lscala/collection/immutable/List;
+   31:	astore	5
+   33:	iload	4
+   35:	istore	6
+   37:	iload	6
+   39:	ireturn
+   40:	new	#32; //class scala/MatchError
+   43:	dup
+   44:	aload_2
+   45:	invokespecial	#35; //Method scala/MatchError."<init>":(Ljava/lang/Object;)V
+   48:	athrow
+
+public int bar(scala.collection.immutable.List);
+  Code:
+   0:	aload_1
+   1:	astore_2
+   2:	aload_2
+   3:	instanceof	#16; //class scala/collection/immutable/$colon$colon
+   6:	ifeq	26
+   9:	aload_2
+   10:	checkcast	#16; //class scala/collection/immutable/$colon$colon
+   13:	astore_3
+   14:	aload_3
+   15:	invokevirtual	#49; //Method scala/collection/immutable/$colon$colon.head:()Ljava/lang/Object;
+   18:	invokestatic	#26; //Method scala/runtime/BoxesRunTime.unboxToInt:(Ljava/lang/Object;)I
+   21:	istore	4
+   23:	iload	4
+   25:	ireturn
+   26:	new	#32; //class scala/MatchError
+   29:	dup
+   30:	aload_2
+   31:	invokespecial	#35; //Method scala/MatchError."<init>":(Ljava/lang/Object;)V
+   34:	athrow
+
+}
+```

@@ -1,0 +1,24 @@
+Building the following with Kotlin 1.3.41:
+
+```
+fun PsiElement.test(): Sequence<ItemPresentation> {
+    return children.asSequence().map { child ->
+        if (child is ItemPresentation && child.locationString != null)
+            child // as ItemPresentation
+        else
+            null
+    }.filterNotNull()
+}
+```
+
+the following error is reported:
+
+    Error:(192, 34) Kotlin: Type inference failed. Please try to specify type arguments explicitly.
+    Error:(192, 38) Kotlin: Type mismatch: inferred type is (PsiElement!) -> {ItemPresentation & PsiElement}? but (PsiElement!) -> Any was expected
+    Error:(197, 7) Kotlin: Type inference failed. Expected type mismatch: inferred type is Sequence<Any> but Sequence<ItemPresentation> was expected
+
+The IDE (IntelliJ IDEA 2019.1.3 (Ultimate Edition) ; Build #IU-191.7479.19, built on May 28, 2019 ; JRE: 1.8.0_202-release-1483-b58 amd64) with the same Kotlin version does not report an error with this file.
+
+Removing the comment so `child` becomes `child as ItemPresentation` results in a "No cast needed" warning in both the IDE and during compilation.
+
+If I change `ItemPresentation` to `NavigatablePsiElement` and `child.locationString` to `child.presentation` then the compilation succeeds with or without the cast.

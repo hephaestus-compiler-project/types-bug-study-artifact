@@ -1,0 +1,48 @@
+But with b115 I am getting a stack overflow error.  This seems to be
+because of problem with synthetic/bridge methods.
+
+    at gnu.expr.FindTailCalls.visitExpression(FindTailCalls.java:22)
+    at gnu.expr.ExpExpVisitor.visitExpression(ExpExpVisitor.java:8)
+    at gnu.expr.FindTailCalls.visitExpression(FindTailCalls.java:33)
+    at gnu.expr.FindTailCalls.visitExpression(FindTailCalls.java:22)
+
+There are 3 classes:
+
+abstract public class ExpVisitor<R,D> {
+  protected R visitExpression (Expression exp, D d) { stuff; }
+}
+Java 6 or Java 7 both generate:
+  Method#1 protected visitExpression (Expression,Object)Object [line 27-28]
+
+abstract class ExpExpVisitor<D> extends ExpVisitor<Expression,D> {
+}
+Java6 generates no methods.
+Java7 generates:
+  Method#2 protected bridge synthetic visitExpression (Expression,Object)Expression [line 8]
+    invokespecial ExpVisitor.visitExpression (Expression,Object)Object
+  Method#3 protected bridge synthetic visitExpression (Expression,Object)Object [line 8]
+    invokevirtual ExpExpVisitor.visitExpression (Expression,Object)Expression
+
+class FindTails extends ExpExpVisitor<Expression> {
+  protected Expression visitExpression (Expression exp, Expression returnContinuation) {
+      return super.visitExpression(exp, exp);
+  }
+}
+Java6 or Java7 both generate the natural:
+  Method#3 protected visitExpression (Expression,Expression)Expression [line 33]
+    invokespecial ExpExpVisitor.visitExpression (Expression,Object)Object
+    [In Java6, calls natural method ExpVisitor.visitExpression directly, as intended.]
+    [In Java 7, calls method#2 which calls method#5, which calls method#3.  Stack Overflow.]
+Java6 or Java 7 both generate this synthetic:
+  Method#4 protected bridge synthetic visitExpression (Expression,Object)Object [line 22]
+    invokevirtual FindTailCalls.visitExpression(Expression,Expression)Expression
+Java7 only generates this synthetic:
+  Method#5 protected bridge synthetic visitExpression (Expression,Object)Expression [line 22]
+    invokevirtual FindTailCalls.visitExpression (Expression,Expression)Expression
+
+Look at Method#3.  In Java6, calls natural method ExpVisitor.visitExpression directly,
+as intended.  In Java 7, method#3 calls method#2 which calls method#5, which calls method#3.
+Stack Overflow.
+
+Is this a known problem?  I'm guess one of you two know what changed and when.
+Build 107 seems to be OK.

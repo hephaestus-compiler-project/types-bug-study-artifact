@@ -1,0 +1,31 @@
+This works:
+```scala
+scala> import java.util.stream.Stream
+import java.util.stream.Stream
+
+scala> Stream.of(1,2,3).map(_ + 1)
+res20: java.util.stream.Stream[?0] = java.util.stream.ReferencePipeline$3@27014faf
+```
+
+But then, you'd think that this should work:
+
+```scala
+scala> Stream.of(1,2,3).map(_.toString)
+                              ^
+       error: type mismatch;
+        found   : Int => String
+        required: java.util.function.Function[_ >: Int, _]
+
+```
+
+It can be made to work only by including the map type param:
+```scala
+scala> Stream.of(1,2,3).map[String](_.toString)
+res22: java.util.stream.Stream[String] = java.util.stream.ReferencePipeline$3@7e7daeac
+```
+
+This would hopefully work because it does actually work in java:
+
+```java
+Stream.of(1,2,3).map(i -> i.toString());
+```

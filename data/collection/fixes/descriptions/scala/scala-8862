@@ -1,0 +1,48 @@
+This is like #8085, but constrained to a specific case.
+
+In one file:
+```scala
+package x
+
+class Oops
+
+abstract class ns2super[A] {
+  def x: A
+  implicit def oops: A = x
+  implicit def oopso: Option[A] = None
+}
+
+package object nodescala2 extends ns2super[Oops] {
+  override def x = new Oops
+}
+```
+
+In another file:
+
+```scala
+package x
+package nodescala2
+
+object Blah {
+  oops
+
+  oopso
+
+  implicitly[Oops]
+
+  implicitly[Option[Oops]]
+}
+```
+
+Both `oops` and `oopso` definitions are visible unqualified, but aren't found by implicit search.  Errors:
+
+```scala
+…\8085fil.scala:9: could not find implicit value for parameter e: x.Oops
+  implicitly[Oops]
+            ^
+…\8085fil.scala:11: could not find implicit value for parameter e: Option[x.Oops]
+  implicitly[Option[Oops]]
+            ^
+```
+
+Changing the declared types of `oops` and `oopso` to `Oops` and `Option[Oops&#x5d;`, respectively, and the RHS of the former to `new Oops`, results in a successful compile!

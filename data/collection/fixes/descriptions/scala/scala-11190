@@ -1,0 +1,47 @@
+Mixing two traits, which contain a `val` annotated with `@deprecated` and using `.stripMargin` on the message (i.e. `@deprecated(message = "a".stripMargin, since = "a 1.0") in a separate compilation, causes an erroneous "inherits conflicting members" error in 2.10
+
+```
+sbt:DeprecatedValueBug> it:compile 
+[info] Updating ... 
+[info] Done updating. 
+[info] Compiling 2 Scala sources to ....\DeprecatedValueBug\target\scala-2.10\classes ... 
+[info] Done compiling. 
+[info] Compiling 1 Scala source to ....\DeprecatedValueBug\target\scala-2.10\it-classes ... 
+[error] .....\DeprecatedValueBug\src\it\scala\Use.scala:1:7: class Use inherits conflicting members: [error] value x in trait A of type String and 
+[error] value x in trait B of type String 
+[error] (Note: this can be resolved by declaring an override in class Use.) 
+[error] class Use extends A with B { [error] ^ 
+[error] one error found 
+[error] (IntegrationTest / compileIncremental) Compilation failed 
+[error] Total time: 1 s, completed 01.10.2018 23:11:52
+```
+
+Neither of the traits contains value x.
+
+```
+trait A {
+  @deprecated(
+    """
+      |a
+    """.stripMargin, "DepecatedValueBug")
+  val a: String = "a"
+}
+```
+
+```
+trait B {
+  @deprecated(
+    """
+      |b
+      |"""".stripMargin, "DepecatedValueBug")
+  val b: String = "b"
+}
+```
+
+```
+class Use extends A with B {
+
+}
+```
+
+The error only occurs in Scala 2.10. https://github.com/DaniRey/DeprecatedValueBug contains the code needed to reproduce the issue.

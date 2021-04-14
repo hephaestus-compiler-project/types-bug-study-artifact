@@ -1,0 +1,24 @@
+The following code example leads to an "unspecified error":
+
+```scala
+trait A
+  
+def foo[E](f: (a: A) => (a.type, E)): E = {
+  val a = new A {}
+  f(a)._2
+}
+
+foo { a => (a, ()) }
+```
+It does type check when annotating the call to `foo`:
+```scala
+foo[Unit] { a => (a, ()) }
+```
+
+Also, removing the dependent function type from `foo` does typecheck:
+
+```scala
+def foo[E](f: (a: A) => (A, E)): E 
+```
+
+This might be related to #4130, but extracted to a separate issue since it might be fixable, independently.

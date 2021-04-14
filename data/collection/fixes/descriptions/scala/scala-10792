@@ -1,0 +1,39 @@
+Compiling the following with 2.13.x,
+```scala
+object Test {
+  type Id[T] = T
+  def foo(x: Int): Id[x.type] = x
+
+  { lazy val result: 1 = foo(1) }
+}
+```
+crashes with an unexpected type error during the Fields phase,
+```
+miles@tarski:scala (topic/local-lazy-new)% ./build/quick/bin/scalac -d out test/files/pos/local-lazy.scala
+error: scala.reflect.internal.Types$TypeError: type mismatch;
+ found   : Int
+ required: 1
+Exception in thread "main" scala.reflect.internal.Types$TypeError: type mismatch;
+ found   : Int
+ required: 1
+```
+This is because the translation of the local lazy val in Fields maps to a `LazyInt` which holds an `Int` value. This is too wide to assign to the `1`-typed val and results in a type error when the tree synthesized during Fields phase is typechecked.
+
+Although this problem is a little to easier to surface with literal types, it actually predates 2.13.x. In 2.12.x the following,
+```scala
+object Test {
+  type Id[T] = T
+  def foo(x: String): Id[x.type] = x
+
+  { lazy val result = foo("foo") }
+}
+```
+crashes the compiler in the same way,
+```
+scala.reflect.internal.Types$TypeError: type mismatch;
+ found   : String
+ required: String("foo")
+```
+Here the type of `result` has been inferred as the constant type `String("foo")` which is too narrow for the synthesized `String` reference.
+
+PR on its way ...

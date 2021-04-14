@@ -1,0 +1,289 @@
+Three minimized examples that fail because of the inline annotations, the two first blow up in ExplicitOuter and the third one is comes from `tests/pos/explicitOuter.scala`, so I assume they are related:
+
+```scala
+object O {
+  D().DD()
+}
+
+case class D() {
+  class DD()
+  object DD {
+    inline def apply() = new DD()
+  }
+}
+```
+
+<details>
+  <summary>Stacktrace</summary>
+  <pre>Exception in thread "main" java.lang.AssertionError: assertion failed: failure to construct path from value D_this/value <local O$>/object O/package <empty>/package <root> to `this` of <none>;
+object DD in class D does not have an outer accessor
+        at scala.Predef$.assert(Predef.scala:219)
+        at dotty.tools.dotc.transform.ExplicitOuter$OuterOps$.loop$1(ExplicitOuter.scala:384)
+        at dotty.tools.dotc.transform.ExplicitOuter$OuterOps$.path$extension(ExplicitOuter.scala:389)
+        at dotty.tools.dotc.transform.ExplicitOuter.transformSelect(ExplicitOuter.scala:69)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.goSelect(TreeTransform.scala:575)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformNamed(TreeTransform.scala:952)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.$anonfun$transform$5(TreeTransform.scala:1184)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented(Reporter.scala:140)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented$(Reporter.scala:139)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:58)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transform(TreeTransform.scala:1177)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformNamed(TreeTransform.scala:967)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.$anonfun$transform$5(TreeTransform.scala:1184)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented(Reporter.scala:140)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented$(Reporter.scala:139)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:58)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transform(TreeTransform.scala:1177)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.$anonfun$transformTrees$1(TreeTransform.scala:1219)
+        at scala.collection.immutable.List.mapConserve(List.scala:176)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformTrees(TreeTransform.scala:1219)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformSubTrees(TreeTransform.scala:1225)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformUnnamed(TreeTransform.scala:1124)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.$anonfun$transform$5(TreeTransform.scala:1185)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented(Reporter.scala:140)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented$(Reporter.scala:139)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:58)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transform(TreeTransform.scala:1177)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformStat$1(TreeTransform.scala:1212)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.$anonfun$transformStats$2(TreeTransform.scala:1214)
+        at dotty.tools.dotc.core.Decorators$ListDecorator$.loop$1(Decorators.scala:62)
+        at dotty.tools.dotc.core.Decorators$ListDecorator$.mapconserve$extension(Decorators.scala:78)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformStats(TreeTransform.scala:1214)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformUnnamed(TreeTransform.scala:1155)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.$anonfun$transform$5(TreeTransform.scala:1185)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented(Reporter.scala:140)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented$(Reporter.scala:139)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:58)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transform(TreeTransform.scala:1177)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformNamed(TreeTransform.scala:985)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.$anonfun$transform$5(TreeTransform.scala:1184)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented(Reporter.scala:140)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented$(Reporter.scala:139)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:58)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transform(TreeTransform.scala:1177)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformStat$1(TreeTransform.scala:1210)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.$anonfun$transformStats$2(TreeTransform.scala:1214)
+        at dotty.tools.dotc.core.Decorators$ListDecorator$.loop$1(Decorators.scala:62)
+        at dotty.tools.dotc.core.Decorators$ListDecorator$.mapconserve$extension(Decorators.scala:78)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformStats(TreeTransform.scala:1214)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformUnnamed(TreeTransform.scala:1164)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.$anonfun$transform$5(TreeTransform.scala:1185)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented(Reporter.scala:140)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented$(Reporter.scala:139)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:58)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transform(TreeTransform.scala:1177)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.macroTransform(TreeTransform.scala:557)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.run(TreeTransform.scala:475)
+        at dotty.tools.dotc.core.Phases$Phase.$anonfun$runOn$1(Phases.scala:288)
+        at scala.collection.immutable.List.map(List.scala:283)
+        at dotty.tools.dotc.core.Phases$Phase.runOn(Phases.scala:286)
+        at dotty.tools.dotc.core.Phases$Phase.runOn$(Phases.scala:285)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.runOn(TreeTransform.scala:469)
+        at dotty.tools.dotc.Run.$anonfun$compileUnits$2(Run.scala:123)
+        at dotty.tools.dotc.Run.$anonfun$compileUnits$2$adapted(Run.scala:120)
+        at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:32)
+        at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:29)
+        at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:191)
+        at dotty.tools.dotc.Run.$anonfun$compileUnits$1(Run.scala:120)
+        at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+        at dotty.tools.dotc.util.Stats$.monitorHeartBeat(Stats.scala:76)
+        at dotty.tools.dotc.Run.compileUnits(Run.scala:108)
+        at dotty.tools.dotc.Run.compileSources(Run.scala:95)
+        at dotty.tools.dotc.Run.compile(Run.scala:79)
+        at dotty.tools.dotc.Driver.doCompile(Driver.scala:26)
+        at dotty.tools.dotc.Driver.process(Driver.scala:124)
+        at dotty.tools.dotc.Driver.process(Driver.scala:93)
+        at dotty.tools.dotc.Driver.process(Driver.scala:105)
+        at dotty.tools.dotc.Driver.main(Driver.scala:132)
+        at dotty.tools.dotc.Main.main(Main.scala)
+java.lang.RuntimeException: Nonzero exit code returned from runner: 1
+        at scala.sys.package$.error(package.scala:27)</pre>
+</details>
+<br>
+
+```scala
+class Outer {
+  inline def inner = {
+    class InnerClass(x: Int) {
+      def this() = this(3)
+    }
+  }
+}
+
+object Test extends App {
+  val o = new Outer
+  o.inner
+}
+```
+
+<details>
+  <summary>Stacktrace</summary>
+  <pre>
+Exception in thread "main" java.lang.AssertionError: assertion failed: unresolved symbols: class InnerClass when pickling /home/olivier/workspace/dotty/tests/pos/inline-explicitOuter.scala                                                                        at scala.Predef$.assert(Predef.scala:219)
+        at dotty.tools.dotc.core.tasty.TreePickler.pickle(TreePickler.scala:598)
+        at dotty.tools.dotc.transform.Pickler.$anonfun$run$3(Pickler.scala:52)
+        at dotty.tools.dotc.transform.Pickler.$anonfun$run$3$adapted(Pickler.scala:45)
+        at scala.collection.immutable.List.foreach(List.scala:389)
+        at dotty.tools.dotc.transform.Pickler.$anonfun$run$2(Pickler.scala:45)
+        at dotty.tools.dotc.transform.Pickler.$anonfun$run$2$adapted(Pickler.scala:44)
+        at scala.collection.immutable.List.foreach(List.scala:389)
+        at dotty.tools.dotc.transform.Pickler.run(Pickler.scala:44)
+        at dotty.tools.dotc.core.Phases$Phase.$anonfun$runOn$1(Phases.scala:288)
+        at scala.collection.immutable.List.map(List.scala:283)
+        at dotty.tools.dotc.core.Phases$Phase.runOn(Phases.scala:286)
+        at dotty.tools.dotc.core.Phases$Phase.runOn$(Phases.scala:285)
+        at dotty.tools.dotc.transform.Pickler.runOn(Pickler.scala:76)
+        at dotty.tools.dotc.Run.$anonfun$compileUnits$2(Run.scala:123)
+        at dotty.tools.dotc.Run.$anonfun$compileUnits$2$adapted(Run.scala:120)
+        at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:32)
+        at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:29)
+        at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:191)
+        at dotty.tools.dotc.Run.$anonfun$compileUnits$1(Run.scala:120)
+        at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+        at dotty.tools.dotc.util.Stats$.monitorHeartBeat(Stats.scala:76)
+        at dotty.tools.dotc.Run.compileUnits(Run.scala:108)
+        at dotty.tools.dotc.Run.compileSources(Run.scala:95)
+        at dotty.tools.dotc.Run.compile(Run.scala:79)
+        at dotty.tools.dotc.Driver.doCompile(Driver.scala:26)
+        at dotty.tools.dotc.Driver.process(Driver.scala:124)
+        at dotty.tools.dotc.Driver.process(Driver.scala:93)
+        at dotty.tools.dotc.Driver.process(Driver.scala:105)
+        at dotty.tools.dotc.Driver.main(Driver.scala:132)
+        at dotty.tools.dotc.Main.main(Main.scala)</pre>
+</details>
+<br>
+
+```scala
+trait Test {
+  trait Global {
+    type Tree
+    def get: Tree
+  }
+
+  trait TreeBuilder {
+    val global: Global
+    inline def set(tree: global.Tree) = {}
+  }
+
+  val nsc: Global
+
+  trait FileImpl {
+    object treeBuilder extends TreeBuilder {
+      val global: nsc.type = nsc
+    }
+    treeBuilder.set(nsc.get)
+  }
+  def file: FileImpl
+
+  file.treeBuilder.set(nsc.get)
+}
+```
+
+<details>
+  <summary>Stacktrace</summary>
+  <pre>
+Exception in thread "main" java.lang.AssertionError: assertion failed: failure to construct path from value TreeBuilder_this/value <local Test>/trait Test/package <empty>/package <root> to `this` of trait FileImpl in trait Test;
+trait Test does not have an outer accessor
+        at scala.Predef$.assert(Predef.scala:219)
+        at dotty.tools.dotc.transform.ExplicitOuter$OuterOps$.loop$1(ExplicitOuter.scala:384)
+        at dotty.tools.dotc.transform.ExplicitOuter$OuterOps$.path$extension(ExplicitOuter.scala:389)
+        at dotty.tools.dotc.transform.Erasure$Typer.typedThis(Erasure.scala:449)
+        at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1627)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1673)
+        at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:125)
+        at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1688)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented(Reporter.scala:140)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented$(Reporter.scala:139)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:58)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1686)
+        at dotty.tools.dotc.transform.Erasure$Typer.typedSelect(Erasure.scala:437)
+        at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1607)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1672)
+        at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:125)
+        at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1688)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented(Reporter.scala:140)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented$(Reporter.scala:139)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:58)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1686)
+        at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:1745)
+        at dotty.tools.dotc.typer.Typer.$anonfun$typedValDef$1(Typer.scala:1241)
+        at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+        at dotty.tools.dotc.typer.Typer.typedValDef(Typer.scala:1235)
+        at dotty.tools.dotc.transform.Erasure$Typer.typedValDef(Erasure.scala:534)
+        at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1611)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1672)
+        at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:125)
+        at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1688)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented(Reporter.scala:140)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented$(Reporter.scala:139)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:58)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1686)
+        at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1710)
+        at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1733)
+        at dotty.tools.dotc.transform.Erasure$Typer.typedStats(Erasure.scala:636)
+        at dotty.tools.dotc.typer.Typer.typedBlockStats(Typer.scala:622)
+        at dotty.tools.dotc.typer.Typer.typedInlined(Typer.scala:1040)
+        at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1645)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1673)
+        at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:125)
+        at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1688)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented(Reporter.scala:140)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented$(Reporter.scala:139)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:58)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1686)
+        at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1721)
+        at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1733)
+        at dotty.tools.dotc.transform.Erasure$Typer.typedStats(Erasure.scala:636)
+        at dotty.tools.dotc.typer.Typer.$anonfun$typedClassDef$1(Typer.scala:1399)
+        at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+        at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1329)
+        at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1617)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1672)
+        at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:125)
+        at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1688)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented(Reporter.scala:140)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented$(Reporter.scala:139)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:58)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1686)
+        at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1710)
+        at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1733)
+        at dotty.tools.dotc.transform.Erasure$Typer.typedStats(Erasure.scala:636)
+        at dotty.tools.dotc.typer.Typer.$anonfun$typedPackageDef$1(Typer.scala:1516)
+        at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+        at dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:1503)
+        at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1656)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1673)
+        at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:125)
+        at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1688)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented(Reporter.scala:140)
+        at dotty.tools.dotc.reporting.Reporting.traceIndented$(Reporter.scala:139)
+        at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:58)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1686)
+        at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:1745)
+        at dotty.tools.dotc.transform.Erasure.run(Erasure.scala:95)
+        at dotty.tools.dotc.core.Phases$Phase.$anonfun$runOn$1(Phases.scala:288)
+        at scala.collection.immutable.List.map(List.scala:283)
+        at dotty.tools.dotc.core.Phases$Phase.runOn(Phases.scala:286)
+        at dotty.tools.dotc.core.Phases$Phase.runOn$(Phases.scala:285)
+        at dotty.tools.dotc.transform.Erasure.runOn(Erasure.scala:33)
+        at dotty.tools.dotc.Run.$anonfun$compileUnits$2(Run.scala:123)
+        at dotty.tools.dotc.Run.$anonfun$compileUnits$2$adapted(Run.scala:120)
+        at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:32)
+        at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:29)
+        at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:191)
+        at dotty.tools.dotc.Run.$anonfun$compileUnits$1(Run.scala:120)
+        at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+        at dotty.tools.dotc.util.Stats$.monitorHeartBeat(Stats.scala:76)
+        at dotty.tools.dotc.Run.compileUnits(Run.scala:108)
+        at dotty.tools.dotc.Run.compileSources(Run.scala:95)
+        at dotty.tools.dotc.Run.compile(Run.scala:79)
+        at dotty.tools.dotc.Driver.doCompile(Driver.scala:26)
+        at dotty.tools.dotc.Driver.process(Driver.scala:124)
+        at dotty.tools.dotc.Driver.process(Driver.scala:93)
+        at dotty.tools.dotc.Driver.process(Driver.scala:105)
+        at dotty.tools.dotc.Driver.main(Driver.scala:132)
+        at dotty.tools.dotc.Main.main(Main.scala)
+java.lang.RuntimeException: Nonzero exit code returned from runner: 1
+  </pre>
+</details>
+<br>

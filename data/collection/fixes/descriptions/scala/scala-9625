@@ -1,0 +1,40 @@
+The following code fails to compile:
+
+```scala
+object OK {
+    trait `*`[A]
+
+    trait Bar {
+      type Qux
+      implicit val `*`: `*`[Qux]
+    }
+
+    def foo(bar: Bar): `*`[bar.Qux] = {
+      import bar._
+      implicitly[`*`[bar.Qux]]
+    }
+  }
+
+  object KO {
+    trait `* -> *`[F[_]]
+
+    trait Bar {
+      type Qux[A]
+      implicit val `* -> *`: `* -> *`[Qux]
+    }
+
+    def foo(bar: Bar): `* -> *`[bar.Qux] = {
+      import bar._
+      implicitly[`* -> *`[bar.Qux]]
+    }
+  }
+```
+
+The compile error is the following:
+
+```scala
+[error] could not find implicit value for parameter e: KO.* -> *[bar.Qux]
+[error]       implicitly[`* -> *`[bar.Qux]]
+```
+
+Expected behavior: the code compiles fine and the implicit value of type `* -> *[bar.Qux]` is resolved to bar.`* -> *`.

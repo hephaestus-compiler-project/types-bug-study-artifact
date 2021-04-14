@@ -1,0 +1,25 @@
+Compilations with long classpaths and many references to symbols in the classpath cause javac to make many calls to Files.exist, and for the cache in ArchiveContainer to retain a large number of entries.
+
+see: http://mail.openjdk.java.net/pipermail/compiler-dev/2016-December/010596.html
+
+Repro:
+
+1) generate the test inputs
+
+$ javac -cp asm.jar Test.java && java -cp asm.jar:. Test
+
+2) compile
+
+$ $JAVAC8 -fullversion
+javac full version "1.8.0_122-ea-b04"
+$ time $JAVAC8 @params.txt
+real 0m17.385s
+user 0m40.855s
+sys 0m1.305s
+
+$ $JAVAC9 -fullversion
+javac full version "9-ea+148"
+$ time $JAVAC9 @params.txt
+real 8m40.530s
+user 32m8.614s
+sys 0m57.024s

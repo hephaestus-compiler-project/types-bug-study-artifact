@@ -1,0 +1,35 @@
+Hi,
+
+this one's difficult to explain with English, but it appears there is a regression in new type inference in Kotlin 1.4 preview (also visible in Idea with older Kotlin versions when "Enable new type inference algorithm for IDE analysis" is turned on). Complete code to repeat the issue:
+
+```
+// Generic interface, nothing interesting here
+interface UseCase<in I, out O> {
+    fun execute(input: I): O
+}
+
+// We don't want to call use cases without input with explicit Unit argument, so we create this handy extension
+fun <O> UseCase<Unit, O>.execute(): O = execute(Unit)
+
+// Type arguments nested too deep for new inference
+class Foo : UseCase<Unit, List<List<List<String>>>> {
+    override fun execute(input: Unit) = listOf(listOf(listOf("foo")))
+}
+
+// These type arguments are OK, see below
+class Bar : UseCase<Unit, List<List<String>>> {
+    override fun execute(input: Unit) = listOf(listOf("bar"))
+}
+
+fun main() {
+    val foo = Foo()
+    foo.execute(Unit) // Member: OK both versions
+    foo.execute() // Extension: Old type inference - OK, new type inference - NOK "Not enough information to infer type variable O"
+
+    val bar = Bar()
+    bar.execute(Unit) // Member: OK both versions
+    bar.execute() // Extension: OK both versions
+}
+```
+
+As you can see, new type inference stops working when the type argument is nested too deep (old type inference is OK in all cases). I swear this is not a synthetic example, we run into this issue in real production code :) Thanks a lot!

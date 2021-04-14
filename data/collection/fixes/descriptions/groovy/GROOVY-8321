@@ -1,0 +1,22 @@
+Currently in:
+https://github.com/apache/groovy/blob/183b8fbf0248a2dceffbba684e50c3c2c060e46c/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java#L703
+
+The `instanceof` and `!instanceof` operators are treated the same when in fact the exact opposite is required.
+
+Consider the following code where the `instanceof` has been _accidentally_ replaced with `!instanceof`. 
+{code}
+[42, 'bar'].each { doit(it) }
+
+@groovy.transform.TypeChecked
+doit(arg) {
+  if (arg !instanceof String) {
+    println arg.toUpperCase() // MME: Integer.toUpperCase()
+  } else {
+    // println arg.toUpperCase() // [STC] [Static type checking] - Cannot find Object#toUpperCase()
+    println 'is a number'
+  }
+}
+{code}
+We'd now expect the `toUpperCase` call to fail compilation but it succeeds and then fails at runtime.
+
+Bonus points if the commented line in the else clause can be made to work.

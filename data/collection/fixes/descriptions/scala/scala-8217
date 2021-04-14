@@ -1,0 +1,30 @@
+The behavior of Scalac (2.10.3) is inconsistent between objects WTF_A0 and A below: in one case an undefined type member is forbidden, in the other case it is allowed just because it is inherited.
+-I speculate that forbidding abstract type members is not needed to ensure soundness, and allowing them also seems of dubious utility (but empty and distinct types are useful in Haskell in type-level programming).- 
+After clarifications: undefined type members can encode existential types, so they are allowed on purpose. The handling of `WTF_A0` is a mistake.
+
+I searched JIRA for "undefined type members" and found no relevant report. I can't find any applicable part of the spec describing the expected behavior.
+
+```scala
+//Interesting facts are noted with WTF throughout this snippet.
+trait A {
+  type T
+}
+
+//WTF??? We do not need to define abstract types ever?
+object A extends A
+
+//WTF? But if the declaration is not inherited, we do need to define abstract types?
+object WTF_A0 {
+  type T //only classes can have declared but undefined members
+}
+
+class WTF_A1 {
+  type T //classes indeed can have an undefined type member. WTF?
+}
+
+object Test_WTF_A1 {
+  new WTF_A1 //and we can even instantiate the class. WTF?
+}
+```
+
+The behavior also seems unintentional: The code producing this warning (src/compiler/scala/tools/nsc/typechecker/Namers.scala:Namer.validate) does not seem to be specific to type members — it is generally related to contained symbol, and there is no comment describing why undefined inherited members should be allowed while they should be forbidden if declared inline.

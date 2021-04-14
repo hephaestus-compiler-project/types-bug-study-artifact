@@ -1,0 +1,64 @@
+Scala 2.12.8 and previous all produce same behavior. Here is the code:
+
+```
+object problem1 {
+
+    def main(args:Array[String]) = {
+		val l1 = List(("a",(1,2)),("a", (2,3)), ("a",(3,4)), ("b", (17,18)), ("b", (18,19)), ("c", (20,21)), ("d",(0,0)))
+		val m1 = l1.
+    foldLeft(Map().empty.asInstanceOf[String,List[(Int,Int)]])((y,x) => { if (!y.contains(x._1)) y ++ Map(x._1->List(x._2)) else y ++ Map(x._1 -> (y(x._1):+x._2))})
+
+		println("m1=",m1)
+	}
+}
+
+
+```
+
+Here is the build.sbt:
+scalaVersion := “2.12.8”
+
+If I run “sbt compile”, the compiler throws up with a bunch of errors such as:
+[error] (Compile / compileIncremental) java.lang.AssertionError: assertion failed:
+[error] Context(testbed.scala) {
+
+> [error] owner = value m1
+> [error] tree = Apply:l1.foldLeft(Map().empty.asInstanceOf[String, List[scala.Tuple2[Int, In
+> [error] scope = 3 decls
+> [error] contextMode = MacrosEnabled TypeConstructorAllowed
+> [error] outer.owner = value m1
+> [error] }
+> [error] while compiling: /usr/home/maketo/dev/scala/testbed/problem1/src/main/scala/testbed.scala
+> [error] during phase: globalPhase=typer, enteringPhase=namer
+> [error] library version: version 2.12.8
+> [error] compiler version: version 2.12.8
+> [error] reconstructed args: -bootclasspath /usr/local/openjdk8/jre/lib/resources.jar:/usr/local/openjdk8/jre/lib/rt.jar:/usr/local/openjdk8/jre/lib/sunrsasign.jar:/usr/local/openjdk8/jre/lib/jsse.jar:/usr/local/openjdk8/jre/lib/jce.jar:/usr/local/openjdk8/jre/lib/charsets.jar:/usr/local/openjdk8/jre/lib/jfr.jar:/usr/local/openjdk8/jre/classes:/home/maketo/.ivy2/cache/org.scala-lang/scala-library/jars/scala-library-2.12.8.jar -classpath /usr/home/maketo/dev/scala/testbed/problem1/target/scala-2.12/classes
+> [error]
+> [error] last tree to typer: Ident(scala)
+> [error] tree position: line 6 of /usr/home/maketo/dev/scala/testbed/problem1/src/main/scala/testbed.scala
+> [error] tree tpe: scala.type
+> [error] symbol: final package scala
+> [error] symbol definition: final package scala (a ModuleSymbol)
+> [error] symbol package:
+> [error] symbol owners: package scala
+> [error] call site: method main in object problem1 in package
+> [error]
+> [error] == Source file context for tree position ==
+> [error]
+> [error] 3 def main(args:Array[String]) = {
+> [error] 4 val l1 = List((“a”,(1,2)),(“a”, (2,3)), (“a”,(3,4)), (“b”, (17,18)), (“b”, (18,19)), (“c”, (20,21)), (“d”,(0,0)))
+> [error] 5 val m1 = l1.
+> [error] 6 foldLeft(Map().empty.asInstanceOf[String,List[(Int,Int)]])((y,x) => { if (!y.contains(x._1)) y ++ Map(x._1->List(x._2)) else y ++ Map(x._1 -> (y(x._1):+x._2))})
+> [error] 7
+> [error] 8 println(“m1=”,m1)
+> [error] 9 }
+> [error] Total time: 4 s, completed Jan 3, 2019 11:45:30 AM
+
+I should mention that the code runs happily in the scala REPL:
+```
+scala> val l1 = List((“a”,(1,2)),(“a”, (2,3)), (“a”,(3,4)), (“b”, (17,18)), (“b”, (18,19)), (“c”, (20,21)), (“d”,(0,0)))
+l1: List[(String, (Int, Int))] = List((a,(1,2)), (a,(2,3)), (a,(3,4)), (b,(17,18)), (b,(18,19)), (c,(20,21)), (d,(0,0)))
+
+scala> l1.foldLeft(Map().empty.asInstanceOf[Map[String,List[(Int,Int)]]])((y,x) => if (!y.contains(x._1)) y ++ Map(x._1->List(x._2)) else y ++ Map(x._1 -> (y(x._1):+x._2)))
+res90: Map[String,List[(Int, Int)]] = Map(a -> List((1,2), (2,3), (3,4)), b -> List((17,18), (18,19)), c -> List((20,21)), d -> List((0,0)))
+```

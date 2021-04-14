@@ -1,0 +1,39 @@
+Example:
+```
+fun f1(cond: Boolean): Any {
+    contract {
+        returns(true) implies cond
+    }
+    return cond
+}
+
+fun f2(value: Any): Boolean {
+    contract {
+        returns(true) implies (value is Boolean)
+    }
+    return value is Boolean
+}
+
+fun f3(value: Any) {
+    if (f2(f1(value is Char))) {
+        println(value.category) // smartcast to Char, but we don't check f1 result, we check return type f1 only (that it's equal to Boolean)
+    }
+}
+
+fun main(string: Array<String>) {
+    f3("1") // ClassCastException: java.lang.String cannot be cast to java.lang.Character
+}
+```
+
+It can be reproduced with stdlib only:
+```
+fun f3(value: String?) {
+    if (!value.isNullOrEmpty() is Boolean) {
+        value.length // wrong smartcast to not-null String
+    }
+}
+
+fun main(string: Array<String>) {
+    f3(null) // NPE
+}
+```

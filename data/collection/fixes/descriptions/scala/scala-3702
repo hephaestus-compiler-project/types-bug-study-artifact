@@ -1,0 +1,55 @@
+When I have two traits, Test1 and Test2, and Test2 is a subtype of Test1, and I define two extractors for these traits, a java.lang.VerifyError is thrown at runtime when I try to use the extractors in a pattern match statement. Consider the REPL output:
+```scala
+$$ scala
+Welcome to Scala version 2.8.0.r0-b20100714201327 (Java HotSpot(TM) Server VM, Java 1.6.0_20).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> trait Test1 {
+     | def f1: Int
+     | }
+defined trait Test1
+
+scala> trait Test2 extends Test1 {
+     | def f2: Int
+     | }
+defined trait Test2
+
+scala> object Test1 {
+     | def unapply(t1: Test1): Option[(Int)] = Some(t1.f1)
+     | }
+defined module Test1
+
+scala> object Test2 {
+     | def unapply(t2: Test2): Option[(Int,Int)] = Some(t2.f1, t2.f2)
+     | }
+defined module Test2
+
+scala> case class Test2Impl() extends Test2{
+     | def f1 = 1
+     | def f2 = 2
+     | }
+defined class Test2Impl
+
+scala> val a: AnyRef = Test2Impl()
+a: AnyRef = Test2Impl()
+
+scala> a match {
+     | case Test2(a,b) => println("a: " + a)    
+     | case Test1(a) => println(a)
+     | }
+java.lang.VerifyError: (class: , method: <init> signature: ()V) Accessing value from uninitialized register 4
+    at RequestResult$$.<init>(<console>:9)
+    at RequestResult$$.<clinit>(<console>)
+    at RequestResult$$scala_repl_result(<console>)
+    at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+    at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+    at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+    at java.lang.reflect.Method.invoke(Method.java:597)
+    at scala.tools.nsc.Interpreter$$Request$$$$anonfun$$loadAndRun$$1$$$$anonfun$$apply$$18.apply(Interpreter.scala:981)
+    at scala.tools.nsc.Interpreter$$Request$$$$anonfun$$loadAndRun$$1$$$$anonfun$$apply$$18.apply(Interpreter.scala:981)
+    at scala.util.control.Exception$$Catch.apply(Exception....
+scala> 
+```
+
+This problem isn't just limited to the REPL, but also for compiled code. See the attached file (which is just this REPL session in a file)

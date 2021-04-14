@@ -1,0 +1,129 @@
+JSR 335 spec, chapter "15.28.2 Run-time Evaluation of Method References" contains following assertion:
+
+If the method reference has the form ExpressionName :: NonWildTypeArgumentsopt Identifier or Primary :: NonWildTypeArgumentsopt Identifier, the body of the invocation method has the effect of invoking the compile-time declaration of the method reference, as described in 15.12.4.3, 15.12.4.4, 15.12.4.5.[jsr335-15.28.2-41]
+
+This assertions refers to chapter "15.12.4.3. Check Accessibility of Type and Method" which contains following assertions:
+
+Let C be the class containing the method invocation, and let T be the qualifying type of the method invocation (§13.1), and let m be the name of the method as determined at compile-time (§15.12.3).
+...
+If m is private, then m is accessible if and only if C is T, or C encloses T, or T encloses C, or T and C are both enclosed by a third class.
+...
+
+According to these assertions MethodInvoker.invoke should succeed for following three cases: 
+
+case 1:
+class MethodInvoker {
+    public static void invoke() {
+        MethodSupplier ms = new MethodSupplier();
+        MyFunctionalInterface1 fi = ms::m;
+        fi.invokeMethodReference();
+    }
+    static class MethodSupplier {
+        private void m() {
+            System.out.println("m");
+        }    
+    }
+}
+
+case 2:
+class MethodSupplier {
+    private void m() {
+        System.out.println("m");
+    }    
+    static class MethodInvoker {
+        public static void invoke() {
+            MethodSupplier ms = new MethodSupplier();
+            MyFunctionalInterface2 fi = ms::m;
+            fi.invokeMethodReference();
+        }
+    }
+}
+
+case 3:
+class ThirdClass {
+    static class MethodSupplier {
+        private void m() {
+            System.out.println("m");
+        }    
+    }
+
+    static class MethodInvoker {
+        public static void invoke() {
+            MethodSupplier ms = new MethodSupplier();
+            MyFunctionalInterface3 fi = ms::m;
+            fi.invokeMethodReference();
+        }
+    }
+}
+
+but all of these 3 cases fail with following stack traces correspondingly:
+
+case1:
+Exception in thread "main" java.lang.reflect.InvocationTargetException
+
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:491)
+	at Test1.main(Test1.java:20)
+Caused by: java.lang.IncompatibleClassChangeError
+	at java.lang.invoke.MethodHandleNatives.linkMethodHandleConstant(MethodHandleNatives.java:383)
+	at MethodInvoker.invoke(Test1.java:8)
+	... 5 more
+Caused by: java.lang.IllegalAccessException: member is private: MethodInvoker$MethodSupplier.m()void/invokeSpecial, from MethodInvoker
+	at java.lang.invoke.MemberName.makeAccessException(MemberName.java:744)
+	at java.lang.invoke.MethodHandles$Lookup.checkAccess(MethodHandles.java:1129)
+	at java.lang.invoke.MethodHandles$Lookup.checkMethod(MethodHandles.java:1092)
+	at java.lang.invoke.MethodHandles$Lookup.getDirectMethodCommon(MethodHandles.java:1203)
+	at java.lang.invoke.MethodHandles$Lookup.getDirectMethod(MethodHandles.java:1193)
+	at java.lang.invoke.MethodHandles$Lookup.linkMethodHandleConstant(MethodHandles.java:1285)
+	at java.lang.invoke.MethodHandleNatives.linkMethodHandleConstant(MethodHandleNatives.java:381)
+	... 6 more
+
+case 2:
+Exception in thread "main" java.lang.reflect.InvocationTargetException
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:491)
+	at Test2.main(Test2.java:21)
+Caused by: java.lang.IncompatibleClassChangeError
+	at java.lang.invoke.MethodHandleNatives.linkMethodHandleConstant(MethodHandleNatives.java:383)
+	at MethodSupplier$MethodInvoker.invoke(Test2.java:13)
+	... 5 more
+Caused by: java.lang.IllegalAccessException: member is private: MethodSupplier.m()void/invokeSpecial, from MethodSupplier$MethodInvoker
+	at java.lang.invoke.MemberName.makeAccessException(MemberName.java:744)
+	at java.lang.invoke.MethodHandles$Lookup.checkAccess(MethodHandles.java:1129)
+	at java.lang.invoke.MethodHandles$Lookup.checkMethod(MethodHandles.java:1092)
+	at java.lang.invoke.MethodHandles$Lookup.getDirectMethodCommon(MethodHandles.java:1203)
+	at java.lang.invoke.MethodHandles$Lookup.getDirectMethod(MethodHandles.java:1193)
+	at java.lang.invoke.MethodHandles$Lookup.linkMethodHandleConstant(MethodHandles.java:1285)
+	at java.lang.invoke.MethodHandleNatives.linkMethodHandleConstant(MethodHandleNatives.java:381)
+	... 6 more
+
+case 3:
+Exception in thread "main" java.lang.reflect.InvocationTargetException
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:491)
+	at Test3.main(Test3.java:24)
+Caused by: java.lang.IncompatibleClassChangeError
+	at java.lang.invoke.MethodHandleNatives.linkMethodHandleConstant(MethodHandleNatives.java:383)
+	at ThirdClass$MethodInvoker.invoke(Test3.java:16)
+	... 5 more
+Caused by: java.lang.IllegalAccessException: member is private: ThirdClass$MethodSupplier.m()void/invokeSpecial, from ThirdClass$MethodInvoker
+	at java.lang.invoke.MemberName.makeAccessException(MemberName.java:744)
+	at java.lang.invoke.MethodHandles$Lookup.checkAccess(MethodHandles.java:1129)
+	at java.lang.invoke.MethodHandles$Lookup.checkMethod(MethodHandles.java:1092)
+	at java.lang.invoke.MethodHandles$Lookup.getDirectMethodCommon(MethodHandles.java:1203)
+	at java.lang.invoke.MethodHandles$Lookup.getDirectMethod(MethodHandles.java:1193)
+	at java.lang.invoke.MethodHandles$Lookup.linkMethodHandleConstant(MethodHandles.java:1285)
+	at java.lang.invoke.MethodHandleNatives.linkMethodHandleConstant(MethodHandleNatives.java:381)
+	... 6 more
+
+This was reproduced on b100, platform: Windows7x64.
+
+The minimized tests are attached in a single archive.
+
+In order to reproduce case 1, 2 and 3 please run Test1.main, Test2.main and Test3.main from attached archive correspondingly.

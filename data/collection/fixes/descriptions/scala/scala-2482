@@ -1,0 +1,89 @@
+```scala
+~/code/scratch/BugPartialApply> ./test.sh 
+Scala compiler version 2.8.0.r19120-b20091017023354 -- Copyright 2002-2009, LAMP/EPFL
++ rm 'Apply$$$$anon$$1.class' 'Apply$$.class' Apply.class PartialApply1Of2.class T.class
++ scalac Apply.scala UsePartialApply.scala
++ rm 'Apply$$$$anon$$1.class' 'Apply$$.class' Apply.class PartialApply1Of2.class T.class 'Test$$.class' Test.class
++ scalac Apply.scala
++ scalac -classpath . UsePartialApply.scala
+error: class file needed by Apply is missing.
+reference type B of type Apply refers to nonexisting symbol.
+one error found
+```
+
+works with 2.7.6.
+
+Executable test case attached.
+
+This is a blocker for the Scalaz port to 2.8, or more precisely, for anyone who tries to use it.
+
+Looking at the compiler error with -verbose shows that ./T.class is not loaded, as it was in 2.7.6
+
+2.8:
+```scala
+[loaded class file /Users/jason/usr/scala-2.8.0.r19120-b20091017023354/lib/scala-library.jar(scala/Predef.class) in 18ms]
+[namer in 81ms]
+[loaded class file /Users/jason/usr/scala-2.8.0.r19120-b20091017023354/lib/scala-library.jar(scala/ScalaObject.class) in 1ms]
+[loaded class file /Users/jason/usr/scala-2.8.0.r19120-b20091017023354/lib/scala-library.jar(scala/ClassfileAnnotation.class) in 1ms]
+[loaded class file /Users/jason/usr/scala-2.8.0.r19120-b20091017023354/lib/scala-library.jar(scala/Annotation.class) in 3ms]
+[loaded class file /Users/jason/usr/scala-2.8.0.r19120-b20091017023354/lib/scala-library.jar(scala/StaticAnnotation.class) in 0ms]
+[loaded class file ./Apply.class in 1ms]
+[loaded class file ./PartialApply1Of2.class in 1ms]
+error: class file needed by Apply is missing.
+reference type B of type Apply refers to nonexisting symbol.
+one error found
+```
+
+
+2.7.6
+```scala
+[parsing UsePartialApply.scala]
+[parser in 91ms]
+[loaded class file /Users/jason/usr/scala-2.7.6.final/lib/scala-library.jar(scala/Predef.class) in 46ms]
+[namer in 102ms]
+[loaded class file /Users/jason/usr/scala-2.7.6.final/lib/scala-library.jar(scala/ScalaObject.class) in 1ms]
+[loaded class file /Users/jason/usr/scala-2.7.6.final/lib/scala-library.jar(scala/ClassfileAnnotation.class) in 0ms]
+[loaded class file /Users/jason/usr/scala-2.7.6.final/lib/scala-library.jar(scala/Annotation.class) in 0ms]
+[loaded class file ./Apply.class in 0ms]
+[loaded class file ./PartialApply1Of2.class in 1ms]
+[loaded class file ./T.class in 0ms]
+[loaded class file /Users/jason/usr/scala-2.7.6.final/lib/scala-library.jar(scala/List.class) in 22ms]
+[loaded class file /Users/jason/usr/scala-2.7.6.final/lib/scala-library.jar(scala/Array.class) in 4ms]
+[loaded class file /Users/jason/usr/scala-2.7.6.final/lib/scala-library.jar(scala/RandomAccessSeq.class) in 3ms]
+[loaded   in 3ms]
+[loaded class file /Users/jason/usr/scala-2.7.6.final/lib/scala-library.jar(scala/Seq.class) in 4ms]
+[loaded class file /Users/jason/usr/scala-2.7.6.final/lib/scala-library.jar(scala/PartialFunction.class) in 1ms]
+[loaded class file /Users/jason/usr/scala-2.7.6.final/lib/scala-library.jar(scala/Function1.class) in 0ms]
+[loaded class file /Users/jason/usr/scala-2.7.6.final/lib/scala-library.jar(scala/Collection.class) in 2ms]
+[loaded class file /Users/jason/usr/scala-2.7.6.final/lib/scala-library.jar(scala/Iterable.class) in 3ms]
+[typer in 151ms]
+[superaccessors in 11ms]
+[pickler in 17ms]
+[refchecks in 31ms]
+[liftcode in 1ms]
+[uncurry in 14ms]
+[tailcalls in 5ms]
+[explicitouter in 9ms]
+[erasure in 35ms]
+[lazyvals in 4ms]
+[lambdalift in 13ms]
+[constructors in 11ms]
+[flatten in 1ms]
+[mixin in 38ms]
+[cleanup in 5ms]
+[Generate ICode from the AST in 88ms]
+[inliner in 2ms]
+[closelim in 0ms]
+[dce in 0ms]
+[loaded directory path /System/Library/Frameworks/JavaVM.framework/Versions/1.5.0/Classes/classes.jar(java/rmi/)::: in 2ms]
+[loaded class file /System/Library/Frameworks/JavaVM.framework/Versions/1.5.0/Classes/classes.jar(java/io/Serializable.class) in 1ms]
+[loaded class file /System/Library/Frameworks/JavaVM.framework/Versions/1.5.0/Classes/classes.jar(java/lang/reflect/TypeVariable.class) in 2ms]
+[loaded class file /System/Library/Frameworks/JavaVM.framework/Versions/1.5.0/Classes/classes.jar(java/lang/reflect/GenericDeclaration.class) in 2ms]
+[loaded class file /System/Library/Frameworks/JavaVM.framework/Versions/1.5.0/Classes/classes.jar(java/lang/reflect/Type.class) in 1ms]
+[loaded class file /System/Library/Frameworks/JavaVM.framework/Versions/1.5.0/Classes/classes.jar(java/lang/reflect/AnnotatedElement.class) in 1ms]
+[wrote ./Test.class]
+[wrote ./Test$$.class]
+[jvm in 150ms]
+[sample-phase in 0ms]
+[total in 786ms]
+```

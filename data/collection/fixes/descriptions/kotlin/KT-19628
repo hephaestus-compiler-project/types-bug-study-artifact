@@ -1,0 +1,30 @@
+I was writing a simple data class which I'm trying to use for JAXB:
+
+{code lang=kt}
+import javax.xml.bind.annotation.XmlAttribute
+import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter
+
+data class Data(
+    @get:XmlAttribute(required = true)
+    @get:XmlJavaTypeAdapter(CollapsedStringAdapter::class)
+    var value: String?
+)
+{code}
+
+but I missed importing {{CollapsedStringAdapter}}. This compiles without error to something like:
+
+{code}
+  @org.jetbrains.annotations.Nullable
+  @javax.xml.bind.annotation.XmlAttribute(required=true)
+  @javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter
+  public final java.lang.String getValue();
+{code}
+
+which eventually leads to an {{InternalError}} in JAXB. Adding the missing import generates the correct code:
+
+{code}
+  @org.jetbrains.annotations.Nullable
+  @javax.xml.bind.annotation.XmlAttribute(required=true)
+  @javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter(value=javax.xml.bind.annotation.adapters.CollapsedStringAdapter)
+  public final java.lang.String getValue();
+{code}

@@ -1,0 +1,33 @@
+The code is:
+```
+fun foo(x: Any, y: Any) {
+    if (x is Float && y is Long) {
+        x!! == y!! // OK in OI, error in NI ([EQUALITY_NOT_APPLICABLE] Operator '==' cannot be applied to 'Float' and 'Long')
+    }
+    val z1: Float = 1f
+    val z2: Long = 1L
+    z1!! == z2!! // error in both inferences
+    z1 == z2 // error in both inferences
+}
+```
+
+Another example:
+```
+val x: Any = 1
+val y: Int = 1
+val z: Char = 1.toChar()
+
+fun main()  {
+    when {
+        z != x -> ""
+        x!! != y -> "" // not null assertion breaks the code: appeared "[EQUALITY_NOT_APPLICABLE] Operator '!=' cannot be applied to 'Char' and 'Int'"
+    }
+}
+```
+
+Here not-null assertion breaks equality check. It's OK without redundant NNA. But it's wrong without smartcast:
+```
+when {
+    z != y -> "" // [EQUALITY_NOT_APPLICABLE] Operator '!=' cannot be applied to 'Char' and 'Int'
+}
+```

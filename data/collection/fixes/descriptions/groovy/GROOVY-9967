@@ -1,0 +1,84 @@
+I have the following Groovy program.
+{code:groovy}
+class Test {
+  static void main(String[] args) {
+    println(C.func4(new B()))
+  }
+}
+
+class A {}
+class B extends A {
+  // It has the same behavior if f is a field instead of a property.
+  String f = "foo"
+}
+
+@groovy.transform.CompileStatic
+class C {
+  static String func1(Object x) {
+    (x instanceof String) ? x : "foo" // Compiles
+  }
+
+  static String func2(B x) {
+    x.f // Compiles
+  }
+
+  static String func3(B x) {
+    (x instanceof B) ? x.f : "foo" // Compiles
+  }
+
+  static String func4(A x) {
+    (x instanceof B) ? x.f : "foo" // Does not compile
+  }
+}
+{code}
+h2. Actual Behavior
+
+The program does not compile, and I get the following error.
+{code:java}
+org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
+Test.groovy: 28: Access to A#f is forbidden @ line 28, column 24.
+       (x instanceof B) ? x.f : "foo" 
+                          ^
+
+1 error
+
+{code}
+h2. Expected Behavior
+
+Compile successfully.
+h2. Comment
+
+This should be a regression bug because it compiles with the 3.0.7 compiler.
+ If we declared classes A and B after C, then the program compiles successfully.
+ Specifically, the following program compiles without any errors.
+{code:groovy}
+class Test {
+  static void main(String[] args) {
+    println(C.func4(new B()))
+  }
+}
+
+@groovy.transform.CompileStatic
+class C {
+  static String func1(Object x) {
+    (x instanceof String) ? x : "foo" 
+  }
+
+  static String func2(B x) {
+    x.f 
+  }
+
+  static String func3(B x) {
+    (x instanceof B) ? x.f : "foo"
+  }
+
+  static String func4(A x) {
+    (x instanceof B) ? x.f : "foo" 
+  }
+}
+
+class A {}
+class B extends A {
+  String f = "foo"
+}
+{code}

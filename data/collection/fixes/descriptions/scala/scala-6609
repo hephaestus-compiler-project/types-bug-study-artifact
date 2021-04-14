@@ -1,0 +1,21 @@
+A [special case in Typers](https://github.com/scala/scala/blob/v2.10.0-RC1/src/compiler/scala/tools/nsc/typechecker/Typers.scala#L570) dealiases these during type checking.
+
+The special treatment in the compiler is commented with:
+
+```scala
+  // short cut some aliases. It seems pattern matching needs this
+  // to notice exhaustiveness and to generate good code when
+  // List extractors are mixed with :: patterns. See Test5 in lists.scala.
+```
+
+I tested the second part of the comment. It's true under `-Xoldpatmat`, but not with the new pattern matcher (yay!). The attached bytecode diff (also in this [gist](https://gist.github.com/4007067)) show the effect of dropping the dealiasing under both old and new pattern matchers, the interesting part if the diffs of `Test5$.class`.
+
+So once the old pattern matcher is removed, we ought to get rid of this special case, so long as we don't mind the emitting the extra invokevirtual below (which Hotspot should gobble up anyway), and that we don't mess up exhaustiveness checking in any way.
+
+```scala
+-##:	getstatic	###; //Field scala/collection/immutable/List$.MODULE$:Lscala/collection/immutable/List$;
+
++##:	getstatic	###; //Field scala/package$.MODULE$:Lscala/package$;
+
++##:	invokevirtual	###; //Method scala/package$.List:()Lscala/collection/immutable/List$;
+```

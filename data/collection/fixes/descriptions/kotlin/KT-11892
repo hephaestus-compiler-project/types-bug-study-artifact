@@ -1,0 +1,22 @@
+```kotlin
+interface J1 {
+    fun j1() {}
+}
+
+interface J8: J1 {
+}
+
+class Test : J8, J1 {
+    fun test() {
+        super<J8>.j1()
+        super<J1>.j1() // No error in Kotlin
+    }
+}
+```
+
+Equivalent example in Java 8 is an error:
+Error:(8, 11) java: bad type qualifier J1 in default super call
+  redundant interface J1 is extended by J8
+
+JLS (http://docs.oracle.com/javase/specs/jls/se8/html/jls-15.html#jls-15.12.3):
+In the case that a superinterface overrides a method declared in a grandparent interface, this rule prevents the child interface from "skipping" the override by simply adding the grandparent to its list of direct superinterfaces. The appropriate way to access functionality of a grandparent is through the direct superinterface, and only if that interface chooses to expose the desired behavior.

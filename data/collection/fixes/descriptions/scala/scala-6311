@@ -1,0 +1,26 @@
+This reduced example works in 2.9.x but not in recent 2.10.x:
+
+```scala
+def fooMinimal[T, Coll <: Traversable[T]](msg: String)(param1: Traversable[T])(param2: Coll): Traversable[T] = throw new Exception()
+fooMinimal("")(List(1))(List(2))
+```
+
+`-Xprint:typer` shows that Coll is inferred to be `Traversable[Nothing]`, while it should be `Travesable[Int]`
+
+```scala
+fooMinimal[Int, Traversable[Nothing]]("")(immutable.this.List.apply[Int](1))(immutable.this.List.apply[A](2));
+```
+The signature can't be that much simpler to trigger the bug. Some examples from the attachment:
+```scala
+//For the bug, the return type must mention T. Otherwise we get:
+def fooWorks1[T, Coll <: Traversable[T]](msg: String)(param1: Traversable[T])(param2: Coll) = throw new Exception()
+fooWorks1("")(List(1))(List(2))
+//For the bug, there must be a parameter list before the mention of T. Otherwise we get:
+def fooWorks2[T, Coll <: Traversable[T]](param1: Traversable[T])(param2: Coll): Traversable[T] = throw new Exception()
+fooWorks2(List(1))(List(2))
+def fooWorks3[T, Coll <: Traversable[T]](msg: String, param1: Traversable[T])(param2: Coll): Traversable[T] = throw new Exception()
+fooWorks3("", List(1))(List(2))
+```
+The attachment contains the examples above and some other variations; it can be cleaned up and used as test file, after the bug is fixed.
+
+I did this testing on v2.10.0-M7-34-gfc698b2 (as described by git describe); but both the original bug on my codebase and the reduced example compile with 2.10.0-M5 and fail with 2.10.0-M6.

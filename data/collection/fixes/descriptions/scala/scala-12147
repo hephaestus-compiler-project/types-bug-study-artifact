@@ -1,0 +1,29 @@
+## reproduction steps
+
+using Scala 2.13.x,
+
+```scala
+scala> case class Foo[T](foo: T)
+class Foo
+
+scala> def doFooInt(foo: Foo[Int]) = ()
+def doFooInt(foo: Foo[Int]): Unit
+
+scala> def doMessage(x: Any) = x match { case f@Foo(_: Int) => doFooInt(f) }
+                                                                        ^
+       error: type mismatch;
+        found   : Foo[Any]
+        required: Foo[Int]
+       Note: Any >: Int, but class Foo is invariant in type T.
+       You may wish to define T as -T instead. (SLS 4.5)
+```
+
+## problem
+
+When pattern matching `f@Foo(_: Int)`, compiler should be able to deduce the type of `f` to be `Foo[Int]` instead of `Foo[Any]` because it is already provided in the pattern.
+
+Currently it needs to be manually casted like
+
+```scala
+case f@Foo(_: Int) => doFooInt(f.asInstanceOf[Foo[Int]])
+```

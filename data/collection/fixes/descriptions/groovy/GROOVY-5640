@@ -1,0 +1,45 @@
+I have some code that fail to compile with type checking. The example is not contrived, it comes from a real-life project that uses neo4j. The Node_ class is called Node, and I changed it here so that we exclude the possibility that Groovy somehow treats it as its Node class (which it doesn't anyways). The following code:
+
+{code}
+package test
+
+import groovy.transform.TypeChecked
+
+@TypeChecked
+class Test {
+
+    public void traverse() {
+        println new Node_().class.name
+        for (/*Object*/Node_ node : new MyTraverser().nodes()) {
+            println node.class.name
+        }
+    }
+}
+
+class Node_ {}
+
+interface Traverser {
+
+    Iterable<Node_> nodes();
+}
+
+class MyTraverser implements Traverser {
+
+    @Override
+    Iterable<Node_> nodes() {
+        []
+    }
+}
+{code}
+
+does not compile with the following error:
+
+{noformat}
+$ groovyc Test.groovy 
+org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
+Test.groovy: 12: [Static type checking] - Cannot loop with element of type test.Node -> test.Node with collection of type java.util.List <java.lang.Object> -> java.util.List <E extends java.lang.Object -> java.lang.Object>
+ @ line 12, column 9.
+           for (/*Object*/Node node : new MyTraverser().nodes()) {
+{noformat}
+
+It compiles fine when the iteration uses Object instead of Node_, and when there is no type checking.

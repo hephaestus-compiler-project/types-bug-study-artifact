@@ -1,0 +1,81 @@
+While this bug seems to be fixed in Scala 2.11.7 (thank you!), I leave this report and workaround here should someone else encounter the problem.
+
+## Reproducing
+
+With Scala 2.11.6: by compiling the code in [^KeyCode.java], **then** the following:
+
+```
+// Bug.scala
+package test
+
+import KeyModifier._
+
+case class KeyBinding(val keyCode: KeyCode, val modifier: KeyModifier = NoModifier)
+
+sealed trait KeyModifier
+
+object KeyModifier {
+  case object NoModifier extends KeyModifier
+  case object AltMod extends KeyModifier
+  case object CtrlMod extends KeyModifier
+  case object ShiftMod extends KeyModifier
+}
+
+object Test {
+  def handleKey(kc: KeyCode): Unit =
+    KeyBinding(kc) match {
+      case KeyBinding(KeyCode.LEFT,CtrlMod)     => ()
+      case KeyBinding(KeyCode.SPACE,NoModifier) |
+          KeyBinding(KeyCode.ENTER,NoModifier) => ()
+      case KeyBinding(KeyCode.I,CtrlMod)        => ()
+    }
+}
+```
+
+With default or sufficiently small `-Xss`, you get the following while compiling, in Scala 2.11.6:
+
+```
+java.lang.StackOverflowError
+	at scala.tools.nsc.transform.patmat.Solving$Solver$$anonfun$11.apply(Solving.scala:373)
+	at scala.tools.nsc.transform.patmat.Solving$Solver$$anonfun$11.apply(Solving.scala:373)
+	at scala.collection.IndexedSeqOptimized$class.prefixLengthImpl(IndexedSeqOptimized.scala:38)
+	at scala.collection.IndexedSeqOptimized$class.exists(IndexedSeqOptimized.scala:46)
+	at scala.collection.mutable.ArrayOps$ofRef.exists(ArrayOps.scala:186)
+	at scala.tools.nsc.transform.patmat.Solving$Solver$class.findTseitinModelFor(Solving.scala:373)
+	at scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.findTseitinModelFor(PatternMatching.scala:89)
+	at scala.tools.nsc.transform.patmat.Solving$Solver$class.findTseitinModelFor(Solving.scala:377)
+<repeat last 2 lines ad infinitum>
+```
+
+What is odd is the large number of circumstances that must coincide to trigger this problem.  This is demonstrated in [the reproduction repo](https://bitbucket.org/S11001001/scalac-patmat-lotsa-stack-repro/), which, as described, contains various branches whose heads cause the issue to stop occurring.
+
+We originally encountered [this issue](https://bitbucket.org/ermine-language/ermine-scala/issue/23/) with `-Xss1m` in Ermine, which required raising to `-Xss5m` to upgrade to 2.11.5.
+
+## Minimal requirements
+
+These features of [the reproduction](https://bitbucket.org/S11001001/scalac-patmat-lotsa-stack-repro/) appear to be essential:
+
+- The 2nd argument to `KeyBinding`
+- Use of | to join two cases
+- `KeyCode` is a large enum
+- The | case isn't the first case
+- There are other cases, of a varying minimum
+- The enum is loaded from classfile, not the scalac Java parser
+
+The number of match cases needed to trigger the error rises as the number of values in the enum falls, and vice versa.  I assume the minimum requirement is also dependent on the `-Xss` setting.
+
+I tested with these versions:
+
+- 2.11.6: bad
+- 2.11.5: bad
+- 2.11.4: good
+- 2.12.0-M1: good
+
+## Workarounds
+
+There seem to be two good workarounds, besides raising `-Xss` until it goes away: either
+
+- [split the pipe as demonstrated](https://bitbucket.org/S11001001/scalac-patmat-lotsa-stack-repro/commits/e27520973cdc83bfbef9dcdeeb9e868ce3440a68?at=default), or
+- [move the pipe case to the top as demonstrated](https://bitbucket.org/S11001001/scalac-patmat-lotsa-stack-repro/commits/5f8c2c29ceec98dd2eb78b83eba1eb1898b2f205?at=master).
+
+This is potentially #9181, but not explained there.

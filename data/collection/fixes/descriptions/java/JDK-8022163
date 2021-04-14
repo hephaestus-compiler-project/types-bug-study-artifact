@@ -1,0 +1,135 @@
+FULL PRODUCT VERSION :
+1.7_17 ...?.... 1.7_25 (I have produced this error on _17 and _25, but not tested version in between).
+
+ADDITIONAL OS VERSION INFORMATION :
+Darwin Tommys-MacBook-Pro.local 12.4.0 Darwin Kernel Version 12.4.0: Wed May  1 17:57:12 PDT 2013; root:xnu-2050.24.15~1/RELEASE_X86_64 x86_64
+&
+Linux tommy-Parallels-Virtual-Platform 3.5.0-32-generic #53~precise1-Ubuntu SMP Wed May 29 20:33:37 UTC 2013 x86_64 x86_64 x86_64 GNU/Linux
+
+EXTRA RELEVANT SYSTEM CONFIGURATION :
+The Mac is actually running Mountain Lion (10.8) which is not available to select on the previous page.
+
+A DESCRIPTION OF THE PROBLEM :
+Using java 1.6:
+_____________________________________
+
+  Tommys-MacBook-Pro:APSConfigServiceProvider tommy$ java -version
+java version  " 1.6.0_51 " 
+Java(TM) SE Runtime Environment (build 1.6.0_51-b11-457-11M4509)
+Java HotSpot(TM) 64-Bit Server VM (build 20.51-b01-457, mixed mode)
+  Tommys-MacBook-Pro:APSConfigServiceProvider tommy$ javac -version
+javac 1.6.0_51
+  Tommys-MacBook-Pro:APSConfigServiceProvider tommy$ javac -d target/classes -classpath $CP `find src/main/java -name '*.java' -print`
+error: Exception thrown while constructing Processor object: se/natusoft/annotation/processor/simplified/SimplifiedAnnotationProcessor
+  Tommys-MacBook-Pro:APSConfigServiceProvider tommy$ echo $?
+1
+______________________________________
+
+Using java 1.7:
+______________________________________
+
+  Tommys-MacBook-Pro:APSConfigServiceProvider tommy$ java -version
+java version  " 1.7.0_25 " 
+Java(TM) SE Runtime Environment (build 1.7.0_25-b15)
+Java HotSpot(TM) 64-Bit Server VM (build 23.25-b01, mixed mode)
+  Tommys-MacBook-Pro:APSConfigServiceProvider tommy$ javac -version
+javac 1.7.0_25
+  Tommys-MacBook-Pro:APSConfigServiceProvider tommy$ javac -d target/classes -classpath $CP `find src/main/java -name '*.java' -print`
+  Tommys-MacBook-Pro:APSConfigServiceProvider tommy$ echo $?
+0
+  Tommys-MacBook-Pro:APSConfigServiceProvider tommy$ ls -l target/classes/
+  Tommys-MacBook-Pro:APSConfigServiceProvider tommy$
+
+______________________________________
+
+
+REGRESSION.  Last worked in version 6u45
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Trigger a failing annotation processor during compile.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+An error message and a non 0 return code.
+ACTUAL -
+No error message and 0 return code.
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+TestAnn.java:
+______________________________________
+package javac.bug;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.SOURCE)
+@Target(ElementType.TYPE)
+public @interface TestAnn {
+    String[] value();
+}
+______________________________________
+
+  BugDemoAnnProc.java:
+______________________________________
+
+package javac.bug;
+
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.TypeElement;
+import java.util.HashSet;
+import java.util.Set;
+
+@SupportedSourceVersion(SourceVersion.RELEASE_6)
+public class BugDemoAnnProc extends AbstractProcessor {
+
+    public BugDemoAnnProc() {
+        throw new IllegalStateException( " Forced construction failure! " );
+    }
+
+    @Override
+    public boolean process(Set<? extends TypeElement> typeElements, RoundEnvironment roundEnvironment) {
+        return true;
+    }
+
+    @Override
+    public Set<String> getSupportedAnnotationTypes() {
+        Set<String> ats = new HashSet<String>();
+        ats.add( " javac.bug.TestAnn " );
+        return ats;
+    }
+}
+______________________________________
+
+META-INF/services/javax.annotation.processing.Processor:
+______________________________________
+javac.bug.BugDemoAnnProc
+______________________________________
+
+AnnotatedObject.java:
+______________________________________
+
+package javac.bug;
+
+@TestAnn({ " test " })
+public class AnnotatedObject {
+}
+______________________________________
+
+If this is compiled with 1.7 javac it will compile without errors and javac will exit with status 0, and nothing having been compiled. If this is compiled by 1.6 javac it will display an error message about failing to construct annotation processor and then exit with status code 1.
+
+If you build this with maven, put the last class (AnnotatedObect) in src/main/test.
+
+
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Use java 1.6 to tell you about the problem and then fix them.

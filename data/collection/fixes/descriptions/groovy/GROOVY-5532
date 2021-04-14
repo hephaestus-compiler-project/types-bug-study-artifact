@@ -1,0 +1,38 @@
+Similarly to GROOVY-5531, I'm facing another problem with the same sample.
+Static type checking the class is fine, but I get a compilation error coming from StaticTypesCallSiteWriter#makeGetPropertySite() when trying to access the closure's parameter property.
+
+The offending sample:
+{code}
+import groovy.transform.CompileStatic
+
+class User {
+    String login
+}
+
+interface Row<R> {
+    R getKey()
+}
+
+class RowImpl<R> implements Row<R> {
+    R getKey() { null }
+}
+
+@CompileStatic
+class UserRepository implements Serializable {
+    Collection<User> getUsers() {
+        def rows = [new RowImpl<String>()]
+
+        return rows.collect { Row<String> row ->
+            new User(login: row.key)
+        }
+    }
+}
+
+def rep = new UserRepository()
+rep.getUsers()
+{code}
+
+Error I get:
+{code}
+Access to java.lang.Object#key is forbidden at line: 21, column: 29
+{code}

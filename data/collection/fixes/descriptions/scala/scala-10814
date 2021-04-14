@@ -1,0 +1,39 @@
+Using 2.12.4
+
+```scala
+object Bad {
+  case class Value(raw: Double) extends AnyVal
+  trait TC[A] { def apply(a: A): Value }
+  val longInstance: TC[Long] = a => Value(0)
+}
+```
+yields this:
+```
+[warn] an unexpected type representation reached the compiler backend while compiling Bad.scala: ErasedValueType(class Bad$Value, Double). If possible, please file a bug on https://github.com/scala/bug/issues.
+scala.MatchError: ErasedValueType(class Bad$Value, Double) (of class scala.reflect.internal.Types$UniqueErasedValueType)
+	at scala.tools.nsc.backend.jvm.BTypesFromSymbols.typeToBType(BTypesFromSymbols.scala:195)
+	at scala.tools.nsc.backend.jvm.BTypesFromSymbols.methodBTypeFromMethodType(BTypesFromSymbols.scala:129)
+	at scala.tools.nsc.backend.jvm.BTypesFromSymbols.methodBTypeFromSymbol(BTypesFromSymbols.scala:120)
+	at scala.tools.nsc.backend.jvm.BTypesFromSymbols.$anonfun$buildInlineInfoFromClassSymbol$6(BTypesFromSymbols.scala:577)
+```
+
+Two workarounds:
+1) don't use value classes
+```scala
+object Workaround1 {
+  case class Value(raw: Double)
+  trait TC[A] { def apply(a: A): Value }
+  val longInstance: TC[Long] = a => Value(0)
+}
+```
+
+2) don't use SAM:
+```scala
+object Workaround2 {
+  case class Value(raw: Double) extends AnyVal
+  trait TC[A] { def apply(a: A): Value }
+  val longInstance: TC[Long] = new TC[Long] { def apply(a: Long) = Value(0) }
+}
+```
+
+/cc @non Does it already work with opaque types? :)

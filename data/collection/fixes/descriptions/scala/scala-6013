@@ -1,0 +1,48 @@
+Given the following files:
+
+```scala
+// Base.java
+public class Base {
+  public boolean foo() { return true; }
+}
+
+// Abstract.java
+public abstract class Abstract extends Base {
+  public abstract boolean foo(); // force re-implementation in derived classes
+}
+
+// DerivedJava.java
+public class DerivedJava extends Abstract {}
+
+// DerivedScala.scala
+class DerivedScala extends Abstract
+
+// Main.scala
+object Main extends App {
+  new DerivedScala().foo()
+}
+```
+
+WIth these present, javac will fail to compile DerivedJava, complaining that foo needs to be defined. However, scalac will not fail to compile DerivedScala.scala, and when Main.scala is compiled and run, it crashes with AbstractMethodError (shown here from the REPL):
+
+```scala
+scala> class Derived extends Abstract
+defined class Derived
+
+scala> new Derived().foo()
+java.lang.AbstractMethodError: Derived.foo()Z
+        at .<init>(<console>:9)
+        at .<clinit>(<console>)
+        at .<init>(<console>:11)
+        at .<clinit>(<console>)
+        at $print(<console>)
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+        at java.lang.reflect.Method.invoke(Method.java:597)
+        at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.call(IMain.scala:704)
+        at scala.tools.nsc.interpreter.IMain$Request$$anonfun$14.apply(IMain.scala:920)
+        at scala.tools.nsc.interpreter.Line$$anonfun$1.apply$mcV$sp(Line.scala:43)
+        at scala.tools.nsc.io.package$$anon$2.run(package.scala:25)
+        at java.lang.Thread.run(Thread.java:680)
+```

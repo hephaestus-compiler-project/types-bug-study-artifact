@@ -1,0 +1,70 @@
+http://stackoverflow.com/questions/18724500/implicits-compiler-bug
+
+Also pasted below
+
+First, a short description.  It seems that if I put an implicit for some other type in a companion object and import that implicit into scope of the class it isn't found during implicit resolution until it is referenced explicitly once(or defined above the class).  Example below.
+
+```scala
+ object Main extends App {
+     
+    class A(val a: String) { override def toString = s"A: $a"}
+     
+    object A {
+      implicit val default = new A("A") //found by default
+    }
+     
+    object B {
+      def func(fn: => Int)(implicit a: A) = println(a)
+    }
+     
+    class Broken {
+      def doSomething = {
+      import Broken._ // or Broken.actual
+      B.func { 123 } // Uses A.default, not Broken.actual for implicit
+      }
+    }
+     
+    object Broken {
+      implicit val actual = new A("Broken")
+    }
+     
+    class Fixed {
+      def doSomething = {
+        import Fixed._
+        println(actual) //reference actual
+        B.func { 123 } // uses Fixed.actual
+      }
+    }
+     
+    object Fixed {
+      implicit val actual = new A("Fixed")
+    }
+     
+    object WTF {
+      implicit val actual = new A("WTF")
+    }
+     
+    class WTF {
+      def doSomething = {
+        import WTF._
+        B.func { 123 } // With object definition first this works without referencing actual
+      }
+    }
+     
+    (new Broken).doSomething
+    (new Fixed).doSomething
+    (new WTF).doSomething
+  }
+```
+
+output:
+
+A: A
+A: Fixed
+A: Fixed
+A: WTF
+http://ideone.com/1Vtepf
+
+If object A doesn't have a default implicit it does error out saying no implicits are found as in the related Jira.
+
+The problem I have though is that it compiles and finds what is obviously NOT the expected implicit.  I understand this has been addressed in many situations of "implicit not found" but I've yet to see one addressed as "wrong implicit found" which I think is much worse and why I've opened this bug report.

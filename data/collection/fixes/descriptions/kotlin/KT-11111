@@ -1,0 +1,46 @@
+*OS/JVM:* Android 4.x
+*Gradle plugin:* 2.0.0-beta5
+*Kotlin:* 1.0.0
+
+Interface `A` contains a method with generic parameter:
+
+{code:lang=kotlin|title=Interface A}
+interface A {
+    fun <T> someMethodWithGeneric(t: T)
+}
+{code}
+
+`AImpl` implements `A`:
+
+{code:lang=kotlin|title=Implementation}
+class AImpl : A {
+    final override inline fun <reified T> someMethodWithGeneric(t: T) {
+        println(t.toString())
+    }
+}
+{code}
+
+We want T to be reified (currently the compiler allows such overrides!), so the implementing method must have `inline` modifier, which is only allowed for non-virtual members, thus we should also add `final override` modifier.
+
+If I instantiate `AImpl()` and/or call the method, and the concrete type is known at compile time, it works:
+
+{code:lang=kotlin|title=Direct access to class works fine}
+val a: AImpl = AImpl()
+a.someMethodWithGeneric("Hello!")
+{code}
+
+When the implementation type is not known, we can get `VerifyError` (I could reproduce it only on *Android 4.x*, but not 5+):
+
+{code:lang=kotlin|title=VerifyError #1}
+val a: A = AImpl()
+a.someMethodWithGeneric("Hello!") // VerifyError!
+{code}
+
+{code:lang=kotlin|title=VerifyError #2}
+class MyClass : A by AImpl()
+val a = MyClass() // VerifyError!
+{code}
+
+This is NOT reproduced if I just remove `reified`. Perhaps the compiler should prohibit overrides with reified generics...
+
+Sample project that can reproduce this issue: [Sample project|https://github.com/ntoskrnl/kotlin-android-verify-error]

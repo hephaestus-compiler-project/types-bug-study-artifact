@@ -1,0 +1,177 @@
+Trying to create a certain value using types from scalaz-6.0.3 leads to compiler crash.  Here's the log:
+{code}exlevan@reisen> scala -cp ~/.m2/repository/org/scalaz/scalaz-core_2.9.1/6.0.3/scalaz-core_2.9.1-6.0.3.jar
+Welcome to Scala version 2.9.2-unknown-unknown (OpenJDK 64-Bit Server VM, Java 1.6.0_24).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> import scalaz._
+import scalaz._
+
+scala> import Scalaz._
+import Scalaz._
+
+scala> type StringWriter[T] = Writer[String, T]
+defined type alias StringWriter
+
+scala> val f: Int => StringWriter[Int] = { (y: Int) => writer("", y + 1) }
+f: Int => StringWriter[Int] = <function1>
+
+scala> // defining a value using an explicitly typed function works fine
+
+scala> val x = kleisli(f)
+x: scalaz.Kleisli[StringWriter,Int,Int] = scalaz.Kleislis$$anon$1@55fa12f6
+
+scala> // replacing f with its contents leads to unwanted (wrong?) type
+
+scala> val x = kleisli{ (y: Int) => writer("", y + 1) }
+x: scalaz.Kleisli[scalaz.NewType,Int,(java.lang.String, Int)] = scalaz.Kleislis$$anon$1@71e0338f
+
+scala> // let's explicitly define the wanted type...
+
+scala> val x: Kleisli[StringWriter,Int,Int] = kleisli{ (y: Int) => writer("", y + 1) }
+java.lang.IllegalArgumentException: transpose requires all collections have the same size
+	at scala.collection.generic.GenericTraversableTemplate$class.fail$1(GenericTraversableTemplate.scala:162)
+	at scala.collection.generic.GenericTraversableTemplate$$anonfun$transpose$1$$anonfun$apply$1.apply(GenericTraversableTemplate.scala:169)
+	at scala.collection.generic.GenericTraversableTemplate$$anonfun$transpose$1$$anonfun$apply$1.apply(GenericTraversableTemplate.scala:168)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:76)
+	at scala.collection.generic.GenericTraversableTemplate$$anonfun$transpose$1.apply(GenericTraversableTemplate.scala:168)
+	at scala.collection.generic.GenericTraversableTemplate$$anonfun$transpose$1.apply(GenericTraversableTemplate.scala:166)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:76)
+	at scala.collection.generic.GenericTraversableTemplate$class.transpose(GenericTraversableTemplate.scala:166)
+	at scala.collection.immutable.List.transpose(List.scala:76)
+	at scala.tools.nsc.symtab.Types$class.mergePrefixAndArgs(Types.scala:5623)
+	at scala.tools.nsc.symtab.SymbolTable.mergePrefixAndArgs(SymbolTable.scala:13)
+	at scala.tools.nsc.symtab.Types$class.loop$1(Types.scala:5157)
+	at scala.tools.nsc.symtab.Types$class.lubList(Types.scala:5178)
+	at scala.tools.nsc.symtab.Types$class.lub1$1(Types.scala:5360)
+	at scala.tools.nsc.symtab.Types$class.lub0$1(Types.scala:5353)
+	at scala.tools.nsc.symtab.Types$class.lub(Types.scala:5438)
+	at scala.tools.nsc.symtab.SymbolTable.lub(SymbolTable.scala:13)
+	at scala.tools.nsc.symtab.Types$class.solveOne$1(Types.scala:5053)
+	at scala.tools.nsc.symtab.Types$$anonfun$solve$2.apply(Types.scala:5062)
+	at scala.tools.nsc.symtab.Types$$anonfun$solve$2.apply(Types.scala:5061)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:76)
+	at scala.tools.nsc.symtab.Types$class.solve(Types.scala:5061)
+	at scala.tools.nsc.symtab.SymbolTable.solve(SymbolTable.scala:13)
+	at scala.tools.nsc.typechecker.Infer$class.solvedTypes(Infer.scala:142)
+	at scala.tools.nsc.Global$analyzer$.solvedTypes(Global.scala:351)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.methTypeArgs(Infer.scala:706)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.inferMethodInstance(Infer.scala:1243)
+	at scala.tools.nsc.typechecker.Typers$Typer.doTypedApply(Typers.scala:2493)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedApply$1(Typers.scala:3373)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:4106)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4273)
+	at scala.tools.nsc.typechecker.Typers$Typer.transformedOrTyped(Typers.scala:4430)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedValDef(Typers.scala:1567)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:3918)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4273)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStat$1(Typers.scala:2100)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.collection.immutable.List.loop$1(List.scala:148)
+	at scala.collection.immutable.List.mapConserve(List.scala:164)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1512)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1320)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:3915)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4273)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStat$1(Typers.scala:2100)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.collection.immutable.List.loop$1(List.scala:148)
+	at scala.collection.immutable.List.mapConserve(List.scala:164)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1512)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1320)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:3915)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4273)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStat$1(Typers.scala:2100)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.collection.immutable.List.loop$1(List.scala:148)
+	at scala.collection.immutable.List.mapConserve(List.scala:164)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1512)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1320)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:3915)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4273)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStat$1(Typers.scala:2100)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.collection.immutable.List.loop$1(List.scala:148)
+	at scala.collection.immutable.List.mapConserve(List.scala:164)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1512)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1320)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:3915)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4273)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStat$1(Typers.scala:2100)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.collection.immutable.List.loop$1(List.scala:148)
+	at scala.collection.immutable.List.mapConserve(List.scala:164)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1512)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1320)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:3915)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4273)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStat$1(Typers.scala:2100)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.collection.immutable.List.loop$1(List.scala:148)
+	at scala.collection.immutable.List.mapConserve(List.scala:164)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1512)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1320)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:3915)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4273)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStat$1(Typers.scala:2100)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.collection.immutable.List.loop$1(List.scala:148)
+	at scala.collection.immutable.List.mapConserve(List.scala:164)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1512)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1320)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:3915)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4273)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStat$1(Typers.scala:2100)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$24.apply(Typers.scala:2184)
+	at scala.collection.immutable.List.loop$1(List.scala:148)
+	at scala.collection.immutable.List.mapConserve(List.scala:164)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:2184)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:3908)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4273)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4333)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.apply(Analyzer.scala:94)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:329)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:86)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:86)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:772)
+	at scala.collection.mutable.ListBuffer$$anon$1.foreach(ListBuffer.scala:318)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.run(Analyzer.scala:86)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:953)
+	at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compileAndSaveRun(IMain.scala:756)
+	at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compile(IMain.scala:731)
+	at scala.tools.nsc.interpreter.IMain$Request.compile(IMain.scala:873)
+	at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:576)
+	at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:543)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:694)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:745)
+	at scala.tools.nsc.interpreter.ILoop.command(ILoop.scala:651)
+	at scala.tools.nsc.interpreter.ILoop.processLine$1(ILoop.scala:542)
+	at scala.tools.nsc.interpreter.ILoop.loop(ILoop.scala:550)
+	at scala.tools.nsc.interpreter.ILoop.process(ILoop.scala:822)
+	at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:67)
+	at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:80)
+	at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:89)
+	at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+
+That entry seems to have slain the compiler.  Shall I replay
+your session? I can re-run each line except the last one.
+[y/n]
+{code}

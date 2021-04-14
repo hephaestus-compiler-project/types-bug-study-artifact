@@ -1,0 +1,40 @@
+Here's the code sample that illustrates the problem.  You can probably illustrate the problem more compactly without the type class; this is just as far as I got drilling down.
+
+```scala
+case class ByteLabel(bytes: Array[Byte]) extends AnyVal
+
+trait Serializer[A, B] {
+  def serializeTo(thing: A): B
+  def serializeFrom(repr: B): A
+}
+
+object ByteLabel {
+
+  implicit object TrivialSerializer
+      extends Serializer[ByteLabel, Array[Byte]] {
+
+    def serializeTo(hash: ByteLabel) = hash.bytes.clone
+
+    def serializeFrom(bytes: Array[Byte]) =  {
+      //
+      // Returning
+      //
+      //   ByteLabel(bytes.clone)
+      //
+      // directly gives an ominous compiler phase dump that ends in
+      //
+      //   type error: can't convert from REF(class Object) to
+      //   ARRAY[BYTE] in unit ByteLabel.scala
+      //
+      // but the following compiles fine.
+      //
+      val clone = bytes.clone
+      ByteLabel(clone)
+    }
+
+  }
+
+}
+```
+
+I haven't gone deeply through the language of SIP-15 to see if the behaviour is "by the spec."  But even if it is, I'd prefer an implementation that doesn't involve this kind of hand-holding.

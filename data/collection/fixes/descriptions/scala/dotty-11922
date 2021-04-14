@@ -1,0 +1,40 @@
+## 3.0.0-RC1
+
+## Minimized code
+
+
+```Scala
+object example {
+  trait MyType[A]
+}
+
+object bug {
+  export example.MyType
+  def bug[A](m: MyType[A]): MyType[A] = m //type mismatch
+  val bug2: MyType[String] => MyType[String] = m => m //type mismatch
+
+  //it works when referencing the original type in the parameter position.
+  def thisWorks[A](m: example.MyType[A]): MyType[A] = m
+  val thisWorks2: example.MyType[String] => MyType[String] = m => m
+  val thisWorks3: MyType[String] = (??? : MyType[String])
+}
+
+```
+
+## Output
+Type error:
+```
+[error] -- [E007] Type Mismatch Error: src/main/scala/export_example/myTypeclassExports.scala:9:40 
+[error] 9 |  def bug[A](m: MyType[A]): MyType[A] = m
+[error]   |                                        ^
+[error]   |                              Found:    (m : export_example.bug.MyType[A])
+[error]   |                              Required: export_example.bug.MyType[A]
+[error] one error found
+[error] one error found
+[error] (phms-util-config / Compile / compileIncremental) Compilation failed
+[error] Total time: 2 s, completed Mar 28, 2021, 9:36:03 PM
+//idem for bug2
+```
+
+## Expectation
+That the code type-checks without referencing the full original type in parameter position.

@@ -1,0 +1,25 @@
+Consider the following Java api (reduced from [com.google.common.util.concurrent.ListeningExecutorService](https://guava.dev/releases/19.0/api/docs/com/google/common/util/concurrent/ListeningExecutorService.html)):
+```java
+public class Future<T> {}
+```
+```java
+import java.util.concurrent.Callable;
+
+public interface Executor {
+  <T> Future<T> submit(Callable<T> task);
+  Future<?> submit(Runnable task);
+}
+```
+When `submit` is called with a lambda argument, both old and new inference end up calling the second overload with `Runnable`. However, with function references the behavior differs:
+```kotlin
+fun f(): String = "test"
+
+class A {
+  fun schedule(e: Executor): Future<String> = e.submit(::f)
+}
+```
+This code compiles with old inference, which converts `::f` to `Callable<String>`, but fails to compile with new inference with the following error:
+```
+test.kt:4:47: error: type mismatch: inferred type is Future<*>! but Future<String> was expected
+  fun schedule(e: Executor): Future<String> = e.submit(::f)
+```

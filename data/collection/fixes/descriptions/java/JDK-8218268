@@ -1,0 +1,94 @@
+ADDITIONAL SYSTEM INFORMATION :
+Microsoft Windows [Version 10.0.17134.523]
+
+openjdk version "13-ea" 2019-09-17
+OpenJDK Runtime Environment (build 13-ea+6)
+OpenJDK 64-Bit Server VM (build 13-ea+6, mixed mode, sharing)
+
+A DESCRIPTION OF THE PROBLEM :
+The Manifest Class-Path entry is specified as a relative URL.
+https://docs.oracle.com/en/java/javase/11/docs/specs/jar/jar.html#class-path-attribute
+
+But the JVM ClassLoader accepts all kinds of URLs:
+- my%20dir/mylib.jar
+- /C:/my%20dir/mylib.jar
+- file:/C:/my%20dir/mylib.jar
+- file:///C:/my%20dir/mylib.jar
+
+The Java Compiler is treating the entries as Paths. And the behavior has changed since Java 9.
+
+Behavior of javac 8:
+- my%20dir/mylib.jar = ignored
+- /C:/my%20dir/mylib.jar = ignored
+- file:/C:/my%20dir/mylib.jar = ignored
+
+Behavior of javac 9-13:
+- my%20dir/mylib.jar = ignored
+- /C:/my%20dir/mylib.jar = Illegal char <:> at index 2
+- file:/C:/my%20dir/mylib.jar = Illegal char <:> at index 4
+
+I expect that:
+1. The Java Compiler treats the entries as URLs, according to spec.
+2. The behavior of the JVM ClassLoader and the Java Compiler is equal
+3. The behavior is backwards compatible
+So the Java Compiler must accept all the URLs that the JVM ClassLoader also accepts nowadays.
+
+Should be fixed in Java 11 and master.
+
+REGRESSION : Last worked in version 8u192
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+This windows batch file demonstrates the issue.
+Change the Class-Path to any other URI to see the difference. (Double % is to escape)
+
+=====================repro.bat=====================
+echo public class Hello {> Hello.java
+echo 	public static String hello() {>> Hello.java
+echo 		return "hello";>> Hello.java
+echo 	}>> Hello.java
+echo }>> Hello.java
+
+echo public class Main {> Main.java
+echo 	public static void main(String[] args) {>> Main.java
+echo 		System.out.println(Hello.hello());>> Main.java
+echo 	}>> Main.java
+echo }>> Main.java
+
+javac Hello.java
+mkdir "Program Libs"
+jar -cf "Program Libs/hello.jar" Hello.class
+del Hello.class
+
+echo Class-Path: Program%%20Libs/hello.jar > manifest.mf
+jar -cfm hellocp.jar manifest.mf
+del manifest.mf
+
+javac -cp "hellocp.jar" Main.java
+rem This failed. Now I add the hello.jar directly to the classpath to be able to compile
+pause
+javac -cp "hellocp.jar;Program Libs/hello.jar" Main.java
+
+java -cp hellocp.jar;. Main
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+C:\javacbug>java -cp hellocp.jar;. Main
+hello
+ACTUAL -
+C:\javacbug>javac -cp "hellocp.jar" Main.java
+Main.java:3: error: cannot find symbol
+                System.out.println(Hello.hello());
+                                   ^
+  symbol:   variable Hello
+  location: class Main
+1 error
+
+C:\javacbug>javac -cp "hellocp.jar" Main.java
+error: illegal argument for --class-path: Illegal char <:> at index 2: /C:/javacbug/Program%20Libs/hello.jar
+
+C:\javacbug>javac -cp "hellocp.jar" Main.java
+error: illegal argument for --class-path: Illegal char <:> at index 4: file:/C:/javacbug/Program%20Libs/hello.jar
+
+FREQUENCY : always
+
+

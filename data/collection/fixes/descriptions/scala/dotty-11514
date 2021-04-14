@@ -1,0 +1,27 @@
+`A.scala`:
+```scala
+package pkg
+
+def foo(x: Int): Int = x
+```
+`B.scala`:
+```scala
+package pkg
+
+def foo(x: String): String = x
+```
+This shouldn't compile as http://dotty.epfl.ch/docs/reference/dropped-features/package-objects.html says that "If several top-level definitions are overloaded variants with the same name, they must all come from the same source file.", and indeed under joint compilation we get:
+```shell
+% scalac A.scala B.scala
+-- [E161] Naming Error: B.scala:3:4 ----------------------------------------
+3 |def foo(x: String): String = x
+  |^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |foo is already defined as method foo in A.scala
+```
+But under separate compilation the error is not detected:
+```shell
+% mkdir out
+% scalac A.scala -d out
+% scalac B.scala -classpath out
+```
+This is problematic since when using incremental compilation with a build tool one might not detect the problem until the next time they clean their build.

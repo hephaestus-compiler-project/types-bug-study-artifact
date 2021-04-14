@@ -1,0 +1,81 @@
+FULL PRODUCT VERSION :
+javac 1.8.0-b128
+java 1.8.0-b128
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux x86/64
+
+A DESCRIPTION OF THE PROBLEM :
+javac crashes with a NullPointerException during generic bounds checking.
+
+REGRESSION.  Last worked in version 7u51
+
+ADDITIONAL REGRESSION INFORMATION: 
+java version "1.8.0"
+Java(TM) SE Runtime Environment (build 1.8.0-b128)
+Java HotSpot(TM) 64-Bit Server VM (build 25.0-b69, mixed mode)
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Run javac on the provided program.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Javac does not crash.
+ACTUAL -
+Javac crashes.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+An exception has occurred in the compiler (1.8.0-internal_bootstrap). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.NullPointerException
+	at com.sun.tools.javac.code.Types.closure(Types.java:3314)
+	at com.sun.tools.javac.code.Types.glb(Types.java:3637)
+	at com.sun.tools.javac.code.Types.capture(Types.java:3914)
+	at com.sun.tools.javac.code.Types.isSubtype(Types.java:836)
+	at com.sun.tools.javac.code.Types.isSubtype(Types.java:806)
+	at com.sun.tools.javac.code.Types$4.visitClassType(Types.java:258)
+	at com.sun.tools.javac.code.Types$4.visitClassType(Types.java:1)
+	at com.sun.tools.javac.code.Type$ClassType.accept(Type.java:763)
+	at com.sun.tools.javac.code.Types$DefaultTypeVisitor.visit(Types.java:4400)
+	at com.sun.tools.javac.code.Types.asSub(Types.java:234)
+	at com.sun.tools.javac.code.Types$10.visitClassType(Types.java:1570)
+	at com.sun.tools.javac.code.Types$10.visitClassType(Types.java:1)
+	at com.sun.tools.javac.code.Type$ClassType.accept(Type.java:763)
+	at com.sun.tools.javac.code.Types$DefaultTypeVisitor.visit(Types.java:4400)
+	at com.sun.tools.javac.code.Types.isCastable(Types.java:1490)
+	at com.sun.tools.javac.code.Types.notSoftSubtype(Types.java:1805)
+	at com.sun.tools.javac.comp.Check.checkExtends(Check.java:619)
+	at com.sun.tools.javac.comp.Check.firstIncompatibleTypeArg(Check.java:972)
+	at com.sun.tools.javac.comp.Check.access$4(Check.java:935)
+	at com.sun.tools.javac.comp.Check$Validator.visitTypeApply(Check.java:1254)
+	at com.sun.tools.javac.tree.JCTree$JCTypeApply.accept(JCTree.java:2129)
+	at com.sun.tools.javac.comp.Check$Validator.validateTree(Check.java:1350)
+	at com.sun.tools.javac.comp.Check$Validator.validateTrees(Check.java:1363)
+	at com.sun.tools.javac.comp.Check$Validator.visitTypeParameter(Check.java:1289)
+	at com.sun.tools.javac.tree.JCTree$JCTypeParameter.accept(JCTree.java:2218)
+	at com.sun.tools.javac.comp.Check$Validator.validateTree(Check.java:1350)
+	at com.sun.tools.javac.comp.Check.validate(Check.java:1221)
+	at com.sun.tools.javac.comp.Check.validate(Check.java:1218)
+	at com.sun.tools.javac.comp.Check.validate(Check.java:1228)
+	at com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:4242)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4215)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4149)
+	at com.sun.tools.javac.comp.Attr.attrib(Attr.java:4124)
+	at com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1251)
+	at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:904)
+	at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:863)
+	at com.sun.tools.javac.main.Main.compile(Main.java:523)
+	at com.sun.tools.javac.main.Main.compile(Main.java:381)
+	at com.sun.tools.javac.main.Main.compile(Main.java:370)
+	at com.sun.tools.javac.main.Main.compile(Main.java:361)
+	at com.sun.tools.javac.Main.compile(Main.java:56)
+	at com.sun.tools.javac.Main.main(Main.java:42)
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+class One<X extends Two<? super X>> {}
+class Two<Y extends Three<? extends Y>> implements Three<Y> {}
+interface Three<Z> {}
+---------- END SOURCE ----------
+

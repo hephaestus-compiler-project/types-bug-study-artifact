@@ -1,0 +1,61 @@
+## Minimized code
+
+```Scala
+import scala.collection.immutable.{IndexedSeq => Vec}
+
+object UGenSource {
+  abstract class ZeroOut   extends UGenSource[Unit]
+  abstract class SingleOut extends SomeOut
+  abstract class MultiOut  extends SomeOut
+
+  sealed abstract class SomeOut extends UGenSource[UGenInLike] with GE
+
+  def unwrap(source: UGenSource.ZeroOut, args: Vec[UGenInLike]): Unit       = ()
+  def unwrap(source: UGenSource.SomeOut, args: Vec[UGenInLike]): UGenInLike = ???
+}
+sealed abstract class UGenSource[U] {
+  protected def makeUGens: U
+}
+
+case class Constant(value: Float) extends UGenIn
+
+object GE {
+  implicit def intIsConst(i: Int): Constant = Constant(i.toFloat)
+}
+trait GE {
+  def expand: UGenInLike
+}
+
+trait UGenInLike extends GE {
+  def expand: UGenInLike = this
+}
+
+sealed trait UGenIn extends UGenInLike 
+
+final case class MFCC(chain: GE, numCoeffs: Int = 13)
+  extends UGenSource.MultiOut {
+    
+  import UGenSource.unwrap
+    
+  def expand: UGenInLike = makeUGens
+
+  protected def makeUGens: UGenInLike = unwrap(this, Vector(chain.expand, numCoeffs)) // !
+}
+```
+
+## Output
+
+does not compile because
+
+```scala
+None of the overloaded alternatives of method unwrap in object UGenSource with types
+ (source: UGenSource.SomeOut, args: IndexedSeq[UGenInLike]): UGenInLike
+ (source: UGenSource.ZeroOut, args: IndexedSeq[UGenInLike]): Unit
+match arguments ((MFCC.this : MFCC), Vector[Any])
+```
+
+https://scastie.scala-lang.org/NtdP6snnRBK0SbSXZHqhtA
+
+## Expectation
+
+should work - see Scala 2.13: https://scastie.scala-lang.org/ZYLZIPGTTdaOc6spOi2dzA

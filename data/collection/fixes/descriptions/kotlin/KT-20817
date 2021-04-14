@@ -1,0 +1,32 @@
+Consider this code:
+
+```
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
+
+class Pizza
+
+fun load(): Deferred<List<Pizza>> = GlobalScope.async {
+    val cache = loadFromCache()
+    if (cache != null) return@async cache
+    return@async loadFromApi()
+}
+
+private fun loadFromCache(): List<Pizza>? = TODO()
+private suspend fun loadFromApi(): List<Pizza> = TODO()
+```
+
+It produces the following type-interefence error:
+
+```
+Error: Kotlin: Type inference failed. Expected type mismatch: inferred type is Deferred<List<Pizza>?> but Deferred<List<Pizza>> was expected
+```
+
+The is workaround to specify the type arguments to async explicitly:
+
+```
+fun load() = GlobalScope.async<List<Pizza>> { ... }
+```
+
+It is super-confusing, since the original line had the expected type from the assignment context.

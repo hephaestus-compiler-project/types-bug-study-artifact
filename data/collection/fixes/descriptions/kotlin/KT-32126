@@ -1,0 +1,151 @@
+# Classification
+
+* Type of change:
+    * New errors are introduced
+* Motivation types:
+    * Problematic usage patterns need to be discouraged/blocked (e.g. counterintuitive behaviors)
+        * Code can't be compiled correctly
+* Impact types:
+    * Compilation. Some code that used to compile won't compile anymore
+        * There were cases when such code worked with no exceptions
+            * Some such code could compile without any warnings
+* Detection and Migration modes:
+    * Migration can't be automated
+
+# Existing behavior
+
+## Code example
+
+The code is: 
+```kotlin
+fun testSequence() = sequence { yield(this) }
+```
+
+This code compiles without any warnings.
+
+An example without stdlib functions:
+```kotlin
+interface Inv<T> {
+    fun emit(t: T)
+}
+
+@OptIn(ExperimentalTypeInference::class)
+fun <T> invBuilder(@BuilderInference block: Inv<T>.() -> Unit): T = TODO()
+
+
+fun foo() = invBuilder {
+    emit(this)
+}
+```
+
+## What's wrong with it
+
+The problem is that type of expression `sequence { yield(this) }` isn't proper, meaning that it contains non-fixed type variables. In IDE you can even see type `Sequence<SequenceScope<~T>>` where `~T` is just a type variable. As a result, it's not possible to generate a correct generic signature and therefore there is no generic signature in the resulting bytecode at all.
+
+## Why and how this happens
+
+Let's consider the simplified example:
+
+```kotlin
+interface Inv<T> {
+    fun emit(t: T)
+}
+
+@OptIn(ExperimentalTypeInference::class)
+fun <T> invBuilder(@BuilderInference block: Inv<T>.() -> Unit): T = TODO()
+
+
+fun foo() = invBuilder {
+    emit(this)
+}
+```
+
+Here `this` inside lambda of `invBuilder` function has type `Inv<~T>`. Type variable `T` isn't fixed, it will be fixed only after analysis of the lambda and in order to call members and use expressions containing type `T` inside this lambda, we use fresh stub type `~T`, which is a temporary type. It's important that we don't allow type variables to use `~T` as a proper type for fixation because it's not a real type. So, for example, here will be an error because `getVariable` contains type `~T`:
+```kotlin
+interface Inv<T> {
+    fun emit(t: T)
+    fun getVariable(): Inv<T>
+}
+
+@OptIn(ExperimentalTypeInference::class)
+fun <T> invBuilder(@BuilderInference block: Inv<T>.() -> Unit): T = TODO()
+
+
+fun foo() = invBuilder {
+    emit(getVariable()) // ERROR
+}
+```
+
+Basically, expressions `getVariable()` and `this` have the same type `Inv<~T>` but there is no error when one uses `this`. As a result, expression `invBuilder { emit(this) }` has type `Inv<~T>`.
+
+# Affected versions: when did the problem appear first?
+
+The problem exists since Kotlin 1.2
+
+# Proposed changes
+
+The proposal is to prohibit using `this` inside such functions as `sequence` if there are no other proper constraints. So, the following example will not work:
+```
+fun testSequence() = sequence { yield(this) } // ERROR
+```
+
+Note that if there are more `yield`'s with proper constraints, then such code will work:
+```kotlin
+fun testSequence() = sequence {  // OK
+    yield(this) 
+    yield("string") 
+}
+```
+
+# Impact
+
+Some code will not compile anymore, but only code that contains expressions with non-fixed type variables. So, this is code that can't be compiled correctly and should be fixed.
+
+## Workaround
+
+The workaround is either to add more constraints with proper types or speicify type argument explicitly:
+
+```kotlin
+fun testSequence() = sequence {  // OK
+    yield(this) 
+    yield("string") 
+}
+```
+
+Or
+
+```kotlin
+fun testSequence() = sequence<Any> {  // OK
+    yield(this)
+}
+```
+
+# Migration plan
+
+ - 1.4.0 Implement proposed changes
+
+This problem is fixed under the new type inference algorithm, so there will be a common compiler key for the old behavior.
+
+----
+
+# Original issue
+
+After upgrade to kotlin 1.3.40, Android Studio (3.4.1) fails to infer the type when using the Result type in a liveData block:
+```
+    fun get() = liveData {
+        userProfile?.run {
+            emit(Result.success(this))
+        }
+
+        try {
+            // some code
+        } catch (e: IOException) {
+            Timber.e(e, "Cannot fetch user profile")
+            emit(Result.failure(e))
+        }
+    }
+```
+
+The code still compiles, though.
+
+The error can removed by disabling the new type inference algorithm in the settings (Settings / Kotlin Compiler) or using the compiler argument -XXLanguage:+NewInference

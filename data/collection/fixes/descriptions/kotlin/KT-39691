@@ -1,0 +1,22 @@
+In the following code, new inference does not perform SAM conversion in the `test` function.
+```java
+public interface C { void on(String s); }
+public class A { void add(C c) {} }
+```
+```kotlin
+class B : A() {
+  fun test(x: Any?) {
+    add(x?.let { { _ : String -> Unit } })
+  }
+}
+```
+this causes a compilation error:
+```
+test.kt:3:18: error: type mismatch: inferred type is (String) -> Unit but C! was expected
+    add(x?.let { { _ : String -> Unit } })
+                 ^
+test.kt:3:34: error: type mismatch: inferred type is (String) -> Unit but C! was expected
+    add(x?.let { { _ : String -> Unit } })
+                                 ^
+```
+in contrast, old inference compiles this example correctly.

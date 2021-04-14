@@ -1,0 +1,14 @@
+The updated langtools/make/build.xml is broken on windows, here is the error.
+
+C:\XXXX\jdk9\langtools\make\build.xml:91: java.util.regex.PatternSyntaxException: Unclosed character class near index 8
+\([^\]+)$
+
+<!--- the code -->
+    <pathconvert property="xpatch.rest" pathsep=" --patch-module=">
+        <regexpmapper from="${file.separator}([^${file.separator}]+)$" to='\1="${build.modules}${file.separator}\1"' />
+        <dirset dir="${src.dir}" includes="*.*"/>
+    </pathconvert>
+
+The trouble is regexpmapper cannot handle file.separator which translates to \ on Windows. The fix is to use globmapper with  handledirsep="yes", this is the recommended practice by apache ant.
+
+Also there is a literal ":" which needs to be replaced with path.separator.

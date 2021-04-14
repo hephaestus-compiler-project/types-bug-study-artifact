@@ -1,0 +1,53 @@
+Tested in Intellij 142.3050, kotlin plugin 12.1154
+
+I couldn't find simpler example. I have this Either type:
+
+{code lang=kt}
+sealed class Either<out L, out R> {
+    data class Left<L> (val value: L): Either<L, Nothing>()
+    data class Right<R>(val value: R): Either<Nothing, R>()
+}
+
+inline fun <L, R, L2> Either<L, R>.mapLeft(func: (L) -> L2): Either<L2, R> = when(this) {
+    is Either.Left  -> Either.Left(func(value))
+    is Either.Right -> this
+}
+
+inline fun <L, R, R2> Either<L, R>.flatMap(func: (R) -> Either<L, R2>): Either<L, R2> = when(this) {
+    is Either.Left  -> this
+    is Either.Right -> func(value)
+}
+{code}
+
+As a Left value I want to return Error
+
+{code lang=kt}
+sealed class Error {
+    object First  : Error()
+    object Second : Error()
+}
+{code}
+
+Type inference fails it this situation:
+
+{code lang=kt}
+val result: Either<Error, String> = Either.Right("foo")
+
+fun doSomething(): Either<Error, String> = Either.Right("bar")
+
+val r: Either<Error, String> = result
+    .mapLeft { Error.First as Error } // explicit upcast required 
+    .flatMap { doSomething() }
+{code}
+
+Intellij marks this cast with "No cast needed" but when it's removed the code won't compile.  
+
+But I noticed that when I change the code to use function reference it suddenly works.
+
+{code lang=kt}
+fun doSomething(notUsed: String): Either<Error, String> = Either.Right("bar")
+
+val r: Either<Error, String> = result
+    .mapLeft { Error.First }
+    .flatMap (::doSomething)
+{code}

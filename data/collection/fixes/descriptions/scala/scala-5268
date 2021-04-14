@@ -1,0 +1,26 @@
+This was one slippery bug to isolate. See comments inline.
+
+```scala
+
+object test extends IdInstances {
+  trait TC[M[_]]
+
+  type Id[x] = x
+
+  // [error]  both value id in trait IdInstances of type => test.TC[test.Id]
+  // [error]  and value evidence$1 of type test.TC[M]
+  // [error]  match expected type test.TC[M1]
+  // [error]   def bar[M[_] : TC, A]: M[A] = foo(null.asInstanceOf[A])
+  def bar[M[_] : TC, A]: M[A] = foo(null.asInstanceOf[A])
+
+  def foo[A1, M1[_] : TC ](o: A1): M1[A1] = sys.error("")
+}
+
+trait IdInstances {
+  // Define directly in `object test`, rather than mixing in this trait,
+  // and no ambiguity is reported (as expected).
+  implicit val id: test.TC[test.Id] = sys.error("")
+}
+```
+
+The problem persists in 2.10.0-SNAPSHOT

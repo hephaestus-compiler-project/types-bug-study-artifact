@@ -1,0 +1,14 @@
+The use of Type.clone() is flagged by FindBugs, and the code itself looks very suspicious, likely to throw AssertionError, and (probably) never executed.  The situation needs to be examined and remedied.
+
+----
+
+javac Type defines clone() but does not override Cloneable.    It (re)defines clone to call Object.clone but then to translate CloneNotSupportedException into AssertionError.   Object.clone is defined to throw CloneNotSupportedException is the object does not implement Cloneable.
+
+Only two subtypes of Type implement Cloneable. ForAllType and MethodType.   Two subtypes override clone: ForAll and DelegatedType.   Both of these delegate to Type.clone for part of their work, so are quite likely to get AssertionError if used.
+
+Type.clone is used just once, in Resolve.mostSpecific:784.  This appears to be callable, live code.
+
+So the obvious initial question is how does Type.clone work at all? You'd think it would be throwing AssertionError all the time.
+
+
+Then the question is, can we fix this not to be a FindBugs error?    It is legal for a class to implement Cloneable but still throw CloneNotSupportedException, so we could follow the FindBugs hint and have Type implement Cloneable.   Or we could avoid the Cloneable mechanism and use a different method name and implement it as needed across the subtypes of Type.   Or we could prove the code is unused and delete it.

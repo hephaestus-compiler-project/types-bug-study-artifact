@@ -1,0 +1,31 @@
+The following code does not compile:
+
+```scala
+trait Bar
+trait Foo[A] { def howMany(xs: List[A]) = xs.size }
+
+implicit def bar2foo[A](bar: Bar) = new Foo[A] {}
+
+val bar = new Bar {}
+val stuff = List(1, 2, 3)
+
+bar howMany stuff
+//<console>:13: error: type mismatch;
+// found   : List[Int]
+// required: List[A]
+//              bar howMany stuff
+```
+
+But adding an unrelated method with the same name allows the view to be applied correctly:
+
+```scala
+trait Bar { def howMany = throw new Exception("I don't do anything!") }
+//...
+
+bar howMany stuff
+// res1: Int = 3
+```
+
+This leads to unintuitive workarounds, like [this](https://gist.github.com/4131492).
+
+See [this related Stack Overflow question](http://stackoverflow.com/q/13515169/334519) for more discussion.

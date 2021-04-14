@@ -1,0 +1,49 @@
+When the compiler desugars a lambda body to a method, there is no local variable table generated in the classfile.  This prevents debuggers from being able to examine locals when stepping into lambdas.  
+
+For example, for the following class:
+
+class Foo1 {
+    public static void x() { 
+        int i = 0;
+    }
+}
+
+there is an LVTable:
+
+public static void x();
+    descriptor: ()V
+    flags: ACC_PUBLIC, ACC_STATIC
+    Code:
+      stack=1, locals=1, args_size=0
+         0: iconst_0      
+         1: istore_0      
+         2: return        
+      LineNumberTable:
+        line 3: 0
+        line 4: 2
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            2       1     0     i   I
+
+but for 
+
+class Foo2 {
+    public static Runnable r = () -> { 
+        int i = 0;
+    };
+}
+
+there is no LVtable:
+
+  private static void lambda$static$0();
+    descriptor: ()V
+    flags: ACC_PRIVATE, ACC_STATIC, ACC_SYNTHETIC
+    Code:
+      stack=1, locals=1, args_size=0
+         0: iconst_0      
+         1: istore_0      
+         2: return        
+      LineNumberTable:
+        line 1: 0
+        line 4: 2
+

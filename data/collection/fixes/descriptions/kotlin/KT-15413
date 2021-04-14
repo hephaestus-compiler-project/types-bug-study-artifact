@@ -1,0 +1,35 @@
+Consider this code:
+
+```
+open class A {
+    open fun doSomething() = println("A")
+}
+
+class B : A() {
+    override suspend fun doSomething() = println("B")
+}
+
+fun main(args: Array<String>) {
+    val a : A = B()
+    a.doSomething()
+}
+```
+
+It produces "A" on the screen. The `B.doSomething` did not actually override `A.doSomething()`. 
+
+This code shall not compile. The same shall be true for the opposite override case, which also prints "A" on the screen, but it shall not compile, too.
+
+```
+open class A {
+    open suspend fun doSomething() = println("A")
+}
+
+class B : A() {
+    override fun doSomething() = println("B")
+}
+
+fun main(args: Array<String>) {
+    val a : A = B()
+    async { a.doSomething() }
+}
+```

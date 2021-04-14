@@ -1,0 +1,84 @@
+`SingletonTypeTree` and its underlying `RefTree` seem always to have `NoSymbol`. Or is this on purpose?
+
+This bug(?) causes
+- https://github.com/scalameta/scalameta/issues/2024
+- https://github.com/scalameta/metals/issues/1633
+- may related to https://github.com/scala/bug/issues/11854 ?
+
+## reproduction steps
+Here's a full reproducible example:
+https://github.com/tanishiking/scalameta-2024
+
+using Scala 2.13.3
+
+```scala
+import scala.tools.nsc.{Global, Phase, Settings, SubComponent}
+import scala.tools.nsc.reporters.StoreReporter
+
+object Main extends App {
+  def compile(
+      code: String,
+      global: Global = newGlobal()
+  ): global.CompilationUnit = {
+    val run = new global.Run
+    global.reporter.reset()
+    val source = global.newSourceFile(code)
+    run.compileSources(source :: Nil)
+    val unit = run.units.toList.head
+    unit
+  }
+
+  def newGlobal(): Global = {
+    val settings = new Settings()
+    // https://stackoverflow.com/questions/27934282/object-scala-in-compiler-mirror-not-found-running-scala-compiler-programmatica
+    settings.processArgumentString("-usejavacp")
+    val reporter = new StoreReporter(settings)
+    val g = new Global(settings, reporter)
+    new g.Run
+    g
+  }
+
+  val global = newGlobal()
+  import global._
+
+  val code =
+    """|object root {
+       |  object impl
+       |  val f: impl.type => Unit = {}
+       |}  
+    """.stripMargin
+
+  val unit = compile(code, global)
+
+  object Traverser extends global.Traverser {
+    override def traverse(gtree: global.Tree): Unit = {
+      gtree match {
+        case tt: global.TypeTree if tt.original != null =>
+          traverse(tt.original)
+        case st: global.SingletonTypeTree =>
+          pprint.pprintln(
+            (
+              global.showRaw(st),
+              st.symbol,
+              st.ref.symbol
+            )
+          )
+        case t =>
+          super.traverse(gtree)
+      }
+    }
+  }
+  Traverser.traverse(unit.body)
+  // ("SingletonTypeTree(Ident(TermName(\"impl\")))", null, <none>)
+  // ("SingletonTypeTree(Ident(TermName(\"impl\")))", null, <none>)
+}
+```
+
+This code traverses the typed tree and collects all `SingletonTypeTree`, and then print its symbol (and its underlying tree's symbol). They supposed to have a symbol that points `root.impl` but they look like NoSymbol.
+
+## problem
+`SingletonTypeTree#symbol` or it's underlying `RefTree` should have a symbol instead of `NoSymbol`.
+
+---
+
+I guess the related code is around here https://github.com/scala/scala/blob/c362e07035dcc70ef713cc9c26228670b055fb8c/src/compiler/scala/tools/nsc/typechecker/Typers.scala#L5825

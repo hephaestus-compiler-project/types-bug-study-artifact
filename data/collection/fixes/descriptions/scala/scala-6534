@@ -1,0 +1,29 @@
+This is true of 2.10.0-RC1, which is not listed as a valid version.
+```scala
+scala> class Foo(val x: Int) extends AnyVal { override def hashCode = 1 }
+<console>:7: error: redefinition of hashCode method. See SIP-15, criterion 4. is not allowed in value class
+       class Foo(val x: Int) extends AnyVal { override def hashCode = 1 }
+```
+
+But if an override is inherited, we get two different wrong behaviors: in the case of equals, no error is issued and it is ignored.  In the case of hashCode, no error is issued and it is used.
+
+```scala
+scala> trait Foo extends Any { override def equals(x: Any) = false }
+defined trait Foo
+
+scala> class Bippy(val x: Int) extends AnyVal with Foo { }
+defined class Bippy
+
+scala> new Bippy(5) == new Bippy(5)
+res0: Boolean = true
+
+scala> trait Ding extends Any { override def hashCode = -1 }
+defined trait Ding
+
+scala> class Bip(val x: Int) extends AnyVal with Ding
+defined class Bip
+
+scala> new Bip(5) hashCode
+warning: there were 1 feature warnings; re-run with -feature for details
+res1: Int = -1
+```

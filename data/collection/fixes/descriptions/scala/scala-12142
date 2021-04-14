@@ -1,0 +1,113 @@
+## reproduction steps
+
+using Scala 2.13.3,
+
+```scala
+	trait Bounds {
+		type Upper <: Bounds
+	}
+
+	trait Template[+X <: Bounds] extends Bounds { outer =>
+		val body :X
+		type Bound >: body.Upper <: Bounds
+
+		type Copy[+A <: Bound] <: Template[A] 
+
+		type High[T[+A <: Narrow] <: Bounds]
+
+		def applied(narrow :Template[Narrow]) :High[narrow.Copy] //this fails
+		def indirect(narrow :Template[Narrow]) :High[({ type T[+A <: Narrow] = narrow.Copy[A] })#T]  = { //but this works
+		    implicitly[Narrow <:< narrow.Bound] //no problem
+                    ???
+		}
+	}
+
+	trait Narrow extends Bounds {
+		type Upper >: Narrow <: Bounds
+	}
+```
+
+## problem
+```
+Error:(23, 42) kinds of the type arguments (narrow.Copy) do not conform to the expected kinds of the type parameters (type T).
+                     narrow.Copy's type parameters do not match type T's expected parameters:
+                     type A's bounds <: Template.this.Bound are stricter than type A's declared bounds <: Playground.Narrow
+		         def applied(narrow :Template[Narrow]) :High[narrow.Copy]
+```
+
+Judging how a level of indirection in the form of a type lambda fixes the issue I'd say it's a bug.
+
+## motivation
+Judging by the discussion, the simplification of reproduction steps made it hard to wrap ones head around for humans. Here's what I was doing, for ilustration (won't compile):
+```scala
+trait Chain { //HList flavour with a hierarchy of 'links'
+    type Clone //reconstruction of non-sigleteon bound of 'this.type'
+}
+trait ColouredChain extends Chain
+
+class Empty extends ColoredChain
+object Empty extends Empty {
+    type Clone = Empty
+}
+
+trait NonEmptyChain 
+
+trait Link[+Tail <: Chain, Payload] extends NonEmptyChain {
+    val payload :Payload
+    val tail :Tail
+   
+    type Bound //???
+    type Copy[+A <: Bound, B] <: Link[A, B]
+    def copy[A <: Bound, B](t :A, b :B) : Copy[A, B] = ???
+   
+    type Clone = left.Clone Copy Payload
+}
+
+
+trait BlueLink[+T <: ColouredChain, H] extends Link[T, H] with ColouredChain
+trait RedLink[+T <: ColouredChain, H] extends Link[T, H] with ColouredChain
+trait PaintLink[+T <: Chain, H] extends Link[T, H] with ColouredChain
+```
+
+Problem: implement `Link[_, _]#copy` as a copy constructor, which should preserve the link colour, in as much useful way as possible. What the `Bound` type should be? It can't be `Chain`, because then we won't be able to define it as `BlueLink` in `BlueLink`, etc. So, first attempt:
+```scala
+trait Link[+T <: Chain, P] extends NonEmptyChain {
+/* .... */ 
+    type Bound = ColouredChain
+    type Copy[A <: ColouredChain, B] <: Link[A, B]
+}
+trait BlueLink[+T <: ColouredChain, H] extends Link[T, H] with ColouredChain {
+     type Copy[A <: ColouredChain, B] = BlueLink[A, B]
+}
+trait RedLink[+T <: ColouredChain, H] extends Link[T, H] with ColouredChain {
+     type Copy[A <: ColouredChain, B] = RedLink[A, B]
+}
+trait PaintLink[+T <: Chain, H] extends Link[T, H] with ColouredChain {
+     type Copy[A <: ColouredChain, B] = PaintLink[A, B] 
+}
+```
+Now, `PaintLink[_, _]#Copy[_, _]` has a narrower left upper bound than it could have otherwise, but there is no good way around it. The problem: type `Link[_, _]#Clone` fails to compile because it applies `T <: Chain` to a type which has a `ColouredChain` upper bound. So we'd love to have:
+```scala
+    trait Link[+T <: Chain, H] extends NonEmptyChain {
+        /* ... */
+       type Bound >: left.Clone | ColouredChain <: Chain //not in scala, sadly.
+    }
+```
+Attempt:
+```scala
+    trait Chain {
+        /* ... */
+       type UpperBound >: Clone <: Chain //LUB of Clone and ColouredChain
+    }
+    trait ColouredChain extends Chain {
+        override type UpperBound = ColouredChain
+        override type Clone <: ColouredChain
+    }
+    trait GrayChain extends Chain {
+        override type UpperBound = Chain
+    }
+    trait Link[+T <: Chain, H] {
+        override type Bound >: left.UpperBound <: Chain
+    }
+```
+Going this way would let us have in `Link` both `type Clone = Copy[left.Clone, H]` and a `copy` declaration which is of some (limited) use in generic context of `Link[T, H]`, but with full functionality one would want in `BlueLink` and `PaintLink` when we know more about `left.Bound`. Now, the real thing was more complex, and there were more type definitions in `Chain` than just `Clone` which all conformed to `UpperBound`, so that `Link[_,_]#copy[A <: left.UpperBound, B]` was actually quite useful to have.

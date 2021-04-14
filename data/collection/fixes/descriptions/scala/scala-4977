@@ -1,0 +1,69 @@
+The following code causes an error (java.lang.Error: ch.epfl.lamp.fjbg.JCode$OffsetTooBigException: offset too big to fit in 16 bits: 34029) in the compiler (see Conversions.scala):
+
+package uk.co.farwell.scala_convert
+
+object CompleteConversions {
+  def convertAxisPojo(s: String) = {
+    s.split("[\012\015]+").map(line => {
+      val Import = """^\s*import\s+(.*);""".r
+      val Package = """^\s*package.*""".r
+      val ShortPublicClass = """\s*public\s+class\s+(\S+)\s*.*""".r
+      val PublicClass = """\s*public\s+(abstract)*\s*class\s+(\S+)\s+extends\s+(\S+)\s+implements\s+(\S+)\s*(,\s*\S+)*.*""".r
+      val Field = """\s*private\s+(\S+)\s+(\S+)\s*(.*)\s*;.*""".r
+      val Last = """^}\s*.*""".r
+      val Serial = ".*serialVersionUID.*".r
+      val TypeDesc = """.*typeDesc.setXmlType\(new QName\("([^"]*)", "([^"]*)"\)\);""".r
+
+      val SoapHelper = """.*SoapHelper.addTypeDesc\(typeDesc, "([^"]*)", "([^"]*)", ([^\)]*)\);""".r
+
+      line match {
+        case Import(cls) => List()
+        case Package() => List(line, "")
+        case ShortPublicClass(name) => List("")
+        case PublicClass(abstractName, name, superclass, interface, other) => List("")
+        case Serial() => List()
+        case TypeDesc(_namespace, _localPart) => List()
+        case SoapHelper(_fieldName, _typeString, _nillable) => List()
+        case Field(typeName, name, rest) => List("")
+        case Last() => List("}")
+        case _ => List()
+      }
+    })
+  }
+}
+
+This causes the following exception (see stacktrace.txt):
+
+Exception in thread "main" java.lang.Error: ch.epfl.lamp.fjbg.JCode$OffsetTooBigException: offset too big to fit in 16 bits: 34029
+	at ch.epfl.lamp.fjbg.JFieldOrMethod.writeTo(JFieldOrMethod.java:130)
+	at ch.epfl.lamp.fjbg.JClass.writeTo(JClass.java:358)
+	at scala.tools.nsc.backend.jvm.BytecodeWriters$ClassBytecodeWriter$class.writeClass(BytecodeWriters.scala:87)
+	at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase$$anon$2.writeClass(GenJVM.scala:82)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator.emitClass(GenJVM.scala:172)
+	at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator.genClass(GenJVM.scala:304)
+	at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase$$anonfun$run$4.apply(GenJVM.scala:86)
+	at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase$$anonfun$run$4.apply(GenJVM.scala:86)
+	at scala.collection.mutable.HashMap$$anon$2$$anonfun$foreach$3.apply(HashMap.scala:102)
+	at scala.collection.mutable.HashMap$$anon$2$$anonfun$foreach$3.apply(HashMap.scala:102)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:652)
+	at scala.collection.mutable.HashTable$$anon$1.foreach(HashTable.scala:157)
+	at scala.collection.mutable.HashTable$class.foreachEntry(HashTable.scala:190)
+	at scala.collection.mutable.HashMap.foreachEntry(HashMap.scala:43)
+	at scala.collection.mutable.HashMap$$anon$2.foreach(HashMap.scala:102)
+	at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase.run(GenJVM.scala:86)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:949)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1034)
+	at scala.tools.nsc.Main$.process(Main.scala:106)
+	at scala.tools.nsc.Main$.main(Main.scala:123)
+	at scala.tools.nsc.Main.main(Main.scala)
+Caused by: ch.epfl.lamp.fjbg.JCode$OffsetTooBigException: offset too big to fit in 16 bits: 34029
+	at ch.epfl.lamp.fjbg.JCode.checkOffset16(JCode.java:903)
+	at ch.epfl.lamp.fjbg.JCode.patchAllOffset(JCode.java:982)
+	at ch.epfl.lamp.fjbg.JCode.freeze(JCode.java:102)
+	at ch.epfl.lamp.fjbg.JMethod.freeze(JMethod.java:89)
+	at ch.epfl.lamp.fjbg.JFieldOrMethod.writeTo(JFieldOrMethod.java:127)
+	... 20 more
+
+Note that removing one of the cases in the match causes the code to compile correctly.
+
+This was originally raised as a bug in Scala-IDE (http://scala-ide-portfolio.assembla.com/spaces/scala-ide/tickets/1000595), but can be reproduced with scalac.

@@ -1,0 +1,22 @@
+While upgrading the community build dotty-staging/scalatest fork to the latest dotty (0.1.1-bin-20170507-1014af3-NIGHTLY) and sbt-dotty 0.1.0-RC4 I hit an a MissingType error 
+https://travis-ci.org/dotty-staging/scalatest/builds/229925482#L2104
+during type erasure https://github.com/lampepfl/dotty/blob/5093126421e333b2329399736e6d7ad327e3bdfa/compiler/src/dotty/tools/dotc/core/TypeErasure.scala#L496
+
+I made some unsuccessful attempts to minimize the error, it seems to boil down to something like this
+
+```scala
+package foo
+trait TestSuite {
+  protected trait NoArgTest extends (() => Int)
+}
+trait CancelAfterFailure { self: TestSuite => }
+```
+
+To reproduce the error:
+
+```
+git clone https://github.com/dotty-staging/scalatest.git
+cd scalatest
+git checkout 1b2ea9013e4f71306f6dfc5f4e1ae0db85a46629
+sbt scalatest/compile "last scalatest/compile:compileIncremental"
+```

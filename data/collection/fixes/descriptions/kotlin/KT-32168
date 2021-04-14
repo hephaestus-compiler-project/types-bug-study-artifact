@@ -1,0 +1,39 @@
+This a bit complicated code fails with new type inference in IDE (but compiles fine with gradle):
+
+```
+    var strictDOM: Boolean by refreshOnUpdate(false) // False error is detected here
+
+    protected fun <T> refreshOnUpdate(initialValue: T, refreshFunction: ((T) -> Unit) = { this.refresh() }) =
+        RefreshDelegateProvider(initialValue, refreshFunction)
+
+    protected inner class RefreshDelegateProvider<T>(
+        private val initialValue: T?, private val refreshFunction: (T) -> Unit
+    ) {
+        operator fun provideDelegate(thisRef: Any?, prop: KProperty<*>): RefreshDelegate<T> {
+            if (initialValue != null) propertyValues[prop.name] = initialValue
+            return RefreshDelegate(refreshFunction)
+        }
+    }
+
+    protected inner class RefreshDelegate<T>(private val refreshFunction: ((T) -> Unit)) {
+        @Suppress("UNCHECKED_CAST")
+        operator fun getValue(thisRef: StyledComponent, property: KProperty<*>): T {
+            val value = propertyValues[property.name]
+            return if (value != null) {
+                value as T
+            } else {
+                null as T
+            }
+        }
+
+        operator fun setValue(thisRef: StyledComponent, property: KProperty<*>, value: T) {
+            propertyValues[property.name] = value
+            refreshFunction(value)
+        }
+    }
+```
+The error is:
+```
+Property delegate must have a 'setValue(Widget, KProperty*>, Boolean)' method. None of the following functions is suitable.
+setValue(StyledComponent, KProperty<*>, Nothing) defined in pl.treksoft.kvision.core.Widget.RefreshDelegate
+```

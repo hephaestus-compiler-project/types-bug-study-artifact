@@ -1,0 +1,75 @@
+I tried the following code under native and then in the kotlin playground, just to make sure it's not just a native error. Both times it fails during compilation.
+```
+fun <T>List<T>.permutations(): Sequence<List<T>> = asSequence().permutations().map { it.toList() }
+
+private fun <T>Sequence<T>.permutations() = sequence {
+	for(first in this@permutations) {
+		val rest = this@permutations.filter { it != first }
+		for(r in rest.permutations()){
+			yield(sequenceOf(first) + rest)
+		}
+	}
+}
+
+fun main() {
+    listOf(1,2,3).permutations().forEach {
+        println(it)
+    }
+}
+```
+Playground error message:
+
+>Back-end (JVM) Internal error: Failed to generate expression: KtLambdaExpression
+File being compiled at position: (3,54) in /File.kt
+The root cause java.lang.IllegalStateException was thrown at: org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$typeMappingConfiguration$1.processErrorType(KotlinTypeMapper.kt:113)
+
+K/N exception:
+```exception
+e: kotlin.KotlinNullPointerException
+        at org.jetbrains.kotlin.backend.common.serialization.LegacyDescriptorUtilsKt.findTopLevelDescriptor(LegacyDescriptorUtils.kt:36)
+        at org.jetbrains.kotlin.backend.common.serialization.LegacyDescriptorUtilsKt.findTopLevelDescriptor(LegacyDescriptorUtils.kt:36)
+        at org.jetbrains.kotlin.backend.common.serialization.LegacyDescriptorUtilsKt.findTopLevelDescriptor(LegacyDescriptorUtils.kt:36)
+        at org.jetbrains.kotlin.backend.common.serialization.KotlinIrLinker.findDeserializedDeclarationForDescriptor(KotlinIrLinker.kt:531)
+        at org.jetbrains.kotlin.backend.common.serialization.KotlinIrLinker.getDeclaration(KotlinIrLinker.kt:561)
+        at org.jetbrains.kotlin.ir.util.DeclarationStubGenerator.getDeclaration(DeclarationStubGenerator.kt:64)
+        at org.jetbrains.kotlin.ir.util.DeclarationStubGenerator.access$getDeclaration(DeclarationStubGenerator.kt:35)
+        at org.jetbrains.kotlin.ir.util.DeclarationStubGenerator$generateFunctionStub$1.invoke(DeclarationStubGenerator.kt:168)
+        at org.jetbrains.kotlin.ir.util.DeclarationStubGenerator$generateFunctionStub$1.invoke(DeclarationStubGenerator.kt:35)
+        at org.jetbrains.kotlin.ir.util.SymbolTable.declareSimpleFunction(SymbolTable.kt:746)
+        at org.jetbrains.kotlin.ir.util.DeclarationStubGenerator.generateFunctionStub(DeclarationStubGenerator.kt:163)
+        at org.jetbrains.kotlin.ir.util.DeclarationStubGenerator.generateFunctionStub$default(DeclarationStubGenerator.kt:146)
+        at org.jetbrains.kotlin.ir.util.ExternalDependenciesGenerator.generateUnboundSymbolsAsDependencies(ExternalDependenciesGenerator.kt:60)
+        at org.jetbrains.kotlin.psi2ir.generators.ModuleGenerator.generateUnboundSymbolsAsDependencies(ModuleGenerator.kt:63)
+        at org.jetbrains.kotlin.psi2ir.Psi2IrTranslator.generateModuleFragment(Psi2IrTranslator.kt:82)
+        at org.jetbrains.kotlin.backend.konan.ToplevelPhasesKt$psiToIrPhase$1.invoke(ToplevelPhases.kt:175)
+        at org.jetbrains.kotlin.backend.konan.ToplevelPhasesKt$psiToIrPhase$1.invoke(ToplevelPhases.kt)
+        at org.jetbrains.kotlin.backend.common.phaser.PhaseBuildersKt$namedOpUnitPhase$1.invoke(PhaseBuilders.kt:115)
+        at org.jetbrains.kotlin.backend.common.phaser.PhaseBuildersKt$namedOpUnitPhase$1.invoke(PhaseBuilders.kt:113)
+        at org.jetbrains.kotlin.backend.common.phaser.AbstractNamedPhaseWrapper$runBody$1.invoke(CompilerPhase.kt:128)
+        at org.jetbrains.kotlin.backend.common.phaser.CompilerPhaseKt.downlevel(CompilerPhase.kt:24)
+        at org.jetbrains.kotlin.backend.common.phaser.AbstractNamedPhaseWrapper.runBody(CompilerPhase.kt:127)
+        at org.jetbrains.kotlin.backend.common.phaser.AbstractNamedPhaseWrapper.invoke(CompilerPhase.kt:105)
+        at org.jetbrains.kotlin.backend.common.phaser.CompositePhase.invoke(PhaseBuilders.kt:28)
+        at org.jetbrains.kotlin.backend.common.phaser.AbstractNamedPhaseWrapper$runBody$1.invoke(CompilerPhase.kt:128)
+        at org.jetbrains.kotlin.backend.common.phaser.CompilerPhaseKt.downlevel(CompilerPhase.kt:24)
+        at org.jetbrains.kotlin.backend.common.phaser.AbstractNamedPhaseWrapper.runBody(CompilerPhase.kt:127)
+        at org.jetbrains.kotlin.backend.common.phaser.AbstractNamedPhaseWrapper.invoke(CompilerPhase.kt:105)
+        at org.jetbrains.kotlin.backend.common.phaser.CompilerPhaseKt.invokeToplevel(CompilerPhase.kt:42)
+        at org.jetbrains.kotlin.backend.konan.KonanDriverKt.runTopLevelPhases(KonanDriver.kt:27)
+        at org.jetbrains.kotlin.cli.bc.K2Native.doExecute(K2Native.kt:74)
+        at org.jetbrains.kotlin.cli.bc.K2Native.doExecute(K2Native.kt:34)
+        at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:84)
+        at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:42)
+        at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:104)
+        at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:82)
+        at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:50)
+        at org.jetbrains.kotlin.cli.common.CLITool$Companion.doMainNoExit(CLITool.kt:215)
+        at org.jetbrains.kotlin.cli.common.CLITool$Companion.doMain(CLITool.kt:207)
+        at org.jetbrains.kotlin.cli.bc.K2Native$Companion$main$1.invoke(K2Native.kt:225)
+        at org.jetbrains.kotlin.cli.bc.K2Native$Companion$main$1.invoke(K2Native.kt:222)
+        at org.jetbrains.kotlin.util.UtilKt.profileIf(Util.kt:27)
+        at org.jetbrains.kotlin.util.UtilKt.profile(Util.kt:21)
+        at org.jetbrains.kotlin.cli.bc.K2Native$Companion.main(K2Native.kt:224)
+        at org.jetbrains.kotlin.cli.bc.K2NativeKt.main(K2Native.kt:304)
+        at org.jetbrains.kotlin.cli.utilities.MainKt.main(main.kt:16)
+```

@@ -1,0 +1,31 @@
+The following example fails to compile:
+
+abstract class Test {
+
+  interface I<O> { void t(O clazz); }
+  abstract <A> I<A> a(Class<A> clazz);
+  abstract <B> B b(Class<B> t);
+  abstract <C> C c(C a);
+
+  Object f(Iterable<Object> xs) {
+    return c(c(new Object() {
+      <T> void g(Class<T> clazz) {
+        a(clazz).t(b(clazz));
+      }
+    }));
+  }
+}
+
+Test.java:11: error: method t in interface I<O> cannot be applied to given types;
+        a(clazz).t(b(clazz));
+                ^
+  required: T#1
+  found: T#1
+  reason: argument mismatch; inference variable B has incompatible bounds
+      equality constraints: T#2
+      upper bounds: T#1,Object
+  where T#1,O,B,T#2 are type-variables:
+    T#1 extends Object declared in method <T#1>g(Class<T#1>)
+    O extends Object declared in interface I
+    B extends Object declared in method <B>b(Class<B>)
+    T#2 extends Object declared in method <T#2>g(Class<T#2>)

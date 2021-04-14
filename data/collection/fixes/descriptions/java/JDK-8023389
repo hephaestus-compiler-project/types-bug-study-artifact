@@ -1,0 +1,43 @@
+Compiler fails to compile when lambda is used together with casting, wildcards and intersection types.
+
+Mini testcase: 
+
+class U1 {}
+class X1 extends U1 {}
+interface I { }
+
+@FunctionalInterface
+interface SAM<T> {
+    void m(T t);
+}
+
+
+@SuppressWarnings("unchecked")
+class Tester {
+    SAM<? extends U1> sam1 = (SAM<? extends U1>) (X1 x) -> { };       //ok
+    SAM<? extends U1> sam2 = (SAM<? extends U1> & I) (X1 x) -> { }; //error
+}
+
+The 0.6.2 JSR 335 spec says: 
+
+The targeted function descriptor is derived from the target type as follows:
+	* If the target type is an intersection type including a wildcard-parameterized functional interface, F<A1, ..., Am>, and if the lambda expression has explicit parameter types P1, ..., Pn, then the targeted function descriptor is the descriptor of the inferred wildcard instantiation of F<A1, ..., Am> for P1, ..., Pn, as defined in 18.5.3. [jsr335-15.27.3-20-D]
+
+With current spec I assume javac is not correct. 
+
+As far as I understand the spec is not yet finalized regarding this case. So once the new spec released either the javac or jck tests have to be fixed. 
+
+The list of failing tests: 
+lang/LMBD/lmbd076/lmbd07602m0822/lmbd07602m0822
+lang/LMBD/lmbd076/lmbd07602m0e22/lmbd07602m0e22
+lang/LMBD/lmbd076/lmbd07602m0n221/lmbd07602m0n221
+lang/LMBD/lmbd076/lmbd07602m0m11/lmbd07602m0m11
+lang/LMBD/lmbd076/lmbd07602m0p111/lmbd07602m0p111
+lang/LMBD/lmbd076/lmbd07602m0v111/lmbd07602m0v111
+
+lang/LMBD/lmbd076/lmbd07602m0822/lmbd07602m0822_rt
+lang/LMBD/lmbd076/lmbd07602m0e22/lmbd07602m0e22_rt
+lang/LMBD/lmbd076/lmbd07602m0n221/lmbd07602m0n221_rt
+lang/LMBD/lmbd076/lmbd07602m0m11/lmbd07602m0m11_rt
+lang/LMBD/lmbd076/lmbd07602m0p111/lmbd07602m0p111_rt
+lang/LMBD/lmbd076/lmbd07602m0v111/lmbd07602m0v111_rt

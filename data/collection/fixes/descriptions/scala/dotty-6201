@@ -1,0 +1,76 @@
+The following code fails to compile:
+
+```Scala
+// assert_1.scala
+import scala.quoted._
+import scala.tasty._
+
+inline def strip(inline x: String): String =
+  ${ stripImpl(x) }
+
+def stripImpl(x: String)(implicit refl: Reflection): Expr[String] =
+  x.stripMargin.toExpr
+
+inline def isHello(inline x: String): Boolean =
+  ${ isHelloImpl(x) }
+
+def isHelloImpl(x: String)(implicit refl: Reflection): Expr[Boolean] =
+  if (x == "hello") true.toExpr else false.toExpr
+
+// test_2.scala
+object Test {
+  def main(args: Array[String]): Unit = {
+    assert(isHello(strip("hello")))
+    assert(!isHello(strip("bonjour")))
+  }
+}
+```
+
+The error log seems to suggest double vision of top-level definition:
+
+```Scala
+-- Error: examples/test_2.scala:3:11 -------------------------------------------
+3 |    assert(isHello(strip("hello")))
+  |           ^
+  |     cannot merge
+  |       method isHello of type (x: String @InlineParam): Boolean  and
+  |       method isHello of type (x: String @InlineParam): Boolean
+  |     they are both defined in package <empty> but have matching signatures
+  |       (x: String @InlineParam): Boolean and
+  |       (x: String @InlineParam): Boolean
+  |     as members of package <empty>
+  |
+-- Error: examples/test_2.scala:3:19 -------------------------------------------
+3 |    assert(isHello(strip("hello")))
+  |                   ^
+  |     cannot merge
+  |       method strip of type (x: String @InlineParam): String  and
+  |       method strip of type (x: String @InlineParam): String
+  |     they are both defined in package <empty> but have matching signatures
+  |       (x: String @InlineParam): String and
+  |       (x: String @InlineParam): String
+  |     as members of package <empty>
+  |
+-- Error: examples/test_2.scala:4:12 -------------------------------------------
+4 |    assert(!isHello(strip("bonjour")))
+  |            ^
+  |     cannot merge
+  |       method isHello of type (x: String @InlineParam): Boolean  and
+  |       method isHello of type (x: String @InlineParam): Boolean
+  |     they are both defined in package <empty> but have matching signatures
+  |       (x: String @InlineParam): Boolean and
+  |       (x: String @InlineParam): Boolean
+  |     as members of package <empty>
+  |
+-- Error: examples/test_2.scala:4:20 -------------------------------------------
+4 |    assert(!isHello(strip("bonjour")))
+  |                    ^
+  |     cannot merge
+  |       method strip of type (x: String @InlineParam): String  and
+  |       method strip of type (x: String @InlineParam): String
+  |     they are both defined in package <empty> but have matching signatures
+  |       (x: String @InlineParam): String and
+  |       (x: String @InlineParam): String
+  |     as members of package <empty>
+  |
+```

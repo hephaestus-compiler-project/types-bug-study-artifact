@@ -1,0 +1,12 @@
+The ZipFileIndexFileObject class from ZipFileIndexArchive.java implements a
+content cache using a HashMap. The cache stores contents of files - java or
+class files - indexed by the name of the class. By "name" we mean only the
+class name and not the fully-qualified name (that would include the package
+name). If a certain zip/jar archive contains two classes with the same name,
+in different packages, a key collision occurs. The hashCode() and equals()
+method for the ZipFileIndexFileObject class fail to distinguish between two
+such keys, leading to a wrong value (file content) being retrieved. This
+happens only if the "last modified" timestamps for the two files are equal.
+
+This can lead to various problems. For example, a unexpected compilation
+failure problem with wsgen (wsgen uses apt, apt uses javac). 

@@ -1,0 +1,33 @@
+When using tuples, the compiler correctly generates the `match may not be exhaustive` warning for non-sealed classes. When using a direct pattern match, this is not the case.
+
+    abstract class Foo {
+        def bar(): Unit = this match {
+            case Foo_1() => //do something
+            case Foo_2() => //do something
+            // Works fine
+        }
+        
+        def baz(that: Foo): Unit = (this, that) match {
+            case (Foo_1(), _) => //do something
+            case (Foo_2(), _) => //do something
+            // match may not be exhaustive
+        }
+    }
+    case class Foo_1() extends Foo
+    case class Foo_2() extends Foo
+
+This generates only the following warning:
+
+    Warning:(12, 23) match may not be exhaustive.
+    It would fail on the following input: (_, _)
+        def baz(): Unit = (this, Foo_1()) match {
+
+Meaning that for the *non-sealed* class `Foo`, the match in `bar()` is fine while `baz()` is not even though they are effectively the same.
+
+-----
+
+* Scala welcome message:
+    > Welcome to Scala 2.12.1 (Java HotSpot(TM) Client VM, Java 1.8.0_131).
+* Using `sealed abstract class Foo` removes the warning as expected inferring that `bar()` should also generate this message
+* Might be related to issue https://github.com/scala/bug/issues/9630 even though this was fixed in 2.12.0-M4
+* Might be related to issue https://github.com/scala/bug/issues/10019 which is the reverse of this

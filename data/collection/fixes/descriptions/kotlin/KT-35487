@@ -1,0 +1,127 @@
+# Classification
+
+* Type of change:
+    * New errors are introduced
+* Motivation types:
+    * Type safety guarantees are not met
+    * Problematic usage patterns need to be blocked
+* Impact types:
+    * Compilation. Some code that used to compile won't compile anymore
+        * There were cases when such code worked with no exceptions
+            * Some such code could compile without any warnings
+* Detection and Migration modes:
+    * Migration can't be automated
+
+# Background
+
+Similar to Java, Kotlin has captured types that allow the compiler to work with type projections as it'd be normal types. 
+For example,
+```
+class Inv<T>(var x: T)
+
+fun foo(i: Inv<out Any>) {
+    bar(i) // error
+}
+
+fun bar(i: Inv<Any>) {}
+```
+
+Here the compiler reports an error as it's incorrect to pass an instance of type `Inv<out Any>` (which could be `Inv<String>` at runtime, for example) to `Inv<Any>` and this is done via captured types. When the compiler checks is `Inv<out Any>` subtype of `Inv<Any>`, the compiler actually creates an internal captured type `C`, which is a subtype of `Any` and only then type checks is `Inv<C>` against `Inv<Any>`.
+
+Unfortunately, there are cases where the compiler doesn't perform captured conversion properly and, as a result, there are programs that are unsound.
+
+# Existing behavior
+
+## Code example
+
+```
+class Inv<T>(var x: T)
+
+fun anyInvToNull(i: Inv<out Any>) {
+    assignPropertyToNull(i)
+}
+
+fun <T> assignPropertyToNull(i: Inv<T?>) {
+    i.x = null
+}
+
+fun main() {
+    val s = "non-null"
+    val i = Inv(s)
+    println(i.x.length)
+    anyInvToNull(i)
+    println(i.x.length) // !!!
+}
+```
+
+Note that this code compiles without any warnings or errors. 
+
+## What's wrong with it
+
+Function `assignPropertyToNull` assigns main property of class `Inv` to `null`, it's totally valid code as this function works only with the parameter of `Inv<T?>` type. Next, function `anyInvToNull` takes any instance of `Inv`, which has non-null type argument and then, passes it to `assignPropertyToNull`, which is semantically incorrect and introduces problems.
+
+As a result, this program throws NPE at runtime after `anyInvToNull` call:
+```
+8
+Exception in thread "main" java.lang.NullPointerException
+ at FileKt.main (File.kt:16) 
+ at FileKt.main (File.kt:-1) 
+```
+
+## Why and how this happens
+
+The actual problem is in inside function `anyInvToNull`:
+```
+fun anyInvToNull(i: Inv<out Any>) {
+    assignPropertyToNull(i)
+}
+```
+
+Here we passing an object with a non-null type argument to function where objects with nullable type argument are expected.
+Note that the type of `i` can also be `Inv<out Any?>` and the same problem will happen. So, the following example is also invalid:
+```
+class Inv<T>(var x: T)
+
+fun anyInvToNull(i: Inv<out Any?>) { // Note that type projection here is "out Any?"
+    assignPropertyToNull(i)
+}
+
+fun <T> assignPropertyToNull(i: Inv<T?>) {
+    i.x = null
+}
+```
+
+So, preconditions for this bug are the following:
+- type of argument contains captured type (for example, `Inv<Captured(out Any)>`, `Inv<Captured(*)>`, `Inv<Captured(in Nothing)>`)
+- the argument type is checked against invariant type containing nullable type variable (`Inv<T?>`)
+
+## Affected versions: when did the problem appear first? 
+
+The problem exists since 1.0
+
+# Proposed changes
+
+The proposal is to create captured types for arguments if they have type projections in their type arguments.
+So, for the call `assignPropertyToNull(i)` from the example, where `i` has type `Inv<out Any>`, there will be created an internal captured type `C1`, which has `Any` as a supertype. Later, the compiler will check is `Inv<C1>` subtype of `Inv<T?>` and report an error as it's a contradiction. Basically, it'd be an equivalent transformation as the following:
+```
+// Before
+fun anyInvToNull(i: Inv<out Any>) {
+    assignPropertyToNull(i)
+}
+
+// After
+fun <C : Any> anyInvToNull(i: Inv<C>) {
+    assignPropertyToNull(i)
+}
+```
+Note that currently, the compiler reports an error for the last example.
+
+
+# Impact
+
+We found at least one example of such a pattern inside our projects, so there probably will be other cases that will not compile in 1.4.
+
+Automated migration seems quite hard as this issue is fixed in a new type inference engine and to add a deprecation warning we have to implement capturing conversion in the current inference, which doesn't look possible.
+
+# Migration plan
+- 1.4.0 Implement proposed changes, add a compiler key for a fallback behavior

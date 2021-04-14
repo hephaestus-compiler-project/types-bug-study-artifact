@@ -1,0 +1,48 @@
+JDK-8203436 introduced a more strict mode of execution for javac so that, as soon as an attemp to write an illegal signature (containing a non-denotable type) was detected, the compiler will terminate abruptly with an error.
+
+There are two issues with this strategy:
+
+1) There are cases where the client code doesn't catch the exception and doesn't report to log gracefully (e.g. uses in LambdaToMethod)
+
+2) There are use cases where it's ok to have illegal signatures, because they won't end up in classfile.
+
+Test case:
+
+import java.awt.*;
+import java.awt.event.*;
+import java.util.List;
+import java.util.function.*;
+
+class JDK11CompilerBug {
+
+    interface IFilter {
+        Component getComponent();
+    }
+
+    static class Filter implements IFilter {
+
+        @Override
+        public Component getComponent() { return null; }
+
+    }
+
+    public Component buildFilter(List<? extends Filter> l, Dialog dialog) {
+        Panel c = new Panel();
+        l.stream()
+            .map(f -> {
+                Button btn = (Button) f.getComponent();
+                btn.addActionListener((java.io.Serializable & ActionListener)evt -> {
+                    applyFilter(f);
+                    dialog.setVisible(false);
+                });
+                return btn;
+            })
+            .forEach(c::add);
+        return c;
+    }
+
+    private void applyFilter(IFilter f) {}
+
+} 
+
+bug report and discussion: http://mail.openjdk.java.net/pipermail/compiler-dev/2018-September/012372.html

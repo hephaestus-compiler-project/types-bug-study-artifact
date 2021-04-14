@@ -1,0 +1,40 @@
+Let's have a builder:
+{code lang=kt}
+fun string(init: StringBuilder.() -> Unit): String{
+    val answer = StringBuilder()
+    answer.init()
+    return answer.toString()
+}
+{code}
+
+When we use one builder inside another, we need a way to operate with the outer builder out of the inner one:
+{code lang=kt}
+fun main(args : Array<String>) {
+    val str = string{
+        append("hello, ")
+    
+        val sub = string {
+            append("world!")
+            this@string.append(this)  // does nothing !!
+        }
+    }
+    print(str)
+}
+{code}
+`this@string` is correct, but the call on it does nothing!
+
+A primitive workaround:
+{code lang=kt}
+fun main(args : Array<String>) {
+    val str = string{
+        append("hello, ")
+    
+        val this_str = this
+        val sub = string {
+            append("world!")
+            this_str.append(this)
+        }
+    }
+    print(str)
+}
+{code}

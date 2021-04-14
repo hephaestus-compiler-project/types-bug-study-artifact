@@ -1,0 +1,32 @@
+```scala
+import scala.language.experimental.macros
+import scala.reflect.macros.WhiteboxContext
+
+object Test {
+  def impl(c: WhiteboxContext)(tree: c.Tree) = {
+    import c.universe._
+    object FindMatch extends Transformer {
+      tree match {
+        case arg: List[List[Tree]] =>
+          // doesn't compile:
+          // Test.scala:10: error: missing parameter type for expanded function ((x$1) => x$1.foreach(((y) => super.transform(y))))
+          arg.foreach{_.foreach{y=>super.transform(y)}}
+
+          // crashes in GenICode:
+          // error: Unknown type: <notype>, <notype> [class scala.reflect.internal.Types$NoType$, class scala.reflect.internal.Types$NoType$] TypeRef? false
+          // error: scala.reflect.internal.FatalError: Unknown type: <notype>, <notype> [class scala.reflect.internal.Types$NoType$, class scala.reflect.internal.Types$NoType$] TypeRef? false
+          //   at scala.reflect.internal.SymbolTable.abort(SymbolTable.scala:56)
+          //   at scala.tools.nsc.Global.abort(Global.scala:263)
+          //   at scala.tools.nsc.backend.icode.TypeKinds$class.toTypeKind(TypeKinds.scala:401)
+          //   at scala.tools.nsc.backend.icode.ICodes.toTypeKind(ICodes.scala:19)
+          //   at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadApply1$1(GenICode.scala:607)
+          //   at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:634)
+          //   at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:119)
+          //   at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:67)
+          //   at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:67)
+          arg.foreach{(x: List[Tree]) => x.foreach{y=>super.transform(y)}}
+      }
+    }
+  }
+}
+```

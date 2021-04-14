@@ -1,0 +1,85 @@
+Experimenting with a snippet posted in a [SO question](http://stackoverflow.com/questions/6953975/why-can-i-mark-methods-as-implicit-but-not-the-constructor) I got a compiler crash. Here are the steps to reproduce it:
+
+```scala
+Welcome to Scala version 2.10.0.r25450-b20110806020344 (Java HotSpot(TM) 64-Bit Server VM, Java 1.6.0_26).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> class A(i: Int) { implicit def this(s: String) = this(s.toInt) }
+defined class A
+
+scala> val a: A = new A(1)
+a: A = A@7579f56e
+
+scala> val a1: A = "1"
+<console>:8: error: type mismatch;
+ found   : java.lang.String("1")
+ required: A
+       val a1: A = "1"
+                   ^
+
+scala> import a._
+import a._
+
+scala> val a1: A = "1"
+java.lang.AssertionError: assertion failed: type error: can't convert from UNIT to REF(class $read$$iw$$iw$A) in unit <console> at source-<console>,line-12,offset=178
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.adapt(GenICode.scala:1109)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1095)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genStat(GenICode.scala:164)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genStat$1.apply(GenICode.scala:144)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genStat$1.apply(GenICode.scala:144)
+	at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:111)
+	at scala.collection.immutable.List.foldLeft(List.scala:45)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1017)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:115)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:71)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:71)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:45)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:71)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:137)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:90)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:71)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:71)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:45)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:71)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:81)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:67)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.apply(GenICode.scala:63)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:357)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:325)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:325)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:663)
+	at scala.collection.mutable.ListBuffer$$anon$1.foreach(ListBuffer.scala:316)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:325)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.run(GenICode.scala:56)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1003)
+	at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compileAndSaveRun(IMain.scala:758)
+	at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compile(IMain.scala:733)
+	at scala.tools.nsc.interpreter.IMain$Request.compile(IMain.scala:875)
+	at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:578)
+	at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:545)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:693)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:744)
+	at scala.tools.nsc.interpreter.ILoop.command(ILoop.scala:650)
+	at scala.tools.nsc.interpreter.ILoop.processLine$1(ILoop.scala:541)
+	at scala.tools.nsc.interpreter.ILoop.loop(ILoop.scala:549)
+	at scala.tools.nsc.interpreter.ILoop.process(ILoop.scala:821)
+	at scala.tools.nsc.interpreter.ILoop.main(ILoop.scala:850)
+	at xsbt.ConsoleInterface.run(ConsoleInterface.scala:51)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+	at java.lang.reflect.Method.invoke(Method.java:597)
+	at sbt.compiler.AnalyzingCompiler.call(AnalyzingCompiler.scala:57)
+	at sbt.compiler.AnalyzingCompiler.console(AnalyzingCompiler.scala:48)
+	at sbt.Console.console0$1(Console.scala:23)
+	at sbt.Console$$anonfun$apply$2$$anonfun$apply$1.apply$mcV$sp(Console.scala:24)
+	at sbt.TrapExit$.executeMain$1(TrapExit.scala:33)
+	at sbt.TrapExit$$anon$1.run(TrapExit.scala:42)
+
+That entry seems to have slain the compiler.  Shall I replay
+your session? I can re-run each line except the last one.
+[y/n]
+```

@@ -1,0 +1,98 @@
+Very similar to #2377 (which is fixed).
+
+Java file:
+
+```java
+public final class A {
+  public static final class T { }
+  public static final class Inner {
+    public static final class T { }
+    public T newT() { return null; }
+  }
+}
+```
+
+Scala file:
+```scala
+class C {
+  val i = new A.Inner()
+  println(i.newT())
+}
+```
+
+Mixed compilation:
+```
+lucmac:sandbox luc$ scalac A.java Test.scala 
+A.java:5: error: reference to T is ambiguous;
+it is both defined in object A and imported subsequently by
+import Inner._
+    public T newT() { return null; }
+           ^
+one error found
+```
+
+the reason is Scalac's desugaring which introduces an import:
+
+```scala
+object A {
+  class T
+  object Inner {
+    class T
+  }
+  class Inner {
+    import Inner._
+    def newT1(): T = null // reference to T is ambiguous
+  }
+}
+class A
+```
+
+separate compilation (java first) works
+
+----
+
+Even worse: instead of an ambiguity, the Scala compiler resolves types in Java signatures incorrectly:
+
+A.java
+```java
+public class A {
+  public static class P {
+    public static class T { public void f() { } }
+  }
+  public static class T { public void g() { } }
+  public static class Inner extends P {
+    public class Deeper {
+      public void foo(T t) { t.f(); }
+    }
+  }
+}
+```
+
+Test.scala
+```scala
+object Test extends App {
+  val i = new A.Inner()
+  val j = new i.Deeper()
+  println(j.foo(new A.T())) // compiles in mixed compilation (it should not)
+}
+```
+
+Mixed compilation works, but runtime fails. Seperate compilation fails (correctly):
+```
+lucmac:sandbox luc$ scalac A.java Test.scala 
+lucmac:sandbox luc$ javac A.java
+
+lucmac:sandbox luc$ scala Test
+java.lang.NoSuchMethodError: A$Inner$Deeper.foo(LA$T;)V
+	at Test$.delayedEndpoint$Test$1(Test.scala:5)
+
+lucmac:sandbox luc$ scalac Test.scala
+Test.scala:5: error: type mismatch;
+ found   : A.T
+ required: A.P.T
+  println(j.foo(new A.T()))
+                ^
+one error found
+```
+
+In this example, the Scala compiler does not inject any `import Inner._`. The Java parser checks if there are any statics in the class. If not, it doesn't add the import. This is wrong because statics may be inherited.

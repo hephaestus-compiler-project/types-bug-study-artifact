@@ -1,0 +1,42 @@
+This Java code compiles successfully (and it is indeed typesafe):
+
+```
+public class J {
+    interface A<T extends A<T>> { }
+    interface B extends A<B> { }
+
+    void bar() {
+        A<?> a = new B() { };
+        foo(a);
+    }
+
+    <T extends A<T>> void foo(A<T> a) { }
+}
+```
+
+The corresponding Kotlin code fails to compile:
+
+```
+interface A<T : A<T>>
+interface B : A<B>
+
+fun bar() {
+    val a : A<*> = object : B {}
+    foo(a)
+}
+
+fun <T : A<T>> foo(a : A<T>) { }
+```
+
+with a rather cryptic error:
+
+```
+Error:(6, 5) Kotlin: Cannot infer type parameter T in fun <T : A<T>> foo(a: A<T>): kotlin.Unit
+None of the following substitutions
+(A<CapturedTypeConstructor(*)>)
+(A<A<*>>)
+(A<A<???>>)
+(A<kotlin.Nothing>)
+can be applied to
+(A<*>)
+```

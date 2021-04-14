@@ -1,0 +1,45 @@
+I have the following Groovy program.
+{code:groovy}
+class Foo {}
+
+final class A<T extends Foo> {
+  public T x;
+  A(T x) {
+    this.x = x;
+  }
+}
+
+@groovy.transform.CompileStatic
+public class C<T extends Number> {
+  public void foo(T args) {
+    final A<Foo> x = new A<>(new Foo()); // compiles
+    def closure = p -> {
+        final A<Foo> y = new A<>(new Foo()); // does not compile
+    }
+  }
+}
+
+{code}
+h2. Actual Behavior
+
+The program does not compile, and I get the following error.
+{code:java}
+org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
+Foo.groovy: 15: [Static type checking] - Cannot call A#<init>(T) with arguments [Foo]
+ @ line 15, column 26.
+           final A<Foo> y = new A<>(new Foo()); 
+                            ^
+
+1 error
+
+{code}
+h2. Expected Behavior
+
+Compile successfully.
+h2. Comment
+
+This should be a regression bug because it compiles with the 3.0.7 compiler and the 4.0.0-alpha-2.
+
+h2. Affected Version
+
+This programs fails when compiled with the compiler from the master (commit: 5d2944523f198d96b6515e85a24d2b4e43ce665f).

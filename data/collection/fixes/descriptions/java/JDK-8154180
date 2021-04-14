@@ -1,0 +1,41 @@
+Since the fix for JDK-8078093 there has been a regression in the behavior for stuck expressions. For example, this program fails to compile:
+
+import java.util.function.Consumer;
+import java.nio.ByteBuffer;
+
+class Foo {
+    Foo(Consumer<ByteBuffer> cb) {
+    }
+
+    public static void main(String[] args) {
+        Foo foo = new Foo((b -> System.out.println(asString(b))));
+    }
+
+    static String asString(ByteBuffer buf) {
+        return null;
+    }
+}
+
+But compiles if the parenthesis are removed from around the lambda.
+
+Also, this other program:
+
+interface Foo1 {
+   Object m(String s);
+}
+
+interface Foo2 {
+   String m(String s);
+}
+
+class Test {
+   void m(Foo1 f1) { }
+   void m(Foo2 f2) { }
+
+   void test() {
+      m(x->"");
+      m((x->""));
+   }
+}
+
+Only reports one ambiguity error instead of two.

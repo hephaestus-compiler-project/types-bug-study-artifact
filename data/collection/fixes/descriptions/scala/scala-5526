@@ -1,0 +1,50 @@
+Currently type parameters which are inferred from values are not being specialized on correctly in cases where there is more than one. Here's a test program that shows this off:
+
+```scala
+import scala.{specialized => spec}
+
+class A1[@spec T](t:T)
+
+class B1 {
+  def m[@spec T](t:T) = new A1[T](t)
+}
+
+class A2[@spec T, @spec W](t:T, w:T)
+
+class B2 {
+  def m[@spec T, @spec W](t:T, w:T) = new A2[T, W](t, w)
+}
+
+object Test {
+  def main(args:Array[String]) {
+    println(new A1(0).getClass.getName)
+    println(new A1[Int](0).getClass.getName)
+    println(new B1().m(0).getClass.getName)
+    println(new B1().m[Int](0).getClass.getName)
+
+    println(new A2(0, 0).getClass.getName)
+    println(new A2[Int, Int](0, 0).getClass.getName)
+    println(new B2().m(0, 0).getClass.getName)
+    println(new B2().m[Int, Int](0, 0).getClass.getName)
+  }
+}
+```
+
+We'd like for the output to solely consist of A1$mcI$sp and A2$mcII$sp. Here's the output I get:
+
+```scala
+A1$mcI$sp
+A1$mcI$sp
+A1$mcI$sp
+A1$mcI$sp
+A2$mcIL$sp
+A2$mcII$sp
+A2
+A2$mcII$sp
+```
+
+With one parameter, all the cases are fine. With two, the cases where I pass [Int, Int] explicitly are also OK.
+
+The others are... confused. The "new A2(0, 0)" case ends up with the IL version, as if the second parameter was AnyRef and not Int. The "new B2().m(0, 0)" case ends up being totally unspecialized.
+
+I caught this while writing test cases for a different bug, so I haven't looked into this yet.

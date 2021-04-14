@@ -1,0 +1,98 @@
+# Summary
+
+Kotlin compiler allows using `Array` types containing non-reified type parameter as a reified type argument on JVM that is leading to runtime exceptions.
+
+# Classification
+
+**Type of change**
+- New errors are introduced
+
+**Motivation types**
+- User code fails with an exception
+
+**Impact types**
+- Compilation. Some code that used to compile won't compile anymore
+
+**Detection and Migration modes**
+- All code locations affected by this change can be accurately detected statically
+- Migration can't be automated
+
+# Existing Behavior
+
+#### Code Sample
+
+```kotlin
+fun <T> foo() {
+    Array<Array<T>?>(1) { null }
+}
+
+fun main() {
+    foo<String>()
+}
+```
+
+This code fails with `UnsupportedOperationException`:
+```stacktrace
+Exception in thread "main" java.lang.UnsupportedOperationException: This function has a reified type parameter and thus can only be inlined at compilation time, not called directly.
+	at kotlin.jvm.internal.Intrinsics.throwUndefinedForReified(Intrinsics.java:193)
+	at kotlin.jvm.internal.Intrinsics.throwUndefinedForReified(Intrinsics.java:187)
+	at kotlin.jvm.internal.Intrinsics.reifiedOperationMarker(Intrinsics.java:197)
+	at AKt.foo(a.kt:2)
+	at AKt.main(a.kt:6)
+	at AKt.main(a.kt)
+```
+
+The reason is that `Array()` is actually a function with a reified type parameter and it expects a concrete class as an argument.
+Currently, it's allowed to use e.g., `String`, `List<Any>` and all other types as an argument.
+At the same time, it's prohibited to use non-reified type parameter, i.e. `Array<T?>(1) { null }` is an error already and it's reasonable since we can't correctly create an array for generic (just like it's prohibited in Java to use `new T[1]`), also other reifications operations like `T::class` seem impossible to support properly as well.
+
+But using `Array<T>` where `T` is non-reified is not prohibited and it becomes a problem because on JVM `Array<T>` has different runtime representations for different `T`
+Unlike `List<T>` that is always erased to raw `java.util.List` in bytecode, it's necessary to choose somehow specific array type:
+
+```kotlin
+import kotlin.reflect.KClass
+
+fun <T> arrayOfArrays(): Array<Array<T?>?> = Array(1) { null }
+inline fun <reified T : Any> kcl(): KClass<T> = T::class
+fun <T : Any> kClass(): KClass<Array<T>> = kcl<Array<T>>()
+
+fun main() {
+    val a: Array<Array<String?>?> = arrayOfArrays<String>() // CHECKCAST to String[][] that can't succeed
+    val kClass: KClass<Array<String>> = kClass<String>() // It's expected to be String[].class there but it's effectively impossible to achieve
+}
+```
+
+It's not hard to invent cases with `as`/`is` checks on a reified type parameter that would lead to unsafe behavior for other generic classes like `List<T>`, but at least arrays creation and class literals work correctly for them.
+
+#### Affected version
+
+This kind of problem exists since Kotlin 1.0.
+
+# Affected cases
+All the call sites containing `Array<T>` or `Array<Array<...Array<T>...>>` as a type argument for a reified type parameter, including
+
+- `kotlin.Array` / `kotlin.arrayOfNulls` functions that were failed with an `UnsupportedOperationException` at runtime
+- `kotlin.collections.filterIsInstance` and similar function using `is`/`as` operation on reified type argument (they were failing with `UnsupportedOperationException` as well)
+```
+fun <T> foo(x: List<Any>): List<Array<T>> {
+    return x.filterIsInstance<Array<T>>()
+}
+
+fun main() {
+    foo<String>(listOf(arrayOf("")))
+}
+```
+
+# Proposed change
+
+Prohibit using array based on non-reified type parameters as reified type arguments on JVM
+
+# Impact
+
+All the call sites containing `Array<T>` or `Array<Array<...Array<T>...>>` as a type argument for a reified type parameter will be affected.
+NB: Those calls were being failed with `UnsupportedOperationException` at runtime once execution got to the point when reification operation happens (`is`/`as`/`::class`/`arrayOfNulls`), i.e. for most of the reasonable cases it didn't work before.
+
+# Migration
+- In 1.3.x, report a warning
+- In 1.4, report an error
+- Report an error in progressive mode

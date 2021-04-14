@@ -1,0 +1,37 @@
+Currently if a private class member (function or property) returns an anonymous object, it's return type is inferred to the corresponding anonymous object type. Such objects can implement multiple interfaces. Members of such objects can be referenced from other class members.
+Example:
+
+```kotlin
+interface IFoo {
+    fun foo()
+}
+
+interface IBar
+
+class C {
+    private fun createAnonObject() = // OK
+            object : IFoo, IBar {
+                override fun foo() {}
+                fun qux() {}
+            }
+
+    fun useAnonObject() {
+        createAnonObject().foo() // OK
+        createAnonObject().qux() // OK
+    }
+}
+```
+
+This should also work for anonymous objects returned from private-in-file members:
+```kotlin
+private fun createAnonObject() = // Error: Right-hand side has anonymous type. Please specify type explicitly
+        object : IFoo, IBar {
+            override fun foo() {}
+            fun qux() {}
+        }
+
+fun useAnonObject() {
+    createAnonObject().foo()
+    createAnonObject().qux() // NB resolved to 'qux' declared in anonymous object in 'createAnonObject'
+}
+```

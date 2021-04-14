@@ -1,0 +1,70 @@
+This works fine in Scala-Virtualized:
+```scala
+trait RuleLangOK {
+  object __match {
+    def one[T](x: T): List[T] = List(x)
+    def zero = Nil
+    def guard[T](cond: Boolean, result: => T): List[T] =
+      if (cond) List(result) else Nil
+    def runOrElse[T, U](in: T)(matcher: T => List[U]): List[U] =
+      matcher(in)
+  }
+
+  def infix_orElse[A](lst: List[A], alternative: => List[A]): List[A] =
+    lst ++ alternative
+
+  class Rule[A,B](f: A => List[B]) {
+    def unapply(x: A): List[B] = f(x)
+  }
+
+  def infix_rule[A, B](f: A => List[B]): Rule[A,B] = new Rule(f)
+
+  lazy val Likes = ((x: String) => x match {
+    case "A" => "Coffee"
+  }) rule
+}
+```
+
+However, attempting to make rule a regular function, results in a typing error:
+```scala
+trait RuleLangBad {
+  object __match {
+    def one[T](x: T): List[T] = List(x)
+    def zero = Nil
+    def guard[T](cond: Boolean, result: => T): List[T] =
+      if (cond) List(result) else Nil
+    def runOrElse[T, U](in: T)(matcher: T => List[U]): List[U] =
+      matcher(in)
+  }
+
+  def infix_orElse[A](lst: List[A], alternative: => List[A]): List[A] =
+    lst ++ alternative
+
+  class Rule[A,B](f: A => List[B]) {
+    def unapply(x: A): List[B] = f(x)
+  }
+
+  def rule[A, B](f: A => List[B]): Rule[A,B] = new Rule(f)
+
+  lazy val Likes = rule ((x: String) => x match {
+    case "A" => "Coffee"
+  })
+}
+```
+
+The error is:
+```
+error: type mismatch;
+ found   : String("Coffee")
+ required: List[?]
+    case "A" => "Coffee"
+                ^
+```
+
+The difference between the rewrite in the snippet that works (postfix rule) and the one that doesn't (prefix rule):
+```scala
+// OK
+<stable> <accessor> lazy def Likes: RuleLangOK.this.Rule[String,String] = RuleLangOK.this.infix_rule[String, String](((x: String) => RuleLangOK.this.__match.runOrElse[String, String](x)(((x1: String) => RuleLangOK.this.__match.guard[String]("A".==(x1), x1).flatMap[String, List[String]](((x2: String) => RuleLangOK.this.__match.one[String]("Coffee")))(immutable.this.List.canBuildFrom[String])))))
+// BAD
+    <stable> <accessor> lazy def Likes: RuleLangBad.this.Rule[String,Nothing] = RuleLangBad.this.rule[String, Nothing](((x: String) => RuleLangBad.this.__match.runOrElse[String, Nothing](x)(((x1: String) => RuleLangBad.this.__match.guard[String]("A".==(x1), x1).flatMap[Nothing, List[Nothing]](((x2: String) => RuleLangBad.this.__match.one[T]("Coffee")))(immutable.this.List.canBuildFrom[Nothing])))))
+```

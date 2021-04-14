@@ -1,0 +1,58 @@
+=== What steps will reproduce the problem? ===
+Have two traits, one of which has an abstract method. Write a pattern-match expression, as below, where you first match trait A (with a pattern guard), then trait B, then trait A again. If you pass in an object that extends both A and B, and does NOT pass the boolean guard, the second match is skipped and the third match is selected. If you remove the first match (with the pattern guard) the behavior is as expected.
+
+Basically, the presence of one failing match is causing the following match to fail, which it shouldn't.
+
+```scala
+Welcome to Scala version 2.9.0.RC1 (Java HotSpot(TM) 64-Bit Server VM, Java 1.6.0_24).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> {
+     |   trait Foo  {
+     |     def i: Int
+     |   }
+     |   trait Bar
+     | 
+     |   case class Spam(i: Int) extends Foo with Bar
+     | 
+     |   def matchParent(p:Any) = p match {
+     |     case f:Foo if f.i == 1 => 1
+     |     case _:Bar => 2
+     |     case _:Foo => 3
+     |   }
+     | 
+     |   matchParent(Spam(3))
+     | }
+res0: Int = 3
+
+scala> {
+     |   trait Foo  {
+     |     def i: Int
+     |   }
+     |   trait Bar
+     | 
+     |   case class Spam(i: Int) extends Foo with Bar
+     | 
+     |   def matchParent(p:Any) = p match {
+     |     case _:Bar => 2
+     |     case _:Foo => 3
+     |   }
+     | 
+     |   matchParent(Spam(3))
+     | }
+res1: Int = 2
+```
+
+
+
+=== What is the expected behavior? ===
+Both of the above expressions should resolve to 2.
+
+=== What do you see instead? ===
+The first expression resolves to 3, skipping the second match.
+
+=== What versions of the following are you using? ===
+  - Scala: 2.9.0.RC1 (also occurs in 2.8.1)
+  - Java: 1.6.0_24
+  - Operating system: OS X 10.6.7

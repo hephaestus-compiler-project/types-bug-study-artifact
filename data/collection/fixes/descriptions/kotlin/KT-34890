@@ -1,0 +1,114 @@
+Consider the following code:
+```A.kt
+package com.test
+
+abstract class A<T : Any> : B {
+    inner class Section(
+    ) : Comparable<Section> {
+        override fun compareTo(other: Section): Int {
+            return 1
+        }
+    }
+}
+```
+```B.kt
+package com.test
+
+interface B {
+}
+```
+Compile it.
+If I try opening the file `/Users/sergei.pecherkin/IdeaProjects/KT-34781/build/classes/kotlin/main/com/test/A.class` I see IDE Fatal Error
+```stacktrace
+java.lang.IndexOutOfBoundsException: Index 0 out of bounds for length 0
+	at java.base/jdk.internal.util.Preconditions.outOfBounds(Preconditions.java:64)
+	at java.base/jdk.internal.util.Preconditions.outOfBoundsCheckIndex(Preconditions.java:70)
+	at java.base/jdk.internal.util.Preconditions.checkIndex(Preconditions.java:248)
+	at java.base/java.util.Objects.checkIndex(Objects.java:372)
+	at java.base/java.util.ArrayList.get(ArrayList.java:458)
+	at java.base/java.util.Collections$UnmodifiableList.get(Collections.java:1308)
+	at org.jetbrains.kotlin.types.checker.TypeCheckingProcedure.equalTypes(TypeCheckingProcedure.java:105)
+	at org.jetbrains.kotlin.types.checker.KotlinTypeCheckerImpl.equalTypes(KotlinTypeCheckerImpl.java:49)
+	at org.jetbrains.kotlin.resolve.OverridingUtil.areTypesEquivalent(OverridingUtil.java:365)
+	at org.jetbrains.kotlin.resolve.OverridingUtil.isOverridableByWithoutExternalConditions(OverridingUtil.java:266)
+	at org.jetbrains.kotlin.resolve.OverridingUtil.isOverridableBy(OverridingUtil.java:179)
+	at org.jetbrains.kotlin.resolve.OverridingUtil.isOverridableBy(OverridingUtil.java:169)
+	at org.jetbrains.kotlin.resolve.OverridingUtil.extractAndBindOverridesForMember(OverridingUtil.java:440)
+	at org.jetbrains.kotlin.resolve.OverridingUtil.generateOverridesInFunctionGroup(OverridingUtil.java:418)
+	at org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedClassDescriptor$DeserializedClassMemberScope.generateFakeOverrides(DeserializedClassDescriptor.kt:255)
+	at org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedClassDescriptor$DeserializedClassMemberScope.computeNonDeclaredFunctions(DeserializedClassDescriptor.kt:238)
+	at org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedMemberScope.computeFunctions(DeserializedMemberScope.kt:102)
+	at org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedMemberScope.access$computeFunctions(DeserializedMemberScope.kt:40)
+	at org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedMemberScope$functions$1.invoke(DeserializedMemberScope.kt:66)
+	at org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedMemberScope$functions$1.invoke(DeserializedMemberScope.kt:40)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$MapBasedMemoizedFunction.invoke(LockBasedStorageManager.java:440)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$MapBasedMemoizedFunctionToNotNull.invoke(LockBasedStorageManager.java:515)
+	at org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedMemberScope.getContributedFunctions(DeserializedMemberScope.kt:139)
+	at org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedClassDescriptor$DeserializedClassMemberScope.getContributedFunctions(DeserializedClassDescriptor.kt:219)
+	at org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedMemberScope.addFunctionsAndProperties(DeserializedMemberScope.kt:221)
+	at org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedMemberScope.computeDescriptors(DeserializedMemberScope.kt:181)
+	at org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedClassDescriptor$DeserializedClassMemberScope$allDescriptors$1.invoke(DeserializedClassDescriptor.kt:210)
+	at org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedClassDescriptor$DeserializedClassMemberScope$allDescriptors$1.invoke(DeserializedClassDescriptor.kt:203)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedLazyValue.invoke(LockBasedStorageManager.java:346)
+	at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedNotNullLazyValue.invoke(LockBasedStorageManager.java:402)
+	at org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedClassDescriptor$DeserializedClassMemberScope.getContributedDescriptors(DeserializedClassDescriptor.kt:215)
+	at org.jetbrains.kotlin.resolve.scopes.ResolutionScope$DefaultImpls.getContributedDescriptors$default(ResolutionScope.kt:52)
+	at org.jetbrains.kotlin.idea.decompiler.textBuilder.BuildDecompiledTextKt$buildDecompiledText$3.invoke(buildDecompiledText.kt:124)
+	at org.jetbrains.kotlin.idea.decompiler.textBuilder.BuildDecompiledTextKt$buildDecompiledText$3.invoke$default(buildDecompiledText.kt:69)
+	at org.jetbrains.kotlin.idea.decompiler.textBuilder.BuildDecompiledTextKt$buildDecompiledText$3.invoke(buildDecompiledText.kt:155)
+	at org.jetbrains.kotlin.idea.decompiler.textBuilder.BuildDecompiledTextKt$buildDecompiledText$3.invoke$default(buildDecompiledText.kt:69)
+	at org.jetbrains.kotlin.idea.decompiler.textBuilder.BuildDecompiledTextKt.buildDecompiledText(buildDecompiledText.kt:175)
+	at org.jetbrains.kotlin.idea.decompiler.classFile.KotlinClassFileDecompilerKt$buildDecompiledTextForClassFile$1.invoke(KotlinClassFileDecompiler.kt:80)
+	at org.jetbrains.kotlin.idea.decompiler.classFile.KotlinClassFileDecompilerKt.buildDecompiledTextForClassFile(KotlinClassFileDecompiler.kt:87)
+	at org.jetbrains.kotlin.idea.decompiler.classFile.KotlinClassFileDecompilerKt.buildDecompiledTextForClassFile$default(KotlinClassFileDecompiler.kt:68)
+	at org.jetbrains.kotlin.idea.decompiler.classFile.KtClsFile$1.invoke(KotlinClassFileDecompiler.kt:59)
+	at org.jetbrains.kotlin.idea.decompiler.classFile.KtClsFile$1.invoke(KotlinClassFileDecompiler.kt:59)
+	at org.jetbrains.kotlin.idea.decompiler.KtDecompiledFile$decompiledText$1.invoke(KtDecompiledFile.kt:33)
+	at org.jetbrains.kotlin.idea.decompiler.KtDecompiledFile$decompiledText$1.invoke(KtDecompiledFile.kt:27)
+	at org.jetbrains.kotlin.utils.concurrent.block.LockedClearableLazyValue.get(concurrent.kt:36)
+	at org.jetbrains.kotlin.idea.decompiler.KtDecompiledFile.getText(KtDecompiledFile.kt:37)
+	at org.jetbrains.kotlin.idea.decompiler.KotlinDecompiledFileViewProvider$content$1.invoke(KotlinDecompiledFileViewProvider.kt:39)
+	at org.jetbrains.kotlin.idea.decompiler.KotlinDecompiledFileViewProvider$content$1.invoke(KotlinDecompiledFileViewProvider.kt:31)
+	at org.jetbrains.kotlin.utils.concurrent.block.LockedClearableLazyValue.get(concurrent.kt:36)
+	at org.jetbrains.kotlin.idea.decompiler.KotlinDecompiledFileViewProvider.getContents(KotlinDecompiledFileViewProvider.kt:58)
+	at org.jetbrains.kotlin.idea.decompiler.KotlinDecompiledFileViewProvider.getContents(KotlinDecompiledFileViewProvider.kt:31)
+	at com.intellij.psi.impl.source.PsiFileImpl.loadTreeElement(PsiFileImpl.java:208)
+	at com.intellij.psi.impl.source.PsiFileImpl.calcTreeElement(PsiFileImpl.java:712)
+	at com.intellij.psi.impl.source.PsiFileImpl.getNode(PsiFileImpl.java:917)
+	at com.intellij.psi.impl.source.PsiFileImpl.getNode(PsiFileImpl.java:49)
+	at com.intellij.lang.folding.CustomFoldingBuilder.buildFoldRegions(CustomFoldingBuilder.java:40)
+	at com.intellij.lang.folding.LanguageFolding.buildFoldingDescriptorsNoPlaceholderCaching(LanguageFolding.java:90)
+	at com.intellij.lang.folding.CompositeFoldingBuilder.buildFoldRegions(CompositeFoldingBuilder.java:42)
+	at com.intellij.lang.folding.LanguageFolding.buildFoldingDescriptorsNoPlaceholderCaching(LanguageFolding.java:90)
+	at com.intellij.lang.folding.LanguageFolding.buildFoldingDescriptors(LanguageFolding.java:72)
+	at com.intellij.codeInsight.folding.impl.FoldingUpdate.getFoldingsFor(FoldingUpdate.java:233)
+	at com.intellij.codeInsight.folding.impl.FoldingUpdate.getFoldingsFor(FoldingUpdate.java:213)
+	at com.intellij.codeInsight.folding.impl.CodeFoldingManagerImpl.buildInitialFoldings(CodeFoldingManagerImpl.java:191)
+	at com.intellij.openapi.fileEditor.impl.text.PsiAwareTextEditorImpl.loadEditorInBackground(PsiAwareTextEditorImpl.java:50)
+	at com.intellij.openapi.fileEditor.impl.text.AsyncEditorLoader.lambda$null$0(AsyncEditorLoader.java:88)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.computePrioritized(CoreProgressManager.java:704)
+	at com.intellij.openapi.fileEditor.impl.text.AsyncEditorLoader.lambda$scheduleLoading$1(AsyncEditorLoader.java:88)
+	at com.intellij.openapi.application.impl.NonBlockingReadActionImpl$Submission.insideReadAction(NonBlockingReadActionImpl.java:162)
+	at com.intellij.openapi.application.impl.NonBlockingReadActionImpl$Submission.lambda$null$2(NonBlockingReadActionImpl.java:140)
+	at com.intellij.openapi.application.impl.ApplicationImpl.tryRunReadAction(ApplicationImpl.java:1106)
+	at com.intellij.openapi.progress.util.ProgressIndicatorUtils.lambda$runInReadActionWithWriteActionPriority$0(ProgressIndicatorUtils.java:72)
+	at com.intellij.openapi.progress.util.ProgressIndicatorUtils.lambda$runWithWriteActionPriority$1(ProgressIndicatorUtils.java:126)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.lambda$runProcess$2(CoreProgressManager.java:169)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.registerIndicatorAndRun(CoreProgressManager.java:591)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.executeProcessUnderProgress(CoreProgressManager.java:537)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.executeProcessUnderProgress(ProgressManagerImpl.java:59)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.runProcess(CoreProgressManager.java:156)
+	at com.intellij.openapi.progress.util.ProgressIndicatorUtils.runWithWriteActionPriority(ProgressIndicatorUtils.java:115)
+	at com.intellij.openapi.progress.util.ProgressIndicatorUtils.runInReadActionWithWriteActionPriority(ProgressIndicatorUtils.java:72)
+	at com.intellij.openapi.application.impl.NonBlockingReadActionImpl$Submission.lambda$transferToBgThread$6(NonBlockingReadActionImpl.java:140)
+	at com.intellij.util.concurrency.BoundedTaskExecutor.doRun(BoundedTaskExecutor.java:207)
+	at com.intellij.util.concurrency.BoundedTaskExecutor.access$100(BoundedTaskExecutor.java:29)
+	at com.intellij.util.concurrency.BoundedTaskExecutor$1.lambda$run$0(BoundedTaskExecutor.java:185)
+	at com.intellij.util.ConcurrencyUtil.runUnderThreadName(ConcurrencyUtil.java:208)
+	at com.intellij.util.concurrency.BoundedTaskExecutor$1.run(BoundedTaskExecutor.java:181)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:834)
+```
+
+Kotlin plugin 1.3.50 / 1.3.60-eap-143 + IntelliJ IDEA 2019.2.4 #IU-192.7142.36

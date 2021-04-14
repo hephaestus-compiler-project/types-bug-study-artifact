@@ -1,0 +1,72 @@
+Minimized from scalatest:
+
+```scala
+import scala.collection.GenTraversableOnce
+import scala.collection.generic.CanBuildFrom
+import scala.collection.GenSet
+
+object Every {
+  def apply[T](firstElement: T, otherElements: T): Every[T] = ???
+}
+class Every[+T](underlying: Vector[T]) {
+  def iterator: Iterator[T] = ???
+}
+case class One[+T](loneElement: T) extends Every[T](Vector(loneElement))
+
+abstract class Or[+G,+B] {
+  def map[H](f: G => H): H Or B = ???
+}
+case class Bad[+G,+B](b: B) extends Or[G,B]
+case class Good[+G,+B](g: G) extends Or[G,B]
+
+trait Combinable[G, ERR, COLL[_]] {
+  def combined: COLL[G] Or Every[ERR]
+}
+
+class OrSpec  {
+  implicit def convertGenTraversableOnceToCombinable[G, ERR, TRAVONCE[+e] <: GenTraversableOnce[e]]
+    (xs: TRAVONCE[G Or Every[ERR]])
+    (implicit cbf: CanBuildFrom[TRAVONCE[G Or Every[ERR]], G, TRAVONCE[G]]): Combinable[G, ERR, TRAVONCE] = 
+    new Combinable[G, ERR, TRAVONCE] { def combined: TRAVONCE[G] Or Every[ERR] = ??? }
+
+  implicit def convertGenSetToCombinable[G, ERR, X, SET[e] <: GenSet[e]]
+    (xs: SET[X with (G Or Every[ERR])])
+    (implicit cbf: CanBuildFrom[SET[X with (G Or Every[ERR])], G, SET[G]]): Combinable[G, ERR, SET] = 
+    new Combinable[G, ERR, SET] { def combined: SET[G] Or Every[ERR] = ??? }
+
+  // def a = 
+  {
+    // comment out these lines or move them after the Set ones, and it all compiles
+    // to trigger, must be lubbing Good & Bad, and inferring both TRAVONCE and SET type constructors
+    // things behave differently when this block is a method's body,
+    // so I'm thinking skolemization may be involved (different context.owner?)
+    List(Good(3), Bad(One("oops"))).iterator.combined
+    List(Good(3)).iterator.combined
+
+    Set(Bad(One("oops"))).combined
+    Set(Bad(One("darn")), Bad(One("oops"))).combined
+  }
+}
+/* Reported errors when lines are ordered as given. No errors when reordering applied / List ones are commented out.
+
+OrSpec.scala:43: error: type mismatch;
+ found   : scala.collection.generic.CanBuildFrom[scala.collection.immutable.Set.Coll,Nothing,scala.collection.immutable.Set[Nothing]]
+    (which expands to)  scala.collection.generic.CanBuildFrom[scala.collection.immutable.Set[_],Nothing,scala.collection.immutable.Set[Nothing]]
+ required: scala.collection.generic.CanBuildFrom[scala.collection.immutable.Set[Bad[Nothing,One[String]] with Or[G,Every[String]]],G,scala.collection.immutable.Set[G]]
+    Set(Bad(One("oops"))).combined
+       ^
+OrSpec.scala:43: error: value combined is not a member of scala.collection.immutable.Set[Bad[Nothing,One[String]]]
+    Set(Bad(One("oops"))).combined
+                          ^
+OrSpec.scala:44: error: type mismatch;
+ found   : scala.collection.generic.CanBuildFrom[scala.collection.immutable.Set.Coll,Nothing,scala.collection.immutable.Set[Nothing]]
+    (which expands to)  scala.collection.generic.CanBuildFrom[scala.collection.immutable.Set[_],Nothing,scala.collection.immutable.Set[Nothing]]
+ required: scala.collection.generic.CanBuildFrom[scala.collection.immutable.Set[Bad[Nothing,One[String]] with Or[G,Every[String]]],G,scala.collection.immutable.Set[G]]
+    Set(Bad(One("darn")), Bad(One("oops"))).combined
+       ^
+OrSpec.scala:44: error: value combined is not a member of scala.collection.immutable.Set[Bad[Nothing,One[String]]]
+    Set(Bad(One("darn")), Bad(One("oops"))).combined
+                                            ^
+four errors found
+*/
+```

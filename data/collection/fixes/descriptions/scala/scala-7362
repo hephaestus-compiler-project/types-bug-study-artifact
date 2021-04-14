@@ -1,0 +1,96 @@
+As shown by bisection, commit [9094822](https://github.com/adriaanm/scala/commit/9094822181c398b945b7f30ac1e2b05da9796f53) introduced a regression in a [presentation compiler test](http://scala-ide.org/docs/dev/testing/presentation-compiler-tests.html) on the IDE side : [T1207](https://github.com/scala-ide/scala-ide/blob/master/org.scala-ide.sdt.core.tests/src/scala/tools/eclipse/completion/CompletionTests.scala#L225) checking for completion method plumbing (original issue : [#1001207](https://www.assembla.com/spaces/scala-ide/tickets/1001207#/activity/ticket:)).
+
+**Edit** : there's a much simpler test case available [below as a Scala PC test|https://issues.scala-lang.org/browse/SI-7362?focusedCommentId=63660&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-63660].
+
+- Context:
+
+The test tries to generate a completion on a [Scala source](https://github.com/scala-ide/scala-ide/blob/master/org.scala-ide.sdt.core.tests/test-workspace/completion/src/ticket_1001207/T1207.scala#L3) containing a java package name (at the point containing an exclamation mark).
+
+- Problem:
+
+The failure manifests by returning an empty completion list (instead of the expected java package name):
+```xml
+ <testcase time="0.05" classname="scala.tools.eclipse.completion.CompletionTests" name="t1001207">
+    <failure message="The completion should return java.util" type="java.lang.AssertionError">java.lang.AssertionError: The completion should return java.util
+        at org.junit.Assert.fail(Assert.java:91)
+        at org.junit.Assert.assertTrue(Assert.java:43)
+        at scala.tools.eclipse.completion.CompletionTests$$anonfun$t1001207$1.apply(CompletionTests.scala:229)
+        at scala.tools.eclipse.completion.CompletionTests$$anonfun$t1001207$1.apply(CompletionTests.scala:227)
+        at scala.tools.eclipse.completion.CompletionTests$$anonfun$1$$anonfun$apply$1.apply$mcVI$sp(CompletionTests.scala:72)
+...
+</testcase>
+```
+
+The detailed output a problem in typers that makes the completion details appear coincidental :
+```xml
+   <system-out>
+!ENTRY org.scala-ide.sdt.core 4 0 2013-04-11 14:55:46.169
+!MESSAGE AT: RangePosition(/home/huitseeker/Scala/scala-ide/org.scala-ide.sdt.core.tests/target/work/data/completion/src/ticket_1001207/T1207.scala, 24, 31, 39)
+!STACK 0
+scala.reflect.internal.FatalError: unexpected tree: class scala.reflect.internal.Trees$Import
+import java.uti
+        at scala.reflect.internal.SymbolTable.abort(SymbolTable.scala:51)
+        at scala.tools.nsc.Global.abort(Global.scala:251)
+        at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5261)
+        at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5292)
+        at scala.tools.nsc.typechecker.Typers$Typer.typedQualifier(Typers.scala:5370)
+        at scala.tools.nsc.typechecker.Typers$Typer.typedQualifier(Typers.scala:5378)
+        at scala.tools.nsc.interactive.Global.scala$tools$nsc$interactive$Global$$typeMembers(Global.scala:961)
+        at scala.tools.nsc.interactive.Global$$anonfun$getTypeCompletion$2.apply(Global.scala:943)
+        at scala.tools.nsc.interactive.Global$$anonfun$getTypeCompletion$2.apply(Global.scala:943)
+        at scala.tools.nsc.interactive.Global.respondGradually(Global.scala:584)
+        at scala.tools.nsc.interactive.Global.getTypeCompletion(Global.scala:943)
+        at scala.tools.nsc.interactive.CompilerControl$AskTypeCompletionItem.apply$mcV$sp(CompilerControl.scala:359)
+        at scala.tools.nsc.interactive.Global.pollForWork(Global.scala:384)
+        at scala.tools.nsc.interactive.Global.checkForMoreWork(Global.scala:396)
+        at scala.tools.nsc.interactive.Global.signalDone(Global.scala:249)
+        at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5319)
+        at scala.tools.nsc.typechecker.Typers$Typer.typedTypeConstructor(Typers.scala:5424)
+        at scala.tools.nsc.typechecker.Typers$Typer.typedTypeConstructor(Typers.scala:5441)
+        at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedParentType(Typers.scala:1514)
+        at scala.tools.nsc.typechecker.Typers$Typer.typedParentTypes(Typers.scala:1663)
+        at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$27.apply(Typers.scala:1791)
+        at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$27.apply(Typers.scala:1791)
+        at scala.tools.nsc.typechecker.Typers$Typer.typerReportAnyContextErrors(Typers.scala:491)
+        at scala.tools.nsc.typechecker.Typers$Typer.typedClassDef(Typers.scala:1790)
+        at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5240)
+        at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5292)
+        at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:2849)
+        at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$60.apply(Typers.scala:2953)
+        at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$60.apply(Typers.scala:2953)
+        at scala.collection.immutable.List.loop$1(List.scala:170)
+        at scala.collection.immutable.List.mapConserve(List.scala:186)
+        at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:2953)
+        at scala.tools.nsc.typechecker.Typers$Typer.typedPackageDef$1(Typers.scala:4978)
+        at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5244)
+        at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5292)
+        at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5351)
+        at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.apply(Analyzer.scala:99)
+        at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:413)
+        at scala.tools.nsc.interactive.Global$TyperRun$$anonfun$applyPhase$1.apply$mcV$sp(Global.scala:1102)
+        at scala.tools.nsc.interactive.Global$TyperRun$$anonfun$applyPhase$1.apply(Global.scala:1102)
+        at scala.tools.nsc.interactive.Global$TyperRun$$anonfun$applyPhase$1.apply(Global.scala:1102)
+        at scala.reflect.internal.SymbolTable.enteringPhase(SymbolTable.scala:214)
+        at scala.tools.nsc.interactive.Global$TyperRun.applyPhase(Global.scala:1102)
+        at scala.tools.nsc.interactive.Global$TyperRun.typeCheck(Global.scala:1095)
+        at scala.tools.nsc.interactive.Global.scala$tools$nsc$interactive$Global$$typeCheck(Global.scala:546)
+        at scala.tools.nsc.interactive.Global$$anonfun$backgroundCompile$5$$anonfun$apply$7.apply(Global.scala:462)
+        at scala.tools.nsc.interactive.Global$$anonfun$backgroundCompile$5$$anonfun$apply$7.apply(Global.scala:458)
+        at scala.Option.foreach(Option.scala:245)
+        at scala.tools.nsc.interactive.Global$$anonfun$backgroundCompile$5.apply(Global.scala:458)
+        at scala.tools.nsc.interactive.Global$$anonfun$backgroundCompile$5.apply(Global.scala:458)
+        at scala.collection.TraversableLike$WithFilter$$anonfun$foreach$1.apply(TraversableLike.scala:775)
+        at scala.collection.immutable.List.foreach(List.scala:300)
+        at scala.collection.TraversableLike$WithFilter.foreach(TraversableLike.scala:774)
+        at scala.tools.nsc.interactive.Global.backgroundCompile(Global.scala:458)
+        at scala.tools.nsc.interactive.PresentationCompilerThread.run(PresentationCompilerThread.scala:25)
+</system-out>
+```
+
+- How to repdroduce:
+
+Compile the scala commit (9094822 or posterior) on which you have cherry-picked an [sbt version update](https://github.com/paulp/scala/commit/cab476299d90e8c9ea592c6bcdd1aa8ee3efd9c3). Compile sbt 0.13 off of that, and a 2.11-compatible version of Scala-IDE on top of the previous two.
+
+As far as 2-11-compatible means : I'll keep the minimal tweaks needed for Scala-IDE compilation off of 2.11 on my branch [build-script-tweaks](https://github.com/huitseeker/scala-ide/tree/build-script-tweaks).
+
+If this whole process sounds too complicated, you may want to try [my bash script|http://quatramaran.ens.fr/~garillot/tmp/bisect.sh] to do that (don't mind the bisect name). It just assumes scala,sbinary,sbt,scala-refactoring, scala-ide checkouts present on your system (directory names configured at the beginning of the script), and does the whole scala -> sbinary -> sbt -> scala-refactoring -> scala-ide compile based on a non-polluting use of your maven local repo and whatever you have present in said directories. Ping me if you need help using it.

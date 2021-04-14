@@ -1,0 +1,43 @@
+This code doesn't compile with this error:
+{noformat}
+[Static type checking] - Cannot find matching method java.lang.Object#toBigDecimal(). Please check if the declared type is correct and if the method exists.{noformat}
+Explicitly adding a `delegate.someFunctionName` works around the problem.
+{code:groovy}
+import groovy.transform.CompileStatic
+import groovy.transform.stc.ClosureParams
+import groovy.transform.stc.FirstParam
+import groovy.transform.stc.FromString
+
+@CompileStatic
+class Delegate {
+
+  def <T2> void someFunctionName(Collection<T2> values, @ClosureParams(FirstParam.FirstGenericType) Closure<String> optionKey) {
+  }
+
+  static Delegate of(@DelegatesTo(Delegate) Closure c) {
+    def d = new Delegate()
+    c.delegate = d
+    c()
+    return d
+  }
+}
+
+@CompileStatic
+class App {
+
+  List<Integer> someList
+
+  Delegate datePicker = Delegate.of {
+    someFunctionName(
+      this.someList,
+      // Here: Cannot find matching method java.lang.Object#toBigDecimal(). Please check if the declared type is correct and if the method exists.
+      // But it should be known to be Integer
+      // The code compiles when delegate.someFunctionName is used above
+      { it.toBigDecimal().toString() },
+    )
+  }
+}
+
+new App()
+{code}
+ 

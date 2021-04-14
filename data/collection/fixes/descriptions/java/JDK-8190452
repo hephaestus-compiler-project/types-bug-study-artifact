@@ -1,0 +1,22 @@
+javac currently emits MethodParameters attributes if -parameters is enabled even when writing v51 and earlier class files. It reports a warning when subsequently reading those class files if -Xlint:classfile is enabled.
+
+original compiler-dev report:
+http://mail.openjdk.java.net/pipermail/compiler-dev/2016-November/010508.html
+
+The suggestion in the thread is to not emit the attributes when writing class file versions for which it is not appropriate.
+
+=== X.java
+class X {
+  void f(int a) {}
+}
+=== Y.java
+class Y {
+  X x;
+}
+===
+
+Repro (using 9.0.1+11):
+
+$ javac -parameters -source 7 -target 7 X.java
+$ javac -Xlint:classfile -sourcepath : Y.java
+./X.class: warning: [classfile] MethodParameters attribute introduced in version 52.0 class files is ignored in version 51.0 class files

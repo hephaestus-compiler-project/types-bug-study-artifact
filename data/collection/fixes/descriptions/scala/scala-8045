@@ -1,0 +1,35 @@
+```scala
+object Test extends App {
+  case class Number(i: Int)
+
+  object UnliftNumber {
+    def unapply(t: Any): Option[Number] = t match {
+      case i: Int => Some(Number(i))
+      case _ => None
+    }
+  }
+
+  def eval(expr: Any): Option[Number] = expr match {
+    case UnliftNumber(n) => Some(n)
+    case _ => None
+  }
+
+  println(eval(1))
+}
+```
+```
+Test.scala:15: error: type mismatch;
+ found   : Int
+ required: Test.Number
+    case UnliftNumber(n) => Some(n)
+                                 ^
+one error found
+```
+
+If we the return type of eval is ommited the code compiles and runs just fine:
+```
+$ quickc -d sandbox Test.scala
+
+$ quick -cp sandbox Test
+Some(Number(1))
+```

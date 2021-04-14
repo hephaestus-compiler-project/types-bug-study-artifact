@@ -1,0 +1,38 @@
+My project gets library dependences from build.gradle file which is configured to use Kotlin 1.0.6 libraries. I've install plugin  1.1.0-rc-67-IJ2017.1-1 and set language & API level 1.0 in project settings (and "use project settings" option in Kotlin facets). I expect to get no compilation errors, because both gradle and v1.0.6-release-IJ2016.3-1 plugin were able to successfully compile my project. Instead I get some weird errors, related to "clone()" method, see attached screenshot. I assume there is some conflict between Kotlin libs bundled in plugin and attached to my project dependencies from build.gradle, but here I'd rather Kotlin plugin didn't use bundled compiler.
+
+{code:lang=Kotlin}
+// MethylomeToDataFrame.kt
+..
+  private fun apply(df: DataFrame): DataFrame {
+        if (df.rowsNumber == 0) {
+            return df.with("d", IntArray(0))
+        }
+
+        val distances = df.sliceAsInt("offset").clone()  // <-- Error: Kotlin: Overload resolution ambiguity 
+        for (t in distances.size - 1 downTo 1) {
+            distances[t] -= distances[t - 1]
+        }
+
+        distances[0] = Integer.MAX_VALUE // should be unused.
+        return df.with("d", distances)
+    }
+..
+
+// DataFrame.kt
+..
+fun sliceAsInt(label: String) = columns[getLabelIndex(label)].data as IntArray
+..
+
+{code}
+
+I don't get this error when compiling with 1.0/1.1 language level +  1.1.0-rc-69 kotlin dependencies in build.gradle
+
+```
+plugin  1.1.0-rc-67-IJ2017.1-1
+
+IntelliJ IDEA (Community Edition) 2017.1 EAP
+Build #IC-171.3224.1, built on February 14, 2017
+JRE: 1.8.0_112-release-b702 x86_64
+JVM: OpenJDK 64-Bit Server VM by JetBrains s.r.o
+Mac OS X 10.12.3
+```

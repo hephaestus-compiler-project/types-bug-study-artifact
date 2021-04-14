@@ -1,0 +1,27 @@
+The compilation of the following code:
+
+```kotlin
+interface Base
+class Foo : Base
+
+fun <T : Base> run(action: () -> T): T = action()
+
+fun main() {
+    Foo().also { f: Foo ->
+        run { f }
+    }
+}
+```
+
+Fails with the following error:
+
+```
+repro.kt:8:13: error: type mismatch: inferred type is Unit but Base was expected
+        run { f }
+            ^
+```
+
+Any of the following changes in the code can fix the issue:
+ - Replacing `<T: Base>` with just `T` in the `run` function.
+ - Explicit returning `Unit` from the `also` lambda, like `run { f }; Unit`.
+ - Replacing `also` with `let`. Probably any function that accepts `(T) -> Any` or `(T) -> R` instead of `(T) -> Unit` will work.

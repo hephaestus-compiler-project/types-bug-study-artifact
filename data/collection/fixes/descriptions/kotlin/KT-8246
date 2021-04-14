@@ -1,0 +1,46 @@
+Code like this produces wrong diagnostics (and may or may not compile):
+{{OUTER@while {
+  try {
+    while {
+      (break|continue) @OUTER
+    }
+  } finally {
+    pass control out of @OUTER
+  }
+}
+}}
+
+Test case #1: doesn't compile
+{code lang=kt}
+fun main(args: Array<String>) {
+    OUTER@while (true) {
+        try {
+            while (true) {
+                continue@OUTER
+            }
+        } finally {
+            break // Error:(8, 13) Kotlin: 'break' and 'continue' are only allowed inside a loop
+        }
+    }
+    println("OK") // Yellow: Unreachable code
+}
+{code}
+
+Test case #2: compiles with wrong "unreachable code" warning 
+{code lang=kt}
+fun foo(): String {
+    OUTER@while (true) {
+        try {
+            while (true) {
+                continue@OUTER // Warning:(5, 17) Kotlin: Unreachable code
+            }
+        } finally {
+            return "OK"
+        }
+    }
+}
+
+fun main(args: Array<String>) {
+    println(foo())
+}
+{code}

@@ -1,0 +1,71 @@
+Code:
+
+$ cat Test.java
+public class Test  {
+
+    interface Constructor {
+        public MyTest execute(int i);
+    }
+
+    public class MyTest {
+        public MyTest(int i) { System.out.println("Constructor executed " + i); }
+    }
+
+    public Constructor getConstructor() {
+        return MyTest::new;
+    }
+
+    public static void main(String argv[]) {
+        new Test().call();
+    }
+
+    public void call() {
+        MyTest mt = new MyTest(0);
+
+        Constructor c1 = MyTest::new;
+        c1.execute(1);
+
+        Constructor c2 = getConstructor();
+        c2.execute(2);
+
+        Constructor c3 = new Constructor() {
+            public MyTest execute(int i) {
+                return new MyTest(3);
+            }
+        };
+        c3.execute(3);
+
+        Constructor c4 = new Constructor() {
+            public MyTest execute(int i) {
+                Constructor c = MyTest::new;
+                return c.execute(i);
+            }
+        };
+        c4.execute(4);
+    }
+}
+
+It could be compiled sucessfully but then run fails with exception:
+
+$ java Test
+Constructor executed 0
+Constructor executed 1
+Constructor executed 2
+Constructor executed 3
+Exception in thread "main" java.lang.BootstrapMethodError: call site initialization exception
+	at java.lang.invoke.CallSite.makeSite(CallSite.java:328)
+	at java.lang.invoke.MethodHandleNatives.linkCallSiteImpl(MethodHandleNatives.java:307)
+	at java.lang.invoke.MethodHandleNatives.linkCallSite(MethodHandleNatives.java:297)
+	at Test$2.execute(Test.java:38)
+	at Test.call(Test.java:42)
+	at Test.main(Test.java:17)
+Caused by: java.lang.invoke.LambdaConversionException: Type mismatch in captured lambda parameter 0: expecting class Test$2, found class Test
+	at java.lang.invoke.AbstractValidatingLambdaMetafactory.validateMetafactoryArgs(AbstractValidatingLambdaMetafactory.java:256)
+	at java.lang.invoke.LambdaMetafactory.metafactory(LambdaMetafactory.java:303)
+	at java.lang.invoke.CallSite.makeSite(CallSite.java:289)
+	... 5 more
+
+That is, java can instantiate object with direct constructor invocation and cannot do this through constructor reference. Should be equivalent access:
+JLS 15.13.1. : "treating the method reference expression as if it were a class instance creation expression".
+JLS 15.13.3. : "the body of the invocation method has the effect of a class instance creation expression" and "The enclosing instance for the new object, if any, is derived from the site of the method reference expression, as specified in §15.9.2."
+JLS 15.9.2. describes the rules of determining enclosing Instances, and declares compile-time errors in other cases. No run-time errors declared.

@@ -1,0 +1,26 @@
+The following repo case crashes scalac 2.11 and 2.10 with an OOM exception, or hangs pretty much forever if scalac is given loads of memory.
+
+I haven't managed to reduce it further, but I'm under the impression it has to do with the widening of type constraints in the nested maps (where empty strings are returned).
+
+```scala
+// scalac bug.scala
+class ImGonnaTakeForeverToCompile {
+  abstract class Foo extends Ordered[Foo]
+
+  val seq: Seq[Int] = null
+  val set: Set[Int] = null
+  val map: Map[Int, Int] = null
+  val values: Map[Int, Set[Foo]] = null
+
+  map ++ set.map(_ -> "")
+
+  values ++ seq.groupBy(_ / 2).toSeq.map({
+    case (key, group) =>
+      key -> (values(key) ++ group.map(_ => ""))
+  })
+}
+```
+
+(I fixed my original non-reduced code by avoiding a widening that was introduced by mistake)
+
+A quick jconsole sampling shows some / lots of time is spent in `scala.reflect.internal.tpe.TypeConstraints.solve`.

@@ -1,0 +1,28 @@
+``` scala
+trait OpacityTypes {
+  type T
+  private[OpacityTypes] def orderingT: Ordering[T]
+}
+
+object OpacityTypes {
+  val Pimp: OpacityTypes = new OpacityTypes {
+    override type T = Int
+    private[OpacityTypes] override def orderingT = Ordering.Int
+  }
+  implicit def orderingT: Ordering[Pimp.T] = Pimp.orderingT
+}
+
+implicitly[Ordering[OpacityTypes.Pimp.T]]
+```
+
+```
+No implicit Ordering defined for Playground.this.OpacityTypes.Pimp.T.
+not enough arguments for method implicitly: (implicit e: Ordering[Playground.this.OpacityTypes.Pimp.T])Ordering[Playground.this.OpacityTypes.Pimp.T].
+Unspecified value parameter e.
+```
+
+Note that this bug has been fixed in dotty.
+
+
+* [Scastie snippet for Scala 2.12](https://scastie.scala-lang.org/Atry/EInpvwcDTtCdi3dEjco7hQ)
+* [Scastie snippet for Dotty](https://scastie.scala-lang.org/Atry/ki3OsXS2Sm6tHyZaKYULDA/1)

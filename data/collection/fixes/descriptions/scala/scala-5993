@@ -1,0 +1,25 @@
+```scala
+class LambdasAndImplicits {
+
+  class MA[M[_], A](ma: M[A]) {
+    def sheep = ma + " bee"
+  }
+
+  implicit def asMA[M[_], A](ma: M[A]) = new MA[M, A](ma)
+
+  // Fails as expected:
+//  (Right(1): Either[String, Int]).sheep
+
+  // The two types are equal
+  type Maybe[A] = Either[String, A]
+  type MaybeLambda[A] = ({type l[x] = Either[String, x]})#l[A]
+
+  val a = (Right(1).asInstanceOf[Maybe[Int]]).sheep
+  val b = (Right(1).asInstanceOf[MaybeLambda[Int]]).sheep
+  // Fails unexpectedly
+  val c = (Right(1).asInstanceOf[({type l[x] = Either[String, x]})#l[Int]]).sheep
+
+}
+```
+
+I would expect b and c to evaluate to the same result, however there seems to be some difference in handling a type alias and a type lambda?

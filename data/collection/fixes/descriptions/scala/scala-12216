@@ -1,0 +1,61 @@
+## reproduction steps
+
+using Scala 2.12.13-bin-b08ccde
+
+```scala
+import scala.annotation.StaticAnnotation
+
+class anno(attr: Boolean) extends StaticAnnotation
+
+object Test {
+  @anno(attr = true) def attr: Int = 1
+}
+
+```
+
+## problem
+
+```
+Exception in thread "main" java.lang.StackOverflowError
+	at scala.tools.nsc.typechecker.Contexts$Context.innerDepth$1(Contexts.scala:487)
+	at scala.tools.nsc.typechecker.Contexts$Context.make(Contexts.scala:496)
+	at scala.tools.nsc.typechecker.Contexts$Context.makeNonSilent(Contexts.scala:550)
+	at scala.tools.nsc.typechecker.Namers$Namer.$anonfun$annotSig$4(Namers.scala:1888)
+	at scala.tools.nsc.typechecker.Namers$Namer.$anonfun$annotSig$3(Namers.scala:1887)
+	at scala.reflect.internal.AnnotationInfos$LazyAnnotationInfo.forcedInfo$lzycompute(AnnotationInfos.scala:224)
+	at scala.reflect.internal.AnnotationInfos$LazyAnnotationInfo.forcedInfo(AnnotationInfos.scala:224)
+	at scala.reflect.internal.AnnotationInfos$LazyAnnotationInfo.atp(AnnotationInfos.scala:226)
+	at scala.reflect.internal.AnnotationInfos$AnnotationInfo.symbol(AnnotationInfos.scala:298)
+	at scala.reflect.internal.AnnotationInfos$AnnotationInfo.matches(AnnotationInfos.scala:319)
+	at scala.reflect.internal.AnnotationInfos$Annotatable.dropOtherAnnotations(AnnotationInfos.scala:67)
+	at scala.reflect.internal.AnnotationInfos$Annotatable.hasAnnotation(AnnotationInfos.scala:52)
+	at scala.reflect.internal.AnnotationInfos$Annotatable.hasAnnotation$(AnnotationInfos.scala:50)
+	at scala.reflect.internal.Symbols$Symbol.hasAnnotation(Symbols.scala:220)
+	at scala.reflect.internal.TreeInfo.isUncheckedStable(TreeInfo.scala:125)
+	at scala.reflect.internal.TreeInfo.isStableMemberOf(TreeInfo.scala:133)
+	at scala.reflect.internal.TreeInfo.isStableIdentifier(TreeInfo.scala:114)
+	at scala.reflect.internal.TreeInfo.isPath(TreeInfo.scala:102)
+	at scala.reflect.internal.TreeInfo.admitsTypeSelection(TreeInfo.scala:158)
+	at scala.tools.nsc.typechecker.Typers$Typer.isModuleTypedExpr$1(Typers.scala:615)
+	at scala.tools.nsc.typechecker.Typers$Typer.stabilize(Typers.scala:644)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedIdent$2(Typers.scala:5286)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedIdentOrWildcard$1(Typers.scala:5298)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5732)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5780)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedLhs$1(Typers.scala:5858)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedAssign$1(Typers.scala:4516)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedOutsidePatternMode$1(Typers.scala:5716)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5744)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5780)
+	at scala.tools.nsc.typechecker.NamesDefaults.$anonfun$isAmbiguousAssignment$2(NamesDefaults.scala:533)
+	at scala.tools.nsc.typechecker.Typers$Typer.silent(Typers.scala:713)
+	at scala.tools.nsc.typechecker.NamesDefaults.$anonfun$isAmbiguousAssignment$1(NamesDefaults.scala:532)
+	at scala.runtime.java8.JFunction0$mcZ$sp.apply(JFunction0$mcZ$sp.java:23)
+	at scala.tools.nsc.typechecker.Contexts$Context.$anonfun$savingUndeterminedTypeParams$1(Contexts.scala:337)
+	at scala.tools.nsc.typechecker.Contexts$Context.savingUndeterminedTypeParams(Contexts.scala:401)
+	at scala.tools.nsc.typechecker.NamesDefaults.isAmbiguousAssignment(NamesDefaults.scala:516)
+```
+
+The problem doesn't exist in 2.13.x (where `@uncheckedStable` support was authored. Maybe some other change on that branch avoids the problem?
+
+I'm trying fixes in https://github.com/retronym/scala/pull/104

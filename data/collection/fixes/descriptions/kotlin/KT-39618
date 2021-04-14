@@ -1,0 +1,48 @@
+I writed a kt class to combine two livedata last week, it 's work, but today it's red, compiler still work as good.
+please help me, i got stuck.
+
+project source: https://github.com/HxBreak/AnimalCrossingTools-Android/
+issue file location: 
+https://github.com/HxBreak/AnimalCrossingTools-Android/blob/digger/app/src/main/java/com/hxbreak/animalcrossingtools/LiveDataExt.kt
+https://github.com/HxBreak/AnimalCrossingTools-Android/blob/digger/app/src/main/java/com/hxbreak/animalcrossingtools/ui/fish/FishViewModel.kt
+
+#step reproduce:
+```
+@UseExperimental(ExperimentalTypeInference::class)
+fun <R, X, Y> combined(
+    x: X,
+    y: Y,
+    check: (x: Boolean, y: Boolean) -> Unit,
+    @BuilderInference block: TestInterface<R>.() -> Unit
+) = TestInferType(x, y,
+    check,
+    block)
+
+class TestInferType<R, X, Y> (
+    x: X,
+    y: Y,
+    check: (x: Boolean, y: Boolean) -> Unit,
+    block: TestInterface<R>.() -> Unit
+): HeightLevel<R>()
+
+interface TestInterface<R>{
+    fun emit(r: R)
+}
+
+open class HeightLevel<R>{
+    fun test(r: R) = r
+}
+fun test(){
+    val func = {x: Boolean, y: Boolean ->  }
+    val result = combined(1, 2, check = func){
+        emit(1)
+    }
+    val ret = combined(1, 2, check = {x, y -> }){
+        emit(1)
+    }
+    result.test(2)
+    ret.test(2)
+}
+```
+
+`ext.kotlin_version = '1.3.71'`

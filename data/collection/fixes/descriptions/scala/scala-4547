@@ -1,0 +1,55 @@
+=== What steps will reproduce the problem (please be specific and use wikiformatting)? 
+Compiler refuses to implicitly convert an Int to a BigDecimal, etc., in the following context:
+```scala
+  3 + BigDecimal(4)
+  3 + BigInt(4)
+```
+
+
+
+=== What is the expected behavior? ===
+Compiler should insert an implicit conversion, translating above to:
+```scala
+  BigDecimal.int2bigDecimal(3) + BigDecimal(4)
+  BigInt.int2bigInt(3) + BigInt(4)
+```
+
+
+=== What do you see instead? ===
+Errors like this:
+```scala
+<console>:6: error: overloaded method value + with alternatives:
+  (Double)Double <and>
+  (Float)Float <and>
+  (Long)Long <and>
+  (Int)Int <and>
+  (Char)Int <and>
+  (Short)Int <and>
+  (Byte)Int <and>
+  (java.lang.String)java.lang.String
+ cannot be applied to (scala.math.BigInt)
+       3 + BigInt(4)
+       ^
+```
+```scala
+<console>:6: error: overloaded method value + with alternatives:
+  (Double)Double <and>
+  (Float)Float <and>
+  (Long)Long <and>
+  (Int)Int <and>
+  (Char)Int <and>
+  (Short)Int <and>
+  (Byte)Int <and>
+  (java.lang.String)java.lang.String
+ cannot be applied to (scala.math.BigDecimal)
+       3 + BigDecimal(4)
+       ^
+```
+I assume this is an error.  If this is the behavior the spec requires in the presence of preexisting overloaded methods none of whose argument types match the type provided, I would argue that it presents a usability problem.
+=== Additional information ===
+I couldn't find any other tickets on this issue, but that might be because I was misformulating my search queries.
+
+=== What versions of the following are you using? ===
+  - Scala: 2.8.1
+  - Java: Java HotSpot(TM) 64-Bit Server VM, Java 1.6.0_20
+  - Operating system: Mac OS X 10.6.6

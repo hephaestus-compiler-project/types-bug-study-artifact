@@ -1,0 +1,36 @@
+To guarantee a decidable subtyping in Kotlin, we need to enforce the Single Instantiation Inheritance Rule for all types, including type parameters. 
+
+For classes and interfaces we already detect violations of this rule and report errors:
+``` kotlin
+interface A : List<Comparable<Long>>, List<Comparable<Int>> // Error: A supertype appears twice
+```
+
+They also cannot be introduced on different levels of an inheritance hierarchy:
+``` kotlin
+interface A : List<Comparable<Long>>
+interface B : A, List<Comparable<Int>> // Error: Type parameter E of 'List' has inconsistent values: kotlin.Comparable<kotlin.Long>, kotlin.Comparable<kotlin.Int>
+```
+
+Generic types and their projections are considered distinct types and also cause an error:
+```
+interface A : List<ArrayList<Any>>
+interface B : A, List<ArrayList<out Any>> // Error: Type parameter E of 'List' has inconsistent values: java.util.ArrayList<kotlin.Any>, java.util.ArrayList<out kotlin.Any>
+```
+
+We need to implement the same rules for bounds of type parameters. Every type parameter is to be considered a distinct type (even if it can unify with another type for some substitutions):
+
+``` kotlin
+interface A<T : List<Comparable<Long>>> where T : List<Comparable<T>> // Must be an error
+```
+
+It should also works for indirect bounds inherited from other type parameters (either from the same, or from a different type parameter list) or their nullable counterparts:
+``` kotlin
+interface A<T : List<Comparable<T>>> {
+    fun <S : T?> f() where S : List<Comparable<S>> // Must be an error
+}
+```
+
+Nullable types are to be considered distinct from their underlying types (even if they can unify for some substitutions):
+```
+interface A<T : List<Comparable<T>>> where T : List<Comparable<T?>> // Must be an error
+```

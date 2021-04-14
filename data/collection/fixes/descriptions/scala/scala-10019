@@ -1,0 +1,35 @@
+This feels like a bug?
+
+Compare:
+
+```scala
+object Bug {
+  sealed case class Foo(e: Option[Int])
+
+  def loop(t: Foo): Nothing = t match {
+    case Foo(Some(_)) => ???
+  }
+}
+/*
+match may not be exhaustive.
+[warn] It would fail on the following input: Foo(None)
+[warn]   def loop(t: Foo): Nothing = t match {
+[warn]                               ^
+*/
+```
+
+to this, which is also not exhaustive but produces no warning:
+
+```scala
+object Bug {
+  sealed case class Foo(e: Option[Int])
+
+  def loop(s: Foo, t: Foo): Nothing = (s,t) match {
+    case (Foo(Some(_)), _) => ???
+  }
+}
+```
+
+I know `Tuple2` isn't sealed, but that doesn't seem to explain it (problem occurs even using a custom sealed replacement for `Tuple2`, plus the stdlib tuples participate successfully in match exhaustivity checks in some other contexts).
+
+Any ideas?

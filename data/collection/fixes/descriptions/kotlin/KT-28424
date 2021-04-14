@@ -1,0 +1,156 @@
+# Summary
+
+Kotlin compiler doesn't analyze type annotations in several cases. 
+As a result, it's possible to compile a program with unresolved references without any warnings or errors and miss a potential bug.
+
+This is an umbrella issue describing similar cases (KT-25876; KT-25575; KT-19455)
+
+
+# Existing Behavior
+
+#### Code Sample
+
+Annotation reference on a return type isn't analyzed properly:
+```
+@Target(AnnotationTarget.TYPE)
+annotation class Ann
+
+fun foo(x: String): @Ann(unresolved_reference) String {  // OK, no error
+    return x
+}
+```
+
+The problem here is that `unresolved_reference` doesn't refer to any existing element but the compiler doesn't produce any warnings or errors about it, while *IDE* shows an error. Note that there isn't any footprint of this `unresolved_reference` in the JVM bytecode or Kotlin metadata after compilation.
+
+#### Affected version
+
+This kind of problem exists since Kotlin 1.0.
+
+# List of all affected cases
+
+Consider this annotation which will be used in further examples:
+```
+@Target(AnnotationTarget.TYPE)
+annotation class Ann
+```
+
+This list describes cases where annotations aren't analyzed properly.
+
+- Annotations on return types
+
+```
+fun foo(x: String): @Ann(unresolved_reference) String {  // OK, error only in IDE but not in the compiler
+    return x
+}
+```
+
+- Annotations on supertypes
+
+```
+abstract class Foo : @Ann(unresolved_reference) Any() // OK, error only in IDE but not in the compiler
+```
+
+- Annotations on parameter types
+
+```
+class Inv<T>
+
+fun foo(i: Inv<@Ann(unresolved_reference) String>) {} // OK, error only in IDE but not in the compiler
+```
+```
+fun test(vararg a: @Ann(unresolved_reference) Any) {} // OK, no error in IDE and in the compiler
+```
+```
+class A<T>(a: @Ann(unresolved_reference) T) // OK, error only in IDE but not in the compiler
+```
+
+- Annotations on type arguments for a containing type of return type
+
+```
+class Inv<T>
+
+fun bar(): Inv<@Ann(unresolved_reference) String> = TODO() // OK, error only in IDE but not in the compiler
+```
+
+- Annotations on upper bounds
+
+```
+abstract class Bar<T : @Ann(unresolved_reference) Any> // OK, error only in IDE but not in the compiler
+```
+```
+class B<T> where @Ann(unresolved_reference) T : Number // OK, no error in IDE and in the compiler
+```
+
+- Annotations inside type check and cast expression
+
+```
+fun test(a: Any) {
+    if (a is @Ann(unresolved_reference) String) return // OK, no error in IDE and in the compiler
+}
+```
+```
+fun test1(a: Any) {}
+fun test2(a: Any) {
+    a as @Ann(unresolved_reference) String // OK, no error in IDE and in the compiler
+    test1(a as @Ann(unresolved_reference) String) // OK, no error in IDE and in the compiler
+    // but `val x = a as @Ann(unresolved_reference) String` has error
+}
+```
+
+- Annotations on a type in an anonymous object expression
+
+```
+open class TypeToken<T>
+
+val test = object : TypeToken<@Ann(unresolved_reference) String>() {} // OK, no error in IDE and in the compiler
+```
+```
+interface A
+
+val test = object: @Ann(unresolved_reference) A {} // OK, no error in IDE and in the compiler
+```
+
+- Annotations on a receiver type (for an extension property only)
+```
+val <T> @Ann(unresolved_reference) T.test // OK, error only in IDE but not in the compiler
+    get() = 10
+```
+```
+val @Ann(unresolved_reference) Int.test
+    get() = 10
+```
+
+- Annotations on a setter argument type
+```
+var <T> T.test
+    get() = 11
+    set(value: @Ann(unresolved_reference) Int) {}
+```
+- Annotations on a lambda type
+```
+fun foo() {
+    val y: (Int) -> @Ann(unresolved_reference) Unit = {} // OK, no error in IDE and in the compiler
+}
+```
+```
+fun foo(a: Int) {
+    val t: (@Ann(unresolved_reference) Int) -> Unit = { a: Int -> println(a) } // OK, no error in IDE and in the compiler
+    // but `val t: (@Ann(unresolved_reference) Int) -> Unit = { a -> println(a) }` has error (if argument type isn't specified explicitly)
+}
+```
+
+# Proposed change
+
+Properly analyze annotations in the described cases and produce corresponding errors or warning after type check.
+
+# Impact
+
+Those samples of code are quite meaningless, and corresponding unresolved references are not present in the bytecode in any form. Moreover, there is an error in IDE for many of those cases, so it's safe to assume that this code pattern is extremely rare (if ever present in the real-life code). 
+
+# Migration
+
+- Report an error in language version 1.4 without applying a regular deprecation cycle.
+Because of technical reasons, it's quite hard to apply a regular deprecation cycle for this issue. Plus, the impact of this issue seems to be quite small.
+  - There will be a compiler key to disable the error
+- Report an error in progressive mode
+Corrected code will work and compile fine in a regular (non-progressive) mode

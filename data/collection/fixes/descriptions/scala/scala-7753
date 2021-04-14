@@ -1,0 +1,49 @@
+In the following example (I'm afraid I haven't been able to significantly reduce it further), the equivalence of `si.Out` and `si.instance.Out` has been lost at the call sites of `direct` and `indirect`.
+
+Notice that in `direct` the type `si.Out` is known in the second parameter block at the call site, and so the expression typechecks. However in `indirect` the type `si.instance.Out` is unknown or, at least, is sufficiently opaque to prevent the second expression from typechecking. 
+
+`si.Out` is defined in terms of the implicitly summoned `i`, so if `si.Out =:= i.Out` is available at the call sites of `direct` and `indirect` then intuitively it seems that `si.instance.Out =:= i.Out` (where `si.instance: i.type`) should be available too.
+
+```scala
+package si
+
+import scala.language.{ higherKinds, implicitConversions }
+
+trait Foo[T] { type Out }
+
+object Foo {
+  implicit def mkFoo1: Foo[Boolean] { type Out = Int } =
+    new Foo[Boolean] { type Out = Int }
+}
+
+trait SI[TC[_]] {
+  type T
+  val instance: TC[T]
+  type Out
+}
+
+object SI {
+  implicit def conv[TC[_] <: { type Out }, T0](t: T0)
+    (implicit i: TC[T0]): SI[TC] { type T = T0 ; type Out = i.Out } =
+      new SI[TC] {
+        type T = T0
+        val instance: i.type = i
+        type Out = i.Out
+      }
+}
+
+object Test {
+  def direct(si: SI[Foo])(v: si.Out) = v
+
+  val v1: Int = direct(true)(23)    // OK
+
+  def indirect(si: SI[Foo])(v: si.instance.Out) = v
+
+  val v2: Int = indirect(true)(23)  // Fails
+  // test.scala:35: error: type mismatch;
+  //  found   : Int(23)
+  //  required: si.instance.Out
+  //   val i: Int = indirect(true)(23)
+  //                               ^
+}
+```

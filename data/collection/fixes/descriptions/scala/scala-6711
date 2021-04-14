@@ -1,0 +1,217 @@
+```scala
+scala> import scala.reflect.macros.Context
+import scala.reflect.macros.Context
+
+scala> import language.experimental.macros
+import language.experimental.macros
+
+scala> object MyMacro {
+     |   def crash_impl(c: Context)(a: c.Expr[Any]): c.Expr[Any] = {
+     |     c.universe.reify {
+     |       new AnyRef {
+     |         final def xxx = a.splice
+     |       }
+     |     }
+     |   }
+     |   def crash(a: Any): Any = macro crash_impl
+     | }
+defined module MyMacro
+
+scala> MyMacro.crash { val foo = 1; foo }
+ReplGlobal.abort: symbol value foo does not exist in $line6.$read$$iw$$iw.<init>
+
+error: symbol value foo does not exist in <init>
+error:
+     while compiling: <console>
+        during phase: icode
+     library version: version 2.10.0-RC2
+    compiler version: version 2.10.0-RC2
+  reconstructed args:
+
+  last tree to typer: Ident(foo$1)
+              symbol: value foo$1 (flags: <param> <synthetic> <triedcooking>)
+   symbol definition: foo$1: Int
+                 tpe: Int
+       symbol owners: value foo$1 -> constructor $read$$anon$1 -> anonymous clas
+s anon$1 -> package $line6
+      context owners: object iw -> package $line6
+
+== Enclosing template or block ==
+
+Template( // val <local $iw>: <notype>, tree.tpe=type
+  "java.lang.Object" // parents
+  ValDef(
+    private
+    "_"
+    <tpt>
+    <empty>
+  )
+  DefDef( // def <init>(): type
+    <method>
+    "<init>"
+    []
+    List(Nil)
+    <tpt> // tree.tpe=type
+    Block( // tree.tpe=Unit
+      Apply( // def <init>(): Object in class Object, tree.tpe=Object
+        $read$super."<init>" // def <init>(): Object in class Object, tree.tpe=(
+)Object
+        Nil
+      )
+      ()
+    )
+  )
+)
+
+== Expanded type of tree ==
+
+TypeRef(TypeSymbol(final abstract class Int extends ))
+
+uncaught exception during compilation: scala.reflect.internal.FatalError
+scala.reflect.internal.FatalError:
+     while compiling: <console>
+        during phase: icode
+     library version: version 2.10.0-RC2
+    compiler version: version 2.10.0-RC2
+  reconstructed args:
+
+  last tree to typer: Ident(foo$1)
+              symbol: value foo$1 (flags: <param> <synthetic> <triedcooking>)
+   symbol definition: foo$1: Int
+                 tpe: Int
+       symbol owners: value foo$1 -> constructor $read$$iw$$iw$$anon$1 -> anonym
+ous class anon$1 -> package $line6
+      context owners: object iw -> package $line6
+
+== Enclosing template or block ==
+
+Template( // val <local $iw>: <notype>, tree.tpe=type
+  "java.lang.Object" // parents
+  ValDef(
+    private
+    "_"
+    <tpt>
+    <empty>
+  )
+  DefDef( // def <init>(): type
+    <method>
+    "<init>"
+    []
+    List(Nil)
+    <tpt> // tree.tpe=type
+    Block( // tree.tpe=Unit
+      Apply( // def <init>(): Object in class Object, tree.tpe=Object
+        $read$$iw.super."<init>" // def <init>(): Object in class Object, tree.t
+pe=()Object
+        Nil
+      )
+      ()
+    )
+  )
+)
+
+== Expanded type of tree ==
+
+TypeRef(TypeSymbol(final abstract class Int extends ))
+
+symbol value foo does not exist in $line6.$read$$iw$$iw.<init>
+        at scala.reflect.internal.SymbolTable.abort(SymbolTable.scala:48)
+        at scala.tools.nsc.Global.abort(Global.scala:253)
+        at scala.tools.nsc.interpreter.IMain$$anon$1.scala$tools$nsc$interpreter
+$ReplGlobal$$super$abort(IMain.scala:265)
+        at scala.tools.nsc.interpreter.ReplGlobal$class.abort(ReplGlobal.scala:2
+1)
+        at scala.tools.nsc.interpreter.IMain$$anon$1.abort(IMain.scala:265)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadIdent$1(GenI
+Code.scala:1037)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$bac
+kend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1043)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArg
+uments$1.apply(GenICode.scala:1251)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArg
+uments$1.apply(GenICode.scala:1249)
+        at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized
+.scala:110)
+        at scala.collection.immutable.List.foldLeft(List.scala:78)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadArguments(Ge
+nICode.scala:1249)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadApply3$1(Gen
+ICode.scala:837)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$bac
+kend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:794)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$bac
+kend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1068)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$bac
+kend$icode$GenICode$ICodePhase$$genStat(GenICode.scala:176)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genStat$1.
+apply(GenICode.scala:156)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genStat$1.
+apply(GenICode.scala:156)
+        at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized
+.scala:110)
+        at scala.collection.immutable.List.foldLeft(List.scala:78)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$bac
+kend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1067)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:
+124)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:
+72)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:
+149)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:
+99)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:
+72)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:
+90)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:
+68)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.apply(GenICode.scal
+a:64)
+        at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:461)
+        at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:
+428)
+        at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:
+428)
+        at scala.collection.Iterator$class.foreach(Iterator.scala:727)
+        at scala.collection.AbstractIterator.foreach(Iterator.scala:1156)
+        at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:428)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.run(GenICode.scala:
+57)
+        at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1574)
+        at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1548)
+        at scala.tools.nsc.Global$Run.compileSources(Global.scala:1544)
+        at scala.tools.nsc.interpreter.IMain.compileSourcesKeepingRun(IMain.scal
+a:425)
+        at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compileAndSaveRun(IMa
+in.scala:798)
+        at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compile(IMain.scala:7
+58)
+        at scala.tools.nsc.interpreter.IMain$Request.compile$lzycompute(IMain.sc
+ala:933)
+        at scala.tools.nsc.interpreter.IMain$Request.compile(IMain.scala:928)
+        at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:600)
+        at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:565)
+        at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:745)
+        at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:7
+90)
+        at scala.tools.nsc.interpreter.ILoop.command(ILoop.scala:702)
+        at scala.tools.nsc.interpreter.ILoop.processLine$1(ILoop.scala:566)
+        at scala.tools.nsc.interpreter.ILoop.innerLoop$1(ILoop.scala:573)
+        at scala.tools.nsc.interpreter.ILoop.loop(ILoop.scala:576)
+        at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply$mcZ$sp(ILo
+op.scala:867)
+        at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply(ILoop.scal
+a:822)
+        at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply(ILoop.scal
+a:822)
+        at scala.tools.nsc.util.ScalaClassLoader$.savingContextLoader(ScalaClass
+Loader.scala:135)
+        at scala.tools.nsc.interpreter.ILoop.process(ILoop.scala:822)
+        at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala
+:83)
+        at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:96)
+
+        at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:105)
+        at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+```

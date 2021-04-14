@@ -1,0 +1,91 @@
+The following compiles as expected without `-Yexplicit-nulls`, but with `-Yexplicit-nulls` specified produces an at best unhelpful error message,
+
+```scala
+import scala.util.matching.Regex
+
+object Test extends App {
+  def head(s: String, r: Regex): Option[(String, String)] =
+    s.trim match {
+      case r(hd, tl) => Some((hd, tl))
+      case _ => None
+    }
+}
+```
+
+```
+sbt:dotty> dotc -Yexplicit-nulls -d local/classes local/nulls.scala
+[warn] Multiple main classes detected.  Run 'show discoveredMainClasses' to see the list
+[info] Running (fork) dotty.tools.dotc.Main -classpath /home/miles/.ivy2/cache/org.scala-lang/scala-library/jars/scala-library-2.13.1.jar:/home/miles/projects/dotty/library/../out/bootstrap/dotty-library-bootstrapped/scala-0.22/dotty-library_0.22-0.22.0-bin-SNAPSHOT.jar -Yexplicit-nulls -d local/classes local/nulls.scala
+-- [E127] Syntax Error: local/nulls.scala:6:11 ---------------------------------
+6 |      case r(hd, tl) => Some((hd, tl))
+  |           ^
+  |r cannot be used as an extractor in a pattern because it lacks an unapply or unapplySeq method
+
+longer explanation available when compiling with `-explain`
+-- [E006] Unbound Identifier Error: local/nulls.scala:6:30 ---------------------
+6 |      case r(hd, tl) => Some((hd, tl))
+  |                              ^^
+  |                              Not found: hd
+
+longer explanation available when compiling with `-explain`
+-- [E006] Unbound Identifier Error: local/nulls.scala:6:34 ---------------------
+6 |      case r(hd, tl) => Some((hd, tl))
+  |                                  ^^
+  |                                  Not found: tl
+
+longer explanation available when compiling with `-explain`
+3 errors found
+```
+
+Desugaring the match a bit to,
+
+```scala
+def head(s: String, r: Regex): Option[(String, String)] = {
+  val st = s.trim
+  r.unapplySeq(st) match {
+      case Some(List(hd, tl)) => Some((hd, tl))
+      case _ => None
+    }
+}
+```
+shows that the issue is the result type of `String#trim`,
+
+```
+sbt:dotty> dotc -Yexplicit-nulls -d local/classes local/nulls.scala
+[warn] Multiple main classes detected.  Run 'show discoveredMainClasses' to see the list
+[info] Running (fork) dotty.tools.dotc.Main -classpath /home/miles/.ivy2/cache/org.scala-lang/scala-library/jars/scala-library-2.13.1.jar:/home/miles/projects/dotty/library/../out/bootstrap/dotty-library-bootstrapped/scala-0.22/dotty-library_0.22-0.22.0-bin-SNAPSHOT.jar -Yexplicit-nulls -d local/classes local/nulls.scala
+-- [E134] Type Mismatch Error: local/nulls.scala:16:8 --------------------------
+16 |      r.unapplySeq(st) match {
+   |      ^^^^^^^^^^^^
+   |None of the overloaded alternatives of method unapplySeq in class Regex with types
+   | (m: scala.util.matching.Regex.Match): Option[List[String]]
+   | (c: Char): Option[List[Char]]
+   | (s: CharSequence): Option[List[String]]
+   |match arguments ((st : String | Null))
+-- [E006] Unbound Identifier Error: local/nulls.scala:17:41 --------------------
+17 |        case Some(List(hd, tl)) => Some((hd, tl))
+   |                                         ^^
+   |                                         Not found: hd
+
+longer explanation available when compiling with `-explain`
+-- [E006] Unbound Identifier Error: local/nulls.scala:17:45 --------------------
+17 |        case Some(List(hd, tl)) => Some((hd, tl))
+   |                                             ^^
+   |                                             Not found: tl
+
+longer explanation available when compiling with `-explain`
+3 errors found
+```
+A workaround is to explicitly test the result of `s.trim` against `null`,
+
+```scala
+def head(s: String, r: Regex): Option[(String, String)] = {
+  val st = s.trim
+  if (st == null) None
+  else
+    st match {
+      case r(hd, tl) => Some((hd, tl))
+      case _ => None
+    }
+}
+```

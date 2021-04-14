@@ -1,0 +1,22 @@
+When using Kotlin for Hadoop, any call to the Context object in either a Mapper or Reducer requires explicit type declarations. Since you declare the type of the Mapper/Reducer you're extending when you declare your class, Kotlin should be able to infer the type of the Context (it is an inner class of Mapper/Reducer). This is the only time I've seen Kotlin be more verbose than Java :)
+
+Example:
+
+{code:lang=kotlin|title=Code}
+class MyMapper : Mapper<KeyIn, ValueIn, KeyOut, ValueOut>() {
+
+    /* Gives compiler error: 4 type arguments expected.
+        For what it's worth, in Java the types are inferred and you can reference 
+        Context without type parameters
+    */
+    override fun setup(context: Context) {  
+        super.setup(context)                      
+    }                                                       
+
+    /* Compiles properly, but is very verbose
+    */
+    override fun cleanup(context: Mapper<KeyIn, ValueIn, KeyOut, ValueOut>.Context?) {  
+        super.cleanup(context)
+    }
+}
+{code}

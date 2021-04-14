@@ -1,0 +1,17 @@
+Repro: a parse tree for the following code:
+```
+        val code = """
+            |fun f(x: Int) {
+            |    when (x) {
+            |        !in 10..20 -> print(5)
+            |    }
+            |}
+        """.trimMargin()
+```
+
+contains a `KtWhenConditionInRange` whose `isNegated()` returns false.
+
+Digging into the tree a bit, it seems that the following would work:
+```
+val isNegated = firstChild?.node?.findChildByType(KtTokens.NOT_IN) != null
+```

@@ -1,0 +1,32 @@
+Before fixing JDK-8065132, javac was producing incorrect number of entries in Runtime(In)VisibileParameterAnnotations classfiles attribute for non-static innerclasses and enums. After fixing the bug, the attribute is correct in these cases, but javac cannot read the classfiles anymore.
+
+To reproduce, use the two attached files as a jtreg test: place them in the same directory and use jtreg to run ParamAnnotationsRead.java. The test will fail with:
+---
+.../ParamAnnotationsRead.java:6: error: cannot access Foo
+import p.ParamAnnotationsWrite.Foo;
+                              ^
+  bad class file: .../p/ParamAnnotationsWrite$Foo.class
+    bad RuntimeInvisibleParameterAnnotations attribute: Foo(int)
+    Please remove or make sure it appears in the correct subdirectory of the classpath.
+1 error
+result: Failed. Compilation failed: Compilation failed
+---
+
+Tested on custom build of jdk9/dev and jdk8u/jdk8u-dev, with langtools tips:
+jdk9/dev/langtools:
+$ hg tip
+changeset:   2739:c956c25f9334
+tag:         tip
+parent:      2738:f7ce2cfa4cdb
+parent:      2737:9d2192f36e53
+user:        chegar
+date:        Wed Dec 03 19:28:40 2014 +0000
+summary:     Merge
+
+jdk8u/jdk8u-dev/langtools:
+$ hg tip
+changeset:   2614:a12a9932f649
+tag:         tip
+user:        jlahoda
+date:        Mon Sep 22 14:55:14 2014 +0200
+summary:     8057794: Compiler Error when obtaining .class property

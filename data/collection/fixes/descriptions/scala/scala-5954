@@ -1,0 +1,92 @@
+When I compile the following compilation unit, the compiler crashes upon the third compilation. I do **not** delete the generated class files between the compiler runs.
+```scala
+package p {
+  package object base {
+    case class B()
+  }
+}
+```
+
+The first compiler run is fine, the second generates a message regarding a suppressed failed assert, and on the third run the compiler crashes.
+
+```scala
+% scalac -version
+Scala compiler version 2.9.2 -- Copyright 2002-2011, LAMP/EPFL
+
+% rm -r p
+% scalac Test.scala
+% scalac Test.scala
+Suppressing failed assert: java.lang.AssertionError: assertion failed: List(obje
+ct package$B, object package$B)
+
+% scalac Test.scala
+Suppressing failed assert: java.lang.AssertionError: assertion failed: List(obje
+ct package$B, object package$B)
+error: java.lang.AssertionError: assertion failed: List(object package$B, object
+ package$B)
+        at scala.tools.nsc.symtab.Symbols$Symbol.suchThat(Symbols.scala:1055)
+        at scala.tools.nsc.symtab.Symbols$Symbol.companionModule0(Symbols.scala:
+1317)
+        at scala.tools.nsc.symtab.Symbols$Symbol.companionSymbol(Symbols.scala:1
+338)
+        at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator.scalaSignatureAd
+dingMarker(GenJVM.scala:236)
+        at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator.genClass(GenJVM.
+scala:350)
+        at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase$$anonfun$run$4.apply(GenJ
+VM.scala:86)
+        at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase$$anonfun$run$4.apply(GenJ
+VM.scala:86)
+        at scala.collection.mutable.HashMap$$anon$2$$anonfun$foreach$3.apply(Has
+hMap.scala:104)
+        at scala.collection.mutable.HashMap$$anon$2$$anonfun$foreach$3.apply(Has
+hMap.scala:104)
+        at scala.collection.Iterator$class.foreach(Iterator.scala:772)
+        at scala.collection.mutable.HashTable$$anon$1.foreach(HashTable.scala:15
+7)
+        at scala.collection.mutable.HashTable$class.foreachEntry(HashTable.scala
+:190)
+        at scala.collection.mutable.HashMap.foreachEntry(HashMap.scala:45)
+        at scala.collection.mutable.HashMap$$anon$2.foreach(HashMap.scala:104)
+        at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase.run(GenJVM.scala:86)
+        at scala.tools.nsc.Global$Run.compileSources(Global.scala:953)
+        at scala.tools.nsc.Global$Run.compile(Global.scala:1041)
+        at scala.tools.nsc.Main$.process(Main.scala:106)
+        at scala.tools.nsc.Main$.main(Main.scala:123)
+        at scala.tools.nsc.Main.main(Main.scala)
+
+Exception in thread "main" java.lang.AssertionError: assertion failed: List(obje
+ct package$B, object package$B)
+        at scala.tools.nsc.symtab.Symbols$Symbol.suchThat(Symbols.scala:1055)
+        at scala.tools.nsc.symtab.Symbols$Symbol.companionModule0(Symbols.scala:
+1317)
+        at scala.tools.nsc.symtab.Symbols$Symbol.companionSymbol(Symbols.scala:1
+338)
+        at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator.scalaSignatureAd
+dingMarker(GenJVM.scala:236)
+        at scala.tools.nsc.backend.jvm.GenJVM$BytecodeGenerator.genClass(GenJVM.
+scala:350)
+        at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase$$anonfun$run$4.apply(GenJ
+VM.scala:86)
+        at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase$$anonfun$run$4.apply(GenJ
+VM.scala:86)
+        at scala.collection.mutable.HashMap$$anon$2$$anonfun$foreach$3.apply(Has
+hMap.scala:104)
+        at scala.collection.mutable.HashMap$$anon$2$$anonfun$foreach$3.apply(Has
+hMap.scala:104)
+        at scala.collection.Iterator$class.foreach(Iterator.scala:772)
+        at scala.collection.mutable.HashTable$$anon$1.foreach(HashTable.scala:15
+7)
+        at scala.collection.mutable.HashTable$class.foreachEntry(HashTable.scala
+:190)
+        at scala.collection.mutable.HashMap.foreachEntry(HashMap.scala:45)
+        at scala.collection.mutable.HashMap$$anon$2.foreach(HashMap.scala:104)
+        at scala.tools.nsc.backend.jvm.GenJVM$JvmPhase.run(GenJVM.scala:86)
+        at scala.tools.nsc.Global$Run.compileSources(Global.scala:953)
+        at scala.tools.nsc.Global$Run.compile(Global.scala:1041)
+        at scala.tools.nsc.Main$.process(Main.scala:106)
+        at scala.tools.nsc.Main$.main(Main.scala:123)
+        at scala.tools.nsc.Main.main(Main.scala)
+
+```
+

@@ -1,0 +1,24 @@
+When a bound method reference is captured, we should do a null check on the result of the receiver:
+
+    Sam mr = foo::bar;
+
+The expression "foo" is evaluated immediately, and if it is null, we should throw NPE.
+
+Relevant spec:
+
+If the expression is a method reference that begins with an ExpressionName or a Primary, this subexpression is first evaluated. [jsr335-15.28.2-30-A]
+If the subexpression evaluation completes abruptly, then the method reference evaluation completes abruptly for the same reason. [jsr335-15.28.2-30-A1]
+If the result of evaluation of the subexpression is null, then a NullPointerException is thrown. [jsr335-15.28.2-30-A2]
+
+
+
+Test case below:
+
+import java.util.function.*;
+
+public class Foo {
+  public static void main(String[] args) {
+    String s = null;
+    Supplier<Boolean> ss = s::isEmpty;
+  }
+}

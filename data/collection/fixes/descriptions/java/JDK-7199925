@@ -1,0 +1,26 @@
+Separate compilation breaks the check that all non-value elements for the containing annotation has a default.
+
+Compiling this first:
+
+import java.lang.annotation.ContainedBy;
+import java.lang.annotation.ContainerFor;
+
+public class ClassReaderDefault {
+}
+
+@ContainerFor(Foo.class)
+@interface FooContainer {
+     Foo[] value();
+     int f() default 0;
+}
+
+@ContainedBy(FooContainer.class)
+@interface Foo {}
+
+And then in a second file:
+
+@Foo  @Foo
+public class SeparateCompile {
+}
+
+Results in an error for the second compilation.

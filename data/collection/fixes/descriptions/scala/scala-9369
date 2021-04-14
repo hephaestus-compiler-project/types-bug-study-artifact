@@ -1,0 +1,27 @@
+This is a regression from 2.11.6:
+
+```scala
+trait Tree
+sealed abstract class Prop
+trait Simple extends Prop
+case class Atom(tree: Tree) extends Prop with Simple
+case class Not(prop: Prop) extends Prop with Simple
+
+object Test {
+  def main(args: Array[String]): Unit = {
+    def simplify(prop: Prop): Prop = prop match {
+      case Not(Atom(tree)) => ???
+      case Not(Not(prop)) => ???
+      case _ => ???
+    }
+  }
+}
+```
+
+```scala
+14:20 ~/Projects/2117/sandbox (HEAD)$ s
+Test.scala:11: warning: unreachable code
+      case Not(Not(prop)) => ???
+                             ^
+one warning found
+```

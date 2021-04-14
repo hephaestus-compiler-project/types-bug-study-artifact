@@ -1,0 +1,34 @@
+It's currently possible for an inline class to extend a class, like this:
+```kotlin
+open class Animal(val age: Int)
+open class Cat(val name: String)
+inline class MaineCoon(val cat: Cat) : Animal(5) // <-- this compiles fine
+
+fun main(args: Array<String>) {
+    val kitten = MaineCoon(Cat("Mrs. Fluffypuffs"))
+    println(kitten.cat.name)
+}
+```
+The code above compiles fine under 1.3-M1. 
+
+However, it fails if you try to access a property of the super class -- for example, if we change line 7 so that it looks like this:
+```kotlin
+open class Animal(val age: Int)
+open class Cat(val name: String)
+inline class MaineCoon(val cat: Cat) : Animal(5)
+
+fun main(args: Array<String>) {
+    val kitten = MaineCoon(Cat("Mrs. Fluffypuffs"))
+    println(kitten.age) // <-- this is what changed from the previous code listing
+}
+```
+... then we get an error that looks like this...
+```
+java.lang.VerifyError: Bad type on operand stack
+Exception Details:
+  Location:
+    Inheritance3Kt.main([Ljava/lang/String;)V @17: invokestatic
+  Reason:
+    Type 'Cat' (current frame, stack[0]) is not assignable to 'Animal'
+```
+Since inline classes shouldn't be able to inherit from classes, it sounds like a compiler error on line 3 would be best.

@@ -1,0 +1,66 @@
+Consider code like:
+---
+/**
+ * @test /nodynamiccopyright/
+ * @compile/fail/ref=SuperMethodCallBroken.out -XDdev -XDrawDiagnostics SuperMethodCallBroken.java
+ */
+public class SuperMethodCallBroken extends Undef implements I {
+    public void test() {
+        I.super.test();
+    }
+}
+interface I {
+    public default void test() {}
+}
+---
+
+Compiling this will lead to:
+---
+$ javac SuperMethodCallBroken.java
+SuperMethodCallBroken.java:5: error: cannot find symbol
+public class SuperMethodCallBroken extends Undef implements I {
+                                           ^
+  symbol: class Undef
+1 error
+An exception has occurred in the compiler (16-internal). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program, the following diagnostic, and the parameters passed to the Java compiler in your report. Thank you.
+java.lang.AssertionError
+        at jdk.compiler/com.sun.tools.javac.util.Assert.error(Assert.java:155)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.resolveSelf(Resolve.java:3721)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.selectSym(Attr.java:4276)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitSelect(Attr.java:4153)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCFieldAccess.accept(JCTree.java:2273)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:671)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitSelect(Attr.java:4125)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCFieldAccess.accept(JCTree.java:2273)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:671)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitApply(Attr.java:2447)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1745)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:671)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribExpr(Attr.java:724)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitExec(Attr.java:2159)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1532)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:671)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:745)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStats(Attr.java:764)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitBlock(Attr.java:1442)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:1047)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:671)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:745)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitMethodDef(Attr.java:1232)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:893)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:671)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:745)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:5329)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribClass(Attr.java:5220)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribClass(Attr.java:5056)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attrib(Attr.java:5001)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1344)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:973)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:317)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:176)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:64)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:50)
+printing javac parameters to: .../javac.20210105_134725.args
+---
+
+I.e. javac reports an error (correct), but then crashes with an exception:

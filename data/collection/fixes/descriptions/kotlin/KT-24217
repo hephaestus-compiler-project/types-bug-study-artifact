@@ -1,0 +1,17 @@
+In above code:
+
+```
+val double = { i: Int -> i * 2 }
+infix fun <A, I, R> ((A) -> I).then(f: (I) -> R) = { a: A -> f(this(a)) }
+fun <A, I, R> ((I)->R).after(f: (A)->I) = { a: A -> this(f(a)) }
+fun <T> id(x: T): T = x
+
+fun main(args: Array<String>) {
+    val f = double then ::id
+    val f2 = double.after(::id)
+}
+```
+
+`f2` doesn't compile because of Type inference error. Compiler says that it cannot infer type argument for the type parameter `A`. It is possible to infer it since it must be the same as for `I` (`id` is `(T)->T`) and type of `I` can be taken from the type of `double`.
+
+Note that it works in `then` function. The only difference is that arguments are in different positions. Receiver and became an argument and argument became a receiver. 

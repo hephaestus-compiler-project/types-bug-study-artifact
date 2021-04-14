@@ -1,0 +1,78 @@
+# Classification
+
+**Type of change**
+- New errors are introduced:  report accidentally missed diagnostics
+
+**Motivation types**
+- User code fails with exception(s)
+- Separate compilation guarantees are not met
+
+**Impact types**
+- Compilation. Some code that used to compile won't compile anymore
+
+**Detection and Migration modes**
+- All code locations affected by this change can be accurately detected statically
+
+# Background
+
+Kotlin compiler reports error on attempt to inline function body from class file compiled with 1.8 to one compiling into 1.6.
+Such inlining could cause different problems cause of new instruction set in newer bytecode formats.
+
+# Existing behavior
+
+Kotlin compiler reports error for many cases about inlining function from class file with higher jvm target:
+```
+// function compiled with -jvm-target: 1.8
+inline fun inlineFun(p: () -> Unit) {
+    p()
+}
+
+// function compiled with -jvm-target: 1.6
+fun test() {
+    inlineFun {} // EROR
+}
+```
+
+Unfortunately, there is a case when this diagnostic is missing.
+
+## Problematic case
+
+This diagnostic is missing when inline function is inlined into derived class:
+```
+// Base class compiled with -jvm-target 1.8
+open class Base {
+    inline fun inlineFunBase(p: () -> Unit) {
+        p()
+    }
+}
+
+// Derived class compiled with -jvm-target 1.6
+class Derived : Base() {
+    fun test() {
+        inlineFunBase {} // no error, missed diagnostic
+    }
+}
+```
+
+# Affected versions: when did the problem appear first?
+
+The problem exists since Kotlin 1.0
+
+# Proposed changes
+
+Start reporting diagnostic about inlining function from the higher platform for derived classes as well.
+The compiler will produce an error in the above example:
+```
+// Derived class compiled with -jvm-target 1.6
+class Derived : Base() {
+    fun test() {
+        inlineFunBase {} // Error
+    }
+}
+```
+
+# Migration plan
+
+- Report warning since 1.3.30
+  - Report an error in progressive mode
+- Turn the warning into an error in 1.4

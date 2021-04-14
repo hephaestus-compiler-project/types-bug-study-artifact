@@ -1,0 +1,34 @@
+```scala
+class C 
+object C {
+  implicit def companion = new C
+}
+
+object Test {
+  implicit val inScope1, inScope2 = new C
+  implicitly[C]: Unit // C.companion used.
+  implicitly[C]       // ambiguity reported, rather than falling back to C.companion
+}
+```
+
+See: 
+
+```scala
+// Typers.scala
+if (original != EmptyTree && pt != WildcardType)
+  typer1.silent(tpr => {
+    val withImplicitArgs = tpr.applyImplicitArgs(tree)
+    if (tpr.context.hasErrors) tree // silent will wrap it in SilentTypeError anyway
+    else tpr.typed(withImplicitArgs, mode, pt)
+  }) match {
+    case SilentResultValue(result) =>
+      result
+    case _ =>
+      debuglog("fallback on implicits: " + tree + "/" + resetAllAttrs(original))
+      val tree1 = typed(resetAllAttrs(original), mode, WildcardType)
+      tree1.tpe = addAnnotations(tree1, tree1.tpe)
+      if (tree1.isEmpty) tree1 else adapt(tree1, mode, pt, EmptyTree)
+  }
+else
+  typer1.typed(typer1.applyImplicitArgs(tree), mode, pt)
+```

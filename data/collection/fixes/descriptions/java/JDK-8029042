@@ -1,0 +1,25 @@
+If an inner class is a member, then a receiver parameter works fine:
+
+class Top {
+  class Inner {
+    Inner(Top Top.this) {}
+  }
+}
+
+but if the inner class is local:
+
+class Top {
+  void m() {
+    class Inner {
+      Inner(Top Top.this) {}
+    }
+  }
+}
+
+then javac (JDK8 b116) gets confused - it thinks Inner is top level:
+
+error: receiver parameter not applicable for constructor of top-level class
+      Inner(Top Top.this) {}
+                ^
+
+This is a bug. A local class is a perfectly good inner class - the ctor of Top$1Inner.class even takes a Top - so its constructor ought to permit a receiver parameter. This is even true when the local class is inside a default method of an interface - in that case, the type of the receiver parameter is the interface. (As of JLS8, it is legal to say InterfaceName.this inside a default method of an interface.)

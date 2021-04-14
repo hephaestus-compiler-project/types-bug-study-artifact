@@ -1,0 +1,87 @@
+With the following tail-recursive version of ListMap.remove:
+
+```
+@tailrec private def remove0(k: A, cur: ListMap[A, B1], acc: List[ListMap[A, B1]]): ListMap[A, B1] =
+  if (cur.isEmpty)
+    acc.last
+  else if (k == cur.key)
+    (cur.tail /: acc) {
+      case (t, h) => new t.Node(h.key, h.value)
+    }
+  else
+    remove0(k, cur.tail, cur::acc)
+```
+
+the exception is raised:
+
+```
+[quick.library] symbol value t does not exist in scala.collection.immutable.ListMap$Node.remove0
+[quick.library]         at scala.reflect.internal.SymbolTable.abort(SymbolTable.scala:52)
+[quick.library]         at scala.tools.nsc.Global.abort(Global.scala:251)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadIdent$1(GenICode.scala:887)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:893)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1124)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1122)
+[quick.library]         at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:109)
+[quick.library]         at scala.collection.immutable.List.foldLeft(List.scala:84)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadArguments(GenICode.scala:1122)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadApply3$1(GenICode.scala:696)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:706)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:926)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:918)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1124)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1122)
+[quick.library]         at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:109)
+[quick.library]         at scala.collection.immutable.List.foldLeft(List.scala:84)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadArguments(GenICode.scala:1122)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadApply6$1(GenICode.scala:777)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:811)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadQualifier(GenICode.scala:1083)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadApply1$1(GenICode.scala:612)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:637)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:918)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadIf(GenICode.scala:372)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:535)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadIf(GenICode.scala:373)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:535)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:926)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadLabelDef$1(GenICode.scala:504)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:506)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:918)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:122)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:70)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:70)
+[quick.library]         at scala.collection.immutable.List.foreach(List.scala:301)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:70)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:147)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:97)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:70)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:70)
+[quick.library]         at scala.collection.immutable.List.foreach(List.scala:301)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:70)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:88)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:70)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:70)
+[quick.library]         at scala.collection.immutable.List.foreach(List.scala:301)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:70)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:88)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:66)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.apply(GenICode.scala:62)
+[quick.library]         at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:413)
+[quick.library]         at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:380)
+[quick.library]         at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:380)
+[quick.library]         at scala.collection.Iterator$class.foreach(Iterator.scala:743)
+[quick.library]         at scala.collection.AbstractIterator.foreach(Iterator.scala:1174)
+[quick.library]         at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:380)
+[quick.library]         at scala.tools.nsc.backend.icode.GenICode$ICodePhase.run(GenICode.scala:55)
+[quick.library]         at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1518)
+[quick.library]         at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1493)
+[quick.library]         at scala.tools.nsc.Global$Run.compileSources(Global.scala:1489)
+[quick.library]         at scala.tools.nsc.Global$Run.compile(Global.scala:1596)
+[quick.library]         at scala.tools.nsc.Driver.doCompile(Driver.scala:33)
+[quick.library]         at scala.tools.nsc.MainClass.doCompile(Main.scala:23)
+[quick.library]         at scala.tools.nsc.Driver.process(Driver.scala:54)
+[quick.library]         at scala.tools.nsc.Driver.main(Driver.scala:67)
+[quick.library]         at scala.tools.nsc.Main.main(Main.scala)
+[quick.library]
+```

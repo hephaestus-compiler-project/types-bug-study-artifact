@@ -1,0 +1,27 @@
+Dotty reports errors for some of the curried type operators defined below, but not for their uncurried versions.
+
+```Scala
+object Curried {
+  trait AllTrait[-B, +F[_ <: B]] { def apply[X <: B]: F[X] }
+
+  type All[-B, +F[_ <: B]] = AllTrait[B, F]
+  type AllCurried[-B] = [+F[_ <: B]] => AllTrait[B, F]  // fails
+
+  type FooU[-X, +F[-_ <: X]] = X => F[X]
+  type FooUCurried[-X] = [+F[-_ <: X]] => (X => F[X])   // fails
+  type FooL[-X, +F[-_ >: X]] = X => F[X]
+  type FooLCurried[-X] = [+F[-_ >: X]] => (X => F[X])   // ok
+
+  type BarU[+X, -F[-_ <: X]] = F[X] => X
+  type BarUCurried[+X] = [-F[-_ <: X]] => (F[X] => X)   // ok
+  type BarL[+X, -F[-_ >: X]] = F[X] => X
+  type BarLCurried[+X] = [-F[-_ >: X]] => (F[X] => X)   // fails
+}
+```
+
+I think this is a variant of  #6320 but this time triggered by variance annotations instead of bounds. Similar issues were already discussed in #1252.
+
+I'm pretty sure that the errors are false positives (the uncurried versions are safe, and so are the curried ones). The problem is that we still lack a full theory of dependent higher-order subtyping with variances annotations, so it's difficult to know for sure.
+
+For the first case (`AllCurried`), I'm convinced there should _**not**_ be an error though. That case is simply an encoding of bounded universal quantification and we know that the specified variances are sound (from the corresponding typing rule of full *F*<sub><:</sub>) .
+

@@ -1,0 +1,35 @@
+strictfp inteface misses strictfp modifer on default method.
+Static method gets strictfp modifier in the same case.
+
+Test output:
+default_interface_method modifiers: public - Missed strictfp modifier!!!
+static_interface_method modifiers: public static strictfp
+
+Test source:
+
+import java.lang.reflect.Modifier;
+
+strictfp interface Intf  {
+   default void default_interface_method() {}
+   static  void static_interface_method() {}
+}
+
+public class test {
+    public static void main(String argv[]) {
+        check("default_interface_method");
+        check("static_interface_method");
+    }
+    public static void check(String m) {
+       try {
+            int mod = Intf.class.getDeclaredMethod(m, new Class[0]).getModifiers();
+            String res = m + " modifiers: " + Modifier.toString(mod);
+            res = Modifier.isStrict(mod)? res : res + " - Missed strictfp modifier!!!";
+            System.out.println(res);
+        } catch (Exception e) {
+            e.printStackTrace(System.out);
+        } 
+    }
+}
+
+Several JCK tests are failed (under development, names to be published later).
+

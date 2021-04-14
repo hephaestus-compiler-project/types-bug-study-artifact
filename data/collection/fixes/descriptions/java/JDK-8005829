@@ -1,0 +1,51 @@
+However, as noted below, it appears that the slowdown does not follow the client VM.
+I don't know the cause of this slowdown but for the time being, am recording this as a javac issue.
+
+Below is a script that is called from inside a langtools/ dir with the path to a jdk.  It will compile all the .java files under langtools/src with the given compiler, once with -J-client and once with -J-server.
+
+Below are times I have observed running in a  langtools clone with this tip:
+    changeset:   1475:a9cb93cca229
+    tag:         tip
+    user:        jjh
+    date:        Mon Jan 07 17:51:05 2013 +0000
+    summary:     8005647: langtools/test/tools/javap/MethodParameters.java fails on windows
+
+These times are seconds reported by the bash 'time' command:
+........................windows.32..........solsparc32
+.......................client..server.......client.server
+7u9......................7......14
+7u10............................................25....43
+8b55.....................8.......9
+8b55,.b69.client.....8......10
+8b69:..................10......12.............41....46....
+
+
+- win machine: 
+    Core2Duo, 2.8GHz
+
+- solaris machine:
+    System Configuration: Sun Microsystems  sun4u Sun Blade 2500
+    System clock frequency: 160 MHZ
+    Memory size: 2GB        
+
+    CPU  Freq      Size        Implementation         Mask    Status      Location
+    ---  --------  ----------  ---------------------  -----   ------      --------
+    0    1280 MHz  1MB         SUNW,UltraSPARC-IIIi    2.4    on-line     MB/0
+    1    1280 MHz  1MB         SUNW,UltraSPARC-IIIi    2.4    on-line     MB/1
+=======================================================
+
+#!/bin/bash
+mkdir -p fred
+rm -rf fred/*
+find src -name \*.java > fred/allJavaFiles
+echo
+echo $1 -J-client
+verbose=-verbose
+verbose=
+time $1/bin/javac $verbose -d fred -J-client @fred/allJavaFiles 2>/dev/null
+echo ==============
+echo
+echo $1 -J-server
+time $1/bin/javac $verbose -d fred -J-server @fred/allJavaFiles 2>/dev/null
+
+exit

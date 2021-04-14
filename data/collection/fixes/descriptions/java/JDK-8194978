@@ -1,0 +1,130 @@
+FULL PRODUCT VERSION :
+java version "1.8.0_152"
+Java(TM) SE Runtime Environment (build 1.8.0_152-b16)
+Java HotSpot(TM) 64-Bit Server VM (build 25.152-b16, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+CYGWIN_NT-10.0 INFORMA-L7T6GPJ 2.9.0(0.318/5/3) 2017-09-12 10:18 x86_64 Cygwin
+
+A DESCRIPTION OF THE PROBLEM :
+A try-with-resource produces dead code.  This results in inability to get to full-code-coverage (as reported by tools like jacoco).
+
+The root of the problem is the strange "aconst_null"/"astore" that happens which is subseqently put through a "ifnull" checks.  Many have noted it, such as this thread:
+https://stackoverflow.com/questions/25615417/try-with-resources-introduce-unreachable-bytecode
+
+try-with-resource has been broken since introduction (I think) in Java7.  Full coverage has never been possible.   Using older try-finally techniques (ala Java6) allows for full coverage.
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+compile code and view in javap - output shown in 'expected result'
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+There should be no aconst_null (line 24) or astore 5 (line 25).  
+
+Having it causes the ifnull check (line 47) to be forced and lines 50-57 are unreachable, lines 60-69 unreachable (no exception possible from 50-57), and another forced outcome at line 100 making 103-110 unreachable, and 113-122 unreachable (no exception from 103-110 possible)
+ACTUAL -
+ public void dummy() throws java.sql.SQLException;
+    Code:
+       0: ldc           #88                 // String 1
+       2: astore_1
+       3: ldc           #89                 // String
+       5: astore_2
+       6: ldc           #89                 // String
+       8: astore_3
+       9: aload_0
+      10: invokevirtual #90                 // Method baz:()V
+      13: ldc           #88                 // String 1
+      15: ldc           #89                 // String
+      17: ldc           #89                 // String
+      19: invokestatic  #91                 // Method java/sql/DriverManager.getConnection:(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/sql/Connection;
+      22: astore        4
+      24: aconst_null
+      25: astore        5
+      27: aload_0
+      28: invokevirtual #92                 // Method foo:()V
+      31: aload         4
+      33: ifnull        40
+      36: aload_0
+      37: invokevirtual #93                 // Method bar:()V
+      40: aload         4
+      42: ifnull        135
+      45: aload         5
+      47: ifnull        72
+      50: aload         4
+      52: invokeinterface #94,  1           // InterfaceMethod java/sql/Connection.close:()V
+      57: goto          135
+      60: astore        6
+      62: aload         5
+      64: aload         6
+      66: invokevirtual #96                 // Method java/lang/Throwable.addSuppressed:(Ljava/lang/Throwable;)V
+      69: goto          135
+      72: aload         4
+      74: invokeinterface #94,  1           // InterfaceMethod java/sql/Connection.close:()V
+      79: goto          135
+      82: astore        6
+      84: aload         6
+      86: astore        5
+      88: aload         6
+      90: athrow
+      91: astore        7
+      93: aload         4
+      95: ifnull        132
+      98: aload         5
+     100: ifnull        125
+     103: aload         4
+     105: invokeinterface #94,  1           // InterfaceMethod java/sql/Connection.close:()V
+     110: goto          132
+     113: astore        8
+     115: aload         5
+     117: aload         8
+     119: invokevirtual #96                 // Method java/lang/Throwable.addSuppressed:(Ljava/lang/Throwable;)V
+     122: goto          132
+     125: aload         4
+     127: invokeinterface #94,  1           // InterfaceMethod java/sql/Connection.close:()V
+     132: aload         7
+     134: athrow
+     135: aload_0
+     136: invokevirtual #97                 // Method bak:()V
+     139: return
+    Exception table:
+       from    to  target type
+          50    57    60   Class java/lang/Throwable
+          27    40    82   Class java/lang/Throwable
+          27    40    91   any
+         103   110   113   Class java/lang/Throwable
+          82    93    91   any
+
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+Code works OK, just produces dead code
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+	public void dummy() throws SQLException
+	{
+		final String dbUrl1 = "1";
+		final String username = "";
+		final String password = "";
+		baz();
+        try (Connection conn1 = DriverManager.getConnection(dbUrl1,username,password)) {
+        	foo();
+        	if (conn1 != null)
+        		bar();
+        }
+        
+		bak();
+	}
+	public void foo() {/**/ }
+	public void bar() {/**/ }
+	public void baz() {/**/ }
+	public void bak() {/**/ }
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+switch back to try-finally for autocloseables.
+

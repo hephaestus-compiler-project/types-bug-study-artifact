@@ -1,0 +1,107 @@
+The following code passes type checking, but fails the pickling.
+
+```Scala
+trait T { self: {type M = Int} =>
+  type T = self.M
+  def lift(x: Int): T = x
+}
+
+class Test {
+  val t = new T {
+    type M = Int
+  }
+  t.lift(1): t.T
+}
+```
+
+<details>
+<summary>error log</summary>
+<pre>
+cannot take signature of (x: Int): Test.this.t.T
+exception occurred while compiling examples/opaque.scala
+Exception in thread "main" dotty.tools.dotc.core.MissingType:
+	at dotty.tools.dotc.core.TypeErasure.dotty$tools$dotc$core$TypeErasure$$sigName(TypeErasure.scala:534)
+	at dotty.tools.dotc.core.TypeErasure.dotty$tools$dotc$core$TypeErasure$$sigName(TypeErasure.scala:567)
+	at dotty.tools.dotc.core.TypeErasure.dotty$tools$dotc$core$TypeErasure$$sigName(TypeErasure.scala:540)
+	at dotty.tools.dotc.core.TypeErasure$.sigName(TypeErasure.scala:143)
+	at dotty.tools.dotc.core.Signature$.apply(Signature.scala:128)
+	at dotty.tools.dotc.core.Types$MethodicType.resultSignature(Types.scala:2699)
+	at dotty.tools.dotc.core.Types$MethodType.computeSignature(Types.scala:2990)
+	at dotty.tools.dotc.core.Types$SignatureCachingType.signature(Types.scala:2687)
+	at dotty.tools.dotc.core.Types$MethodOrPoly.signature(Types.scala:2838)
+	at dotty.tools.dotc.core.Denotations$SingleDenotation.signature(Denotations.scala:696)
+	at dotty.tools.dotc.core.Types$NamedType.computeSignature(Types.scala:1696)
+	at dotty.tools.dotc.core.Types$SignatureCachingType.signature(Types.scala:2687)
+	at dotty.tools.dotc.core.Types$NamedType.signature(Types.scala:1653)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleTree(TreePickler.scala:366)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleTree$$anonfun$2(TreePickler.scala:377)
+	at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.core.tasty.TreePickler.withLength(TreePickler.scala:43)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleTree(TreePickler.scala:379)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleTree$$anonfun$5(TreePickler.scala:408)
+	at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.core.tasty.TreePickler.withLength(TreePickler.scala:43)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleTree(TreePickler.scala:408)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleStats$$anonfun$2(TreePickler.scala:326)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.immutable.List.foreach(List.scala:388)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleStats(TreePickler.scala:326)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleTree$$anonfun$25(TreePickler.scala:520)
+	at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.core.tasty.TreePickler.withLength(TreePickler.scala:43)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleTree(TreePickler.scala:521)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleDef$$anonfun$2(TreePickler.scala:302)
+	at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.core.tasty.TreePickler.withLength(TreePickler.scala:43)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleDef(TreePickler.scala:307)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleTree(TreePickler.scala:491)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleStats$$anonfun$2(TreePickler.scala:326)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.immutable.List.foreach(List.scala:388)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleStats(TreePickler.scala:326)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleTree$$anonfun$27(TreePickler.scala:527)
+	at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.core.tasty.TreePickler.withLength(TreePickler.scala:43)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickleTree(TreePickler.scala:527)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickle$$anonfun$1(TreePickler.scala:675)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.immutable.List.foreach(List.scala:388)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickle(TreePickler.scala:675)
+	at dotty.tools.dotc.transform.Pickler.run$$anonfun$7$$anonfun$5(Pickler.scala:56)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.immutable.List.foreach(List.scala:388)
+	at dotty.tools.dotc.transform.Pickler.run$$anonfun$2(Pickler.scala:79)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.immutable.List.foreach(List.scala:388)
+	at dotty.tools.dotc.transform.Pickler.run(Pickler.scala:79)
+	at dotty.tools.dotc.core.Phases$Phase.runOn$$anonfun$1(Phases.scala:299)
+	at scala.collection.immutable.List.map(List.scala:282)
+	at dotty.tools.dotc.core.Phases$Phase.runOn(Phases.scala:301)
+	at dotty.tools.dotc.transform.Pickler.runOn(Pickler.scala:83)
+	at dotty.tools.dotc.Run.runPhases$4$$anonfun$4(Run.scala:175)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:32)
+	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:29)
+	at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:194)
+	at dotty.tools.dotc.Run.runPhases$5(Run.scala:187)
+	at dotty.tools.dotc.Run.compileUnits$$anonfun$1(Run.scala:195)
+	at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.util.Stats$.maybeMonitored(Stats.scala:90)
+	at dotty.tools.dotc.Run.compileUnits(Run.scala:202)
+	at dotty.tools.dotc.Run.compileSources(Run.scala:137)
+	at dotty.tools.dotc.Run.compile(Run.scala:121)
+	at dotty.tools.dotc.Driver.doCompile(Driver.scala:31)
+	at dotty.tools.dotc.Driver.process(Driver.scala:134)
+	at dotty.tools.dotc.Driver.process(Driver.scala:103)
+	at dotty.tools.dotc.Driver.process(Driver.scala:115)
+	at dotty.tools.dotc.Driver.main(Driver.scala:142)
+	at dotty.tools.dotc.Main.main(Main.scala)
+</pre>
+</details>
+

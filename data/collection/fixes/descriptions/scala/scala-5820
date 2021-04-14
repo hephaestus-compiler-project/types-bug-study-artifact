@@ -1,0 +1,43 @@
+// the old way, prior to implicit class
+
+  class Equal[T : Eq](a: T) {
+    def ===(b: T): Boolean = implicitly[Eq[T]].equal(a, b)
+
+  }
+
+  implicit def toEqual[T](a: T) = new Equal(a)
+
+  1 === "a" // OK, does not compile
+
+
+=====================================
+
+// the new way, using implicit class
+
+  implicit class Equal[T : Eq](a: T) {
+
+    def ===(b: T): Boolean = implicitly[Eq[T]].equal(a, b)
+
+  }
+
+  1 === "a" // NOT OK, this compiles just fine
+
+=====================================
+
+// for the above code snippets, i have the following defined:
+
+  trait Eq[-T] {
+
+    def equal(a: T, b: T): Boolean
+
+  }
+
+  object Eq {
+
+    implicit def DefaultEq[T] = new Eq[T] {
+
+      def equal(a: T, b: T) = a == b
+
+    }
+
+  }

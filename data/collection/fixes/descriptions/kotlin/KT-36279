@@ -1,0 +1,42 @@
+**Steps to reproduce**
+
+Define a function like the following:
+
+```kotlin
+fun <T> allConditionalPredicates(subject: T, conditionalPredicates: Map<() -> Boolean, (T) -> Boolean>) = 
+    conditionalPredicates
+        .filter { it.key() }
+        .all { it.value(subject) }
+```
+Test the function:
+
+```kotlin
+val testObject = Any()
+val expectedTrue = allConditionalPredicates(testObject,
+    mapOf({ true } to { it != null }))
+assert(expectedTrue)
+```
+
+**Expected result:**
+The code typechecks and compiles
+
+**Actual result:**
+The code fails to compile with the following error:
+
+```
+Type inference failed: 
+    fun <T> allConditionalPredicates(subject: T, conditionalPredicates: Map<() → Boolean, (T) → Boolean>) : Boolean
+cannot be applied to
+    (Any, Map<() → Boolean, () → Boolean>)
+```
+
+The code compiles only by giving an explicit name to the lambda parameter (or discarding with `_`):
+
+```kotlin
+val testObject = Any()
+val expectedTrue = allConditionalPredicates(testObject,
+    mapOf({ true } to { it -> it != null }))
+assert(expectedTrue)
+```
+
+**IntelliJ Idea Ultimate (2019.3.2) suggests to remove the redundant lambda arrow.**

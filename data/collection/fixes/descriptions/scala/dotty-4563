@@ -1,0 +1,64 @@
+While migrating inox to Scala 3, I ran into runtime errors stemming from the following code, that has been worked around here: https://github.com/epfl-lara/inox/pull/71/commits/d68120a8b72ff273b2ff2b602a8be870e707de2c
+
+Running the code _without_ the workaround leads to
+```
+[error] Exception in thread "main" java.lang.VerifyError: Bad type on operand stack
+[error] Exception Details:
+[error]   Location:
+[error]     inox/solvers/theories/ASCIIStringEncoder.transform$$anonfun$1(C)Lscala/collection/GenTraversableOnce; @352: invokespecial
+[error]   Reason:
+[error]     Type top (current frame, stack[1]) is not assignable to reference type
+[error]   Current Frame:
+[error]     bci: @352
+[error]     flags: { }
+[error]     locals: { integer, 'scala/Some', 'scala/collection/Seq', 'scala/Some', 'scala/collection/Seq', top, top, 'scala/collection/Seq' }
+[error]     stack: { top, top, 'java/lang/String' }
+[error]   Bytecode:
+(...)
+[error]   Stackmap Table:
+[error]     full_frame(@153,{Integer,Top,Object[#263],Object[#345],Object[#263],Integer,Integer},{})
+[error]     full_frame(@162,{},{Object[#403]})
+[error]     full_frame(@165,{Integer,Top,Object[#263],Object[#345],Object[#263],Integer,Integer},{Object[#356]})
+[error]     chop_frame(@168,2)
+[error]     full_frame(@175,{Integer,Object[#345],Object[#263],Object[#345],Object[#263]},{Top,Top})
+[error]     full_frame(@254,{Integer,Object[#345],Object[#263],Object[#345],Object[#263],Top,Top,Object[#263]},{Top,Top})
+[error]     full_frame(@341,{Integer,Object[#345],Object[#263],Object[#345],Object[#263],Top,Top,Object[#263]},{Top,Top})
+[error]     full_frame(@344,{Integer,Object[#345],Object[#263],Object[#345],Object[#263],Top,Top,Object[#263]},{Top,Top,Object[#175]})
+[error]     full_frame(@347,{Integer,Top,Object[#263],Object[#345],Object[#263]},{Uninitialized[#168],Uninitialized[#168]})
+[error]     full_frame(@352,{Integer,Object[#345],Object[#263],Object[#345],Object[#263],Top,Top,Object[#263]},{Top,Top,Object[#175]})
+[error]     full_frame(@355,{Integer,Top,Object[#263],Object[#345],Object[#263]},{Top})
+[error]     chop_frame(@358,1)
+[error]     full_frame(@365,{},{Object[#403]})
+[error]     full_frame(@368,{Integer,Top,Object[#263],Object[#345],Object[#263]},{Top})
+[error]     chop_frame(@371,2)
+[error]     full_frame(@378,{Integer,Top,Object[#263]},{Top,Top})
+[error]     full_frame(@387,{},{Object[#403]})
+[error]     full_frame(@390,{Integer,Top,Object[#263]},{Uninitialized[#371],Uninitialized[#371]})
+[error]     full_frame(@393,{},{Object[#403]})
+[error]     full_frame(@396,{Integer,Top,Object[#263],Object[#345],Object[#263]},{Top})
+[error] 	at inox.solvers.theories.ASCIIStringEncoder$.apply(ASCIIStringEncoder.scala:119)
+[error] 	at inox.solvers.theories.package$.Z3(package.scala:16)
+[error] 	at inox.solvers.SolverFactory$.getFromName(SolverFactory.scala:119)
+[error] 	at inox.solvers.SolverFactory$.apply(SolverFactory.scala:349)
+[error] 	at inox.solvers.SolverFactory$.apply(SolverFactory.scala:366)
+[error] 	at inox.package$$anon$3.createSolver(package.scala:77)
+[error] 	at inox.Semantics.getSolver$$anonfun$1(Semantics.scala:31)
+[error] 	at inox.utils.Cache.cached(Caches.scala:14)
+[error] 	at inox.Semantics.getSolver(Semantics.scala:31)
+```
+
+The underlying problem here is that dotc emits code trying to box a call to a label:
+```scala
+new scala.collection.immutable.StringOps(
+  scala.collection.immutable.StringOps.evt2u$(case8(x31)))
+```
+where `case8` is
+```scala
+def case8(case x34: Some): ErasedValueType(
+  scala.collection.immutable.StringOps, String) = ...
+```
+
+I don't have a minimized test case unfortunately, but, as a starting point, this is how I reproduce it:
+```
+dotc  -deprecation -unchecked -feature -language:Scala2   -Xprint:erasure  -classpath /home/gs/epfl/D/inox-dotty/unmanaged/scalaz3-unix-64-2.12.jar:/home/gs/.ivy2/local/ch.epfl.lamp/scala-library/0.8.0-bin-SNAPSHOT/jars/scala-library.jar:/home/gs/.ivy2/local/ch.epfl.lamp/dotty-library_0.8/0.8.0-bin-SNAPSHOT/jars/dotty-library_0.8.jar:/home/gs/.ivy2/cache/org.scala-lang/scala-library/jars/scala-library-2.12.4.jar:/home/gs/.ivy2/cache/org.apache.commons/commons-lang3/jars/commons-lang3-3.4.jar:/home/gs/.ivy2/cache/org.scala-lang/scala-reflect/jars/scala-reflect-2.12.4.jar:/home/gs/.ivy2/cache/com.regblanc/scala-smtlib_2.12/jars/scala-smtlib_2.12-0.2.2-7-g00a9686.jar:/home/gs/.ivy2/cache/uuverifiers/princess_2.12/jars/princess_2.12-2016-12-26.jar:/home/gs/.ivy2/cache/uuverifiers/princess-parser_2.12/jars/princess-parser_2.12-2016-12-26.jar:/home/gs/.ivy2/cache/uuverifiers/princess-smt-parser_2.12/jars/princess-smt-parser_2.12-2016-12-26.jar:/home/gs/.ivy2/cache/org.scala-lang.modules/scala-parser-combinators_2.12/bundles/scala-parser-combinators_2.12-1.0.4.jar:/home/gs/.ivy2/cache/net.sf.squirrel-sql.thirdparty-non-maven/java-cup/jars/java-cup-0.11a.jar:/home/gs/epfl/D/inox-dotty/target/scala-0.8/classes/      /home/gs/epfl/D/inox-dotty/src/main/scala/inox/solvers/theories/ASCIIStringEncoder.scala
+```

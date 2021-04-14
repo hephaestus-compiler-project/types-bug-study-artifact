@@ -1,0 +1,20 @@
+There are some annoying limitations in the current algorithm for applying implicit conversion, as this small example shows:
+```scala
+scala> implicit def c1(i : Int) = new { def fn(i2 : Int) = i + i2 }
+c1: (Int)java.lang.Object{def fn(Int): Int}
+
+scala> implicit def c2(i : Int) = new { def fn(b : Boolean) = i }
+c2: (Int)java.lang.Object{def fn(Boolean): Int}
+
+scala> 10.fn(3)
+<console>:7: error: type mismatch;
+ found   : Int
+ required: ?{val fn: ?}
+Note that implicit conversions are not applicable because they are ambiguous:
+ both method c2 in object $$iw of type (Int)java.lang.Object{def fn(Boolean): Int}
+ and method c1 in object $$iw of type (Int)java.lang.Object{def fn(Int): Int}
+ are possible conversion functions from Int to ?{val fn: ?}
+       10.fn(3)
+       ^
+```
+Clearly this ambiguity can be resolved by taking into account the argument type in the call to "fn". Fixing this would improve the utility of implicit conversions and AFAICT it would not break any existing code. 

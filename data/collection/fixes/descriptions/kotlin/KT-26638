@@ -1,0 +1,88 @@
+# Synopsis
+
+Type of change:
+- New diagnostics: errors
+
+Motivation:
+- The compiler doesn't warn about a potential bug
+
+Impact:
+- Some code that used to compile won’t compile anymore
+
+Migration:
+- All code locations affected by this change can be accurately detected statically
+- Migration can't be automated
+
+# Summary
+
+Kotlin compiler doesn't check repeatability of annotations correctly for property accessors when annotations come from usual annotations and annotations with use-site targets.
+
+# Existing Behavior
+
+#### Code sample
+
+```
+// Ann is not repeatable
+annotation class Ann(val x: Int)
+
+@setparam:Ann(10)
+var a = " "
+    set(@Ann(20) x) {} // no error
+```
+
+#### Affected version
+
+This problem exists since Kotlin 1.0.
+
+### What's wrong with it
+
+The problem here is that there is no error about repeatability of annotation `@Ann` for the parameter `x`. 
+As a result, those annotations will be compiled to the bytecode and it will be unclear which one will be loaded via reflection later.
+
+# List of all affected cases
+
+The following annotation will be used in further examples:
+```
+annotation class Ann(val x: Int)
+```
+
+This list describes cases where repeatability of annotations isn't checked properly
+
+- Property getter
+
+```
+@get:Ann(10)
+val foo: String
+    @Ann(20) get() = "foo" // OK, no error, but getter has two annotations in the bytecode
+```
+
+- Property setter
+
+```
+@set:Ann(10)
+var foo: String = ""
+    @Ann(20) set(value) { field = value } // OK, no error, but setter has two annotations in the bytecode
+```
+
+- Parameter of the setter
+
+```
+@setparam:Ann(10)
+var foo: String = ""
+    set(@Ann(20) value) { field = value } // OK, no error, but setter parameter has two annotations in the bytecode
+```
+
+# Proposed change
+
+Take into account all annotations that are applicable for an element to check repeatability.
+
+# Impact
+
+We believe this is a rare case as using annotations with a use-site target and a custom getter/setter seems quite meaningless.
+
+# Migration
+
+- Report warning about repeatability of annotations in 1.3.x
+   - Report error in progressive mode
+Corrected code will work and compile fine in a regular (non-progressive) mode
+- Turn the warning into an error in 1.4

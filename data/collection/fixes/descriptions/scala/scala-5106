@@ -1,0 +1,40 @@
+I think this deserves more than an "unchecked" warning:
+
+```scala
+scala> def f {
+     | val (n, l): (String, Int) = (4, "");
+     | }
+warning: there were 2 unchecked warnings; re-run with -unchecked for details
+f: Unit
+
+scala> f
+java.lang.ClassCastException: java.lang.Integer cannot be cast to java.lang.String
+[...]
+```
+
+This is specially surprising because this other very similar case (created from #140, which I initially thought was the same bug) works as I expected:
+
+```scala
+scala> def g {
+     | val (n: String, l: Int) = (4, "");
+     | }
+<console>:8: error: scrutinee is incompatible with pattern type;
+ found   : String
+ required: Int
+       val (n: String, l: Int) = (4, "");
+               ^
+<console>:8: error: type mismatch;
+ found   : String
+ required: Int
+       val (n: String, l: Int) = (4, "");
+             ^
+<console>:8: error: scrutinee is incompatible with pattern type;
+ found   : Int
+ required: String
+       val (n: String, l: Int) = (4, "");
+                          ^
+<console>:8: error: type mismatch;
+ found   : Int
+ required: String
+       val (n: String, l: Int) = (4, "");
+```

@@ -1,0 +1,28 @@
+The preferredFileObject test in ClassReader.java makes a bad decision when using -sourcepath
+and when compiling sources for code that are part of the rt.jar.
+
+Thus the developers of jsr166, jaxp, jaxws and nashorn, do experience this problem when using 
+-sourcepath.
+
+Lets say that you have in src/alfa/A.java
+    public class A { void a() { java.lang.Object.foo = 42; } }
+and in src/java/lang/Object.java
+    public class Object { public static int foo; }
+
+You can now >>always<< compile using the following command:
+javac -d bin src/alfa/A.java src/java/lang/Object.java
+
+But you can only >>sometimes<< compile using the following command:
+javac -d bin -sourcepath src src/alfa/A.java
+
+(You can reproduce this yourself with the latest jdk7 release and 
+"touch -d '2011-01-01' src/java/lang/Object.java")
+
+When it fails, javac has picked up java.lang.Object from rt.jar and 
+not from the sourcepath. This happens when the timestamp inside rt.jar
+is newer than the source file. And this happens for example if you are quick
+upgrading to a new jdk and your sourcefile has not been touch for a few weeks.
+
+The test in preferredFileObject has to be fixed/amended/worked around in some way.
+It is not a good idea to have a weird dependency on timestamps inside rt.jar
+and the resulting compilation errors are extremely hard to understand.

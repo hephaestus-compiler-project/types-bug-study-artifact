@@ -1,0 +1,37 @@
+The following test produces incorrect behavior for the post-increment operator when it is applied to a boxed Integer being returned from a lambda body.
+
+public class LambdaIncrement {
+
+interface IntOp { int apply(int arg); }
+interface IntegerOp { Integer apply(Integer arg); }
+
+static Integer field = 0;
+
+public static final void main(String... args) {
+  IntOp preInc = x -> ++x;
+  IntegerOp preIncBox1 = x -> ++x;
+  IntegerOp preIncBox2 = x -> { return ++x; };
+  IntegerOp preIncBox3 = x -> { int y = x; return ++y; };
+  IntegerOp preIncBox4 = x -> { Integer y = x; return ++y; };
+  IntegerOp preIncField = x -> ++field;
+  IntOp postInc = x -> x++;
+  IntegerOp postIncBox1 = x -> x++;
+  IntegerOp postIncBox2 = x -> { return x++; };
+  IntegerOp postIncBox3 = x -> { int y = x; return y++; };
+  IntegerOp postIncBox4 = x -> { Integer y = x; return y++; };
+  IntegerOp postIncField = x -> field++;
+  System.out.println("preInc(3): " + preInc.apply(3)); // expected: 4; actual: 4
+  System.out.println("preIncBox1(3): " + preIncBox1.apply(3)); // expected: 4; actual: 4
+  System.out.println("preIncBox2(3): " + preIncBox2.apply(3)); // expected: 4; actual: 4
+  System.out.println("preIncBox3(3): " + preIncBox3.apply(3)); // expected: 4; actual: 4
+  System.out.println("preIncBox4(3): " + preIncBox4.apply(3)); // expected: 4; actual: 4
+  System.out.println("postInc(3): " + postInc.apply(3)); // expected: 3; actual: 3
+  System.out.println("postIncBox1(3): " + postIncBox1.apply(3)); // expected: 3; actual: 4
+  System.out.println("postIncBox2(3): " + postIncBox2.apply(3)); // expected: 3; actual: 4
+  System.out.println("postIncBox3(3): " + postIncBox3.apply(3)); // expected: 3; actual: 3
+  System.out.println("postIncBox4(3): " + postIncBox4.apply(3)); // expected: 3; actual: 4
+  System.out.println("preIncField(3): " + preIncField.apply(3)); // expected: 1; actual: 1
+  System.out.println("postIncField(3): " + postIncField.apply(3)); // expected: 1; actual: 1
+}
+
+}

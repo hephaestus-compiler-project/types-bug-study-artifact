@@ -1,0 +1,46 @@
+scalac can compile it. But dotc crashes.
+
+The callstack is partially similar to that of #1568. However, the latest dotc emits another "assertion failed: position error" for #1568 instead.
+
+
+$ cat abc.scala
+```
+class A {
+  implicit def compareComparables[T](x: T)(implicit ord: Ordering[T]) =
+    new ord.Ops(x)
+  class Bippy { def compare(y: Bippy) = util Random }
+  () < ()
+}
+```
+
+$ dotc abc.scala
+```
+-- Error: abc.scala ----------------------------------------------------------------------------------------------------
+2 |  implicit def compareComparables[T](x: T)(implicit ord: Ordering[T]) =
+  |  ^
+  |  result type of implicit definition needs to be given explicitly
+3 |    new ord.Ops(x)
+-- [E008] Member Not Found Error: abc.scala ----------------------------------------------------------------------------
+5 |  () < ()
+  |  ^^
+  |  value `<` is not a member of Unit
+
+exception occurred while typechecking abc.scala
+
+exception occurred while compiling abc.scala
+Exception in thread "main" dotty.tools.dotc.ast.Trees$UnAssignedTypeException: type of Select(Tuple(List()),<) is not assigned
+        at dotty.tools.dotc.ast.Trees$Tree.tpe(Trees.scala:97)
+        at dotty.tools.dotc.ast.Trees$DenotingTree.denot(Trees.scala:236)
+        at dotty.tools.dotc.ast.Trees$ProxyTree.denot(Trees.scala:254)
+        at dotty.tools.dotc.ast.Trees$Tree.symbol(Trees.scala:148)
+        at dotty.tools.dotc.typer.Typer$$anonfun$typedClassDef$1$$anonfun$apply$19.apply(Typer.scala:1246)
+        at dotty.tools.dotc.typer.Typer$$anonfun$typedClassDef$1$$anonfun$apply$19.apply(Typer.scala:1246)
+        at scala.collection.immutable.List.map(List.scala:277)
+        at dotty.tools.dotc.typer.Typer$$anonfun$typedClassDef$1.apply(Typer.scala:1246)
+        at dotty.tools.dotc.typer.Typer$$anonfun$typedClassDef$1.apply(Typer.scala:1191)
+        at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+        at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1191)
+        at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1427)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1475)
+<snipped>
+```

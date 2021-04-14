@@ -1,0 +1,32 @@
+```scala
+object E extends Enumeration {
+  val V = Value
+}
+
+sealed case class C(e: E.Value)
+
+class Test {
+  def foo(c: C) {
+    c match {
+      case C(E.V) => {}
+    }
+  }
+
+  def foo2(e: E.Value) {
+    e match {
+      case E.V => {}
+    }
+  }
+}
+```
+
+This code produces the following warning in Test.foo:
+
+```scala
+Test.scala:9: warning: match may not be exhaustive.
+It would fail on the following input: C((x: E.Value forSome x not in V))
+    c match {
+    ^
+```
+
+Test.foo2 produces no warning (as expected), even though it's essentially the same match.

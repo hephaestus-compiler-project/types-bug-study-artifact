@@ -1,0 +1,50 @@
+When pattern matching on a tuple of sealed and unsealed types, the compiler gives warnings as if both were sealed. To illustrate, compiling this:
+
+```scala
+trait A {}
+case object B extends A {}
+case object C extends A {}
+
+class X {
+  def good {
+    val a: A = B
+    a match {
+      case B =>
+      case C =>
+    }
+  }
+
+  def bad {
+    val a: A = B
+    val o: Option[Int] = None
+    (a, o) match {
+      case (B, None) =>
+      case (B, Some(_)) =>
+      case (C, None) =>
+      case (C, Some(_)) =>
+    }
+  }
+
+  def alsoGood {
+    val a: A = B
+    val b: A = C
+    (a, b) match {
+      case (B, B) =>
+      case (B, C) =>
+      case (C, B) =>
+      case (C, C) =>
+    }
+  }
+}
+```
+gives:
+```
+$ scalac sealed.scala 
+sealed.scala:18: warning: match may not be exhaustive.
+It would fail on the following inputs: (_, None), (_, Some(_))
+    (a, o) match {
+    ^
+one warning found
+```
+
+Although it says "_" and admittedly the warning isn't exactly false, as `val a: A` could generally be something else than B/C, it is quite strange that this only happens when paired with a sealed type.

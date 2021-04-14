@@ -1,0 +1,59 @@
+ADDITIONAL SYSTEM INFORMATION :
+$ java -version
+java version "1.8.0_181"
+Java(TM) SE Runtime Environment (build 1.8.0_181-b13)
+Java HotSpot(TM) 64-Bit Server VM (build 25.181-b13, mixed mode)
+
+
+$ uname -a
+Linux sandy 3.16.0-6-amd64 #1 SMP Debian 3.16.57-2 (2018-07-14) x86_64 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+Running the example code causes a VerifyError "Bad type on operand stack" to be thrown, even though it compiles successfully.
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Run the sample code in the description.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Expected no output, and exit status of 0.
+ACTUAL -
+Exception in thread "main" java.lang.VerifyError: Bad type on operand stack
+Exception Details:
+  Location:
+    TestVerifyError$1.lambda$unused$0(Ljava/lang/Object;)LTestVerifyError$1Local; @5: getfield
+  Reason:
+    Type 'java/lang/Object' (current frame, stack[2]) is not assignable to 'TestVerifyError$1'
+  Current Frame:
+    bci: @5
+    flags: { }
+    locals: { 'java/lang/Object' }
+    stack: { uninitialized 0, uninitialized 0, 'java/lang/Object' }
+  Bytecode:
+    0x0000000: bb00 0459 2ab4 0001 b700 05b0          
+
+	at TestVerifyError.main(TestVerifyError.java:9)
+
+Process finished with exit code 1
+
+
+---------- BEGIN SOURCE ----------
+public class TestVerifyError {
+  public static void main(String[] args) {
+    Object a = new Object();
+    class Local {
+      Object ref = a;
+    }
+    new Object() {
+      void unused() {
+        java.util.function.Supplier<Local> s = () -> new Local();
+      }
+    };
+  }
+}
+---------- END SOURCE ----------
+
+FREQUENCY : always
+
+

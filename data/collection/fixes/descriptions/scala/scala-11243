@@ -1,0 +1,27 @@
+Code to repro ([repository](https://github.com/blast-hardcheese/scala-issue)), with some comments for different cases that actually work:
+```scala
+package bug
+
+class Foo[A]
+
+object Bar {
+  // Traceback in https://github.com/blast-hardcheese/scala-issue/blob/master/README.md
+  (new Foo).bogus[(Long, Long)]
+
+  // [error] /private/tmp/bug/src/main/scala/bug.scala:10:16: value bogus is not a member of bug.Foo[A]
+  // [error]   (new Foo).bogus[Long]
+  // [error]             ^
+  // [error] one error found
+  //
+  // (new Foo).bogus[Long] // Gives an appropriate error message
+
+  // [error] /private/tmp/bug/src/main/scala/bug.scala:7:19: value bogus is not a member of bug.Foo[Long]
+  // [error]   (new Foo[Long]).bogus[(Long, Long)]
+  // [error]                   ^
+  // [error] one error found
+  //
+  // (new Foo[Long]).bogus[(Long, Long)]
+}
+```
+
+I tried against `2.12.8-bin-5fca7b2` and got the same unhelpful error, but 2.12.0-2.12.3 give helpful errors.

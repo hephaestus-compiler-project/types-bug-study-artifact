@@ -1,0 +1,51 @@
+Consider the following simple example:
+
+```scala
+class ImplicitExample() extends Dynamic {
+  def someMethod()(implicit s: String = "World"): String = s
+  def applyDynamic(name: String)(args: Any*)(implicit s: String = "World"): String = name + s
+}
+```
+
+And its test:
+
+```scala
+class ImplicitTest {
+  @Test def t1(): Unit = {
+    assertEquals("World", new ImplicitExample().someMethod())
+  }
+
+  @Test def t2(): Unit = {
+    implicit val s: String = "Hello"
+    assertEquals("Hello", new ImplicitExample().someMethod())
+  }
+
+  @Test def t3(): Unit = {
+    assertEquals("runWorld", new ImplicitExample().run())
+  }
+
+  @Test def t4(): Unit = {
+    implicit val s: String = "Hello"
+    assertEquals("runHello", new ImplicitExample().run())
+  }
+}
+```
+
+Test `t1` and `t2` always work, while `t3` fails with the latest Nightly build (`0.9.0-bin-20180529-be6ae0e-NIGHTLY`):
+
+```scala
+[error] -- Error: ... ImplicitTest.scala: ...
+[error] 15 |    assertEquals("runWorld", new ImplicitExample().run())
+[error]    |                                                      ^
+[error]    |no implicit argument of type String was found for parameter s of method applyDynamic in class ImplicitExample
+[error] one error found
+[error] (Test / compileIncremental) Compilation failed
+```
+
+If you remove the vararg `args`, it compiles but the implicit parameter is not considered anymore and `t4` fails with:
+
+```scala
+[error] Test ImplicitTest.t4 failed: expected:<run[Hello]> but was:<run[World]>
+```
+
+Everything is fine with `0.8.0-RC1`.

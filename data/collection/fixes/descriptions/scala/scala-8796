@@ -1,0 +1,40 @@
+Consider the following code snippet:
+
+```scala
+  def example(index: Int): Unit = index match {
+    case 0 => println("I'm even!")
+    case 1 => println("I'm odd!")
+    case _ => example(index - 2)
+  }
+```
+
+This gets compiled to (using `scala -print`):
+```
+def example(index: Int): Unit = {
+  <synthetic> val _$this: Test.type = Test.this;
+  _example(_$this: Test.type, index: Int){
+    ({
+      case <synthetic> val x1: Int = index;
+      (x1: Int) match {
+        case 0 => {
+          scala.this.Predef.println("I\'m even!");
+          scala.runtime.BoxedUnit.UNIT
+        }
+        case 1 => {
+          scala.this.Predef.println("I\'m odd!");
+          scala.runtime.BoxedUnit.UNIT
+        }
+        case _ => {
+          _example(Test.this, (index.-(2): Int));
+          scala.runtime.BoxedUnit.UNIT
+        }
+      }
+    }: scala.runtime.BoxedUnit);
+    ()
+  }
+};
+```
+
+There is no need for the compiler to be generating `scala.runtime.BoxedUnit.UNIT`.
+
+Decompiling the generated class file with `javap` confirms that `scala.runtime.BoxedUnit.UNIT` is being pushed to the stack, only to be immediately popped off again. Such inefficiencies are quite frustrating!

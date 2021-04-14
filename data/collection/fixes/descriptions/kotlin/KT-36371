@@ -1,0 +1,31 @@
+In the following code the compiler adds a null check to `resolve { it.string }` to ensure that `it.string` is not null even though the inferred return type of the lambda is `String?` (which is correct).
+
+Without `@BuilderInference` and then writing `build<String?> { … }` the problem does not occur.
+
+```
+class Foo(
+    val string: String? = null
+)
+
+class Builder<T> {
+
+    private var resolver: ((Foo) -> T)? = null
+
+    fun build() = resolver!!
+
+    fun resolve(resolver: (Foo) -> T) {
+        this.resolver = resolver
+    }
+}
+
+fun <T> build(@BuilderInference configure: Builder<T>.() -> Unit) =
+    Builder<T>().apply(configure).build()
+
+fun main() {
+    val resolver = build {
+        resolve { it.string }
+    }
+
+    println(resolver(Foo())) // expected: print 'null', actual: IllegalStateException: it.string must not be null
+}
+```

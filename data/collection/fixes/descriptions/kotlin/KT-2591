@@ -1,0 +1,88 @@
+Upd: Make constructors private
+
+{code lang=kt}
+fun foo() {
+    Double()
+    Boolean()
+    // ...
+}
+{code}
+JVM back-end fails (exception below), JS back-end fails with TypeError.
+
+
+org.jetbrains.jet.codegen.CompilationException: Back-end (JVM) Internal error: null
+Cause: java.lang.NullPointerException
+File being compiled and position: (4,5) in C:\1\test\src\a.kt
+The root cause was thrown at: String.java:210
+	at org.jetbrains.jet.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:175)
+	at org.jetbrains.jet.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:187)
+	at org.jetbrains.jet.codegen.ExpressionCodegen.generateBlock(ExpressionCodegen.java:887)
+	at org.jetbrains.jet.codegen.ExpressionCodegen.visitBlockExpression(ExpressionCodegen.java:748)
+	at org.jetbrains.jet.codegen.ExpressionCodegen.visitBlockExpression(ExpressionCodegen.java:59)
+	at org.jetbrains.jet.lang.psi.JetBlockExpression.accept(JetBlockExpression.java:50)
+	at org.jetbrains.jet.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:165)
+	at org.jetbrains.jet.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:187)
+	at org.jetbrains.jet.codegen.ExpressionCodegen.returnExpression(ExpressionCodegen.java:983)
+	at org.jetbrains.jet.codegen.FunctionCodegen.generatedMethod(FunctionCodegen.java:265)
+	at org.jetbrains.jet.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:75)
+	at org.jetbrains.jet.codegen.FunctionCodegen.gen(FunctionCodegen.java:65)
+	at org.jetbrains.jet.codegen.MemberCodegen.generateFunctionOrProperty(MemberCodegen.java:45)
+	at org.jetbrains.jet.codegen.NamespaceCodegen.generate(NamespaceCodegen.java:130)
+	at org.jetbrains.jet.codegen.NamespaceCodegen.generate(NamespaceCodegen.java:98)
+	at org.jetbrains.jet.codegen.GenerationState.generateNamespace(GenerationState.java:187)
+	at org.jetbrains.jet.codegen.GenerationState.compileCorrectFiles(GenerationState.java:163)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.java:347)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyzeAndGenerate(KotlinToJVMBytecodeCompiler.java:299)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyzeAndGenerate(KotlinToJVMBytecodeCompiler.java:272)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModule(KotlinToJVMBytecodeCompiler.java:111)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules(KotlinToJVMBytecodeCompiler.java:132)
+	at org.jetbrains.jet.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.java:130)
+	at org.jetbrains.jet.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.java:54)
+	at org.jetbrains.jet.cli.common.CLICompiler.exec(CLICompiler.java:117)
+	at org.jetbrains.jet.cli.jvm.K2JVMCompiler.exec(K2JVMCompiler.java:179)
+	at org.jetbrains.jet.cli.jvm.K2JVMCompiler.exec(K2JVMCompiler.java:54)
+	at org.jetbrains.jet.cli.common.CLICompiler.exec(CLICompiler.java:47)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+	at java.lang.reflect.Method.invoke(Method.java:597)
+	at org.jetbrains.jet.plugin.compiler.CompilerUtils.invokeExecMethod(CompilerUtils.java:175)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler.execInProcess(JetCompiler.java:257)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler.access$000(JetCompiler.java:56)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler$1.invoke(JetCompiler.java:244)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler$1.invoke(JetCompiler.java:241)
+	at org.jetbrains.jet.plugin.compiler.CompilerUtils.outputCompilerMessagesAndHandleExitCode(CompilerUtils.java:314)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler.runInProcess(JetCompiler.java:241)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler.runCompiler(JetCompiler.java:141)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler.doCompile(JetCompiler.java:129)
+	at org.jetbrains.jet.plugin.compiler.JetCompiler.compile(JetCompiler.java:104)
+	at com.intellij.compiler.impl.CompileDriver.compileSources(CompileDriver.java:1960)
+	at com.intellij.compiler.impl.CompileDriver.translate(CompileDriver.java:1283)
+	at com.intellij.compiler.impl.CompileDriver.doCompile(CompileDriver.java:1003)
+	at com.intellij.compiler.impl.CompileDriver.doCompile(CompileDriver.java:744)
+	at com.intellij.compiler.impl.CompileDriver.access$1100(CompileDriver.java:107)
+	at com.intellij.compiler.impl.CompileDriver$8.run(CompileDriver.java:656)
+	at com.intellij.compiler.progress.CompilerTask.run(CompilerTask.java:155)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl$TaskRunnable.run(ProgressManagerImpl.java:469)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl$2.run(ProgressManagerImpl.java:178)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.executeProcessUnderProgress(ProgressManagerImpl.java:218)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.runProcess(ProgressManagerImpl.java:169)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl$8.run(ProgressManagerImpl.java:378)
+	at com.intellij.openapi.application.impl.ApplicationImpl$6.run(ApplicationImpl.java:457)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:441)
+	at java.util.concurrent.FutureTask$Sync.innerRun(FutureTask.java:303)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:138)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.runTask(ThreadPoolExecutor.java:886)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:908)
+	at java.lang.Thread.run(Thread.java:662)
+	at com.intellij.openapi.application.impl.ApplicationImpl$1$1.run(ApplicationImpl.java:148)
+Caused by: java.lang.NullPointerException
+	at java.lang.String.<init>(String.java:210)
+	at org.jetbrains.asm4.Type.getInternalName(Unknown Source)
+	at org.jetbrains.asm4.commons.InstructionAdapter.anew(Unknown Source)
+	at org.jetbrains.jet.codegen.ExpressionCodegen.generateConstructorCall(ExpressionCodegen.java:2515)
+	at org.jetbrains.jet.codegen.ExpressionCodegen.visitCallExpression(ExpressionCodegen.java:1349)
+	at org.jetbrains.jet.codegen.ExpressionCodegen.visitCallExpression(ExpressionCodegen.java:59)
+	at org.jetbrains.jet.lang.psi.JetCallExpression.accept(JetCallExpression.java:45)
+	at org.jetbrains.jet.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:165)
+	... 61 more

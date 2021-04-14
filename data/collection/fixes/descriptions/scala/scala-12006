@@ -1,0 +1,23 @@
+## reproduction steps
+
+```scala
+$ scala -nobootcp -Xsource:3
+Welcome to Scala 2.13.2 (OpenJDK 64-Bit Server VM, Java 11.0.7).
+Type in expressions for evaluation. Or try :help.
+
+scala> class C(s: => java.io.InputStream)
+class C
+
+scala> class D(u: java.net.URL) extends C(u.openStream)
+                                            ^
+       error: type mismatch;
+        found   : java.io.InputStream
+        required: Int
+
+scala> class D(u: java.net.URL) extends C(u.openStream())
+class D
+```
+
+## problem
+
+`sys.process` doesn't compile under `-Xsource:3`. The error message is not illuminating. I hope it has nothing to do with `read`.

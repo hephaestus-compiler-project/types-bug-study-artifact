@@ -1,0 +1,58 @@
+FULL PRODUCT VERSION :
+java version "9-ea"
+Java(TM) SE Runtime Environment (build 9-ea+161)
+
+A DESCRIPTION OF THE PROBLEM :
+The following code compiles with javac 8 but not on 9-ea+161.
+The code involves a method reference to a generic method and a wildcard.
+
+REGRESSION.  Last worked in version 8u102
+
+ADDITIONAL REGRESSION INFORMATION: 
+tested with 1.8.0_92-b14
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile the code
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Successful compilation
+ACTUAL -
+Compilation fails. The details in the error message are surprising: "Map<CAP#1,Integer> cannot be converted to X<Integer>". There is no attempt made to convert a Map to X, it's as if the compiler has confused the interface with the return type of the method in the interface.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+Test.java:16: error: incompatible types: cannot infer type-variable(s) O
+    go(Test::a);
+      ^
+    (argument mismatch; Map<CAP#1,Integer> cannot be converted to X<Integer>)
+  where O is a type-variable:
+    O extends Object declared in method <O>go(X<O>)
+  where CAP#1 is a fresh type-variable:
+    CAP#1 extends Object from capture of ?
+1 error
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import java.util.Map;
+
+/**
+ * @author Wouter Coekaerts
+ */
+class Test {
+  interface X<O> {
+    Map<?, O> apply();
+  }
+
+  <O> void go(X<O> x) {}
+
+  static <I> Map<?, Integer> a() {return null;}
+
+  void test() {
+    go(Test::a);
+  }
+}
+
+---------- END SOURCE ----------
+

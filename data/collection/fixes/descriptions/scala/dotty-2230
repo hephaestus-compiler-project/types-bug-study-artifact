@@ -1,0 +1,86 @@
+```scala
+class Test {
+  type A
+  def foo(): A = ???
+  def foo(): A = ???
+}
+```
+and
+```scala
+class Test {
+  type A
+  def foo(x: A) = ???
+  def foo(x: A) = ???
+}
+```
+
+crash the compiler in the frontend.
+
+The second fails with:
+```
+java.lang.AssertionError: assertion failed: data race? overwriting symbol of type ((x: Test.this.A)Nothing)(Test.this.foo),
+long form = TermRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,<empty>)),Test)),foo)/withSig(Signature(List(java.lang.Object),scala.Nothing)) of class class dotty.tools.dotc.core.Types$TermRefWithSignature,
+last sym id = 3316, new sym id = 3317,
+last owner = class Test, new owner = class Test,
+period = frontend at run 2
+	at scala.Predef$.assert(Predef.scala:165)
+	at dotty.tools.dotc.core.Types$NamedType.checkSymAssign(Types.scala:1508)
+	at dotty.tools.dotc.core.Types$NamedType.setDenot(Types.scala:1552)
+	at dotty.tools.dotc.core.Types$NamedType.withDenot(Types.scala:1545)
+	at dotty.tools.dotc.core.Types$TermRef$.withSigAndDenot(Types.scala:1955)
+	at dotty.tools.dotc.core.SymDenotations$SymDenotation.termRefWithSig(SymDenotations.scala:1122)
+	at dotty.tools.dotc.typer.TypeAssigner$$anonfun$assignType$5.apply(TypeAssigner.scala:502)
+	at dotty.tools.dotc.typer.TypeAssigner$$anonfun$assignType$5.apply(TypeAssigner.scala:502)
+	at dotty.tools.dotc.core.Types$Type.orElse(Types.scala:102)
+	at dotty.tools.dotc.typer.TypeAssigner$class.assignType(TypeAssigner.scala:502)
+	at dotty.tools.dotc.typer.Typer.assignType(Typer.scala:65)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typedDefDef$1.apply(Typer.scala:1253)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typedDefDef$1.apply(Typer.scala:1223)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+	at dotty.tools.dotc.typer.Typer.typedDefDef(Typer.scala:1223)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1514)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1571)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1590)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1588)
+	at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:136)
+	at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1588)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1612)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1632)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typedClassDef$1.apply(Typer.scala:1323)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typedClassDef$1.apply(Typer.scala:1271)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+	at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1271)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1517)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1571)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1590)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1588)
+	at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:136)
+	at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1588)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1612)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1632)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typedPackageDef$1.apply(Typer.scala:1432)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typedPackageDef$1.apply(Typer.scala:1419)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+	at dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:1419)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1556)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1572)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1590)
+	at dotty.tools.dotc.typer.Typer$$anonfun$typed$2.apply(Typer.scala:1588)
+	at dotty.tools.dotc.reporting.Reporting$class.traceIndented(Reporter.scala:136)
+	at dotty.tools.dotc.core.Contexts$Context.traceIndented(Contexts.scala:57)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1588)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:1644)
+	at dotty.tools.dotc.typer.FrontEnd$$anonfun$typeCheck$1.apply$mcV$sp(FrontEnd.scala:64)
+	at dotty.tools.dotc.typer.FrontEnd.monitor(FrontEnd.scala:32)
+	at dotty.tools.dotc.typer.FrontEnd.typeCheck(FrontEnd.scala:62)
+	at dotty.tools.dotc.typer.FrontEnd$$anonfun$runOn$3.apply(FrontEnd.scala:93)
+	at dotty.tools.dotc.typer.FrontEnd$$anonfun$runOn$3.apply(FrontEnd.scala:93)
+	at scala.collection.immutable.List.foreach(List.scala:381)
+	at dotty.tools.dotc.typer.FrontEnd.runOn(FrontEnd.scala:93)
+```
+
+Similar stacktrace for the first.
+
+This issue affects all override checks in #2136.

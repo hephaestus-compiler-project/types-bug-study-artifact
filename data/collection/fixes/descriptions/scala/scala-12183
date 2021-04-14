@@ -1,0 +1,38 @@
+## Steps
+
+Using Scala 2.13.3,
+
+```scala
+sealed class Xs[+A]
+case object End extends Xs[Nothing]
+final case class Link[B](head: B, tail: Xs[B]) extends Xs[B]
+```
+
+```scala
+class Test {
+  def test[A](xs: Xs[A]) = xs match {
+    case Link(h, _) => println(h)
+    case End        => println("done")
+  }
+}
+```
+
+## Problem
+
+```
+Test.scala:2: warning: match may not be exhaustive.
+It would fail on the following input: Xs()
+  def test[A](xs: Xs[A]) = xs match {
+                           ^
+1 warning
+```
+
+Looking at the pattern matcher debug info it says:
+
+```
+enum class Xs sealed, subclasses: List(object End, class Link, class Xs)
+```
+
+which looks like the cause.
+
+Curiously I can reproduce this as far back as 2.8.2, which has me suspicious that I'm missing something... (LMK)

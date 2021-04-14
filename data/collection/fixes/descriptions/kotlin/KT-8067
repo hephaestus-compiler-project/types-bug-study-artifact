@@ -1,0 +1,33 @@
+The code:
+
+{code lang=kotlin}
+val pi = 4.0 * delta * (1.0..n).reduce{t, i ->
+  val x = (i - 0.5) * delta
+  t + 1.0 / (1.0 + x * x)
+}
+{code}
+
+used to compile and execute fine. In preparing for my Devoxx UK 2015 presetnation, having updated to plugin 0.12.540, I find I get:
+
+{noformat}
+ERROR: src/pi_sequential_reduce.kt: (15, 24) Overload resolution ambiguity:
+public final fun times(other: kotlin.Byte): kotlin.Double defined in kotlin.Double
+kotlin.deprecated public final fun times(other: kotlin.Char): kotlin.Double defined in kotlin.Double
+public final fun times(other: kotlin.Double): kotlin.Double defined in kotlin.Double
+public final fun times(other: kotlin.Float): kotlin.Double defined in kotlin.Double
+public final fun times(other: kotlin.Int): kotlin.Double defined in kotlin.Double
+public final fun times(other: kotlin.Long): kotlin.Double defined in kotlin.Double
+public final fun times(other: kotlin.Short): kotlin.Double defined in kotlin.Double
+{noformat}
+
+which is rather problematic. As noted on the original question (https://devnet.jetbrains.com/thread/465564) by Ilya Ryzhenkov, it works if you do:
+
+{code lang=kotlin}
+val r = (1.0..n).reduce{t, i ->
+  val x = (i - 0.5) * delta
+  t + 1.0 / (1.0 + x * x)
+}
+val pi = 4.0 * delta * r
+{code}
+
+but this introduces what should be an unnecessary variable. 

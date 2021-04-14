@@ -1,0 +1,21 @@
+Here's a minimized reproduction based on https://github.com/scala/collection-strawman/pull/23:
+
+```scala
+trait X[A] {
+  def map[B](f: A => B): Unit
+}
+
+trait Y[A] extends X[A] {
+  def map[B](f: A => B)(implicit ordering: Ordering[B]): Unit
+}
+
+trait Z[A] extends Y[A]
+
+class StrawmanTest {
+  (null: Y[Int]).map(x => x.toString) // compiles
+  (null: Z[Int]).map(x => x.toString) // doesn't compile
+}
+
+```
+
+This seems to hit a corner case or bug in https://github.com/scala/scala/pull/5307. In the second case functionProto in handleOverloaded computes a WildcardType because the abstract type A is not instantiated as expected by tp.asSeenFrom in funArgTypes. In the first case it gets instantiated as Int.

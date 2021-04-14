@@ -1,0 +1,21 @@
+Same bug as [SI-9912](https://github.com/scala/bug/issues/9912), this shouldn't compile:
+```scala
+class A {
+  def compareTo(o: Any): Int = 0
+}
+class B extends A with Comparable[B] {
+  def compareTo(b: B): Int = 0
+}
+object C {
+  def main(args: Array[String]): Unit = {
+    println(new B().compareTo(new Object()))
+  }
+}
+```
+... but it does and crash at runtime:
+```scala
+Exception in thread "main" java.lang.ClassCastException: java.lang.Object cannot be cast to B
+        at B.compareTo(t9912.scala:5)
+        at C$.main(t9912.scala:9)
+        at C.main(t9912.scala)
+```

@@ -1,0 +1,35 @@
+I am getting confusing error message `Expected type mismatch: found: java.util.ArrayList<T> required: java.util.ArrayList<T>`
+
+See example:
+
+```kotlin
+class LL<T>(val delegate: ArrayList<T>) : MutableList<T> by delegate
+public fun <T> Collection<*>.mapChildren(block : (Any) -> T) : List<T> =
+        LL(flatMapTo(ArrayList(size())) { 
+            if (it != null) listOf(block(it))
+            else if (it is Collection<*>) it.mapChildren(block)
+            else kotlin.listOf(null)
+        })
+```
+
+I am getting the following error:
+```
+Error:(7, 12) Kotlin: Type inference failed. Expected type mismatch: found: java.util.ArrayList<T> required: java.util.ArrayList<T>
+```
+Actual problem here is caused by unsafe nullability but error message couldn't describe the problem. 
+
+Notice if I replace LL with ArrayList then another message appears 
+```kotlin
+public fun <T> Collection<*>.mapChildren2(block : (Any) -> T) : List<T> =
+        ArrayList(flatMapTo(ArrayList(size())) {
+            if (it != null) listOf(block(it))
+            else if (it is Collection<*>) it.mapChildren(block)
+            else kotlin.listOf(null)
+        })
+```
+
+```
+Error:(14, 9) Kotlin: Cannot choose among the following candidates without completing type inference: 
+public constructor ArrayList<E : kotlin.Any!>(p0: (kotlin.MutableCollection<out T!>..kotlin.Collection<T!>?)) defined in java.util.ArrayList
+public constructor ArrayList<E : kotlin.Any!>(p0: kotlin.Int) defined in java.util.ArrayList
+```

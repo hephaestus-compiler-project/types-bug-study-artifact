@@ -1,0 +1,41 @@
+Compiling
+
+```scala
+class Foo[T](val x: Int) extends AnyVal { def xyzzy(t:T) = t } 
+
+object Test {
+  new Foo[String](4).xyzzy(null)
+}
+```
+
+causes an assertion failure in the compiler
+
+```scala
+error: 
+     while compiling:  ok.scala
+       current phase:  erasure
+     library version:  version 2.10.0-20120320-074449-d9d46a8bbb
+    compiler version:  version 2.10.0-20120320-074449-d9d46a8bbb
+  reconstructed args:  
+
+uncaught exception during compilation: java.lang.AssertionError
+error: java.lang.AssertionError: assertion failed: 
+     while compiling:  ok.scala
+       current phase:  refchecks
+     library version:  version 2.10.0-20120320-074449-d9d46a8bbb
+    compiler version:  version 2.10.0-20120320-074449-d9d46a8bbb
+  reconstructed args:  
+
+no extension method found for method xyzzy among Stream(method extension$xyzzy)/Stream(extension$xyzzy, ?)
+	at scala.Predef$.assert(Predef.scala:161)
+	at scala.tools.nsc.Global.assert(Global.scala:176)
+	at scala.tools.nsc.transform.ExtensionMethods$$anonfun$extensionMethod$1.apply(ExtensionMethods.scala:67)
+	at scala.tools.nsc.transform.ExtensionMethods$$anonfun$extensionMethod$1.apply(ExtensionMethods.scala:58)
+	at scala.reflect.internal.SymbolTable.atPhase(SymbolTable.scala:138)
+	at scala.tools.nsc.transform.ExtensionMethods.extensionMethod(ExtensionMethods.scala:58)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.preErase(Erasure.scala:1045)
+	at scala.tools.nsc.transform.Erasure$ErasureTransformer$$anon$1.transform(Erasure.scala:1100)
+        [snip]
+```
+
+It seems to stem from the argument involving the class' type parameter. I think the matches check around the assertion does not consider the two type parameters to match.

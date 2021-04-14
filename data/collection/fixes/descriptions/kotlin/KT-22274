@@ -1,0 +1,75 @@
+# Synopsis
+
+Type of change:
+* New diagnostics: errors
+
+Motivation
+* Problematic/meaningless usage patterns need to be discouraged/blocked (e.g. counterintuitive behaviors)
+* Compiler/Tooling fails with exception(s)
+
+Impact:
+* Some code that used to compile won’t compile any more
+* Such code never behaved the way the user might intend it to
+
+Migration:
+* All code locations affected by this change can be accurately detected statically
+* Migration can be automated
+
+# Description
+
+Since Kotlin 1.0, one can mark any statement with a label:
+```kotlin
+fun foo() {
+  L1@ val x = L2@bar()
+}
+```
+
+However, these labels can be referenced only in a limited number of ways:
+* break / continue from a loop;
+* non-local return from an inline lambda or inline anonymous function.
+
+Using statement labels incorrectly leads to confusion and/or various kinds of internal errors in the compiler.
+This proposal would clarify the statement label semantics and restrict statement labels to meaningful cases only.
+
+# Incorrect Behavior
+
+See the following issues:
+* KT-22197
+* KT-22254
+* KT-22270
+* KT-22338
+
+Another example:
+```kotlin
+class C {
+    fun foo() { println("C.foo") }
+    
+    inner class D {
+        fun foo() { println("D.foo") }
+        
+        fun bar() { C@this.foo() }
+    }
+}
+```
+
+Here in `D.bar` we have a labeled expression `C@this`, which is equivalent to just `this`, and, as a result, `D.this` would be printed.
+What the user probably had in mind is `this@C`.
+
+# Proposed Changes
+
+Labels are allowed only on loop statements ('for', 'while', 'do-while'), inline lambdas, and inline anonymous functions.
+Any other labeled statement is an error.
+
+# Impact
+
+Labelled statements are used quite rarely (mostly for break/continue from nested loops and preemptive return from lambdas passed to high-order functions). There's no other way to reference a statement label in code except for in 'break'/'continue' or 'return' statement.
+
+# Deprecation Policy
+
+This falls under "incorrect code compiled due to a bug and could behave reasonably" (if the label was not referenced in the code).
+However, such incorrectly placed label makes no sense, and it might be reasonable to simply prohibit them in the next version.
+
+# Target Version
+
+* 1.3 - warnings + quick-fix to remove pointless labels
+* 1.4 - errors

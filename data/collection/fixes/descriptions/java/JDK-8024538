@@ -1,0 +1,75 @@
+(from Martin Bucholz, via compiler-dev and javadoc-dev)
+
+
+Hi doclint/javac folk,
+
+I reported this problem earlier, but that wasn't perhaps the best bug report.  Here's another attempt that is independent of ant and hopefully provides a cleaner bug report with easy repro.  (Inspired by the exciting release of jdk8-b106)
+
+I get an internal javac error, but only with the combination of 
+-Xdoclint +  -Xprefer:source + incremental compilation
+
+Not too many people will encounter this, but for those who do, it's a very serious bug, that seems like it should be easy to fix.
+
+Here's the repro:
+
+ $ (set -eux; JAVAC=$HOME/jdk/jdk1.8.0-b106/bin/javac TMPDIR=/tmp/t9; my_javac() { $JAVAC -d classes -sourcepath src/main -XDignore.symbol.file=true -Xdoclint:all/protected -Xprefer:source "$@"; } ; rm -rf $TMPDIR && mkdir -p $TMPDIR && cd $TMPDIR && wget -q http://gee.cs.oswego.edu/cgi-bin/viewcvs.cgi/jsr166.tar.gz && tar xf jsr166.tar.gz && cd jsr166 && mkdir -p classes && my_javac $(find src/main -name '*.java') && touch $(find src/main -name Queue.java) && my_javac $(find src/main -name Queue.java) )
++/bin/zsh:37> JAVAC=/usr/local/google/home/martinrb/jdk/jdk1.8.0-b106/bin/javac TMPDIR=/tmp/t9 
++/bin/zsh:37> rm -rf /tmp/t9
++/bin/zsh:37> mkdir -p /tmp/t9
++/bin/zsh:37> cd /tmp/t9
++chpwd:1> [[ 13178 != 7283 ]]
++chpwd:2> unfunction chpwd
++/bin/zsh:37> wget -q http://gee.cs.oswego.edu/cgi-bin/viewcvs.cgi/jsr166.tar.gz
++/bin/zsh:37> tar xf jsr166.tar.gz
++/bin/zsh:37> cd jsr166
++/bin/zsh:37> mkdir -p classes
++/bin/zsh:37> find src/main -name '*.java'
++/bin/zsh:37> my_javac src/main/java/util/NavigableSet.java [... snipped ... ]
+  15.23s user 0.32s system 439% cpu 3.540 total
++/bin/zsh:37> find src/main -name Queue.java
++/bin/zsh:37> touch src/main/java/util/Queue.java
++/bin/zsh:37> find src/main -name Queue.java
++/bin/zsh:37> my_javac src/main/java/util/Queue.java
++my_javac:0> /usr/local/google/home/martinrb/jdk/jdk1.8.0-b106/bin/javac -d classes -sourcepath src/main '-XDignore.symbol.file=true' -Xdoclint:all/protected -Xprefer:source src/main/java/util/Queue.java
+Exception in thread "main" java.lang.RuntimeException: java.util.NoSuchElementException
+at com.sun.tools.javac.main.Main.compile(Main.java:559)
+at com.sun.tools.javac.main.Main.compile(Main.java:381)
+at com.sun.tools.javac.main.Main.compile(Main.java:370)
+at com.sun.tools.javac.main.Main.compile(Main.java:361)
+at com.sun.tools.javac.Main.compile(Main.java:64)
+at com.sun.tools.javac.Main.main(Main.java:50)
+Caused by: java.util.NoSuchElementException
+at java.util.LinkedList.removeFirst(LinkedList.java:270)
+at java.util.LinkedList.pop(LinkedList.java:801)
+at com.sun.tools.doclint.Checker.visitLink(Checker.java:649)
+at com.sun.tools.doclint.Checker.visitLink(Checker.java:91)
+at com.sun.tools.javac.tree.DCTree$DCLink.accept(DCTree.java:422)
+at com.sun.source.util.DocTreePathScanner.scan(DocTreePathScanner.java:65)
+at com.sun.source.util.DocTreeScanner.scanAndReduce(DocTreeScanner.java:81)
+at com.sun.source.util.DocTreeScanner.scan(DocTreeScanner.java:92)
+at com.sun.source.util.DocTreeScanner.scanAndReduce(DocTreeScanner.java:100)
+at com.sun.source.util.DocTreeScanner.visitDocComment(DocTreeScanner.java:140)
+at com.sun.tools.doclint.Checker.visitDocComment(Checker.java:213)
+at com.sun.tools.doclint.Checker.visitDocComment(Checker.java:91)
+at com.sun.tools.javac.tree.DCTree$DCDocComment.accept(DCTree.java:122)
+at com.sun.source.util.DocTreePathScanner.scan(DocTreePathScanner.java:47)
+at com.sun.tools.doclint.Checker.scan(Checker.java:175)
+at com.sun.tools.doclint.DocLint$2.visitDecl(DocLint.java:274)
+at com.sun.tools.doclint.DocLint$DeclScanner.visitClass(DocLint.java:338)
+at com.sun.tools.doclint.DocLint$DeclScanner.visitClass(DocLint.java:325)
+at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:714)
+at com.sun.source.util.TreePathScanner.scan(TreePathScanner.java:68)
+at com.sun.source.util.TreeScanner.scan(TreeScanner.java:91)
+at com.sun.source.util.TreeScanner.scanAndReduce(TreeScanner.java:99)
+at com.sun.source.util.TreeScanner.visitCompilationUnit(TreeScanner.java:120)
+at com.sun.tools.doclint.DocLint$DeclScanner.visitCompilationUnit(DocLint.java:333)
+at com.sun.tools.doclint.DocLint$DeclScanner.visitCompilationUnit(DocLint.java:325)
+at com.sun.tools.javac.tree.JCTree$JCCompilationUnit.accept(JCTree.java:550)
+at com.sun.source.util.TreePathScanner.scan(TreePathScanner.java:68)
+at com.sun.tools.doclint.DocLint$3.finished(DocLint.java:287)
+at com.sun.tools.javac.api.ClientCodeWrapper$WrappedTaskListener.finished(ClientCodeWrapper.java:681)
+at com.sun.tools.javac.api.MultiTaskListener.finished(MultiTaskListener.java:111)
+at com.sun.tools.javac.main.JavaCompiler.enterTrees(JavaCompiler.java:986)
+at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:856)
+at com.sun.tools.javac.main.Main.compile(Main.java:523)
+... 5 more

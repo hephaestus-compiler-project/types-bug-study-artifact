@@ -1,0 +1,41 @@
+The example is:
+`main.kt`
+```
+class Foo<T>
+fun main() {
+    object : Test() {} // FE exception is thrown here
+}
+```
+`Test.java`
+```
+public class Test {
+    public <T> T with(Foo<T> matcher) {
+        return null;
+    }
+    public boolean with(Foo<Boolean> matcher) {
+        return false;
+    }
+}
+```
+Such code could be written under Java 6.
+
+The exception is following:
+```
+Internal Error occurred while analyzing this expression 
+...
+Caused by: java.lang.AssertionError: Should be the same number of type parameters: [T] vs []
+at org.jetbrains.kotlin.resolve.OverridingUtil.createTypeChecker(OverridingUtil.java:364)
+at org.jetbrains.kotlin.resolve.OverridingUtil.isReturnTypeMoreSpecific(OverridingUtil.java:606)
+at org.jetbrains.kotlin.resolve.OverridingUtil.isMoreSpecific(OverridingUtil.java:555)
+at org.jetbrains.kotlin.resolve.OverridingUtil.isMoreSpecificThenAllOf(OverridingUtil.java:593)
+at org.jetbrains.kotlin.resolve.OverridingUtil.selectMostSpecificMember(OverridingUtil.java:629)
+at org.jetbrains.kotlin.resolve.OverridingUtilsKt.mostSpecific(overridingUtils.kt:85)
+at org.jetbrains.kotlin.resolve.OverridingUtilsKt.selectMostSpecificFromOverridableGroup(overridingUtils.kt:97)
+at org.jetbrains.kotlin.load.java.lazy.descriptors.LazyJavaScope.retainMostSpecificMethods(LazyJavaScope.kt:129)
+at org.jetbrains.kotlin.load.java.lazy.descriptors.LazyJavaScope.access$retainMostSpecificMethods(LazyJavaScope.kt:58)
+at org.jetbrains.kotlin.load.java.lazy.descriptors.LazyJavaScope$functions$1.invoke(LazyJavaScope.kt:118)
+at org.jetbrains.kotlin.load.java.lazy.descriptors.LazyJavaScope$functions$1.invoke(LazyJavaScope.kt:58)
+...
+```
+
+It seems, the problem has appeared after https://github.com/JetBrains/kotlin/commit/842e2dc02facb77dd067ec7e84901a07f92c23af

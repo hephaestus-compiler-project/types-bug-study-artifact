@@ -1,0 +1,17 @@
+Consider the following (works with new inference, though I report it nonetheless)
+```
+class E<T>
+class FC<T, R>
+fun <T, R> E<T>.bar(fc: FC<T, R>): E<R> = TODO()
+
+fun <T, R> E<T>.baz(fc: FC<in T, R>): E<R> = TODO()
+fun <T, R> foo(p: KProperty1<in T, R>): FC<T, R>  = TODO()
+
+fun test(){
+    val e: E<IllegalArgumentException> = TODO()
+    e.bar(foo<IllegalArgumentException, String?>(Throwable::message))  // ok
+    e.bar(foo(Throwable::message)) // type inference fails, expected IllegalArgumentException, given Throwable => works with new inference
+
+    e.baz(foo(Throwable::message)) // ok
+}
+```

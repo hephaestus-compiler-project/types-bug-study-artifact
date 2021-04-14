@@ -1,0 +1,34 @@
+I have the following two inline methods:
+
+```kotlin
+@JvmName("runActivity")
+inline fun <reified A : Activity> run(crossinline runner: (A) -> Unit) { /* ... */ }
+
+@JvmName("runFragment")
+inline fun <reified F : Fragment> run(crossinline runner: (F) -> Unit) { /* ... */ }
+```
+
+Where `Activity` and `Fragment` are two separate classes from the Android SDK. When I try to call the method, it doesn't work:
+
+```kotlin
+class MyActivity : Activity()
+
+run<MyActivity> { activity ->  // ERROR: Overload ambiguity. Can't decide between either versions
+    activity.foo()
+}
+```
+That would make sense if we could extend multiple classes, or if we were speaking of interfaces, but even then it's possible to see if the class implements two interfaces expected by the function in compile time, and the ambiguity would make sense. But that is not the case here, we can clearly see that `MyActivity` only extends `Activity` and if we tried to use the `Fragment` version of the method, it would lead to compiler error anyway. That means that it *is* possible to say which of the versions we want to call.
+
+```kotlin
+// Commenting out the activity version to resolve ambiguity
+// @JvmName("runActivity")
+// inline fun <reified A : Activity> run(crossinline runner: (A) -> Unit) { /* ... */ }
+
+@JvmName("runFragment")
+inline fun <reified F : Fragment> run(crossinline runner: (F) -> Unit) { /* ... */ }
+class MyActivity : Activity()
+
+run<MyActivity> { activity ->  // ERROR: Type argument is not within its bounds
+    activity.foo()
+}
+```

@@ -1,0 +1,22 @@
+Consider the following code:
+```kotlin
+class NullableUpperBoundGenericClass<T : Number?>(val property: T) {
+    fun printInt() {
+        // This line compiles
+        if (property !== null) println(property.toInt())
+        // Error: Kotlin: Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type T
+        property?.run { println(toInt()) }
+    }
+}
+
+fun main() {
+    NullableUpperBoundGenericClass(0).printInt()
+}
+```
+The compiler prints an error
+```none
+Error: Kotlin: Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type T
+```
+for Line 6 while the extension function `run` is inlined so this line performs the same as Line 4.
+
+I doubt the reason is that the compiler still treats the `this` reference inside the lambda as of the type `T` and so treats it as a nullable type, but it's actually a not-null version of `T`, no mater `T` itself is nullable or not.

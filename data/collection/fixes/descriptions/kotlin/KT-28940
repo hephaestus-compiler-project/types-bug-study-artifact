@@ -1,0 +1,40 @@
+Consider the following hierarchy:
+```kotlin
+open class Parent
+class Child : Parent()
+```
+
+*Common description*
+
+Let's assume that we have to compute supertypes for class `Parent`. 
+The computation of supertypes is a lazy value with additional post-computation, which computes neighbors and reports useful diagnostics about cyclic hierarchies, see [AbstractTypeConstructor](https://github.com/JetBrains/kotlin/blob/master/core/descriptors/src/org/jetbrains/kotlin/types/AbstractTypeConstructor.kt#L33)
+And only at the end of the post-computation, we set actual supertypes by [mutating property](https://github.com/JetBrains/kotlin/blob/master/core/descriptors/src/org/jetbrains/kotlin/types/AbstractTypeConstructor.kt#L60).
+
+Next, it's crucial that
+- implementation of lazy value publishes value [**BEFORE**](https://github.com/JetBrains/kotlin/blob/master/core/util.runtime/src/org/jetbrains/kotlin/storage/LockBasedStorageManager.java#L355) calling post-compute on it.
+- check for published value isn't placed under the [lock](https://github.com/JetBrains/kotlin/blob/master/core/util.runtime/src/org/jetbrains/kotlin/storage/LockBasedStorageManager.java#L330)
+
+*Specific example*
+
+Now, let's return to the computation of supertypes for the initial example:
+
+`Thread 1`
+- compute supertypes of `Parent` in [computable](https://github.com/JetBrains/kotlin/blob/master/core/descriptors/src/org/jetbrains/kotlin/types/AbstractTypeConstructor.kt#L34)
+- publish intermediate result
+- start post-computation
+
+`Thread 2`
+- call supertypes of `Parent`
+- check that value is published, we can do this as this check performs *not* under the lock
+- take [`supertypesWithoutCycles`](https://github.com/JetBrains/kotlin/blob/master/core/descriptors/src/org/jetbrains/kotlin/types/AbstractTypeConstructor.kt#L30)
+
+Thread 1
+- Finish post-computation, update [`supertypesWithoutCycles`](https://github.com/JetBrains/kotlin/blob/master/core/descriptors/src/org/jetbrains/kotlin/types/AbstractTypeConstructor.kt#L60)
+
+*Result*: supertypes in thread 2 will have `ERROR_TYPE_FOR_LOOP_IN_SUPERTYPES` as post-computation of `Thread 1` wasn't completed.
+
+*Proposal* 
+
+We see two options here:
+- Never-ever mutate value in post-computation phase, so it means that we should somehow fix the implementation of supertypes in `AbstractTypeConstructor`
+- Publish value **only** after post-computation

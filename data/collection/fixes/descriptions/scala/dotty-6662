@@ -1,0 +1,55 @@
+The following code worked fine as of 0.15.0-RC1:
+
+```scala
+opaque type Opt[A >: Null] = A
+
+inline def (x: Opt[A]) nonEmpty[A >: Null]: Boolean = x.get != null
+inline def (x: Opt[A]) isEmpty[A >: Null]: Boolean = x.get == null
+inline def (x: Opt[A]) isDefined[A >: Null]: Boolean = x.nonEmpty
+inline def (x: Opt[A]) get[A >: Null]: A = Opt.unOpt(x)
+
+object Opt
+{
+    inline def unOpt[A >: Null](x: Opt[A]): A = x
+    inline def apply[A >: Null](x: A): Opt[A] = x
+    inline def some[A >: Null](x: A): Opt[A] = x
+    inline def none[A >: Null]: Opt[A] = null
+    inline def fromOption[A >: Null](x: Option[A]) = x.orNull
+}
+```
+
+As of 0.16.0-RC3 however, things have changed with opaque types as I understand it. I managed to get everything working again by wrapping in an Object. This code compiles fine:
+
+```scala
+object opt
+{
+    opaque type Opt[A >: Null] = A
+    object Opt
+    {
+        inline def unOpt[A >: Null](x: Opt[A]): A = x
+        inline def apply[A >: Null](x: A): Opt[A] = x
+        /*inline*/ def some[A >: Null](x: A): Opt[A] = x
+        /*inline*/ def none[A >: Null]: Opt[A] = null
+        inline def fromOption[A >: Null](x: Option[A]) = x.orNull
+    }
+}
+
+import opt.Opt
+inline def (x: Opt[A]) nonEmpty[A >: Null]: Boolean = x.get != null
+inline def (x: Opt[A]) isEmpty[A >: Null]: Boolean = x.get == null
+inline def (x: Opt[A]) isDefined[A >: Null]: Boolean = x.nonEmpty
+inline def (x: Opt[A]) get[A >: Null]: A = Opt.unOpt(x)
+```
+
+However, suppose we uncomment the inline of `some` or `none`, then when using either of them we get this compiler error:
+
+```scala
+-- [E007] Type Mismatch Error: /*snip*/DominatorTree.scala:163:47 
+[error] 163 |                    ancestor(cs.get.idx) = some(s)
+[error]     |                                           ^^^^^^^
+[error]     |Found:    datastructures.opt.Opt[DominatorTree.this.DomNode]
+[error]     |Required: datastructures.opt.Opt[DominatorTree.this.DomNode]
+```
+This error is pretty obscure, but I imagine it is something to do with the new rules surrounding how opaque types are treated inside and outside of the defining scope (and inline probably makes that leak!). 
+
+Additionally, moving any of the extension methods into the `opt` object makes them give "Member not found errors" when used outside of the `opt` object's scope **if inline is not removed**. Placing them inside a `delegate for {}` and adding `inline` makes a "An extension method was tried, but could not be fully constructed:" be given in addition. I'm fairly sure this is the same leakage problem, where they are not agreeing with the representation found outside the `opt` object (and so are method not found) because they see the erased type.

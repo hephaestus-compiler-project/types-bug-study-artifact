@@ -1,0 +1,45 @@
+## reproduction steps
+
+Using 2.12.14-bin-8562bab or 2.13.x after this [merge](https://github.com/scala/scala/pull/9433)
+
+```scala
+// scalac: -opt:l:method
+package p1
+class AssertUtil {
+  def waitForIt(terminated: => Boolean, progress: Int = 0, label: => String = "test"): Unit = {
+    val limit = 5
+    var n = 1
+    var (dormancy, factor) = progress match {
+      case 0 => (10000L, 5)
+      case _ => (250L, 4)
+    }
+    ()
+  }
+}
+```
+
+
+```scala
+// scalac: -opt:l:inline -opt-inline-from:<sources>
+package p1; class C {
+def f(b: java.lang.Byte) = {
+  var box = 0
+  @inline def writeBox: Unit = {
+    box = 1
+  }
+  writeBox
+}
+}
+```
+
+## problem
+
+Invalid bytecode generated, resulting in a later compiler crash.
+
+The first incorrectly orders the compensating POP instructions inserted for the `Long` and `Int` sized operands.
+
+The second reproducer only fails when the patch in merged to 2.13.x, as it relies on a particular bytecode shape that leaves a POP instruction as the final consumer.
+
+Discovered during https://github.com/scala/scala/pull/9495
+
+Regression introduced in https://github.com/scala/scala/pull/9433. This was merged _after_ 2.12.13 was released.

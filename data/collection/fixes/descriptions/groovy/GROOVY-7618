@@ -1,0 +1,26 @@
+Coercion of parameterless closures (lazy eval blocks) to SAM type arguments  results in an NPE during static type checking.
+
+Example:
+
+{code}
+interface SamType {
+    int sam()
+}
+
+int foo(SamType samt) {
+    samt.sam()
+}
+
+@groovy.transform.TypeChecked
+void doFoo() {
+    assert foo { -> 1 } == 1
+}
+
+doFoo()
+{code}
+
+Results in:
+{code}
+BUG! exception in phase 'instruction selection' in source unit 'ConsoleScript19' unexpected NullpointerException
+Caused by: java.lang.NullPointerException
+{code}

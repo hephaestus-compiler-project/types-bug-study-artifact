@@ -1,0 +1,39 @@
+The code is:
+```
+fun call(vararg x: Any?) {}
+
+fun main() {
+    call({ x -> println(x::class) }) // x inside the lambda is inferred to `Nothing`, the lambda is `(Nothing) -> Unit`.
+}
+```
+
+The second example, in which a runtime exception is thrown (because a `call` signature contains vararg):
+```
+fun foo(action: (Int) -> Unit) {
+    action(10)
+}
+
+fun main() {
+    ::foo.call({ x -> println(x::class) })
+}
+```
+The exception is:
+```
+Exception in thread "main" java.lang.reflect.InvocationTargetException
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:564)
+	at kotlin.reflect.jvm.internal.calls.CallerImpl$Method.callMethod(CallerImpl.kt:97)
+	at kotlin.reflect.jvm.internal.calls.CallerImpl$Method$Static.call(CallerImpl.kt:106)
+	at kotlin.reflect.jvm.internal.KCallableImpl.call(KCallableImpl.kt:106)
+	at kotlin.jvm.internal.CallableReference.call(CallableReference.java:138)
+	at org.jetbrains.kotlin.MainKt.main(main.kt:17)
+	at org.jetbrains.kotlin.MainKt.main(main.kt)
+Caused by: java.lang.ClassCastException: java.base/java.lang.Integer cannot be cast to java.base/java.lang.Void
+	at org.jetbrains.kotlin.MainKt$main$2.invoke(main.kt)
+	at org.jetbrains.kotlin.MainKt.foo(main.kt:14)
+	... 10 more
+```
+
+In the old inference the diagnostic `CANNOT_INFER_PARAMETER_TYPE` on `x` is present.

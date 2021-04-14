@@ -1,0 +1,28 @@
+1. Cannot infer `R` type, when `getValue` is provided with extension:
+```
+class DelegatedProperty<R, out T>(val value: T) {
+    //operator fun getValue(thisRef: R, property: KProperty<*>): T = value
+}
+operator fun <R, T> DelegatedProperty<R, T>.getValue(thisRef: R, property: KProperty<*>) :T = value
+
+class Logger
+public class ClassT1 {
+    val logger1: Logger by DelegatedProperty(Logger())
+}
+```
+
+
+2. Cannot infer `R` type when there are different `getValue` in a base and derived classes:
+```
+open class BaseProperty<out T>(val value: T)
+operator fun <T> BaseProperty<T>.getValue(thisRef: Any?, property: KProperty<*>): T = value
+
+
+class DerivedProperty<R, out T>( value: T) : BaseProperty<T>(value)  {
+    operator fun getValue(thisRef: R, property: KProperty<*>): T = value
+}
+class Logger
+public class ClassT1 {
+    val logger1: Logger by DerivedProperty(Logger())
+}
+```

@@ -1,0 +1,40 @@
+The Scala language specification states in [section 7.3 Views](https://github.com/scala/scala/blob/2.13.x/spec/07-implicits.md#views) that:
+> [...] call-by-value implicits take precedence over call-by-name implicits.
+
+The following snippet exercises exactly this; `conv1` should be selected over `conv2`. This is the behaviour of scalac. Dotc complains about ambiguous conversions:
+
+```scala
+import scala.language.implicitConversions
+
+object O {
+
+  class A(x: Int)
+
+  implicit def conv1(x: Int): A = new A(x)
+  implicit def conv2(x: => Int): A = new A(x)
+
+  def buzz(y: A) = ???
+
+  def main(args: Array[String]): Unit = {
+    buzz(1)
+  }
+}
+```
+
+Compiles fine with scalac 2.13.0-M5
+dotc (same result with or without `-language:Scala2`):
+```
+sbt:dotty> dotc Bar.scala -explain -language:Scala2
+-- [E007] Type Mismatch Error: Bar.scala:13:9 ----------------------------------
+13 |    buzz(1)
+   |         ^
+   |found:    Int(1)
+   |required: O.A
+   |
+   |
+   |Note that implicit conversions cannot be applied because they are ambiguous;
+   |both method conv1 in object O and method conv2 in object O convert from Int(1) to O.A
+one error found
+```
+
+Is this difference between Scala 2 and 3 intentional?

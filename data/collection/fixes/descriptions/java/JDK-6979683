@@ -1,0 +1,32 @@
+JLS 5.5 documents the conversion operations which a cast may perform.
+
+http://java.sun.com/docs/books/jls/third_edition/html/conversions.html#5.5
+
+These include boxing and unboxing operations, specifically and exclusively as follows:
+
+> A value of a primitive type can be cast to a reference type by boxing conversion (§5.1.7).
+
+> A value of a reference type can be cast to a primitive type by unboxing conversion (§5.1.8).
+
+This specification does not appear to allow a combined conversion between Object and a primitive type.  For example, the following two statements would appear to be illegal:
+
+  Object x = (Object)1;
+  int y = (int)x;
+
+(A similar observation could be made for other supertypes of Integer, and for other primitive types.)
+
+The first statement performs a boxing conversion (int to Integer), followed by widening reference conversion (Integer to Object).
+
+The second statement reverses the first, by performing a narrowing reference conversion (Object to Integer), followed by an unboxing conversion (Integer to int).
+
+Such statements are common in the implementations of dynamic languages.  The second statement requires an awkward workaround (a pair of casts) to force compilers to accept the conversion.
+
+The first statement is accepted by the Java compiler reference implementation (and probably most other implementations), perhaps because the cast can be weakened to an assignment conversion.  The assignment conversion specification (JLS 5.2) allows a boxing conversion followed by widening reference conversion.  But the second statement is not accepted by the reference implementation.  Yet both conversions are somehow allowed by JLS 5.5.
+
+A careful reading of JLS 5.5 allows both the first and second example statements, because the initial paragraph lists the allowed conversions performed by a cast.
+
+It is not exactly true (as sometimes claimed) that only one of these conversions is allowed per cast expression, since int to Integer to Object is a valid cast.
+
+On the other hand, the JLS 5.5 language (in version 3) is imperfect, because it also seems to allow undesirably complex chains of conversion, such as a spurious long to float to double, or a speculative one like Object to Byte to byte to int, or a reboxing like Integer to int to long to Long, or a combination of unboxing and truncation like Long to long to int (cf. 4995668).  Implementors have been right to be cautious to implement these in the absence of guidance.
+
+Such clarification is available in 6526446, which enumerates more exactly the sequences of conversions that are intended for casts.  A narrowing reference conversion followed by an unboxing conversion is allowed.

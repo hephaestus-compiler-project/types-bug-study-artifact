@@ -1,0 +1,47 @@
+From:
+http://mail.openjdk.java.net/pipermail/jigsaw-dev/2017-February/011337.html
+
+---
+
+src/moda/module-info.java:
+
+module moda {
+     exports pkga;
+}
+
+src/moda/pkga/Outer.java:
+
+package pkga;
+class Outer {
+     public static class Untouchable {
+         public static void touch() {
+             throw new AssertionError("Can't touch this!");
+         }
+     }
+}
+
+src/modb/module-info.java:
+
+module modb {
+     requires moda;
+}
+
+src/modb/pkgb/Intruder.java:
+
+package pkgb;
+public class Intruder {
+     public static void main(String[] args) {
+         pkga.Outer.Untouchable.touch();
+     }
+}
+
+$ javac -d out --module-path out --module-source-path src `find src 
+-name '*.java'`
+src/modb/pkgb/Intruder.java:6: error: package pkga is not visible
+         pkga.Outer.Untouchable.touch();
+         ^
+   (package pkga is declared in module moda, which does not export it to 
+module modb)
+1 error
+
+The error is confusing and incorrect.

@@ -1,0 +1,61 @@
+The following code type checks fine in Scalac, but failed in Dotty.
+
+```Scala
+trait Cap
+
+trait Toolbox {
+  type Tree
+
+  val tpd: TypedTrees
+  trait TypedTrees {
+    type Tree
+  }
+
+  val Apply: ApplyImpl
+  trait ApplyImpl {
+    def unapply(tree: Tree): Option[(Tree, Seq[Tree])]
+    def unapply(tree: tpd.Tree)(implicit c: Cap): Option[(tpd.Tree, Seq[tpd.Tree])]
+  }
+}
+
+class Test(tb: Toolbox) {
+  import tb._
+  implicit val cap: Cap = null
+
+  def foo(tree: Tree): Int = tree match {
+    case Apply(fun, args) => 3
+  }
+
+  def bar(tree: tpd.Tree): Int = tree match {
+    case Apply(fun, args) => 3
+  }
+}
+```
+
+Error message:
+
+```
+-- Error: examples/abstract.scala:22:6 -----------------------------------------
+22 |  def foo(tree: Tree): Int = tree match {
+   |      ^
+   |      non-private method foo refers to private value tb
+   |       in its type signature (tree: Test.this.tb.Tree)Int
+-- [E006] Unbound Identifier Error: examples/abstract.scala:23:9 ---------------
+23 |    case Apply(fun, args) => 3
+   |         ^^^^^
+   |         not found: type Apply
+
+longer explanation available when compiling with `-explain`
+-- Error: examples/abstract.scala:26:6 -----------------------------------------
+26 |  def bar(tree: tpd.Tree): Int = tree match {
+   |      ^
+   |      non-private method bar refers to private value tb
+   |       in its type signature (tree: Test.this.tb.tpd.Tree)Int
+-- [E006] Unbound Identifier Error: examples/abstract.scala:27:9 ---------------
+27 |    case Apply(fun, args) => 3
+   |         ^^^^^
+   |         not found: type Apply
+
+longer explanation available when compiling with `-explain`
+
+```

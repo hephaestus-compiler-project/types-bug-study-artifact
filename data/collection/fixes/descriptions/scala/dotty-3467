@@ -1,0 +1,35 @@
+We're running into an error compiling collection-strawman on Dotty 0.4.0-RC1. Here's the branch with the reproduction: https://github.com/scala/collection-strawman/compare/wip/dotty-kind-error
+
+Steps to reproduce:
+
+```
+# Cleaning in sbt is bugged in our build; do it manually to make sure you rebuild everything
+$ rm -r collections/.jvm/target/
+
+$ sbt ++0.4.0-RC1 collectionsJVM/test:compile
+[...]
+[info] Compiling 86 Scala sources and 5 Java sources to /Users/szeiger/code/scala/collection-strawman/collections/.jvm/target/scala-0.4/classes...
+[...]
+[warn] 12 warnings found
+[info] Compiling 1 Scala source to /Users/szeiger/code/scala/collection-strawman/collections/.jvm/target/scala-0.4/test-classes...
+[error]
+[error] Type argument strawman.collection.immutable.IndexedSeq has not the same kind as its bound  <: [_$63] => scala.Any
+[error] one error found
+[error] (collectionsJVM/test:compileIncremental) Compilation failed
+```
+
+The error message does not give any position. It is caused by refining the type of `ArrayOps.withFilter`:
+
+```scala
+  override def withFilter(p: A => Boolean): ArrayOps.WithFilter[A] = new ArrayOps.WithFilter[A](p, this)
+```
+
+Without the type annotation here (or by explicitly annotating it with the original type `collection.WithFilter[A, immutable.IndexedSeq]`) the test class compiles. I have been unable to come up with any workaround that would allow us to refine the type (as required to get some extra methods).
+
+The `IndexedSeq` type argument mentioned in the error message comes from the definition of `ArrayOps.WithFilter`:
+
+```
+class WithFilter[A](p: A => Boolean, ao: ArrayOps[A]) extends collection.WithFilter[A, immutable.IndexedSeq]
+```
+
+This error is a blocker for https://github.com/scala/collection-strawman/pull/278

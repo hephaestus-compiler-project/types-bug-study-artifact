@@ -1,0 +1,22 @@
+```scala
+class PackageInfo(var name:String = "(main package)", val parent:PackageInfo = null)
+
+object donotcompiles {
+            val seed = List[String]("one", "two", "three", "four", "five", "six")
+            val pl = seed.map[PackageInfo](name => new PackageInfo(name))
+}
+```
+
+This do not compiles with error:
+
+test.scala:5: error: wrong number of type parameters for method map: [B, That](f: String => B)(implicit bf: scala.collection.generic.CanBuildFrom[List[String],B ,That])That
+
+List api has method:
+http://www.scala-lang.org/api/2.10.1/index.html#scala.collection.immutable.List
+
+def map[B](f: (A) ⇒ B): List[B]
+
+compiler tries to use method from FilterMonadic
+which has different type parameters and its displayed under full signature.
+
+From my perspective, its bug in compiler because short signature should work. Short signature should be compatible with full signature otherwise there is no point in displaying nonworking methods in documentation.

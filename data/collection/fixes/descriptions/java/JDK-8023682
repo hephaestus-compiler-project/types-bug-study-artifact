@@ -1,0 +1,21 @@
+1. Type annotation in 'new' expression for anonymous class
+
+Consider this code:
+
+  @Retention(RetentionPolicy.RUNTIME)
+  @Target(ElementType.TYPE_USE)
+  @interface X {}
+  class C { void m() { new @X Foo() {}; } } 
+
+The @X annotation is stored as a target_type=CLASS_EXTENDS structure in the RuntimeVisibleTypeAnnotations attribute of Foo$1.class. That's fine. But, the @X annotation is not stored as a target_type=NEW structure in the RuntimeVisibleTypeAnnotations attribute of m's method_info in C.class. That's an oversight by javac.
+
+2. Declaration annotation for anonymous class in 'new' expression
+
+Take the code above and change the annotation type's target to be TYPE:
+
+  @Retention(RetentionPolicy.RUNTIME)
+  @Target(ElementType.TYPE)
+  @interface X {}
+  class C { void m() { new @X Foo() {}; } }
+
+javac accepts this code, and emits a RuntimeVisibleAnnotations attribute for @X in Foo$1.class - but the code is illegal. The annotation type X is applicable in one declaration context - type declarations - yet the 'new' expression is a type context. It is a compile-time error if an annotation of type T decorates a type in a type context, but T is not applicable to type contexts.

@@ -1,0 +1,135 @@
+This involves Scala code calling a Java varargs methods.
+
+Java
+```
+  class Animal {}
+  class Dog extends Animal {}
+  class J {
+    void foo(Animal... animal) {}
+  }
+```
+
+Scala
+```
+class S {
+  val j = new J()
+  val x: Array[Dog] = ???
+  j.foo(x: _*)
+}
+```
+
+Compiling without -Ycheck succeeds, but -Ycheck:refchecks fails:
+```
+exception while typing this.j.foo(this.x) of class class dotty.tools.dotc.ast.Trees$Apply # 802
+exception while typing @scala.annotation.internal.SourceFile("tests/neg/java-varargs-cov/S.scala") 
+  class
+ S() extends Object() { 
+  val j: J = new J()
+  val x: Array[Dog] = ???
+  this.j.foo(this.x)
+} of class class dotty.tools.dotc.ast.Trees$TypeDef # 804
+exception while typing package <empty> {
+  @scala.annotation.internal.SourceFile("tests/neg/java-varargs-cov/S.scala") 
+    class
+   S() extends Object() { 
+    val j: J = new J()
+    val x: Array[Dog] = ???
+    this.j.foo(this.x)
+  }
+} of class class dotty.tools.dotc.ast.Trees$PackageDef # 805
+*** error while checking tests/neg/java-varargs-cov/S.scala after phase refchecks ***
+exception occurred while compiling tests/neg/java-varargs-cov/S.scala
+Exception in thread "main" java.lang.AssertionError: assertion failed: found:    Array[Dog](S.this.x)
+required: Array[Animal]
+
+
+tree = this.x
+	at scala.Predef$.assert(Predef.scala:219)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.adapt(TreeChecker.scala:460)
+	at dotty.tools.dotc.typer.ProtoTypes$FunProto.typedArg(ProtoTypes.scala:302)
+	at dotty.tools.dotc.typer.Applications$ApplyToUntyped.typedArg(Applications.scala:663)
+	at dotty.tools.dotc.typer.Applications$ApplyToUntyped.typedArg(Applications.scala:661)
+	at dotty.tools.dotc.typer.Applications$Application.addTyped$1(Applications.scala:434)
+	at dotty.tools.dotc.typer.Applications$Application.matchArgs(Applications.scala:472)
+	at dotty.tools.dotc.typer.Applications$Application.init(Applications.scala:255)
+	at dotty.tools.dotc.typer.Applications$TypedApply.<init>(Applications.scala:564)
+	at dotty.tools.dotc.typer.Applications$ApplyToUntyped.<init>(Applications.scala:662)
+	at dotty.tools.dotc.typer.Applications.simpleApply$1(Applications.scala:722)
+	at dotty.tools.dotc.typer.Applications.$anonfun$typedApply$7(Applications.scala:747)
+	at dotty.tools.dotc.typer.Typer.tryEither(Typer.scala:1983)
+	at dotty.tools.dotc.typer.Applications.$anonfun$typedApply$1(Applications.scala:748)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:37)
+	at dotty.tools.dotc.typer.Applications.realApply$1(Applications.scala:692)
+	at dotty.tools.dotc.typer.Applications.typedApply(Applications.scala:793)
+	at dotty.tools.dotc.typer.Applications.typedApply$(Applications.scala:690)
+	at dotty.tools.dotc.typer.Typer.typedApply(Typer.scala:82)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1817)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1868)
+	at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:112)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedUnadapted(TreeChecker.scala:282)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1899)
+	at dotty.tools.dotc.reporting.trace$.apply(trace.scala:40)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1895)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1911)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typed(TreeChecker.scala:270)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1951)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1964)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedStats(TreeChecker.scala:446)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typedClassDef$1(Typer.scala:1564)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:37)
+	at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1487)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedClassDef(TreeChecker.scala:399)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1808)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1867)
+	at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:112)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedUnadapted(TreeChecker.scala:282)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1899)
+	at dotty.tools.dotc.reporting.trace$.apply(trace.scala:40)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1895)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1911)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typed(TreeChecker.scala:270)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1930)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1964)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedStats(TreeChecker.scala:446)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typedPackageDef$1(Typer.scala:1674)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:37)
+	at dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:1667)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1847)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1868)
+	at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:112)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedUnadapted(TreeChecker.scala:282)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1899)
+	at dotty.tools.dotc.reporting.trace$.apply(trace.scala:40)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1895)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1911)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typed(TreeChecker.scala:270)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:1975)
+	at dotty.tools.dotc.transform.TreeChecker.check(TreeChecker.scala:132)
+	at dotty.tools.dotc.transform.TreeChecker.run(TreeChecker.scala:104)
+	at dotty.tools.dotc.core.Phases$Phase.$anonfun$runOn$1(Phases.scala:298)
+	at scala.collection.immutable.List.map(List.scala:283)
+	at dotty.tools.dotc.core.Phases$Phase.runOn(Phases.scala:296)
+	at dotty.tools.dotc.core.Phases$Phase.runOn$(Phases.scala:295)
+	at dotty.tools.dotc.transform.TreeChecker.runOn(TreeChecker.scala:48)
+	at dotty.tools.dotc.Run.$anonfun$compileUnits$3(Run.scala:174)
+	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.util.Stats$.trackTime(Stats.scala:49)
+	at dotty.tools.dotc.Run.$anonfun$compileUnits$2(Run.scala:171)
+	at dotty.tools.dotc.Run.$anonfun$compileUnits$2$adapted(Run.scala:169)
+	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:32)
+	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:29)
+	at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:194)
+	at dotty.tools.dotc.Run.runPhases$1(Run.scala:169)
+	at dotty.tools.dotc.Run.$anonfun$compileUnits$1(Run.scala:194)
+	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.util.Stats$.maybeMonitored(Stats.scala:90)
+	at dotty.tools.dotc.Run.compileUnits(Run.scala:149)
+	at dotty.tools.dotc.Run.compileSources(Run.scala:136)
+	at dotty.tools.dotc.Run.compile(Run.scala:120)
+	at dotty.tools.dotc.Driver.doCompile(Driver.scala:31)
+	at dotty.tools.dotc.Driver.process(Driver.scala:134)
+	at dotty.tools.dotc.Driver.process(Driver.scala:103)
+	at dotty.tools.dotc.Driver.process(Driver.scala:115)
+	at dotty.tools.dotc.Driver.main(Driver.scala:142)
+
+```

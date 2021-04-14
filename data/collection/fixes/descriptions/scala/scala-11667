@@ -1,0 +1,5 @@
+We have a sbt build with 10 subprojects, and one of them started taking a lot more time to compile after bumping to 2.12.9. We do not have a small reproducible build, but only a thread dump of scalac and output from -Ystatistics at this point (of 2.12.9 and 2.12.8 for comparison). You can find them [here](https://gist.github.com/yoohaemin/b3e8795a05bc7b1b4b8bf7624d601398).
+
+In the file, you can notice that phase `jvm` took `1411.476ms (3.1%)` with 2.12.8, but `197014.957ms (83.9%)` with 2.12.9. Using a profiler shows that scalac is stuck in `scala.tools.asm.tree.analysis.Frame.merge` during the whole time.
+
+Tried on GraalVM EE (macos) and openjdk11 with jvmci on (nixos), with consistent results.

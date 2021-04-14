@@ -1,0 +1,20 @@
+Code such as the following:
+
+{code:lang=kotlin}
+abstract class AbstractIdentifier(val map: LinkedHashMap<String, Any?>) :
+    Map<String, Any?> by map
+
+class MyIdentifier(primary: String, secondary: String) :
+    AbstractIdentifier(linkedMapOf("primary" to primary,
+                                   "secondary" to secondary))
+
+fun main(args: Array<String>) {
+	MyIdentifier("first", "second")
+}
+{code}
+
+fails at runtime with an error of `Exception in thread "main" java.lang.NoSuchMethodError: AbstractIdentifier: method <init>()V not found`.  The compiler should likely either properly handle the associated type coercion or fail to compile the code.
+
+Using a secondary constructor or companion class avoids the issue, as does changing the Map's value type parameter to `*` or explicitly specifying the types in  `linkedMapOf<String, Any?>` seemingly indicating an issue with invariance/type parameter inference.
+
+KT-10019 looks likely to be the same

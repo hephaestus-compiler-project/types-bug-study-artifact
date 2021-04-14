@@ -1,0 +1,45 @@
+After a discussion on #scala I put together a simple little expression evaluator using case classes:
+
+https://gist.github.com/1094143
+
+Function "eval" is correct, while function "badEval" is not, as it does not eval the input value to the function before passing it, meaning a Term[A] is being passed instead of an A.
+
+I have tried running this gist using both Scala 2.9.0-1 and also the current trunk of scala/scala on github (commit e70f043d15a7ad759074), both throw a runtime exception when the gist is put through the scala REPL:
+
+$ ./build/pack/bin/scala ~/GADT.scala 
+eval gives:25
+java.lang.ClassCastException: Main$$anon$1$Val cannot be cast to java.lang.Integer
+	at scala.runtime.BoxesRunTime.unboxToInt(Unknown Source)
+	at Main$$anon$1$$anonfun$1.apply(GADT.scala:22)
+	at Main$$anon$1.badEval(GADT.scala:18)
+	at Main$$anon$1.<init>(GADT.scala:25)
+	at Main$.main(GADT.scala:1)
+	at Main.main(GADT.scala)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+	at java.lang.reflect.Method.invoke(Method.java:597)
+	at scala.tools.nsc.util.ScalaClassLoader$$anonfun$run$1.apply(ScalaClassLoader.scala:78)
+	at scala.tools.nsc.util.ScalaClassLoader$class.asContext(ScalaClassLoader.scala:24)
+	at scala.tools.nsc.util.ScalaClassLoader$URLClassLoader.asContext(ScalaClassLoader.scala:88)
+	at scala.tools.nsc.util.ScalaClassLoader$class.run(ScalaClassLoader.scala:78)
+	at scala.tools.nsc.util.ScalaClassLoader$URLClassLoader.run(ScalaClassLoader.scala:101)
+	at scala.tools.nsc.ObjectRunner$.run(ObjectRunner.scala:33)
+	at scala.tools.nsc.ObjectRunner$.runAndCatch(ObjectRunner.scala:40)
+	at scala.tools.nsc.ScriptRunner.scala$tools$nsc$ScriptRunner$$runCompiled(ScriptRunner.scala:171)
+	at scala.tools.nsc.ScriptRunner$$anonfun$runScript$1.apply(ScriptRunner.scala:188)
+	at scala.tools.nsc.ScriptRunner$$anonfun$runScript$1.apply(ScriptRunner.scala:188)
+	at scala.tools.nsc.ScriptRunner$$anonfun$withCompiledScript$1$$anonfun$apply$mcZ$sp$1.apply(ScriptRunner.scala:157)
+	at scala.tools.nsc.ScriptRunner$$anonfun$withCompiledScript$1$$anonfun$apply$mcZ$sp$1.apply(ScriptRunner.scala:157)
+	at scala.Option.exists(Option.scala:188)
+	at scala.tools.nsc.ScriptRunner$$anonfun$withCompiledScript$1.apply$mcZ$sp(ScriptRunner.scala:157)
+	at scala.tools.nsc.ScriptRunner$$anonfun$withCompiledScript$1.apply(ScriptRunner.scala:131)
+	at scala.tools.nsc.ScriptRunner$$anonfun$withCompiledScript$1.apply(ScriptRunner.scala:131)
+	at scala.tools.nsc.util.package$.waitingForThreads(package.scala:34)
+	at scala.tools.nsc.ScriptRunner.withCompiledScript(ScriptRunner.scala:130)
+	at scala.tools.nsc.ScriptRunner.runScript(ScriptRunner.scala:188)
+	at scala.tools.nsc.ScriptRunner.runScriptAndCatch(ScriptRunner.scala:201)
+	at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:58)
+	at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:80)
+	at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:89)
+	at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)

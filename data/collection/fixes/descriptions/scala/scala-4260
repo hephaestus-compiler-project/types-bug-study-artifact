@@ -1,0 +1,50 @@
+= problem =
+
+The section 12.2.1 (Numeric Value Types) contains obsolete informaction about the partial order between numeric types and about implicit conversions defined in Predef.
+
+= analysis =
+
+According to the change log, the section 3.5.3 (weak conformance) has been added to the specification and a section on numeric widening has been added in 6.26 (Value conversions).
+
+Because of what has been added, I think that the following information should be removed from the section 12.2.1 (Numeric Value Types)
+
+----
+
+Numeric value types are ranked in the following partial order:[[BR]]
+
+Byte - Short[[BR]]
+\[[BR]]
+Int - Long - Float - Double[[BR]]
+/[[BR]]
+Char[[BR]]
+
+Byte and Short are the lowest-ranked types in this order, whereas Double is the highest-ranked. Ranking does not imply a conformance (�3.5.2) relationship; for instance Int is not a subtype of Long. However, object Predef (�12.5) deﬁnes views (�7.3) from every numeric value type to all higher-ranked numeric value types. Therefore, lower-ranked types are implicitly converted to higher-ranked types when required by the context (�6.26).
+
+----
+
+It seems that the conversion between numeric types described above is not performed according to what is described: it is not performed by the implicit conversions from Predef. The following program is compiling fine with the option -Yno-imports:
+
+```scala
+object NoImportTest extends scala.Application  {
+  val a: scala.Int = 2
+  val b: scala.Double = a
+  scala.Console.println(b)
+}
+```
+
+The program can be compiled with -Yno-imports and runs fine (using scala 2.8.1). The conversion from Int to Double is performed even though the implicit conversions from Predef are not imported.
+
+```scala
+$$ scalac -Yno-imports NoImportTest.scala
+
+$$ scala NoImportTest
+2.0
+```
+
+It looks like the conversions are performed according to the description in 6.26.1 (in the Numeric Widening paragraph) and the implicit conversions from Predef are not needed.
+
+= enhancement recommendation =
+
+- Remove the fragment mentioned above from the section 12.2.1
+
+- Remove or deprecate the implicit conversions from Predef which are defined below the "Primitive Widenings" comment line.

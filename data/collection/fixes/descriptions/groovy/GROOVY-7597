@@ -1,0 +1,69 @@
+I've been able to finally isolate a static compiler issue with accessing properties on delegates that occur within our projects:
+
+{code}
+class Calculation {
+  boolean isValid() { true }
+}
+
+class Entity {
+  Calculation getCalculation(String name) { new Calculation() }
+}
+
+class Feature extends Entity {
+}
+
+void DoWithFeature(@DelegatesTo(Feature) Closure c) {
+  new Feature().with(c)
+}
+
+@groovy.transform.CompileStatic
+void doIt() {
+  DoWithFeature() {
+    println getCalculation("whatever").valid
+  }
+}
+
+doIt()
+{code}
+
+The result is {{java.lang.ClassCastException: Feature cannot be cast to Calculation}}
+
+Workarounds:
+* change the property access into a method access "valid" -> "isValid()"
+* Remove CompileStatic annotation
+
+As seen in the following bytecode, the static compiler tries to cast the delegate to Calculation (which always fails), then tries to call ScriptBytecodeAdapter.castToType to try to cast the "Calculation" back to an Entity to properly call getCalculation("").isValid() on it.
+
+{code}
+  // access flags 0x1
+  public doCall(Ljava/lang/Object;)Ljava/lang/Object;
+   L0
+    LINENUMBER 19 L0
+    ALOAD 0
+    CHECKCAST script1442861431462$_doIt_closure1
+    INVOKEVIRTUAL script1442861431462$_doIt_closure1.getThisObject ()Ljava/lang/Object;
+    LDC Lgroovy/lang/Script;.class
+    INVOKESTATIC org/codehaus/groovy/runtime/ScriptBytecodeAdapter.castToType (Ljava/lang/Object;Ljava/lang/Class;)Ljava/lang/Object;
+    CHECKCAST groovy/lang/Script
+    ALOAD 0
+    CHECKCAST script1442861431462$_doIt_closure1
+    INVOKEVIRTUAL script1442861431462$_doIt_closure1.getDelegate ()Ljava/lang/Object;
+    CHECKCAST Calculation
+    LDC LEntity;.class
+    INVOKESTATIC org/codehaus/groovy/runtime/ScriptBytecodeAdapter.castToType (Ljava/lang/Object;Ljava/lang/Class;)Ljava/lang/Object;
+    CHECKCAST Entity
+    LDC "whatever"
+    INVOKEVIRTUAL Entity.getCalculation (Ljava/lang/String;)LCalculation;
+    INVOKEVIRTUAL Calculation.isValid ()Z
+    INVOKESTATIC java/lang/Boolean.valueOf (Z)Ljava/lang/Boolean;
+    INVOKEVIRTUAL groovy/lang/Script.println (Ljava/lang/Object;)V
+    ACONST_NULL
+    ARETURN
+   L1
+    ACONST_NULL
+    ARETURN
+    LOCALVARIABLE this Lscript1442861431462$_doIt_closure1; L0 L1 0
+    LOCALVARIABLE it Ljava/lang/Object; L0 L1 1
+    MAXSTACK = 3
+    MAXLOCALS = 2
+{code}

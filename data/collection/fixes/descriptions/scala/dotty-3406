@@ -1,0 +1,48 @@
+I’ve discovered this issue when working on the collections strawman.
+
+~~~ scala
+import scala.reflect.ClassTag
+
+// Base type introducing a flatMap method
+trait Coll[A] {
+  def flatMap[B](f: A => Coll[B]): Coll[B]
+}
+
+// An `Arr[A]` is not a `Coll[A]` ...
+trait Arr[A]
+
+// ... but there is an `ArrOps` decorator
+trait ArrOps[A] extends Coll[A] {
+  // we overload `flatMap` for the specific needs of `Arr`
+  def flatMap[B : ClassTag](f: A => Coll[B]): Arr[B]
+}
+
+object Prelude {
+  import scala.language.implicitConversions
+  implicit def arrToArrOps[A](array: Arr[A]): ArrOps[A] = ???
+}
+
+object Usage extends App {
+  
+  import Prelude._
+  
+  val array: Arr[Arr[Int]] = ???
+  
+  // This line doesn’t compile
+  array.flatMap(x => x)
+  //  overloaded method value flatMap with alternatives:
+  //    [B](f: Arr[Int] => Coll[B])(implicit evidence$1: scala.reflect.ClassTag[B])Arr[B] 
+  //    [B](f: Arr[Int] => Coll[B])Coll[B]
+  //   cannot be applied to (Arr[Int] => Arr[Int])
+  
+  // However if we explicitly trigger the implicit conversion to `Coll`, it compiles:
+  array.flatMap(x => (x: Coll[Int]))
+  
+  // Also, if we remove the overload the first one compiles too (even though it requires
+  // two implicit conversions: one to make the `flatMap` method available and one to make
+  // the the result of the function passed to `flatMap` a `Coll`
+  
+}
+~~~
+
+Tested with Dotty 0.4.0-RC1. Scalac behaves exactly in the same way (see https://github.com/scala/bug/issues/10576)

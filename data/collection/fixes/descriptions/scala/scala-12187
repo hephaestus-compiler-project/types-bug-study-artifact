@@ -1,0 +1,48 @@
+## reproduction steps
+
+using Scala 2.13.3, compile the following code
+
+```scala
+abstract class Expr[-S[-l[-_, +_], +f[-_, +_]], -I, +O] extends Unindexed[S] {
+  def fold[F[-_, +_]](matcher: S[Expr[S, -*, +*], F]): F[I, O]
+
+  final override def foldU[F[-_, +_]]( matcher: S[Unindexed.Inner[S, -*, +*], F]): F[Nothing, Any] = 
+     fold(matcher)
+}
+
+
+trait Unindexed[-S[-l[-_, +_], +f[-_, +_]]] {
+  def foldU[F[-i, +o]](matcher: S[Unindexed.Inner[S, -*, +*], F]): F[Nothing, Any]
+}
+
+object Unindexed {
+  type Inner[-S[-l[-_, +_], +f[-_, +_]], -I, +O] = Unindexed[S]
+}
+```
+
+## problem
+Compilation fails with error 
+> type F takes type parameters
+ 
+at the definition of the  `Unindexed.foldU`
+
+Change the order of two definitions to 
+```scala
+trait Unindexed[-S[-l[-_, +_], +f[-_, +_]]] {
+  def foldU[F[-i, +o]](matcher: S[Unindexed.Inner[S, -*, +*], F]): F[Nothing, Any]
+}
+
+object Unindexed {
+  type Inner[-S[-l[-_, +_], +f[-_, +_]], -I, +O] = Unindexed[S]
+}
+
+abstract class Expr[-S[-l[-_, +_], +f[-_, +_]], -I, +O] extends Unindexed[S] {
+  def fold[F[-_, +_]](matcher: S[Expr[S, -*, +*], F]): F[I, O]
+
+  final override def foldU[F[-_, +_]](matcher: S[Unindexed.Inner[S, -*, +*], F]): F[Nothing, Any] = 
+     fold(matcher)
+}
+```
+makes error disappear
+
+

@@ -1,0 +1,18 @@
+The following snippet compiles under 2.11.8 but does not compile under 2.12:
+```scala
+trait Foo[@specialized(Double,AnyRef)T] extends IndexedSeq[T] {
+
+  override def sum[@specialized(Double, AnyRef) B >: T](implicit num: Numeric[B]): B = {
+    foldLeft(num.zero)(num.plus)
+  }
+}
+```
+
+Compilation error:
+```scala
+[error] Foo.scala:4: type mismatch;
+[error]  found   : (Double, Double) => Double
+[error]  required: (Double, T) => Double
+[error]     foldLeft(num.zero)(num.plus)
+[error]                            ^
+```

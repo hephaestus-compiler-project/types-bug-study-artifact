@@ -1,0 +1,18 @@
+After upgrading to M04 I have to explicitly add `Unit` as the last line to lot of `async {...}` blocks. I believe it's a bug. Consider following code:
+```
+fun qwe_coroutines_unit() {
+    fun foo() {}
+    fun bar(): Int = 123
+
+    val x: Unit = run { // Compiles OK, as it figures out that result of `bar` should be just ignored
+        foo()
+        bar()
+    }
+
+    val p: CompletableFuture<Unit> = async { // Error: ...inferred type is CompletableFuture<Int>, but CompletableFuture<Unit> was expected
+        foo()
+        bar()
+        // Unit <-- I don't want to add this thing all over the place
+    }
+}
+```

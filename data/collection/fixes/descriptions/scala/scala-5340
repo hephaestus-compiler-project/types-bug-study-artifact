@@ -1,0 +1,91 @@
+In the context of a computer algebra project, implicits are used to implement automatic conversion (coercion) of polynomial coefficients to polynomials, as in x+1, with x = polynomial over the integers. The code below produces a strange error message in the standard output when compiled with scalac.
+
+```scala
+trait Ring {
+  type E <: Element
+  def zero: E
+  trait Element {
+    def +(that: E): E
+  }
+}
+
+class Poly[C <: Ring](val ring: C) extends Ring {
+  type E = Element
+  def zero = apply(ring.zero)
+  class Element(val value: ring.E) extends super.Element {
+    def +(that: E) = apply(this.value+that.value)
+    override def toString = value.toString
+  }
+  object Element {
+    implicit def coef2poly[D <% ring.E](value: D) = apply(value)
+  }
+  def apply(value: ring.E): E = new Element(value)
+}
+
+object BigInt extends Ring {
+  type E = Element
+  def zero = apply(0)
+  class Element(val value: Int) extends super.Element {
+    def +(that: E) = apply(this.value+that.value)
+    override def toString = value.toString
+  }
+  object Element {
+    implicit def int2bigInt(value: Int) = apply(value)
+  }
+  def apply(value: Int): E = new Element(value)
+}
+
+object MyApp extends App {
+  val r = new Poly(BigInt)
+  val s = new Poly(r)
+  val a = BigInt(1)
+  val b = r(a)
+  s.zero+a // works fine
+  s.zero+b // compilation fails with error below
+}
+```
+
+The error message:
+
+```
+amb prefix: MyApp.s.type#class Element MyApp.r.type#class Element
+amb prefix: MyApp.s.type#class Element MyApp.r.type#class Element
+amb prefix: MyApp.r.type#class Element MyApp.s.type#class Element
+amb prefix: MyApp.r.type#class Element MyApp.s.type#class Element
+MyApp.scala:6: error: type mismatch;
+ found   : MyApp.r.E
+ required: MyApp.s.E
+  s.zero+b
+         ^
+one error found
+```
+
+The involved code is in scala/tools/nsc/typechecker/Implicits.scala
+```scala
+    /** Produce an implicict info map, i.e. a map from the class symbols C of all parts of this type to 
+     *  the implicit infos in the companion objects of these class symbols C.
+     * The parts of a type is the smallest set of types that contains
+     *    - the type itself
+     *    - the parts of its immediate components (prefix and argument)
+     *    - the parts of its base types
+     *    - for alias types and abstract types, we take instead the parts
+     *    - of their upper bounds.
+     *  @return For those parts that refer to classes with companion objects that
+     *  can be accessed with unambiguous stable prefixes, the implicits infos
+     *  which are members of these companion objects.
+     */
+    private def companionImplicitMap(tp: Type): InfoMap = {
+        
+      /** Populate implicit info map by traversing all parts of type `tp`.
+       *  Parameters as for `getParts`.  
+       */
+      def getClassParts(tp: Type)(implicit infoMap: InfoMap, seen: mutable.Set[Type], pending: Set[Symbol]) = tp match {
+        case TypeRef(pre, sym, args) =>
+          infoMap get sym match {
+            case Some(infos1) =>
+              if (infos1.nonEmpty && !(pre =:= infos1.head.pre.prefix)) {
+                println("amb prefix: "+pre+"#"+sym+" "+infos1.head.pre.prefix+"#"+sym)
+                infoMap(sym) = List() // ambiguous prefix - ignore implicit members 
+              }
+            case None =>
+```

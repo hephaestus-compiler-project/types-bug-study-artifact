@@ -1,0 +1,27 @@
+If you have a mixed java/scala project with the following code:
+
+```java
+// src/java/BadList.java
+class BadList extends java.util.ArrayList {}
+```
+
+```scala
+// src/scala/UseIt.scala
+class UseIt {
+  val list = new BadList
+}
+```
+
+and you compile it, you get an error:
+
+```
+./scalac -sourcepath src/java src/scala/*
+src/java/BadList.java:1: error: missing type arguments
+class BadList extends java.util.ArrayList {}
+                                ^
+one error found
+```
+
+This only happens if you have the scala compiler read in the source for BadList.java. If you compile the java first and put it in a jar and run `scalac -classpath badlist.jar src/scala/*` then it works.
+
+Of course there's the simple work-around of changing the java code to use generics, but this is not necessarily quick to do in a large mixed scala/java project with legacy java code.

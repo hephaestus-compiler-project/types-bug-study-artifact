@@ -1,0 +1,80 @@
+A DESCRIPTION OF THE PROBLEM :
+I managed to reproduce JDK-8206917 - see below
+
+An exception has occurred in the compiler (10.0.2). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.NullPointerException
+ 	at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitApply(Flow.java:1233)
+ 	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1634)
+ 	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+ 	at jdk.compiler/com.sun.tools.javac.comp.Flow$BaseAnalyzer.scan(Flow.java:396)
+ 	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.visitAssign(TreeScanner.java:269)
+ 	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCAssign.accept(JCTree.java:1874)
+ 	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.visitExec(TreeScanner.java:213)
+ 	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1452)
+ 	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+ 	at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitBlock(Flow.java:995)
+ 	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:1020)
+ 	at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitMethodDef(Flow.java:962)
+ 	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:866)
+ 	at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.visitClassDef(Flow.java:925)
+ 	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:774)
+ 	at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.analyzeTree(Flow.java:1325)
+ 	at jdk.compiler/com.sun.tools.javac.comp.Flow$FlowAnalyzer.analyzeTree(Flow.java:1315)
+ 	at jdk.compiler/com.sun.tools.javac.comp.Flow.analyzeTree(Flow.java:216)
+ 	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1393)
+ 	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1367)
+ 	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:965)
+ 	at jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl.lambda$doCall$0(JavacTaskImpl.java:100)
+	at jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl.handleExceptions(JavacTaskImpl.java:142)
+ 	at jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl.doCall(JavacTaskImpl.java:96)
+ 	at jdk.compiler/com.sun.tools.javac.api.JavacTaskImpl.call(JavacTaskImpl.java:90)
+...
+Errors occurred while compiling module '...'
+javac 10.0.2 was used to compile java sources
+8/29/2018 4:32 PM - Compilation completed with 1 error and 0 warnings in 2 s 301 ms
+Compilation failed: internal java compiler error
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Problem seems to be the diamond at new ParameterizedTypeReference
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Should compile
+ACTUAL -
+Doesn't
+
+---------- BEGIN SOURCE ----------
+package bug;
+
+import java.util.Set;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestTemplate;
+
+public class BugReport {
+
+  private RestTemplate restTemplate;
+
+  public Set<String> getResult() {
+    ResponseEntity<Set<String>> response;
+    response = restTemplate.exchange(
+         "/abc",
+        HttpMethod.GET,
+        null,
+        new ParameterizedTypeReference<>() {
+        });
+    return response.getBody();
+  }
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Filling the diamond cures the problem
+
+new ParameterizedTypeReference<Set<String>>() {}
+
+FREQUENCY : always
+
+

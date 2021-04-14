@@ -1,0 +1,61 @@
+Systematic NullPointerException inside scala compiler once I've added a new parameter (chartFactory) to a method call. If I remove the parameter from the call, it compiles and runs fine:
+
+  detailedCPUSection += newTabChartSection(
+    sectionTitle = s"CPU Usage for ${host}",
+    seriesTitle = "CPU",
+    seriesList = cpumetrics.map(s => s.rename(s.name, s.name)),
+    norm4chart = Some(_.statSample(period)),
+    unitdesc = "%", showRange = true, showTrend = true,
+    chartFactory = StackedChart // HERE
+  )
+
+(StackedChart is an object).
+
+full message attached to this issue report.
+
+
+[info] Loading project definition from /home/work/experiments/Analysis/project
+[info] Set current project to Analysis (in build file:/home/work/experiments/Analysis/)
+[info] Compiling 5 Scala sources to /home/work/experiments/Analysis/target/scala-2.10/classes...
+[error] 
+[error]      while compiling: /home/work/experiments/Analysis/src/main/scala/com/orange/analysis/Reporting.scala
+[error]         during phase: typer
+[error]      library version: version 2.10.0
+[error]     compiler version: version 2.10.0
+...
+[error] 
+[error]   last tree to typer: Ident(StackedChart)
+[error]               symbol: value <error> in class <error> (flags: <synthetic> <is_error>)
+[error]    symbol definition: val <error>: <error>
+[error]                  tpe: <error>
+[error]        symbol owners: value <error> -> class <error> -> package <root>
+[error]       context owners: value $anonfun -> value $anonfun -> method metricsReport -> object Reporting -> package 
+analysis
+[error] 
+[error] == Enclosing template or block ==
+...
+[error] 
+[error] == Expanded type of tree ==
+[error] 
+[error] <error>
+[error] 
+[error] uncaught exception during compilation: java.lang.NullPointerException
+java.lang.NullPointerException
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1131)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5467)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedArg(Typers.scala:2880)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$60.apply(Typers.scala:3021)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$60.apply(Typers.scala:3013)
+	at scala.collection.TraversableLike$$anonfun$map$1.apply(TraversableLike.scala:244)
+	at scala.collection.TraversableLike$$anonfun$map$1.apply(TraversableLike.scala:244)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.collection.TraversableLike$class.map(TraversableLike.scala:244)
+	at scala.collection.AbstractTraversable.map(Traversable.scala:105)
+	at scala.tools.nsc.typechecker.Typers$Typer.handleOverloaded$1(Typers.scala:3013)
+	at scala.tools.nsc.typechecker.Typers$Typer.doTypedApply(Typers.scala:3033)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$86.apply(Typers.scala:4423)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$86.apply(Typers.scala:4423)
+	at scala.tools.nsc.typechecker.Typers$Typer.silent(Typers.scala:721)
+	at scala.tools.nsc.typechecker.Typers$Typer.tryTypedApply$1(Typers.scala:4423)
+...
+

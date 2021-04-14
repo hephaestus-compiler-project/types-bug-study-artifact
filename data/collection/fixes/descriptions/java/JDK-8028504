@@ -1,0 +1,95 @@
+When the little program below is compiled with -g:none, the bar() method will have a LocalVariableTable, but the foo() method will not. It is inconsistent that one methods has a LVT and one not and it's also broken that there is a LVT when I didn't ask for one.
+
+public class Apa {
+    public void foo() {
+        System.out.println();
+    }
+    public void bar() {
+        try {
+            System.out.println();
+        } catch(Throwable t) {
+        }
+    }
+}
+
+$ javac -g:none Apa.java
+$ javap -v Apa.class
+
+Classfile /Users/staffan/tmp/lvt/Apa.class
+  Last modified Nov 18, 2013; size 439 bytes
+  MD5 checksum ac7721a3b0ebcc8434e1667d121f6686
+public class Apa
+  minor version: 0
+  major version: 52
+  flags: ACC_PUBLIC, ACC_SUPER
+Constant pool:
+   #1 = Methodref          #6.#17         //  java/lang/Object."<init>":()V
+   #2 = Fieldref           #18.#19        //  java/lang/System.out:Ljava/io/PrintStream;
+   #3 = Methodref          #20.#21        //  java/io/PrintStream.println:()V
+   #4 = Class              #22            //  java/lang/Throwable
+   #5 = Class              #23            //  Apa
+   #6 = Class              #24            //  java/lang/Object
+   #7 = Utf8               <init>
+   #8 = Utf8               ()V
+   #9 = Utf8               Code
+  #10 = Utf8               foo
+  #11 = Utf8               apa
+  #12 = Utf8               LocalVariableTable
+  #13 = Utf8               t
+  #14 = Utf8               Ljava/lang/Throwable;
+  #15 = Utf8               StackMapTable
+  #16 = Class              #22            //  java/lang/Throwable
+  #17 = NameAndType        #7:#8          //  "<init>":()V
+  #18 = Class              #25            //  java/lang/System
+  #19 = NameAndType        #26:#27        //  out:Ljava/io/PrintStream;
+  #20 = Class              #28            //  java/io/PrintStream
+  #21 = NameAndType        #29:#8         //  println:()V
+  #22 = Utf8               java/lang/Throwable
+  #23 = Utf8               Apa
+  #24 = Utf8               java/lang/Object
+  #25 = Utf8               java/lang/System
+  #26 = Utf8               out
+  #27 = Utf8               Ljava/io/PrintStream;
+  #28 = Utf8               java/io/PrintStream
+  #29 = Utf8               println
+{
+  public Apa();
+    descriptor: ()V
+    flags: ACC_PUBLIC
+    Code:
+      stack=1, locals=1, args_size=1
+         0: aload_0
+         1: invokespecial #1                  // Method java/lang/Object."<init>":()V
+         4: return
+
+  public void foo();
+    descriptor: ()V
+    flags: ACC_PUBLIC
+    Code:
+      stack=1, locals=1, args_size=1
+         0: getstatic     #2                  // Field java/lang/System.out:Ljava/io/PrintStream;
+         3: invokevirtual #3                  // Method java/io/PrintStream.println:()V
+         6: return
+
+  public void apa();
+    descriptor: ()V
+    flags: ACC_PUBLIC
+    Code:
+      stack=1, locals=2, args_size=1
+         0: getstatic     #2                  // Field java/lang/System.out:Ljava/io/PrintStream;
+         3: invokevirtual #3                  // Method java/io/PrintStream.println:()V
+         6: goto          10
+         9: astore_1
+        10: return
+      Exception table:
+         from    to  target type
+             0     6     9   Class java/lang/Throwable
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+           10       0     1     t   Ljava/lang/Throwable;
+      StackMapTable: number_of_entries = 2
+           frame_type = 73 /* same_locals_1_stack_item */
+          stack = [ class java/lang/Throwable ]
+           frame_type = 0 /* same */
+
+}

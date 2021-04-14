@@ -1,0 +1,69 @@
+The following unit test runs OK under Kotlin 1.3.72 but fails with a ClasscastException (cannot be cast to java.lang.Void) under Kotlin 1.4m2 (this is a property delegate with delegates to Android shared preferences. I removed the actual shared preferences code for the sake of simplicity).
+
+```
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import org.junit.Test
+
+import org.junit.Assert.*
+import java.lang.reflect.Type
+import kotlin.properties.ReadWriteProperty
+import kotlin.reflect.KProperty
+
+class ReadWritePropertyTest {
+    @Test
+    fun testSerialization() {
+        val person = PersonHolder().person?.item
+        assertEquals("John", person?.firstName)
+    }
+}
+
+private data class Person(val firstName: String, val lastName: String)
+
+private class PersonHolder {
+    var person: CacheItem<Person>? by SharedPrefsGsonCacheItem(
+        "key",
+        Gson(),
+        object : TypeToken<CacheItem<Person>>() {}.type
+    )
+}
+
+class CacheItem<ITEMTYPE>(val item: ITEMTYPE, val creationTime: Long)
+
+class SharedPrefsGsonCacheItem<T>(private val key: String, private val gson: Gson, private val type: Type) :
+    ReadWriteProperty<Any?, CacheItem<T>?> {
+    override operator fun getValue(thisRef: Any?, prop: KProperty<*>): CacheItem<T>? {
+        val json = """
+            {
+              "item": {
+                "firstName": "John",
+                "lastName": "Smith"
+              }
+            }
+        """.trimIndent()
+
+        return if (json.isNotEmpty()) {
+            gson.fromJson(json, type)
+        } else {
+            null
+        }
+    }
+
+    override operator fun setValue(thisRef: Any?, prop: KProperty<*>, value: CacheItem<T>?) {
+        println("putString")
+    }
+}
+```
+
+The exact output under 1.4M2 is:
+
+```
+nl.jamiecraane.multiplatform.myapp.CacheItem cannot be cast to java.lang.Void
+java.lang.ClassCastException: nl.jamiecraane.multiplatform.myapp.CacheItem cannot be cast to java.lang.Void
+	at nl.jamiecraane.multiplatform.myapp.SharedPrefsGsonCacheItem.getValue(ReadWritePropertyTest.kt:50)
+	at nl.jamiecraane.multiplatform.myapp.PersonHolder.getPerson(ReadWritePropertyTest.kt)
+	at nl.jamiecraane.multiplatform.myapp.ReadWritePropertyTest.testSerialization(ReadWritePropertyTest.kt:20)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+```
+
+If you need a working example please let me know and I will create a Github project for this.

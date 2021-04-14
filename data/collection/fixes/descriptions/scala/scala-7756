@@ -1,0 +1,34 @@
+```scala
+object Test {
+  def test: Unit = {
+    trait TA[X <: CharSequence]
+    0 match {
+      case _ =>
+        // the bounds violation isn't reported. RefChecks seems to be too broadly disabled under virtpatmat: see 65340ed4ad2e
+        locally(null: TA[Object])
+        ()
+    }
+  }
+}
+```
+
+```scala
+        // skip refchecks in patterns....
+        result = result match {
+          case CaseDef(pat, guard, body) =>
+            inPattern = true
+            val pat1 = transform(pat)
+            inPattern = false
+            treeCopy.CaseDef(tree, pat1, transform(guard), transform(body))
+          case LabelDef(_, _, _) if treeInfo.hasSynthCaseSymbol(result) =>
+            val old = inPattern
+            inPattern = true
+            val res = deriveLabelDef(result)(transform)
+            inPattern = old
+            res
+          case ValDef(_, _, _, _) if treeInfo.hasSynthCaseSymbol(result) =>
+            deriveValDef(result)(transform)
+          case _ =>
+            super.transform(result)
+        }
+```

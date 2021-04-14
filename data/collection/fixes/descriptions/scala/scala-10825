@@ -1,0 +1,39 @@
+It looks like a bug in scalac and affects case classes which have 2 fields where name of one is a prefix for the another name that contains a character that should be encoded immediately after the prefix (like `o` and `o-o`).
+
+For 2.11.12 I got a compilation error:
+```
+[error] scala.reflect.internal.Types$TypeError: type mismatch;
+[error]  found   : Int
+[error]  required: Seq
+[error] 	at scala.tools.nsc.typechecker.Contexts$ThrowingReporter.handleError(Contexts.scala:1402)
+[error] 	at scala.tools.nsc.typechecker.Contexts$ContextReporter.issue(Contexts.scala:1254)
+[error] 	at scala.tools.nsc.typechecker.Contexts$Context.issue(Contexts.scala:573)
+[error] 	at scala.tools.nsc.typechecker.ContextErrors$ErrorUtils$.issueTypeError(ContextErrors.scala:106)
+```
+
+While in 2.12 it fails in the runtime during a call of the constructor:
+```
+java.lang.Integer cannot be cast to scala.collection.Seq
+java.lang.ClassCastException: java.lang.Integer cannot be cast to scala.collection.Seq
+	at Publication.<init>(KebabFieldNameSpec.scala:3)
+	at KebabFieldNameSpec.$anonfun$new$2(KebabFieldNameSpec.scala:8)
+	at org.scalatest.OutcomeOf.outcomeOf(OutcomeOf.scala:85)
+	at org.scalatest.OutcomeOf.outcomeOf$(OutcomeOf.scala:83)
+	at org.scalatest.OutcomeOf$.outcomeOf(OutcomeOf.scala:104)
+	at org.scalatest.Transformer.apply(Transformer.scala:22)
+```
+
+Code to reproduce:
+```
+import org.scalatest.{Matchers, WordSpec}
+
+case class Publication(title: String, author: String, `reference-count`: Int, reference: Seq[String])
+
+class KebabFieldNameSpec extends WordSpec with Matchers {
+  "Publication" should {
+    "be created by the constructor" in {
+      new Publication("", "", 0, Nil)
+    }
+  }
+}
+```

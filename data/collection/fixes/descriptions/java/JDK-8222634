@@ -1,0 +1,82 @@
+The following uses of ? fail to compile with javac:
+
+error: incompatible types: <null> cannot be converted to MyValue1
+      MyValue1? vBox = null;
+                                    ^
+error: '(' or '[' expected
+      MyValue1?[] vBoxArray = new MyValue1?[42];
+                                                                     ^
+error: illegal start of expression
+      MyValue1?[] vBoxArray = new MyValue1?[42];
+                                                                        ^
+error: incompatible types: bad type in conditional expression
+        MyValue1? val = flag ? valueField1 : null;
+                                                                 ^
+error: incomparable types: MyValue1 and <null>
+            if (box != null) {
+                      ^
+
+
+value class MyValue1 {
+    final int x = 0;
+}
+
+public class Test {
+    static final MyValue1 vField = new MyValue1();
+
+    value class MyValue2 {
+        final MyValue1? vBoxField;
+
+        public MyValue2() {
+            vBoxField = new MyValue1();
+        }
+    }
+
+    public static void main(String[] args) { }
+}
+
+error: incompatible types: MyValue1 cannot be converted to Test.MyValue2
+            vBoxField = new MyValue1();
+                               ^
+
+
+value class MyValue1 {
+    final int x = 0;
+    public int hash() { return 0; }
+}
+
+public class Test {
+
+    value class MyValue2 {
+        final MyValue1? vBoxField = null;
+  
+        public int test() {
+            return vBoxField.hash();
+        }
+    }
+
+    public static void main(String[] args) { }
+}
+
+error: cannot find symbol
+            return vBoxField.hash();
+                            ^
+
+
+interface MyInterface {
+    public void test(MyValue1? vt);
+}
+
+value class MyValue1 implements MyInterface {
+    final int x = 0;
+
+    @Override
+    public void test(MyValue1? vt) { }
+}
+
+error: MyValue1 is not abstract and does not override abstract method test(MyValue1) in MyInterface
+value class MyValue1 implements MyInterface {
+      ^
+Test.java:9: error: method does not override or implement a method from a supertype
+    @Override
+    ^

@@ -1,0 +1,22 @@
+```scala
+package actors
+
+import play.api.libs.concurrent.Akka
+import play.api.Play
+import akka.actor.{TypedActor, TypedProps}
+
+object ActorHolder {
+  lazy val solr:SolrIndexedPages = // new SolrIndexedPagesImpl() 
+     TypedActor(Akka.system(Play.current)).
+       typedActorOf( // here it fails cast
+       TypedProps[SolrIndexedPagesImpl]())
+}
+```
+if you remove type of solr value, then code compiles fine but fails at runtime:
+
+java.lang.ClassCastException: com.sun.proxy.$Proxy10 cannot be cast to actors.So
+lrIndexedPagesImpl
+        at actors.ActorHolder$.solr$lzycompute(ActorHolder.scala:11) ~[na:na]
+        at actors.ActorHolder$.solr(ActorHolder.scala:9) ~[na:na]
+        at controllers.Application$$anonfun$home$1.apply(Application.scala:13) ~
+[na:na]

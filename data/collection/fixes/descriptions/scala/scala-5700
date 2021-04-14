@@ -1,0 +1,50 @@
+It appears that dependent types do not correctly propagate through constructors:
+
+```scala
+trait Foo { type FA }
+class Bar(val foo: Foo) {
+  type FA = foo.FA
+}
+
+object Test {
+  def main(argv: Array[String]) {
+    val barLong: Bar { type FA = Long } = new Bar(new Foo { type FA = Long })
+  }
+}
+```
+
+This always tries to derive the "raw" type for Bar:
+
+```
+[nuttycom@yggdrasil dependent_case_class]$ ~/bin/scala-2.10.0-M2/bin/scalac -Xexperimental Test.scala 
+Test.scala:8: error: type mismatch;
+ found   : Bar
+ required: Bar{type FA = Long}
+    val barLong: Bar { type FA = Long } = new Bar(new Foo { type FA = Long })
+```
+
+Variants don't appear to work either:
+
+```
+[nuttycom@yggdrasil dependent_case_class]$ cat Test.scala 
+trait Foo { type FA }
+class Bar(val foo: Foo) {
+  type FA = foo.FA
+}
+
+object Test {
+  def main(argv: Array[String]) {
+    val barLong: Bar { type FA = Long } = new Bar(new Foo { type FA = Long }) {
+      override type FA = Long
+    }
+  }
+}
+
+// vim: set ts=4 sw=4 et:
+[nuttycom@yggdrasil dependent_case_class]$ ~/bin/scala-2.10.0-M2/bin/scalac -Xexperimental Test.scala 
+Test.scala:9: error: overriding type FA in class Bar, which equals this.foo.FA;
+ type FA has incompatible type
+      override type FA = Long
+                    ^
+one error found
+```

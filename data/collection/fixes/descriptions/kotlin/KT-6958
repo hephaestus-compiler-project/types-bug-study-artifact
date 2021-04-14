@@ -1,0 +1,38 @@
+This code does not compile:
+{code:lang=kotlin}
+fun f(x: Int, y: Int): Int = x * y
+fun f(x: Int, y: Int, fn: Int.(Int)->Int): Int = x.fn(y)
+
+fun main(args : Array<String>) { 
+  println(f(2, 3) { y -> this * y })
+}
+{code}
+
+Compile errors:
+{code}
+(5, 11) : None of the following functions can be called with the arguments supplied: 
+internal fun f(x: kotlin.Int, y: kotlin.Int): kotlin.Int defined in root package
+internal fun f(x: kotlin.Int, y: kotlin.Int, fn: kotlin.Int.(kotlin.Int) -> kotlin.Int): kotlin.Int defined in root package
+(5, 21) : Cannot infer a type for this parameter. To specify it explicitly use the {(p : Type) -> ...} notation
+(5, 26) : 'this' is not defined in this context
+{code}
+
+However, this code compiles (and works):
+{code:lang=kotlin}
+fun f(x: Int, y: Int): Int = x * y
+fun f(x: Int, y: Int, fn: Int.(Int)->Int): Int = x.fn(y)
+
+fun main(args : Array<String>) {
+  // renamed y -> it 
+  println(f(2, 3) { this * it })
+}
+{code}
+
+Removing overload also works:
+{code:lang=kotlin}
+fun f(x: Int, y: Int, fn: Int.(Int)->Int): Int = x.fn(y)
+
+fun main(args : Array<String>) { 
+  println(f(2, 3) { y -> this * y })
+}
+{code}

@@ -1,0 +1,30 @@
+Apparently the syntax `class Cont[type A]` has been removed. So I wrote this:
+
+```scala
+class Cont[A0](val x: A0) { type A = A0 }
+val c: Cont[_] & { type A = Int } = new Cont(1)
+c.x : Int
+```
+
+It fails to compile with "`found: c.A0(c.x); required: Int`".
+So I tried this:
+
+```scala
+class Cont[A0](x0: A0) { type A = A0; val x: A = x0 }
+```
+
+But the compiler crashes with:
+
+```
+assertion failure for (Cont[_] & Object{A = Int})(c) <:< ?{ x: ? }, frozen = false
+[info]
+[info] (Cont[_] & Object{A = Int})(c) is a class dotty.tools.dotc.core.Types$TermRefWithFixedSym
+[info]
+[info] ?{ x: ? } is a class dotty.tools.dotc.typer.ProtoTypes$CachedSelectionProto
+[info]
+[info] exception occurred while typechecking src/main/scala/Main.scala
+[info]
+[info] exception occurred while compiling src/main/scala/Main.scala
+java.lang.AssertionError: NoDenotation.owner
+	at dotty.tools.dotc.core.SymDenotations$NoDenotation.owner(SymDenotations.scala:1816)
+```

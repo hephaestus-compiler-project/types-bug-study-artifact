@@ -1,0 +1,41 @@
+but >>only<< if StringValueExp.java is put on the same command line.
+If StringValueExp.java is left out from the comman dline, the generated class file for BinaryOpValueExp.java is fine.
+
+I found this bug while comparing the build results between the old build and the new build in the build-infra project.
+
+How to reproduce, first build a full jdk using the old buildsystem, then:
+cd jdk/make/javax/management
+<boot-jdk>/bin/java -Xbootclasspath/p:../../../../build/linux-amd64/langtools/dist/bootstrap/lib/javac.jar -jar ../../../../build/linux-amd64/langtools/dist/bootstrap/lib/javac.jar -Xlint:-path -source 7 -target 7 -encoding ascii -Xbootclasspath:../../../../build/linux-amd64/classes -sourcepath ../../../src/closed/solaris/classes:../../../src/closed/share/classes:../../../../build/linux-amd64/gensrc:../../../src/solaris/classes:../../../src/share/classes -d /tmp/classes ../../../src/share/classes/javax/management/BinaryOpValueExp.java
+
+A correct BinaryOpValueExp.class can be found below /tmp/classes
+
+<boot-jdk>/bin/java -Xbootclasspath/p:../../../../build/linux-amd64/langtools/dist/bootstrap/lib/javac.jar -jar ../../../../build/linux-amd64/langtools/dist/bootstrap/lib/javac.jar -Xlint:-path -source 7 -target 7 -encoding ascii -Xbootclasspath:../../../../build/linux-amd64/classes -sourcepath ../../../src/closed/solaris/classes:../../../src/closed/share/classes:../../../../build/linux-amd64/gensrc:../../../src/solaris/classes:../../../src/share/classes -d /tmp/classes2 ../../../src/share/classes/javax/management/BinaryOpValueExp.java ../../../src/share/classes/javax/management/StringValueExp.java
+
+A BinaryOpValueExp.class with duplicate "<init>":(Ljava/lang/String;)V is created below /tmp/classes2
+
+Javaps of the good and bad BinaryOpValueExp.class are attached.
+
+The commit in langtools that causes this behaviour is (commenting it out fixes the problem):
+
+7181320: javac NullPointerException for switch labels with cast to String expressions
+Reviewed-by: mcimadamore
+
+--- a/src/share/classes/com/sun/tools/javac/code/Types.java    Fri Aug 17
+17:30:03 2012 -0700
++++ b/src/share/classes/com/sun/tools/javac/code/Types.java    Mon Aug 20
+21:24:10 2012 +0530
+@@ -1589,9 +1589,16 @@ public class Types {
+       * type parameters in t are deleted.
+       */
+      public Type erasure(Type t) {
+-        return erasure(t, false);
++        return eraseNotNeeded(t)? t : erasure(t, false);
+      }
+      //where
++    private boolean eraseNotNeeded(Type t) {
++        // We don't want to erase primitive types and String type as that
++        // operation is idempotent. Also, erasing these could result in loss
++        // of information such as constant values attached to such types.
++        return (t.tag<= lastBaseTag) || (syms.stringType.tsym == t.tsym);
++    }
++

@@ -1,0 +1,41 @@
+The `scala.language.dynamics` implicit for enabling use of the `Dynamic` trait appears to be strangely "shadowed" by *any* subsequent import.
+
+This does not compile,
+```scala
+import scala.language.dynamics
+import scala.List
+class Foo() extends Dynamic
+```
+with
+```
+dotc test.scala
+```
+whereas omitting
+```
+import scala.List
+```
+will allow it to compile, as will reordering the imports like so,
+```scala
+import scala.List
+import scala.language.dynamics
+class Foo() extends Dynamic
+```
+
+Compiler version:
+```
+Dotty compiler version 0.5.0-RC1 -- Copyright 2002-2017, LAMP/EPFL
+```
+
+Compiler output:
+```
+-- Error: test.scala:3:6 -------------------------------------------------------
+3 |class Foo() extends Dynamic
+  |^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |extension of type scala.Dynamic needs to be enabled
+  |by making the implicit value scala.language.dynamics visible.
+  |This can be achieved by adding the import clause 'import scala.language.dynamics'
+  |or by setting the compiler option -language:dynamics.
+  |See the Scala docs for value scala.language.dynamics for a discussion
+  |why the feature needs to be explicitly enabled.
+one error found
+```

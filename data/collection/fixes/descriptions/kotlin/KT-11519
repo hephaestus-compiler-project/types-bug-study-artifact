@@ -1,0 +1,114 @@
+When I declare the following in Kotlin v1.0.1, the Spring Boot app fails to start, with a NPE: 
+
+```
+@Configuration
+@EnableNeo4jRepositories(basePackages = arrayOf("vampr.domain"))
+@EnableTransactionManagement
+//@EnableCaching
+open class PersistenceAssembly : Neo4jConfiguration()
+{
+    
+
+    @Bean
+    open fun getConfiguration(): org.neo4j.ogm.config.Configuration
+    {
+        val config = org.neo4j.ogm.config.Configuration()
+        config.driverConfiguration().driverClassName = "org.neo4j.ogm.drivers.embedded.driver.EmbeddedDriver"
+        return config
+    }
+
+
+    @Bean
+    override fun getSessionFactory(): SessionFactory
+    {
+        return SessionFactory(getConfiguration(), "vampr.domain")
+    }
+
+    @Bean
+    @Throws(Exception::class)
+    @Scope(value = "request", proxyMode = ScopedProxyMode.INTERFACES)
+    override fun getSession(): Session
+    {
+        return super.getSession()
+    }
+
+    //    @Bean
+    //    open fun cacheManager(): CacheManager
+    //    {
+    //        return ConcurrentMapCacheManager("profiles");
+    //    }
+}
+```
+
+. . however the equivalent Java code works fine: 
+
+```
+@Configuration
+@EnableNeo4jRepositories(basePackages = "vampr.domain")
+@EnableTransactionManagement
+//@EnableCaching
+public class PersistenceAssembly extends Neo4jConfiguration {
+
+    @Inject protected PersistenceConfiguration persistenceConfiguration;
+
+
+    @Bean
+    public org.neo4j.ogm.config.Configuration getConfiguration()
+    {
+        org.neo4j.ogm.config.Configuration config = new org.neo4j.ogm.config.Configuration();
+
+        if (persistenceConfiguration.getDriverClass() != null)
+        {
+            config.driverConfiguration().setDriverClassName(persistenceConfiguration.getDriverClass());
+        }
+        else
+        {
+            config.driverConfiguration().setDriverClassName("org.neo4j.ogm.drivers.embedded.driver.EmbeddedDriver");
+        }
+        if (persistenceConfiguration.getDatabaseUri() != null)
+        {
+            config.driverConfiguration().setURI(persistenceConfiguration.getDatabaseUri());
+        }
+        return config;
+    }
+
+
+    @Bean
+    @Override
+    public SessionFactory getSessionFactory()
+    {
+        return new SessionFactory(getConfiguration(), "vampr.domain");
+    }
+
+    @Bean
+    @Scope(value = "request", proxyMode = ScopedProxyMode.INTERFACES)
+    @Override
+    public Session getSession() throws Exception {
+        return super.getSession();
+    }
+
+    //    @Bean
+    //    open fun cacheManager(): CacheManager
+    //    {
+    //        return ConcurrentMapCacheManager("profiles");
+    //    }
+}
+```
+
+The error details are: 
+
+```
+8:00] 
+ ```Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'neo4jMappingContext' defined in class path resource [vampr/PersistenceAssembly.class]: Bean instantiation via factory method failed; nested exception is org.springframework.beans.BeanInstantiationException: Failed to instantiate [org.springframework.data.neo4j.mapping.Neo4jMappingContext]: Factory method 'neo4jMappingContext' threw exception; nested exception is java.lang.NullPointerException
+    at  etc etc 
+Caused by: java.lang.NullPointerException
+    at com.sun.beans.TypeResolver.resolve(TypeResolver.java:203)
+```
+```
+Method threw 'java.lang.NullPointerException' exception. Cannot evaluate sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl.toString()
+```
+
+I tried stripping down to a sample project with just the Spring Boot configs, however the issue does not occur here, however I'd be happy to privately share my full project. 
+
+In the meantime, I'll proceed using the Java config in place of Kotlin for the PersistenceAssembly class. 
+

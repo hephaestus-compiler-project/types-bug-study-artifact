@@ -1,0 +1,52 @@
+When trying to compile the following type class with Scala 2.12.4:
+
+```scala
+/**
+  * Type class witnessing that the result of stripping type constructor `F` (or a subtype of `F`) off `L` is `Out`.
+  */
+trait StripTC[L, F[_]] {
+  type Out
+}
+
+object StripTC {
+  type Aux[L, F[_], Out0] = StripTC[L, F] { type Out = Out0 }
+
+  implicit def stripTCInstance[H, F[_], FH <: F[H]]: Aux[FH, F, H] =
+    new StripTC[FH, F] { type Out = H }
+}
+
+object Test {
+  implicitly[StripTC[List[Int], List]]
+}
+```
+
+The compiler crashes with the following message:
+
+```
+scala.reflect.internal.FatalError:
+[error]   trying to do lub/glb of typevar ?FH
+[error]      while compiling: /Users/rui/Downloads/test/StripTC.scala
+[error]         during phase: typer
+[error]      library version: version 2.12.4
+[error]     compiler version: version 2.12.4
+[error]   reconstructed args: -classpath /Users/rui/Downloads/test/target/scala-2.12/classes -bootclasspath /Library/Java/JavaVirtualMachines/jdk1.8.0_162.jdk/Contents/Home/jre/lib/resources.jar:/Library/Java/JavaVirtualMachines/jdk1.8.0_162.jdk/Contents/Home/jre/lib/rt.jar:/Library/Java/JavaVirtualMachines/jdk1.8.0_162.jdk/Contents/Home/jre/lib/sunrsasign.jar:/Library/Java/JavaVirtualMachines/jdk1.8.0_162.jdk/Contents/Home/jre/lib/jsse.jar:/Library/Java/JavaVirtualMachines/jdk1.8.0_162.jdk/Contents/Home/jre/lib/jce.jar:/Library/Java/JavaVirtualMachines/jdk1.8.0_162.jdk/Contents/Home/jre/lib/charsets.jar:/Library/Java/JavaVirtualMachines/jdk1.8.0_162.jdk/Contents/Home/jre/lib/jfr.jar:/Library/Java/JavaVirtualMachines/jdk1.8.0_162.jdk/Contents/Home/jre/classes:/Users/rui/.sbt/boot/scala-2.12.4/lib/scala-library.jar
+[error]
+[error]   last tree to typer: Ident(StripTC)
+[error]        tree position: line 42 of /Users/rui/Downloads/test/StripTC.scala
+[error]             tree tpe: StripTC.type
+[error]               symbol: object StripTC
+[error]    symbol definition: object StripTC (a ModuleSymbol)
+[error]       symbol package: <empty>
+[error]        symbol owners: object StripTC
+[error]            call site: object Test in package <empty>
+[error]
+[error] == Source file context for tree position ==
+[error]
+[error]     39 }
+[error]     40
+[error]     41 object Test {
+[error]     42   implicitly[StripTC[List[Int], List]]
+[error]     43 }
+```
+
+This may be related or a duplicate of #10519, #10514, #8602 or #5559. I don't have the required knowledge about the Scala compiler to know if this is a duplicate, so if that's the case please close this and point me to the right issue :)

@@ -1,0 +1,36 @@
+https://gist.github.com/zbstof/5685345
+Scala compiler complains about unreachable code, but executes it anyway. Tag class is similar to scalaz`s.
+
+```scala
+// bug.scala
+import Tag._
+ 
+object Tag {
+  type Tagged[T] = {type Tag = T}
+  type @@[+T, Tag] = T with Tagged[Tag]
+  type Id[T] = String @@ T
+ 
+  def apply[A, T](a: A): A @@ T = a.asInstanceOf[A @@ T]
+ 
+  def Id[T](a: String): Id[T] = Tag(a)
+}
+ 
+object Consts {
+ 
+  case class Consts(id: Id[Consts])
+ 
+  val FIRST = Consts(Id("first"))
+  val SECOND = Consts(Id("second"))
+}
+object ScalaBugUnreachable extends App {
+ 
+  val constId = Id[Consts.Consts]("second")
+  val matcher = constId match {
+    case Consts.FIRST.id  => "first"
+    case Consts.SECOND.id => "second" // warning: unreachable code
+    case _                => ()
+  }
+ 
+  assert(matcher == "second") // passes
+}
+```

@@ -1,0 +1,53 @@
+```scala
+import scala.annotation.varargs
+
+class Broken {
+   @varargs def method(ss: String*): Unit = ()
+   class Inner { }
+}
+```
+
+causes:
+```scala
+java.lang.AssertionError: assertion failed: Trying to access the this of another class: tree.symbol = class $read$$iw$$iw$$iw$$iw$$iw$$iw$$iw$Broken, ctx.clazz.symbol = class $read$$iw$$iw$$iw$$iw$$iw$$iw$$iw$Broken$Inner compilation unit:<console>
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:962)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadQualifier(GenICode.scala:1175)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:921)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:114)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:76)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:69)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:136)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:88)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:76)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:69)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:79)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:65)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.apply(GenICode.scala:61)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:329)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:297)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:297)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:772)
+	at scala.collection.mutable.ListBuffer$$anon$1.foreach(ListBuffer.scala:318)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:297)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.run(GenICode.scala:54)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:953)
+```
+
+but this code:
+```scala
+class Works {
+   def method(ss: String*): Unit = ()
+   class Inner { }
+}
+```
+
+works fine.
+
+This is the first time I've filed a bug on the Scala JIRA, so sorry if I mucked up the labels or what have you.
+

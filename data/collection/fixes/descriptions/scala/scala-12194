@@ -1,0 +1,46 @@
+## reproduction steps
+
+using Scala 2.13.3 on JDK 14
+
+```scala
+object Main {
+
+  trait Trait[A]
+
+  class CaseA extends Trait[Int]
+
+  class CaseB extends Trait[Boolean]
+
+  object Pattern {
+    def unapply(fa: CaseB): Option[CaseB] = None
+  }
+
+  def foo[A](t: Trait[A]) = {
+    def bar(f: Trait[A]): Unit = {}
+
+    t match {
+      case Pattern(_) =>
+    }
+
+    t match {
+      case a: CaseA => bar(new CaseA)
+    }
+  }
+
+}
+
+```
+## problem
+
+Both match-blocks compile fine on their own, with both blocks compilation fails with:
+```
+Foo.scala:21:28: type mismatch;
+  found   : Main.CaseA
+  required: Main.Trait[A]
+```
+
+In the second one, the type parameter `A` shoud be inferred to be `Int`, which allows a new instance of `CaseA` to be passed to bar. This works fine if the first match block is removed.
+
+However adding the first match block breaks that. A completely different block should of course not have any effect on local inferrence at all.
+
+The issue does not happen if instead of the extractor a type-test for `CaseB` is used or `unapply` expects `Trait[_]`, `Any` or `CaseA`. Also it is important that `CaseA` and `CaseB` extend `Trait[A]` with different type arguments. It seems that the local inferrence of the first influences the second match.

@@ -1,0 +1,12 @@
+The following program does not compile:
+
+interface F<T extends Throwable> {
+   void m() throws T;
+}
+
+<Z extends Throwable> m(F<Z> fz) { ... }
+
+m(()->{ }); //error
+
+The problem is caused by the fact that inferred type for Z defaults to the declared bound as no other constraints comes up when examining the lambda body. This causes the 'm' to be instantiated as a Throwable-throwing method, thus requiring the user to catch the exception with a try-catch block. This is completely unnecessary as it can be seen that the lambda doesn't throw any checked exception.
+

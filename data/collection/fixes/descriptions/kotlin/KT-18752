@@ -1,0 +1,18 @@
+Consider following pairs of header/impl:
+{code}
+header fun f1(action1: () -> Int): Int
+impl inline fun f1(action1: () -> Int): Int // OK it's allowed for impl to add `inline`
+
+header fun f1(action1: () -> Int): Int
+// But this statement is not compiled, because both `crossinline` and `inline` must be present on header side
+impl inline fun f1(crossinline action1: () -> Int): Int 
+
+header fun f1(action1: () -> Int): Int
+impl inline fun f1(noinline action1: () -> Int): Int // the same as for `crossinline`
+
+header fun <T> reifiedFun():T
+impl inline fun <reified T> reifiedFun():T // the same
+{code}
+Keyword `inline` is not required on header side because it's implementation details.
+Keywords `crossinline`, `noinline` and `reified` cannot be used without `inline` and they are too implementation details, so 
+probably it should be allowed to skip them on the header side.

@@ -1,0 +1,14 @@
+I found a crash bug in the compiler & REPL related to type aliases of wild-carded types. Compiling or running the following in the REPL, version 2.11.5, will produce a compiler crash:
+
+```scala
+class C[T]
+def f[T](implicit m: Manifest[T]) = 0
+
+type CAlias = C[_]
+val x = f[CAlias]
+```
+
+There are several conditions for this crash: the type C must be parameterized, the alias must use a wildcard (`C[_]`), and finally, the call must use a type alias (just calling `f[C[_]]` works fine).
+
+For reference, I have also created the following stack overflow regarding the issue: http://stackoverflow.com/questions/28510867/scala-2-11-5-compiler-crash-with-type-aliases-and-manifests
+

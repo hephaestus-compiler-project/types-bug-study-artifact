@@ -1,0 +1,74 @@
+FULL PRODUCT VERSION :
+java full version "9-ea+100-2016-01-06-195905.javare.4235.nc"
+
+ADDITIONAL OS VERSION INFORMATION :
+ x86_64 GNU/Linux
+
+
+A DESCRIPTION OF THE PROBLEM :
+The fix for JDK-8075274 (compilation still depends on the order of imports) [1][2], seems to have introduced another source ordering bug.
+
+[1] http://hg.openjdk.java.net/jdk9/dev/langtools/rev/4914b013c305
+[2] https://bugs.openjdk.java.net/browse/JDK-8075274
+
+REGRESSION.  Last worked in version 8u66
+
+ADDITIONAL REGRESSION INFORMATION: 
+java full version "1.8.0_66-ea-b02"
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+javac One.java Two.java Three.java Test.java 
+javac Test.java One.java Two.java Three.java
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+I expected both compilations to succeed.
+ACTUAL -
+The first compilation succeeds, but the second compilation fails.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+One.java:3: error: cannot find symbol
+class One implements Two.ThreeInner {
+                        ^
+  symbol:   class ThreeInner
+  location: class Two
+1 error
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+=== Test.java ===
+package p;
+
+import p.One.OneInner;
+
+class Test implements OneInner {}
+
+=== One.java ===
+package p;
+
+class One implements Two.ThreeInner {
+  interface OneInner {}
+}
+
+=== Two.java ===
+package p;
+
+class Two extends Three {}
+
+=== Three.java ===
+package p;
+
+class Three {
+  interface ThreeInner {}
+}
+===
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Using canonical qualified type names (e.g. Three.ThreeInner instead of Two.ThreeInner) seems to work around the problem.
+

@@ -1,0 +1,27 @@
+_Note_: This is not a bug, it's a feature (request)
+
+Consider the following code snippet, which compiles under Scala 2.12: 
+
+```Scala
+trait A 
+trait B { protected x: Int }
+final class C extends A with B {
+  protected x: Int = ""     // OK
+  protected y: String = ""  // KO
+}
+object D extends A with B {
+  protected x: Int = 42      // OK 
+  protected y: String = ""   // KO 
+}
+val e = new A with B {
+  protected x: Int = 42     // OK
+  protected y: String = ""  // KO 
+}
+```
+The `protected` access modifier lies between _public_ and `private`: it grants access to the member for the _subclasses_, but denies it to any other class. However, since final classes, cannot be extended, and have no sub-classes, it makes no sense for them to declare a `protected` member. _Unless_, of course, the said protected member was declared in a superclass, and so its access cannot be restricted to `private`. 
+
+Nevertheless, one can still desire for the compiler enforce the condition that a final class does not declare non-inherited protected members, either by: 
+- Requiring that all `protected` methods also be marked as `overridden`, in which case the compiler would detect if they are not declared in a super-type; or
+- By adding to the compiler a check for this condition on final-like classes. 
+
+Note that here, super-class also includes traits or classes, and final classes includes anonymous classes and singleton classes.

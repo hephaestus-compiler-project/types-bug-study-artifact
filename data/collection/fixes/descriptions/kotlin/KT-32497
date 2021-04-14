@@ -1,0 +1,32 @@
+At 1) and 2) i have to explicitly set the type argument to `<String>` when compiling. The IDE inferres the type correctly. This is consistent throughout the project. 
+```
+fun readWithPluginAccessor(): Step<String> = ResultStep {
+    Try{ "foo" } }.fold(
+      { t -> ErrorResponse<String> ("Could not read resources from classpath", Option.of(t)) }, // <-- (1)
+      { text -> ValueResponse<String> (text) } // <-- (2)
+    )
+}
+``` 
+
+The hint at 3) is also sufficient to aid the compiler in the right direction.
+```
+fun readWithPluginAccessor(): Step<String> = ResultStep<String> { // <-- (3)
+    Try{ "foo" }.fold(
+      { t -> ErrorResponse ("Could not read resources from classpath", Option.of(t)) }, 
+      { text -> ValueResponse (text) } 
+    )
+}
+``` 
+
+
+
+It fails when the hints are missing:
+```
+fun readWithPluginAccessor(): Step<String> = ResultStep { // <-- (*)
+    Try { "foo" }.fold(
+      { t -> ErrorResponse ("Could not read resources from classpath", Option.of(t)) }, // <-- (*)
+      { text -> ValueResponse (text) } // <-- (*)
+    )
+}
+``` 
+(The examples have been a bit reduces to increase readability)

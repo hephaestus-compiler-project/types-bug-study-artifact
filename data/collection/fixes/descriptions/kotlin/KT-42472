@@ -1,0 +1,35 @@
+I get problem with delegated properties on Kotlin version 1.4.10. (in verison 1.3 compiler work correct and report about error)
+Code that reproduce problem:
+```
+import kotlin.properties.ReadOnlyProperty
+import kotlin.reflect.KProperty
+
+class Problem {
+    val variable: Int by delegate()
+    private inline fun <reified T : CharSequence> delegate(): ReadOnlyProperty<Problem, T> {
+        return object : ReadOnlyProperty<Problem, T> {
+            override fun getValue(thisRef: Problem, property: KProperty<*>): T {
+                println("T::class ${T::class}")//for debug only
+                return T::class.constructors.first().call()//stub code, problem not here
+            }
+        }
+    }
+}
+
+fun main() {
+    println(Problem().variable)
+}
+```
+expected behavior: compilation error
+
+    Kotlin: Type parameter bound for T in inline fun <reified T : CharSequence> delegate(): 
+    ReadOnlyProperty<Problem, T> is not satisfied: inferred type Int is not a subtype of CharSequence
+observed behavior: Exception in runtime
+
+    T::class class kotlin.Any
+    Exception in thread "main" java.lang.ClassCastException: java.lang.Object cannot be cast to java.lang.CharSequence
+	at temp.Problem$$special$$inlined$delegate$1.getValue(Test.kt:12)
+	at temp.Problem$$special$$inlined$delegate$1.getValue(Test.kt:9)
+	at temp.Problem.getVariable(Test.kt)
+	at temp.TestKt.main(Test.kt:19)
+	at temp.TestKt.main(Test.kt)

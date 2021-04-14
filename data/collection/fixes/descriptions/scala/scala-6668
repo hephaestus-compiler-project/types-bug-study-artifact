@@ -1,0 +1,54 @@
+Related to #6667, but not the same bug as far as I can see it. This is finding its idea of a non-ambiguous implicit A in the companion of A. The only problem with that is that A has no companion. Defining trait A outside of Test, or if Test is not an object, and it fails as expected.
+```scala
+package p1 {
+  object Test {
+    trait A
+
+    def f(implicit x: A) = println(x)
+    implicit val a: A = new A { }
+    def g {
+      implicit val b: A = new A { }
+      f // COMPILES!
+    }
+  }
+}
+
+package p2 {
+  trait A
+  object Test {
+
+    def f(implicit x: A) = println(x)
+    implicit val a: A = new A { }
+    def g {
+      implicit val b: A = new A { }
+      f // c.scala:22: error: ambiguous implicit values:
+    }
+  }
+}
+
+package p3 {
+  class Test {
+    trait A
+
+    def f(implicit x: A) = println(x)
+    implicit val a: A = new A { }
+    def g {
+      implicit val b: A = new A { }
+      f // c.scala:35: error: ambiguous implicit values:
+    }
+  }
+}
+
+package p4 {
+  trait A
+  class Test {
+
+    def f(implicit x: A) = println(x)
+    implicit val a: A = new A { }
+    def g {
+      implicit val b: A = new A { }
+      f // c.scala:48: error: ambiguous implicit values:
+    }
+  }
+}
+```

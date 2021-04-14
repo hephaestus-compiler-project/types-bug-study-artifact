@@ -1,0 +1,79 @@
+If this code is compiled:
+
+import java.io.IOException;
+
+public class FunWithMultiCatch {
+  public static void main(String[] args) {
+    Runnable r = () -> {
+      try {
+        Object o = null;
+        o.getClass();
+        throw new IOException();
+      } catch(IOException | IllegalArgumentException e) {
+        System.out.println("KO !");
+      } catch(RuntimeException e) {
+        System.out.println("OK !");
+      }
+    };
+    r.run();
+  }
+}
+
+javac generates this code:
+
+private static void lambda$main$0();
+    descriptor: ()V
+    flags: ACC_PRIVATE, ACC_STATIC, ACC_SYNTHETIC
+    Code:
+      stack=2, locals=1, args_size=0
+         0: aconst_null   
+         1: astore_0      
+         2: aload_0       
+         3: invokevirtual #4                  // Method java/lang/Object.getClass:()Ljava/lang/Class;
+         6: pop           
+         7: new           #5                  // class java/io/IOException
+        10: dup           
+        11: invokespecial #6                  // Method java/io/IOException."<init>":()V
+        14: athrow        
+        15: astore_0      
+        16: getstatic     #8                  // Field java/lang/System.out:Ljava/io/PrintStream;
+        19: ldc           #9                  // String KO !
+        21: invokevirtual #10                 // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+        24: goto          36
+        27: astore_0      
+        28: getstatic     #8                  // Field java/lang/System.out:Ljava/io/PrintStream;
+        31: ldc           #12                 // String OK !
+        33: invokevirtual #10                 // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+        36: return        
+      Exception table:
+         from    to  target type
+             0    15    15   Class java/lang/Exception   <----- this will capture all exceptions.
+             0    15    27   Class java/lang/RuntimeException
+
+if the original code is modified to:
+
+import java.io.IOException;
+
+class FunWithMultiCatch {
+  public static void main(String[] args) {
+      try {
+        Object o = null;
+        o.getClass();
+        throw new IOException();
+      } catch(IOException | IllegalArgumentException e) {
+        System.out.println("KO !");
+      } catch(RuntimeException e) {
+        System.out.println("OK !");
+      }
+  }
+}
+
+then we obtain this exception table:
+
+    Exception table:
+         from    to  target type
+             0    15    15   Class java/io/IOException
+             0    15    15   Class java/lang/IllegalArgumentException
+             0    15    27   Class java/lang/RuntimeException
+
+reported in lambda-dev: http://mail.openjdk.java.net/pipermail/lambda-dev/2014-March/011940.html

@@ -1,0 +1,30 @@
+Consider Kotlin code:
+{code}
+header class WithNestedClassifiers{
+    class NestedClass{
+        fun inNestedClass():Int = 5
+    }
+}
+{code}
+1. class nested in a header class is considered as an ordinary class (e.g. function within it must have a body)
+But a function/property within a header class are considered as header in spite of they don't have an explicit header modifier
+2. Generate implementation:
+{code}
+impl class WithNestedClassifiers{
+    class NestedClass{ 
+        fun inNestedClass():Int = 5
+    }
+}
+{code}
+Ok. No errors. Code is compiled ok.
+So, there are 2 function with bodies - in header class and in implementation, and the implementation one is used (if to change its body and call it on impl side - it will be seen that changed body will be invoked, and the header body looks like lost/unused/useless)
+3. if to add a `impl` keyword at `NestedClass` implementation - there is an error that "Modifier 'impl' is only applicable to members that are initially declared in platform-independent code" at this line
+4. if to remove `NestedClass` on implementation side (why to have 2 the same realizations?) the code stops to be compiled: "Modifier 'impl' is only applicable to members that are initially declared in platform-independent code" at top level class (but the top level class is not marked as error! error can be seen only as result of compilation)
+if there is a reference to `NestedClass`:
+{code}    val b = WithNestedClassifiers.NestedClass(){code}
+then there is an error "Unresolved reference: NestedClass", so NestedClass from header declaration is not found
+
+It seems that nested classes (interfaces, objects and inner classes) declared inside a header class should be considered as header ones
+
+2017.1 (#IU-171.4860) + Kotlin 1.1.4-dev-873 + artifact 1.1.4-dev-600
+2017.2 (#IU-172.3095) + Kotlin 1.2-M1-eap-73 + artifact 1.2-M1-eap-62

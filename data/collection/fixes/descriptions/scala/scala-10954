@@ -1,0 +1,29 @@
+Without copying an implementation of scalaz tagged types into this example, this is as minimal as I can get this compilation failure.
+
+Removing the `//` comments, this compiles, which shouldn't intuitively be needed because the instance is on the companion of `Bar`. 
+
+However, it is unclear if the companion of `Bar` should even be searched. It is certainly a parameter of the type, so I would have thought it should be. A fine grained interpretation of the SLS is needed here.
+
+Incidentally, @jdegoes, this will be worked around by `scalaz-zio` because the instance for `Bar` (i.e. `IO`) will be on `Foo` (i.e. `Applicative`), which is certainly in the implicit search.
+
+// @hrhino
+
+```scala
+import scalaz.@@
+import scalaz.Tags.Parallel
+
+trait Foo[F[_]]
+object Foo {
+  @inline def apply[F[_]](implicit F: Foo[F]): Foo[F] = F
+}
+
+class Bar[A]
+object Bar {
+  implicit def foo: Foo[λ[α => Bar[α] @@ Parallel]] = ???
+}
+
+object Main {
+  //implicit val hack = Bar.foo (or import)
+  Foo[λ[α => Bar[α] @@ Parallel]]
+}
+```

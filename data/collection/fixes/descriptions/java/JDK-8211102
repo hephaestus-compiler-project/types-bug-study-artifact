@@ -1,0 +1,41 @@
+Consider the following code:
+---
+import java.util.*;
+
+public class AnalyzerBug {
+    private void t(boolean b) {
+        (b ? Collections.emptyList() : new Iterable<String>() { public Iterator<String> iterator() { return null; } }).toString();
+    }
+}
+---
+
+Compilation with -XDfind=lambda and -source 7 leads to a crash in Analyzer:
+---
+$ javac -XDfind=lambda -source 7 /tmp/AnalyzerBug.java 
+warning: [options] bootstrap class path not set in conjunction with -source 7
+warning: [options] source value 7 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+An exception has occurred in the compiler (12-internal). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.AssertionError: Analyzer error when processing: (b ? Collections.emptyList() : new Iterable<String>(){
+    
+    () {
+        super();
+    }
+    
+    public Iterator<String> iterator() {
+        return null;
+    }
+}).toString();
+        at jdk.compiler/com.sun.tools.javac.util.Assert.error(Assert.java:162)
+        at jdk.compiler/com.sun.tools.javac.comp.Analyzer.doAnalysis(Analyzer.java:568)
+        at jdk.compiler/com.sun.tools.javac.comp.Analyzer$2.flush(Analyzer.java:539)
+        at jdk.compiler/com.sun.tools.javac.comp.Analyzer.flush(Analyzer.java:576)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1407)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.flow(JavaCompiler.java:1375)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:973)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:311)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:170)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:57)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:43)
+---

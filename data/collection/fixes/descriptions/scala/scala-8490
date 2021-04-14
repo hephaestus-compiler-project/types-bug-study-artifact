@@ -1,0 +1,33 @@
+```scala
+Welcome to Scala version 2.10.3 (Java HotSpot(TM) 64-Bit Server VM, Java 1.7.0_45).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> final class MyExtractor[T] {
+     |   def unapply(any: Any): Option[T] = ???
+     | }
+defined class MyExtractor
+
+scala> final class MyAnyRef(val underlying: Any) {
+     |   def compiles[T] = {
+     |     val MyExtractorT = new MyExtractor[T]
+     |     Seq.empty[Any].collect {
+     |       case MyExtractorT(component) => component
+     |     }
+     |   }
+     | }
+defined class MyAnyRef
+
+scala> final class MyAnyVal(val underlying: Any) extends AnyVal {
+     |   def doesNotCompile[T] = {
+     |     val MyExtractorT = new MyExtractor[T]
+     |     Seq.empty[Any].collect {
+     |       case MyExtractorT(component) => component
+     |     }
+     |   }
+     | }
+<console>:11: error: overriding method applyOrElse in trait PartialFunction of type [A1, B1 >: T](x: A1, default: A1 => B1)B1;
+ method applyOrElse has incompatible type
+           Seq.empty[Any].collect {
+                                  ^
+```

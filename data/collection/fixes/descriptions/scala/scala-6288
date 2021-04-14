@@ -1,0 +1,116 @@
+Positions of translated patterns (and consequently line numbers in bytecode) are sometimes wrong. While things are significantly better than in 2.9, there are still issues with unapplies. In this example, notice that in the last case some temporary variable loads are positioned at the `match` position (and the return statement as well).
+
+This causes the debugger to jump between the current line and the beginning of the match for those steps and it is very confusing. I think this is a low-hanging fruit that can improve the user experience a lot.
+
+```scala
+abstract class Super
+case class Case1(x: Int) extends Super
+case class Case2(str: String) extends Super
+object Case3 {
+  def apply(x: Int) = new Super {}
+  def unapply(z: Super): Option[Int] = {
+    Some(-1)
+  }
+}
+
+object Test extends App {
+
+  def test(x: Super) {
+    x match {
+      case Case1(n) =>
+        println(n)
+      case Case2(str) =>
+        println(str)
+      case Case3(nr) =>
+        println(nr)
+    }
+  }
+  
+  test(Case3(-1))
+}
+```
+
+the output:
+
+```scala
+public void test(Super);
+  Code:
+   0: aload_1
+   1: astore_2
+   2: aload_2
+   3: instanceof  #59; //class Case1
+   6: ifeq  43
+   9: aload_2
+   10:   checkcast   #59; //class Case1
+   13:   astore_3
+   14:   aload_3
+   15:   ifnull   43
+   18:   aload_3
+   19:   invokevirtual  #63; //Method Case1.x:()I
+   22:   istore   4
+   24:   getstatic   #68; //Field scala/Predef$.MODULE$:Lscala/Predef$;
+   27:   iload 4
+   29:   invokestatic   #74; //Method scala/runtime/BoxesRunTime.boxToInteger:(I)Ljava/lang/Integer;
+   32:   invokevirtual  #78; //Method scala/Predef$.println:(Ljava/lang/Object;)V
+   35:   getstatic   #84; //Field scala/runtime/BoxedUnit.UNIT:Lscala/runtime/BoxedUnit;
+   38:   astore   5
+   40:   goto  136
+   43:   aload_2
+   44:   instanceof  #86; //class Case2
+   47:   ifeq  84
+   50:   aload_2
+   51:   checkcast   #86; //class Case2
+   54:   astore   6
+   56:   aload 6
+   58:   ifnull   84
+   61:   aload 6
+   63:   invokevirtual  #90; //Method Case2.str:()Ljava/lang/String;
+   66:   astore   7
+   68:   getstatic   #68; //Field scala/Predef$.MODULE$:Lscala/Predef$;
+   71:   aload 7
+   73:   invokevirtual  #78; //Method scala/Predef$.println:(Ljava/lang/Object;)V
+   76:   getstatic   #84; //Field scala/runtime/BoxedUnit.UNIT:Lscala/runtime/BoxedUnit;
+   79:   astore   5
+   81:   goto  136
+   84:   getstatic   #95; //Field Case3$.MODULE$:LCase3$;
+   87:   aload_2
+   88:   invokevirtual  #99; //Method Case3$.unapply:(LSuper;)Lscala/Option;
+   91:   astore   8
+   93:   aload 8
+   95:   invokevirtual  #105; //Method scala/Option.isEmpty:()Z
+   98:   ifeq  110
+   101:  new   #107; //class scala/MatchError
+   104:  dup
+   105:  aload_2
+   106:  invokespecial  #109; //Method scala/MatchError."<init>":(Ljava/lang/Object;)V
+   109:  athrow
+   110:  aload 8
+   112:  invokevirtual  #113; //Method scala/Option.get:()Ljava/lang/Object;
+   115:  invokestatic   #117; //Method scala/runtime/BoxesRunTime.unboxToInt:(Ljava/lang/Object;)I
+   118:  istore   9
+   120:  getstatic   #68; //Field scala/Predef$.MODULE$:Lscala/Predef$;
+   123:  iload 9
+   125:  invokestatic   #74; //Method scala/runtime/BoxesRunTime.boxToInteger:(I)Ljava/lang/Integer;
+   128:  invokevirtual  #78; //Method scala/Predef$.println:(Ljava/lang/Object;)V
+   131:  getstatic   #84; //Field scala/runtime/BoxedUnit.UNIT:Lscala/runtime/BoxedUnit;
+   134:  astore   5
+   136:  return
+
+  LineNumberTable: 
+   line 14: 0
+   line 15: 2
+   line 16: 24
+   line 20: 40
+   line 17: 43
+   line 18: 68
+   line 20: 81
+   line 19: 84
+   line 14: 87
+   line 19: 88
+   line 14: 101
+   line 19: 118
+   line 20: 120
+   line 14: 136
+```
+
+The interesting bits are at offset 84 and 87 and further down.

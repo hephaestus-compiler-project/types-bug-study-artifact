@@ -1,0 +1,148 @@
+Version 0.4.490, got this compiler exception. IDE underlines everything with red and compiler aborts with exception:
+
+Would be difficult to make test case but let me know if you need one and I'll try.
+
+Basically I have a val which references a Java class instance. When I try call a method on it, I get the error.
+Not sure if it makes any difference, but the Java method is returning the same type as itself as in a fluent style.
+I get the same error if I type '.' after the val and try to get a completion popup.
+
+-- From the comments below
+Bug.java
+
+{code}
+public interface Bug<T> {
+	<RET extends Bug<T>> RET save();
+}
+{code}
+
+SubBug.java
+
+{code}
+public class SubBug implements Bug<Object> {
+	public SubBug save() {
+		return this;
+	}
+}
+{code}
+
+BugKotlin.kt
+
+{code}
+fun TestBug() {
+   val o : SubBug? = SubBug().save()
+}
+{code}
+
+Index: 0, Size: 0: Index: 0, Size: 0
+java.lang.IndexOutOfBoundsException: Index: 0, Size: 0
+	at java.util.ArrayList.RangeCheck(ArrayList.java:547)
+	at java.util.ArrayList.get(ArrayList.java:322)
+	at org.jetbrains.jet.lang.resolve.OverridingUtil.prepareTypeSubstitutor(OverridingUtil.java:244)
+	at org.jetbrains.jet.lang.resolve.OverridingUtil.isReturnTypeOkForOverride(OverridingUtil.java:224)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaFunctionResolver.checkFunctionsOverrideCorrectly(JavaFunctionResolver.java:222)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaFunctionResolver.resolveMethodToFunctionDescriptor(JavaFunctionResolver.java:196)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaFunctionResolver.resolveNamedGroupFunctions(JavaFunctionResolver.java:248)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaFunctionResolver.resolveFunctionGroup(JavaFunctionResolver.java:300)
+	at org.jetbrains.jet.lang.resolve.java.JavaDescriptorResolver.resolveFunctionGroup(JavaDescriptorResolver.java:196)
+	at org.jetbrains.jet.lang.resolve.java.scope.JavaClassMembersScope.computeFunctionDescriptor(JavaClassMembersScope.java:56)
+	at org.jetbrains.jet.lang.resolve.java.scope.JavaBaseScope.getFunctions(JavaBaseScope.java:105)
+	at org.jetbrains.jet.lang.resolve.scopes.SubstitutingScope.getFunctions(SubstitutingScope.java:110)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaFunctionResolver.getFunctionsFromSupertypes(JavaFunctionResolver.java:335)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaFunctionResolver.resolveNamedGroupFunctions(JavaFunctionResolver.java:243)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaFunctionResolver.resolveFunctionGroup(JavaFunctionResolver.java:300)
+	at org.jetbrains.jet.lang.resolve.java.JavaDescriptorResolver.resolveFunctionGroup(JavaDescriptorResolver.java:196)
+	at org.jetbrains.jet.lang.resolve.java.scope.JavaClassMembersScope.computeFunctionDescriptor(JavaClassMembersScope.java:56)
+	at org.jetbrains.jet.lang.resolve.java.scope.JavaBaseScope.getFunctions(JavaBaseScope.java:105)
+	at org.jetbrains.jet.lang.resolve.scopes.SubstitutingScope.getFunctions(SubstitutingScope.java:110)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaFunctionResolver.getFunctionsFromSupertypes(JavaFunctionResolver.java:335)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaFunctionResolver.resolveNamedGroupFunctions(JavaFunctionResolver.java:243)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaFunctionResolver.resolveFunctionGroup(JavaFunctionResolver.java:300)
+	at org.jetbrains.jet.lang.resolve.java.JavaDescriptorResolver.resolveFunctionGroup(JavaDescriptorResolver.java:196)
+	at org.jetbrains.jet.lang.resolve.java.scope.JavaClassMembersScope.computeFunctionDescriptor(JavaClassMembersScope.java:56)
+	at org.jetbrains.jet.lang.resolve.java.scope.JavaBaseScope.getFunctions(JavaBaseScope.java:105)
+	at org.jetbrains.jet.lang.resolve.calls.tasks.CallableDescriptorCollectors$1.getMembersByName(CallableDescriptorCollectors.java:53)
+	at org.jetbrains.jet.lang.resolve.calls.tasks.TaskPrioritizer.doComputeTasks(TaskPrioritizer.java:130)
+	at org.jetbrains.jet.lang.resolve.calls.tasks.TaskPrioritizer.computePrioritizedTasks(TaskPrioritizer.java:102)
+	at org.jetbrains.jet.lang.resolve.calls.CallResolver.resolveFunctionCall(CallResolver.java:147)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingContext.resolveFunctionCall(ExpressionTypingContext.java:156)
+	at org.jetbrains.jet.lang.types.expressions.BasicExpressionTypingVisitor.getFunctionDescriptor(BasicExpressionTypingVisitor.java:761)
+	at org.jetbrains.jet.lang.types.expressions.BasicExpressionTypingVisitor.getCallExpressionTypeInfo(BasicExpressionTypingVisitor.java:873)
+	at org.jetbrains.jet.lang.types.expressions.BasicExpressionTypingVisitor.getSelectorReturnTypeInfo(BasicExpressionTypingVisitor.java:812)
+	at org.jetbrains.jet.lang.types.expressions.BasicExpressionTypingVisitor.visitQualifiedExpression(BasicExpressionTypingVisitor.java:706)
+	at org.jetbrains.jet.lang.types.expressions.BasicExpressionTypingVisitor.visitQualifiedExpression(BasicExpressionTypingVisitor.java:65)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitDotQualifiedExpression(JetVisitor.java:258)
+	at org.jetbrains.jet.lang.psi.JetDotQualifiedExpression.accept(JetDotQualifiedExpression.java:34)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.visitJetElement(ExpressionTypingVisitorDispatcher.java:221)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.visitJetElement(ExpressionTypingVisitorDispatcher.java:32)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitExpression(JetVisitor.java:145)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitQualifiedExpression(JetVisitor.java:250)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitDotQualifiedExpression(JetVisitor.java:258)
+	at org.jetbrains.jet.lang.psi.JetDotQualifiedExpression.accept(JetDotQualifiedExpression.java:34)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:116)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:84)
+	at org.jetbrains.jet.lang.types.expressions.ControlStructureTypingVisitor.visitReturnExpression(ControlStructureTypingVisitor.java:520)
+	at org.jetbrains.jet.lang.types.expressions.ControlStructureTypingVisitor.visitReturnExpression(ControlStructureTypingVisitor.java:58)
+	at org.jetbrains.jet.lang.psi.JetReturnExpression.accept(JetReturnExpression.java:35)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.visitReturnExpression(ExpressionTypingVisitorDispatcher.java:167)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.visitReturnExpression(ExpressionTypingVisitorDispatcher.java:32)
+	at org.jetbrains.jet.lang.psi.JetReturnExpression.accept(JetReturnExpression.java:35)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:116)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:84)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorForStatements.visitExpression(ExpressionTypingVisitorForStatements.java:299)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorForStatements.visitExpression(ExpressionTypingVisitorForStatements.java:50)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitLabelQualifiedExpression(JetVisitor.java:194)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitReturnExpression(JetVisitor.java:190)
+	at org.jetbrains.jet.lang.psi.JetReturnExpression.accept(JetReturnExpression.java:35)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:116)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:91)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingServices.getBlockReturnedTypeWithWritableScope(ExpressionTypingServices.java:320)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingServices.getBlockReturnedType(ExpressionTypingServices.java:204)
+	at org.jetbrains.jet.lang.types.expressions.BasicExpressionTypingVisitor.visitBlockExpression(BasicExpressionTypingVisitor.java:678)
+	at org.jetbrains.jet.lang.types.expressions.BasicExpressionTypingVisitor.visitBlockExpression(BasicExpressionTypingVisitor.java:674)
+	at org.jetbrains.jet.lang.types.expressions.BasicExpressionTypingVisitor.visitBlockExpression(BasicExpressionTypingVisitor.java:65)
+	at org.jetbrains.jet.lang.psi.JetBlockExpression.accept(JetBlockExpression.java:47)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.visitJetElement(ExpressionTypingVisitorDispatcher.java:221)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.visitJetElement(ExpressionTypingVisitorDispatcher.java:32)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitExpression(JetVisitor.java:145)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitBlockExpression(JetVisitor.java:274)
+	at org.jetbrains.jet.lang.psi.JetBlockExpression.accept(JetBlockExpression.java:47)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:116)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:84)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:89)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingServices.checkFunctionReturnType(ExpressionTypingServices.java:179)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingServices.checkFunctionReturnType(ExpressionTypingServices.java:157)
+	at org.jetbrains.jet.lang.resolve.BodyResolver.resolveFunctionBody(BodyResolver.java:510)
+	at org.jetbrains.jet.lang.resolve.BodyResolver.resolveFunctionBodies(BodyResolver.java:494)
+	at org.jetbrains.jet.lang.resolve.BodyResolver.resolveBehaviorDeclarationBodies(BodyResolver.java:128)
+	at org.jetbrains.jet.lang.resolve.BodyResolver.resolveBodies(BodyResolver.java:138)
+	at org.jetbrains.jet.analyzer.AnalyzerFacadeForEverything.analyzeBodiesInFilesWithJavaIntegration(AnalyzerFacadeForEverything.java:55)
+	at org.jetbrains.jet.lang.resolve.java.AnalyzerFacadeForJVM.analyzeBodiesInFiles(AnalyzerFacadeForJVM.java:78)
+	at org.jetbrains.jet.plugin.project.AnalyzerFacadeWithCache.analyzeBodies(AnalyzerFacadeWithCache.java:152)
+	at org.jetbrains.jet.plugin.project.AnalyzerFacadeWithCache.access$300(AnalyzerFacadeWithCache.java:48)
+	at org.jetbrains.jet.plugin.project.AnalyzerFacadeWithCache$2.compute(AnalyzerFacadeWithCache.java:96)
+	at com.intellij.psi.impl.PsiCachedValueImpl.doCompute(PsiCachedValueImpl.java:49)
+	at com.intellij.util.CachedValueBase.getValueWithLock(CachedValueBase.java:200)
+	at com.intellij.psi.impl.PsiCachedValueImpl.getValue(PsiCachedValueImpl.java:38)
+	at org.jetbrains.jet.plugin.project.AnalyzerFacadeWithCache.analyzeFileWithCache(AnalyzerFacadeWithCache.java:113)
+	at org.jetbrains.jet.plugin.project.WholeProjectAnalyzerFacade.analyzeProjectWithCacheOnAFile(WholeProjectAnalyzerFacade.java:32)
+	at org.jetbrains.jet.plugin.highlighter.JetLineMarkerProvider.getLineMarkerInfo(JetLineMarkerProvider.java:110)
+	at com.intellij.codeInsight.daemon.impl.LineMarkersPass.addLineMarkers(LineMarkersPass.java:179)
+	at com.intellij.codeInsight.daemon.impl.LineMarkersPass.collectInformationWithProgress(LineMarkersPass.java:118)
+	at com.intellij.codeInsight.daemon.impl.ProgressableTextEditorHighlightingPass.doCollectInformation(ProgressableTextEditorHighlightingPass.java:58)
+	at com.intellij.codeHighlighting.TextEditorHighlightingPass.collectInformation(TextEditorHighlightingPass.java:62)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$1$1.run(PassExecutorService.java:357)
+	at com.intellij.openapi.application.impl.ApplicationImpl.tryRunReadAction(ApplicationImpl.java:1155)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$1.run(PassExecutorService.java:348)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.executeProcessUnderProgress(ProgressManagerImpl.java:232)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.a(PassExecutorService.java:345)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.run(PassExecutorService.java:321)
+	at com.intellij.concurrency.JobLauncherImpl$3.call(JobLauncherImpl.java:129)
+	at com.intellij.concurrency.JobLauncherImpl$3.call(JobLauncherImpl.java:126)
+	at java.util.concurrent.FutureTask$Sync.innerRun(FutureTask.java:303)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:138)
+	at com.intellij.concurrency.PrioritizedFutureTask.access$101(PrioritizedFutureTask.java:31)
+	at com.intellij.concurrency.PrioritizedFutureTask$1.run(PrioritizedFutureTask.java:70)
+	at com.intellij.concurrency.PrioritizedFutureTask.run(PrioritizedFutureTask.java:113)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.runTask(ThreadPoolExecutor.java:886)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:908)
+	at java.lang.Thread.run(Thread.java:680)

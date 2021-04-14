@@ -1,0 +1,35 @@
+The Scala compiler does not infer the argument types for function expressions (e.g. x => x+1) when the function is passed to a method that requires it to be implicitly converted to another type, even though it does infer the types of other objects in a similar situation. (Thanks to Heather Miller for pointing out the second case.) For example, take a look at the attached test2.scala:
+
+```scala
+class MyFunc[-A, +B] {}
+
+class MyCollection[A] {
+  def map[B](f: MyFunc[A, B]): MyCollection[B] = new MyCollection[B]
+}
+
+class OtherFunc[-A, +B] {}
+
+object Test {
+  implicit def functionToMyFunc[A, B](f: A => B): MyFunc[A, B] = new MyFunc
+
+  implicit def otherFuncToMyFunc[A, B](f: OtherFunc[A, B]): MyFunc[A, B] = new MyFunc
+
+  def main(args: Array[String]) {
+    val col = new MyCollection[Int]
+
+    // Doesn't compile: error: missing parameter type for expanded function ((x$1) => x$1.toString)
+    // println(col.map(_.toString)) 
+
+    // Doesn't compile: error: missing parameter type
+    // println(col.map(x => x.toString))
+
+    // Does compile
+    println(col.map((x: Int) => x.toString))
+    
+    // Does compile (even though type params of OtherFunc not given)
+    println(col.map(new OtherFunc))
+  }
+}
+```
+
+This is a problem for cases where you want to represent functions through some richer class, or to apply a macro to function expressions passed to a set of methods. For example, in Spark, I would like to apply a macro to all closure expressions passed to map(), filter(), groupBy(), and other operations in order to properly bind variables, and I would've liked to do this through an implicit conversion macro from Function1[A, B] to ShippableFunction[A, B]. Because of this bug, this can't be done without losing type inference. It would be nice to add it in this case since it seems that the types for other objects can be inferred anyway.

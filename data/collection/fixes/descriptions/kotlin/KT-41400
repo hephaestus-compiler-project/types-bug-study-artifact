@@ -1,0 +1,129 @@
+After updating to kotlin 1.4.0 I've noticed that one of the modules in our project was taking a very long time to build when it usually takes just a few seconds.
+
+I've ran the following commands for benchmark:
+```
+./gradlew lib_images:clean lib_images:assembleDebug --debug > compile-1-3-72.log
+15s
+
+# Updated to kotlin 1.4.0
+
+./gradlew lib_images:clean lib_images:assembleDebug --debug > compile-1-4-0.log
+4m 17s
+```
+
+From the log it looks like in 1.4.0 it spends a lot of time doing something with the cache.
+
+If it's relevant, here is the `build.gradle` for the module:
+```
+apply from: '../scripts/module_build.gradle'
+apply plugin: 'kotlin-kapt'
+
+android {
+    buildTypes {
+        release {
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    implementation(project(":base"))
+    implementation(project(":lib_models"))
+
+    // Recyclerview for the scroll listener
+    implementation "androidx.recyclerview:recyclerview:${versions.recyclerview}"
+
+    // Picasso
+    implementation("com.squareup.picasso:picasso:${versions.picasso}") {
+        exclude group: 'com.android.support', module: 'exifinterface'
+    }
+    implementation("androidx.exifinterface:exifinterface:${versions.exifinterface}") {
+        because("picasso depends on old version of supportLibraryVersion")
+    }
+
+    // Glide
+//    implementation "com.github.bumptech.glide:glide:${versions.glide}"
+//    kapt "com.github.bumptech.glide:compiler:${versions.glide}"
+
+    // Coil
+    implementation "io.coil-kt:coil-base:${versions.coil}"
+}
+```
+
+I commented out Glide because with the kapt task it would've taken another 5 minutes extra with the update.
+
+There are also these dependencies which are common with every other module, even though those modules haven't seen a (noticable at least) performance decrease:
+
+```
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+apply plugin: 'kotlin-android-extensions'
+apply plugin: 'koin'
+apply plugin: "de.mannodermaus.android-junit5"
+apply plugin: "com.github.plnice.canidropjetifier"
+
+ext.testFlavor = ""
+ext.testBuildType = "debug"
+
+apply from: "${rootDir}/scripts/codecoverage.gradle"
+apply from: "${rootDir}/scripts/detekt.gradle"
+apply from: "${rootDir}/scripts/junit_reports.gradle"
+
+android {
+    compileSdkVersion versions.compileSdk
+
+    compileOptions {
+        coreLibraryDesugaringEnabled true
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    defaultConfig {
+        minSdkVersion versions.minSdk
+        targetSdkVersion versions.compileSdk
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles "consumer-rules.pro"
+
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    kotlinOptions {
+        jvmTarget = "1.8"
+        freeCompilerArgs = ['-Xjvm-default=compatibility', '-XXLanguage:+InlineClasses', '-Xopt-in=kotlin.RequiresOptIn']
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
+    lintOptions {
+        ignoreWarnings false
+    }
+}
+
+dependencies {
+    lintChecks(project(":bonial-lint"))
+
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${versions.kotlin}"
+
+    // Koin
+    implementation "org.koin:koin-android:${versions.koin}"
+    implementation "org.koin:koin-androidx-scope:${versions.koin}"
+
+    // coroutines
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:${versions.coroutines}"
+    testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:${versions.coroutines}"
+
+    // Desugaring
+    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:${versions.desugaring}"
+
+}
+```

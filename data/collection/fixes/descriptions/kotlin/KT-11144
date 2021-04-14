@@ -1,0 +1,22 @@
+From http://stackoverflow.com/questions/35485855/uninferredparametertypeconstructor-exception-during-build-when-generic-parameter.
+```
+// FILE: A.java
+public class A<T> {
+    public Observable<T> foo() { return null; } 
+}
+
+// FILE: 1.kt
+class Observable<T>
+
+class Result<T, E>(val data: T? = null, val error: E? = null)
+
+fun <T, E> wrapResult(errorInfoFactory: (Throwable) -> E): (Observable<T>) -> Observable<Result<T, E>> = TODO()
+
+fun <T, R> Observable<T>.compose1(transformer: (Observable<T>) -> Observable<R>): R = TODO()
+
+fun test(errorInfoFactory: (Throwable) -> String, a: A<Int>) {
+    val fromCallable = a.foo() // type for fromCallable is Observable<Int!>! It is important.
+    val result = fromCallable.compose1(wrapResult(errorInfoFactory)) // type is Result<???, String>
+}
+```
+

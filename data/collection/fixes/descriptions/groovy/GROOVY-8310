@@ -1,0 +1,41 @@
+This code compiles normal:
+{code}
+@CompileStatic
+class B {
+    public <T> T bar(Closure<Collection<Integer>> a) {
+        return null
+    }
+
+    def use() {
+       bar {
+            [1]
+        }
+    }
+}
+{code}
+
+Switching return type cause error in code:
+{code}
+import groovy.transform.CompileStatic
+
+@CompileStatic
+class B {
+    public def bar(Closure<Collection<Integer>> a) {
+        return null
+    }
+
+    def use() {
+        bar { // Error:(21, 9) Groovyc: [Static type checking] - Cannot find matching method pack.B#bar(groovy.lang.Closure <java.util.List>). 
+            [1]
+        }
+    }
+}
+{code}
+
+I believe first example should have error too.  But probably after fixing in that way following code will be broken:
+{code}
+def foo() {
+        def nums = [1]
+        def res = nums.collectMany { [it] }
+    }
+{code}

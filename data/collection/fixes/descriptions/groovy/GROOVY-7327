@@ -1,0 +1,31 @@
+To reproduce:
+{code}
+import groovy.transform.TypeChecked
+
+import java.nio.file.StandardCopyOption
+
+enum TestEnum {
+    A, B, C
+}
+
+@TypeChecked
+class TestGenerics {
+    public static <T> List<T> randomSample(T[] sequence) {
+        return Arrays.asList(sequence)[0..1]
+    }
+
+    def test1 = randomSample(TestEnum.values())
+    def test2 = randomSample(StandardCopyOption.values())
+}
+{code}
+
+
+/tmp/TestGenerics.groovy: 16: [Static type checking] - Cannot call <T> TestGenerics#randomSample(T[]) with arguments [java.nio.file.StandardCopyOption[]]
+ @ line 16, column 17.
+       def test2 = randomSample(StandardCopyOption.values())
+
+Same for Collections with Generics instead of arrays.
+Note this fails only with Java enums, not Groovy enums.
+
+Could be related to patches for:
+https://jira.codehaus.org/browse/GROOVY-5981

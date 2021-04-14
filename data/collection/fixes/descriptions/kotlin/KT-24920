@@ -1,0 +1,30 @@
+```kotlin
+interface Item
+class Wrapper<T>
+
+class MyTransformer<T : Item> : ObservableTransformer<List<T>, Wrapper<T>> {
+    override fun apply(upstream: Observable<List<T>>): ObservableSource<Wrapper<T>> {
+        TODO()
+    }
+}
+```
+
+Kotlin compiler can't infer type of `wrapper` in code below:
+```kotlin
+Observable.empty<List<Item>>()
+        .compose(MyTransformer())
+        .subscribe { wrapper ->
+        }
+```
+
+Yields: `Error:(8, 26) Kotlin: Cannot infer a type for this parameter. Please specify it explicitly.`
+
+Equivalent Java code compiles fine:
+```java
+Observable.<List<Item>>empty()
+        .compose(new MyTransformer<>())
+        .subscribe(wrapper -> { // wrapper is inferred as Wrapper<Item>
+        });
+```
+What's also interesting is that if I specify the type of MyTransformer explicitly IC 2018.1.5 thinks that it's redundant:
+![IDE](Screen Shot 2018-06-14 at 01.49.37.png)

@@ -1,0 +1,62 @@
+The following code fails when executing in static compilation mode.
+
+{code:java}
+        import groovy.transform.CompileStatic
+        import java.util.stream.Collectors
+        import java.util.stream.Stream
+        
+        @CompileStatic     // if we comment this line, the code works in dynamic mode.
+        public class Test1 {
+            public static void main(String[] args) {
+                p();
+            }
+            
+            public static void p() {
+                assert 13 == Stream.of(1, 2, 3).reduce(7, {r, e -> r + e});
+            }
+        }
+{code}
+
+Here is the error message:
+{code}
+[Static type checking] - Cannot find matching method java.util.stream.Stream#reduce(int, groovy.lang.Closure). Please check if the declared type is correct and if the method exists.
+ at line: 12, column: 30
+
+[Static type checking] - Cannot find matching method java.lang.Object#plus(java.lang.Object). Please check if the declared type is correct and if the method exists.
+ at line: 12, column: 68
+{code}
+
+Similarly, the following code fails in static compilation mode too:
+
+{code:java}
+        import groovy.transform.CompileStatic
+        import java.util.stream.Collectors
+        import java.util.stream.Stream
+        
+        @CompileStatic  // if we comment this line, the code works in dynamic mode.
+        public class Test1 {
+            public static void main(String[] args) {
+                p();
+            }
+            
+            public static void p() {
+                def list = [1, 2, 3]
+                list.replaceAll { e -> e + 10 }
+                assert [11, 12, 13] == list
+            }
+        }
+{code}
+
+Here is the error message:
+
+{code}
+[Static type checking] - Cannot find matching method java.util.List#replaceAll(groovy.lang.Closure). Please check if the declared type is correct and if the method exists.
+ at line: 13, column: 17
+
+[Static type checking] - Cannot find matching method java.lang.Object#plus(int). Please check if the declared type is correct and if the method exists.
+ at line: 13, column: 40
+
+
+{code}
+
+

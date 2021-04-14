@@ -1,0 +1,22 @@
+Here is the block of code to reproduce the problem:
+
+```scala
+object TestIt extends App { 
+
+ { // if you remove this bracket block, the compiler does not complain
+   def memoize1[A, B](f: A => B): Function1[A, B] = new Function1[A, B] {
+     val results = collection.mutable.Map.empty[A, B]
+     def apply(in: A) = results.getOrElseUpdate(in, f(in))
+   }
+
+   val maxLatency1: Function1[(Int, Int), Int] = memoize1 { t: (Int, Int) =>
+     val (s, d) = t
+     if (s == d) 0
+     else {
+       maxLatency1((1, 2))
+     }
+   }
+ } // end of block
+
+}
+```

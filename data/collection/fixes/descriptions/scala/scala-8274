@@ -1,0 +1,27 @@
+Compiling the following with Scala 2.10.1:
+
+```scala
+trait Execution
+trait Batch
+object M {
+  def batch(executions: List[Execution]): Batch = ???
+}
+
+abstract class Bug {
+
+  def batch(executions: List[Execution]): Batch 
+  def recordBatch(batch: Batch): Batch 
+  def checkBatchData(recordedBatch: Batch) 
+  def foo(p: Any) 
+
+  foo {
+    val inBatch = M.batch(executions = Nil)
+    val batch = recordBatch(inBatch)
+    checkBatchData(batch) // <-- Compiler error: "erroneous or inaccessible type"
+    val executions = batch
+  }
+
+}
+```
+
+Causes a compiler error at the indicated line, but it seems spurious.

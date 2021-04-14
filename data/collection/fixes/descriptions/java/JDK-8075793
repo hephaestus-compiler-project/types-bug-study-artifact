@@ -1,0 +1,69 @@
+FULL PRODUCT VERSION :
+java version "1.9.0-ea"
+Java(TM) SE Runtime Environment (build 1.9.0-ea-b54)
+Java HotSpot(TM) 64-Bit Server VM (build 1.9.0-ea-b54, mixed mode)
+
+A DESCRIPTION OF THE PROBLEM :
+When compiling existing Java 7 compatible source code that compiles fine on Java 7 with the recent Java 9 snapshot builds, it fails. This is caused by type deduction for diamonds, which seems to behave different (but only if you compile with -source/target 1.7, all later source/target versions compile fine with java 9).
+
+REGRESSION.  Last worked in version 7u76
+
+ADDITIONAL REGRESSION INFORMATION: 
+This code compiles perfectly with Java 7 and Java 8, passing "-source 1.7 -target 1.7"
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Use the following class file:
+
+import java.util.*;
+
+class Bug {
+  public static <V> Set<V> copy(final Set<? extends V> set) { 
+    return new HashSet<>(set);
+  }
+}
+
+Code compiles perfectly with Java 7 and Java 8. It also compiles with Java 9 when passing the -source/target 1.8 or 1.9. But with -source/-target 1.7 it fails.
+
+The code also compiles fine with build 47, so it must have been introduced between those builds.
+
+This breaks builds of several open source projects with Java 9. Affected are Apache Lucene and Apache Solr, also Elasticsearch has seen this issue.
+
+The same problems also happens with this code:
+
+import java.util.*;
+
+class Bug {
+  public static <V> void copy(final Set<? extends V> set) { 
+    Set<V> copy = new HashSet<>(set);
+  }
+}
+
+It looks like the diamond operator of the HashSet is deducted from the HashSet constructor parameter and not as described by JLS from the left side of the assignment.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+$ javac -source 1.7 -target 1.7 Bug.java
+warning: [options] bootstrap class path not set in conjunction with -source 1.7
+1 warning
+$
+ACTUAL -
+$ javac -source 1.7 -target 1.7 Bug.java
+warning: [options] bootstrap class path not set in conjunction with -source 1.7
+Bug.java:5: error: incompatible types: HashSet<CAP#1> cannot be converted to Set<V>
+    return new HashSet<>(set);
+           ^
+  where V is a type-variable:
+    V extends Object declared in method <V>copy(Set<? extends V>)
+  where CAP#1 is a fresh type-variable:
+    CAP#1 extends V from capture of ? extends V
+1 error
+1 warning
+$
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+CUSTOMER SUBMITTED WORKAROUND :
+Explicitely insert the type into the diamond: return new HashSet<V>(set);
+
+

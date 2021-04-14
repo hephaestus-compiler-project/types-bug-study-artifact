@@ -1,0 +1,36 @@
+```scala
+class Buffer {
+  def f[@specialized(Int) T](): T = 0 match {
+    case 0 => 0.asInstanceOf[T]
+    case 1 => 0.asInstanceOf[T]
+  }
+}
+```
+
+causes stack overflow in 2.10.0
+
+```
+uncaught exception during compilation: java.lang.StackOverflowError
+java.lang.StackOverflowError
+	at scala.collection.mutable.FlatHashTable$HashUtils$class.elemHashCode(FlatHashTable.scala:391)
+	at scala.collection.mutable.HashSet.elemHashCode(HashSet.scala:41)
+	at scala.collection.mutable.FlatHashTable$class.addEntry(FlatHashTable.scala:137)
+	at scala.collection.mutable.HashSet.addEntry(HashSet.scala:41)
+	at scala.collection.mutable.HashSet.$plus$eq(HashSet.scala:60)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.checkAccessible(Infer.scala:311)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$makeAccessible(Typers.scala:598)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedIdent$1(Typers.scala:5031)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedIdentOrWildcard$1(Typers.scala:5048)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5458)
+	at scala.tools.nsc.typechecker.Duplicators$BodyDuplicator.typed(Duplicators.scala:386)
+	at scala.tools.nsc.typechecker.Duplicators$BodyDuplicator.typed(Duplicators.scala:352)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedPos(Typers.scala:5513)
+	at scala.tools.nsc.typechecker.Duplicators$BodyDuplicator.typed(Duplicators.scala:373)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedPos(Typers.scala:5513)
+	at scala.tools.nsc.typechecker.Duplicators$BodyDuplicator.typed(Duplicators.scala:373)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedPos(Typers.scala:5513)
+```
+
+Workaround:
+Replacing the pattern matching with equivalent if/else statements will allow it to compile.

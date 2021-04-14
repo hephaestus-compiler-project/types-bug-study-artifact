@@ -1,0 +1,55 @@
+## Minimized code
+
+```Scala
+class Foo[T[_, _], F[_], A, B](val fa: T[F[A], F[B]]) extends AnyVal
+
+def x[T[_, _]](tmab: T[Either[Int, String], Either[Int, Int]]) = 
+  new Foo(tmab)
+```
+
+## Output
+
+```scala
+Found:    (tmab : T[Either[Int, String], Either[Int, Int]])
+Required: T²[F[A], F[B]]
+
+where:    A  is a type variable
+          B  is a type variable
+          F  is a type variable with constraint <: [_$14] =>> Any
+          T  is a type in method x with bounds <: [_$15, _$16] =>> Any
+          T² is a type variable with constraint <: [_$12, _$13] =>> Any
+```
+
+## Expectation
+
+This should compile fine and infer `F` as `Either[Int, *]`, it compiles fine in Scala 2.
+
+
+The larger context here is that in Cats we have a `Bitraverse` typeclass:
+```scala
+trait Bitraverse[F[_, _]] {
+  def bisequence[G[_]: Applicative, A, B](fg: F[G[A], G[B]]): G[F[A, B]]
+}
+```
+
+And the Ops for it stopped working in Dotty:
+
+```scala
+implicit class BitraverseOps[T[_, _], M[_], A, B](private val tmamb: T[M[A], M[B]]) extends AnyVal {
+  def bisequence(implicit T: Bitraverse[T], P: Applicative[M]): M[T[A, B]] =
+    T.bisequence(tmamb)
+}
+
+def x[T[_, _]: Bitraverse, B](tmab: T[Either[Int, String], Either[Int, Int]]) = 
+  tmab.bisequence
+
+[error] value bisequence is not a member of T[Either[Int, String], Either[Int, Int]], but could be made available as an extension method.
+
+The following import might make progress towards fixing the problem:
+
+  import collection.Searching.search
+
+
+
+where:    T is a type in method x with bounds <: [_$9, _$10] =>> Any
+```

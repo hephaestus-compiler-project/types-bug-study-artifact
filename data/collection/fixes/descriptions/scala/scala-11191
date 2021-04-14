@@ -1,0 +1,29 @@
+The checks implied by the last case in an exhaustive match are useless, and could be elided.
+
+Consider the simple example from https://gist.github.com/szegedi/477b8030d1bfab33cc6d44a78d9396f4, but it applies generally:
+
+```
+b match {
+  case true  => 10
+  case false => 11
+}
+```
+
+is compiled to
+
+```
+if (b) 10
+else if (!b) 11
+else throw new MatchError(b)
+```
+
+We do a lot better on the equivalent:
+```
+b match {
+  case true  => 10
+  case _ => 11
+}
+```
+
+exhaustiveness should be enough to conclude that `case false` (or any last case in an exhaustive match) could be replace by `case _`
+

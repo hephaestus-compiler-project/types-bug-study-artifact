@@ -1,0 +1,34 @@
+Method getModuleLocation(Location, String) works with StandardLocation.SYSTEM_MODULES.
+But it returns null in case of StandardLocation.MODULE_PATH.
+In this case compiled module is located in module path of JVM.
+This was tested for JDK9 b126.
+
+Minimal test case:
+
+Test/src/mod1/module-info.java
+module mod1{
+    requires java.compiler;
+}
+
+Test/src/mod1/pack/A.java
+package pack;
+public class A{
+    public static void main(String[] args) throws Exception{
+         StandardJavaFileManager fm = ToolProvider.getSystemJavaCompiler().getStandardFileManager(null, null, null);
+         fm.setLocationFromPaths(StandardLocation.MODULE_PATH, Arrays.asList(Paths.get("/Test/out")));
+         JavaFileManager.Location sourceLocation = StandardLocation.MODULE_PATH;
+        JavaFileManager.Location location = fm.getModuleLocation(sourceLocation, "mod2");
+        System.out.println((location == null) ? "Module not found" : "Module is found");
+     }
+}
+
+In Test/out there is directory 'mod2' with compiled module.
+Command:
+java -mp out -m mod1/pack.A
+
+
+Following tests fail due to this issue:
+api/javax_tools/JavaFileManager/index.html#GetModuleLocation[getModuleLocation0001] 
+api/javax_tools/JavaFileManager/index.html#GetModuleLocation[getModuleLocation0011] 
+api/javax_tools/JavaFileManager/index.html#GetModuleLocation[getModuleLocation0003] 
+api/javax_tools/JavaFileManager/index.html#InferModuleName[inferModuleName0001] 

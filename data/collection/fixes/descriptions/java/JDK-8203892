@@ -1,0 +1,34 @@
+Between 11+14 and 11+15, in calls to bootstrap this:
+
+    public static <T> Comparator<T> comparingInt(ToIntFunction<? super T> keyExtractor) {
+        Objects.requireNonNull(keyExtractor);
+        return (Comparator<T> & Serializable)
+            (c1, c2) -> Integer.compare(keyExtractor.applyAsInt(c1), keyExtractor.applyAsInt(c2));
+    }
+
+... the parameters to altMetafactory for the indy has changed:
+
+11+14:
+
+  3: #159 REF_invokeStatic java/lang/invoke/LambdaMetafactory.altMetafactory:(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;[Ljava/lang/Object;)Ljava/lang/invoke/CallSite;
+    Method arguments:
+      #160 (Ljava/lang/Object;Ljava/lang/Object;)I
+      #185 REF_invokeStatic java/util/Comparator.lambda$comparingInt$7b0bb60$1:(Ljava/util/function/ToIntFunction;Ljava/lang/Object;Ljava/lang/Object;)I
+      #160 (Ljava/lang/Object;Ljava/lang/Object;)I
+      #162 5
+      #163 0
+
+11+15:
+
+  3: #159 REF_invokeStatic java/lang/invoke/LambdaMetafactory.altMetafactory:(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;[Ljava/lang/Object;)Ljava/lang/invoke/CallSite;
+    Method arguments:
+      #160 (Ljava/lang/Object;Ljava/lang/Object;)I
+      #186 REF_invokeStatic java/util/Comparator.lambda$comparingInt$7b0bb60$1:(Ljava/util/function/ToIntFunction;Ljava/lang/Object;Ljava/lang/Object;)I
+      #160 (Ljava/lang/Object;Ljava/lang/Object;)I
+      #162 7
+      #163 1
+      #5 java/util/Comparator
+      #164 0
+
+Since the target type is java/util/Comparator, this change in behavior seems to be incorrect
+

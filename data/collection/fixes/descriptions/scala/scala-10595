@@ -1,0 +1,37 @@
+``` scala
+object Crash {
+
+  final case class MyValueClass[A](a: A) extends AnyVal
+  
+  
+  trait Base[B] {
+  
+    def bridgeMethod(b: B): Unit
+  
+  }
+  
+  trait Implementation[A] extends Base[MyValueClass[A]] {
+  
+    final def bridgeMethod(b: MyValueClass[A]): Unit = ???
+    
+  }
+}
+
+final class Crash[A] extends Crash.Implementation[A]  
+```
+
+```
+$ scalac -version
+Scala compiler version 2.12.4 -- Copyright 2002-2017, LAMP/EPFL and Lightbend, Inc.
+```
+
+```
+$ scalac Main.scala 
+Main.scala:19: error: bridge generated for member method bridgeMethod: (b: Crash.MyValueClass[A])Unit in trait Implementation
+which overrides method bridgeMethod: (b: B)Unit in trait Base
+clashes with definition of the member itself;
+both have erased type (b: Object)Unit
+final class Crash[A] extends Crash.Implementation[A]
+            ^
+one error found
+```

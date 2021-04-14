@@ -1,0 +1,67 @@
+The following code gives a warning:
+```scala
+ Warning:(44, 35) unreachable code
+			case NotWorkingTab.b => println(s"pipp: $pipp")
+```
+
+and the test "testGris" fails pattern-matching on
+			case NotWorkingTab.b => println(s"pipp: $pipp")
+while it should match.
+
+```scala
+sealed trait KrafsDescription
+
+abstract class NotWorkingEnum extends Enumeration {
+
+	type ExtendedValue = Value with KrafsDescription
+
+	def Enum(inDescription: String): ExtendedValue = {
+		new Val(nextId) with KrafsDescription {
+		}
+	}
+}
+
+abstract class WorkingEnum extends Enumeration {
+
+	type ExtendedValue = Value
+
+	def Enum(inDescription: String): ExtendedValue = {
+		new Val(nextId) {
+		}
+	}
+}
+
+object NotWorkingTab extends NotWorkingEnum {
+	val a = Enum("A")
+	val b = Enum("B")
+}
+
+object WorkingTab extends WorkingEnum {
+	val a = Enum("A")
+	val b = Enum("B")
+}
+
+@Test
+class EnumTest {
+
+	def testGris() {
+		val pipp = NotWorkingTab.b
+		pipp match {
+			case NotWorkingTab.a => println(s"pipp: $pipp")
+			case NotWorkingTab.b => println(s"pipp: $pipp")
+			case _ => println(s"unknown: $pipp, pipp == NotWorkingTab.b = '${pipp == NotWorkingTab.b}'")
+		}
+	}
+
+
+	def testWorking() {
+		val stuff = WorkingTab.a
+		stuff match {
+			case WorkingTab.a => println(s"stuff: $stuff")
+			case WorkingTab.b => println(s"stuff: $stuff")
+			case _ => println(s"unknown: $stuff ${stuff == WorkingTab.b}")
+		}
+	}
+}
+
+```

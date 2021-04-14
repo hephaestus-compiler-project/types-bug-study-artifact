@@ -1,0 +1,22 @@
+The following doesn't compile:
+```scala
+  type Dummy[A] = A
+  implicit def dummy[A]: Dummy[A] = null.asInstanceOf[A]
+  def m(x: List[String])(implicit d: Dummy[String]) = "string"
+  def m(x: List[Int])(implicit d: Dummy[Int]) = "int"
+
+  m(List(1, 2, 3))
+  m(List("a"))
+```
+
+But if we inline the type alias,
+```scala
+  type Dummy[A] = A
+  implicit def dummy[A]: Dummy[A] = null.asInstanceOf[A]
+  def m(x: List[String])(implicit d: String) = "string"
+  def m(x: List[Int])(implicit d: Int) = "int"
+
+  m(List(1, 2, 3))
+  m(List("a"))
+```
+everything works as expected.

@@ -1,0 +1,37 @@
+From my read of SIP-15, I believe it should support value classes of value classes.  If SIP-15 really doesn't support value classes of value classes, then it would be nice if the error handling was more clear.  I'm hoping it's more than just error handling, though, because I think it would be nice to optimize multiple wrapping of abstractions down completely.
+
+The code I ran on 2.10.0-M3, -M4, and -SNAPSHOT was
+
+```scala
+class A(val i: Int) extends AnyVal
+class B(val a: A) extends AnyVal
+```
+
+which gave me an error that starts with
+
+```scala
+[error] Unknown type: A$unboxed, A$unboxed [class scala.reflect.internal.Types$UniqueErasedValueType, class scala.reflect.internal.Types$UniqueErasedValueType] TypeRef? false
+[error] 
+[error]      while compiling: /home/shajra/tmp/scala-bug/valclass.scala
+[error]         during phase: icode
+[error]      library version: version 2.10.0-20120705-015812-171a1d8bc8
+[error]     compiler version: version 2.10.0-20120705-015812-171a1d8bc8
+[error]   reconstructed args: -d /home/shajra/tmp/scala-bug/target/scala-2.10.0-SNAPSHOT/classes -bootclasspath /home/shajra/opt/jdk/jdk1.7.0_03/jre/lib/resources.jar:/home/shajra/opt/jdk/jdk1.7.0_03/jre/lib/rt.jar:/home/shajra/opt/jdk/jdk1.7.0_03/jre/lib/sunrsasign.jar:/home/shajra/opt/jdk/jdk1.7.0_03/jre/lib/jsse.jar:/home/shajra/opt/jdk/jdk1.7.0_03/jre/lib/jce.jar:/home/shajra/opt/jdk/jdk1.7.0_03/jre/lib/charsets.jar:/home/shajra/opt/jdk/jdk1.7.0_03/jre/classes:/home/shajra/.sbt/boot/scala-2.10.0-SNAPSHOT/lib/scala-library.jar -classpath /home/shajra/tmp/scala-bug/target/scala-2.10.0-SNAPSHOT/classes:/home/shajra/.ivy2/cache/com.typesafe/config/jars/config-0.4.0.jar
+[error] 
+[error]   last tree to typer: Ident(a)
+[error]               symbol: value a (flags: <param> <triedcooking>)
+[error]    symbol definition: a: Int
+[error]                  tpe: Int
+[error]        symbol owners: value a -> constructor B -> class B -> package <empty>
+[error]       context owners: object B -> package <empty>
+```
+
+and (eliding the compiler tree dump) ended with
+
+```scala
+[error] == Expanded type of tree ==
+[error] 
+[error] TypeRef(TypeSymbol(final abstract class Int extends ))
+[error] 
+[error] Unknown type: A$unboxed, A$unboxed [class scala.reflect.internal.Types$UniqueErasedValueType, class scala.reflect.internal.Types$UniqueErasedValueType] TypeRef? false
+```

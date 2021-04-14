@@ -1,0 +1,49 @@
+```scala
+object Test {
+  def main(args : Array[String]) {
+    org.jsoup.Jsoup.parse(null: java.net.URL, 3000)
+  }
+}
+```
+
+Results in:
+
+```
+scala.reflect.internal.Types$TypeError: illegal cyclic reference involving class Document
+/tmp/Cycle.scala:3: error: illegal cyclic reference involving class Document
+    org.jsoup.Jsoup.parse(null: java.net.URL, 3000)
+                         ^
+one error found
+```
+
+But this:
+
+```scala
+object Test {
+  def main(args : Array[String]) {
+    org.jsoup.Jsoup.parse(null: java.net.URL, 3000)
+    ()
+  }
+}
+```
+
+Results in a compiler stack trace:
+
+```
+exception when typing org.jsoup.Jsoup.parse/class scala.reflect.internal.Trees$Select
+illegal cyclic reference involving class Document in file /tmp/Cycle.scala
+scala.reflect.internal.Types$TypeError: illegal cyclic reference involving class Document
+	at scala.reflect.internal.Types$class.defineBaseClassesOfCompoundType(Types.scala:1568)
+	at scala.reflect.internal.Types$class.define$1(Types.scala:1527)
+	at scala.reflect.internal.Types$class.defineBaseClassesOfCompoundType(Types.scala:1528)
+	at scala.reflect.internal.SymbolTable.defineBaseClassesOfCompoundType(SymbolTable.scala:16)
+	at scala.reflect.internal.Types$CompoundType.baseClasses(Types.scala:1370)
+	at scala.reflect.internal.tpe.FindMembers$FindMemberBase.<init>(FindMembers.scala:17)
+	at scala.reflect.internal.tpe.FindMembers$FindMember.<init>(FindMembers.scala:219)
+	at scala.reflect.internal.Types$Type.scala$reflect$internal$Types$Type$$findMemberInternal$1(Types.scala:1014)
+	at scala.reflect.internal.Types$Type.findMember(Types.scala:1016)
+	at scala.reflect.internal.Types$Type.memberBasedOnName(Types.scala:631)
+	at scala.reflect.internal.Types$Type.member(Types.scala:600)
+	at scala.tools.nsc.GlobalSymbolLoaders.scala$tools$nsc$GlobalSymbolLoaders$$lookup$1(GlobalSymbolLoaders.scala:19)
+...
+```

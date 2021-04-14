@@ -1,0 +1,47 @@
+Consider the following program:
+-----
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Parameter;
+
+public class Test {
+
+    public void t(final int first, final byte second) {
+        class List extends java.util.ArrayList<Void> {
+            public List(int startSize) {
+                super(startSize);
+            }
+            @Override public int size() {
+                return super.size() + second;
+            }
+        }
+    }
+
+    public static final void main(String... args) throws Exception {
+        Class<?> c1 = Class.forName("Test$1List");
+        System.err.println("analyzing parameters of constructor of Test$1List:");
+        Constructor constr1 = c1.getDeclaredConstructor(Test.class, int.class, byte.class);
+        for (Parameter p : constr1.getParameters()) {
+            System.err.println(p.getType().getName() + " " + p.getName());
+        }
+    }
+}
+-----
+
+Compile the program using the "-parameters" command line option, and run the result. The program should print the parameters of the constructor of the local class defined in the "t" method. But it prints the following:
+$ javac -parameters /tmp/Test.java 
+$ java -classpath . Test
+analyzing parameters of constructor of Test$1List:
+Test this$0
+int val$second
+byte startSize
+
+Which is not what is written in the source code - the startSize parameter has type "int", and the captured variable "second" has type "byte".
+
+The reason for this appears to be that the MethodParameters attribute first lists all the "synthetic" (and mandatory) parameters, and then the explicit ones, but the captured local variables are actually added after the explicit ones in the method's descriptor.
+
+Tested with jdk8/tl/langtools:
+changeset:   1901:10711bd8bb2d
+tag:         tip
+user:        jlahoda
+date:        Wed Jul 17 15:08:58 2013 +0200
+summary:     8020586: Warning produced for an incorrect file

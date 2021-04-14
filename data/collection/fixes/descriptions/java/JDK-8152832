@@ -1,0 +1,50 @@
+The following code compiles fine in Java-8 while fails with Java-9ea111:
+
+import java.util.function.*;
+import java.util.stream.*;
+import java.util.*;
+
+public class Test {
+    interface MyStream<T> extends Stream<T> {
+        public <U> List<U> toFlatList(Function<? super T, ? extends Collection<U>> mapper);
+    }
+
+    static class MyStreamSupplier<T> {
+        public MyStream<T> get() {return null;}
+    }
+
+    public static <T> void myStream(Supplier<Stream<T>> base, Consumer<MyStreamSupplier<T>> consumer) {
+    }
+
+    public static void assertEquals(Object expected, Object actual) { }
+
+    public void test() {
+        List<List<String>> strings = Arrays.asList();
+        List<String> expectedList = Arrays.asList();
+        myStream(strings::stream, supplier -> {
+            assertEquals(expectedList, supplier.get().toFlatList(Function.identity()));
+        });
+    }
+}
+
+Compiling with 9-ea+111 I see the following error message:
+
+Test.java:23: error: method toFlatList in interface MyStream<T#1> cannot be applied to given types;
+            assertEquals(expectedList, supplier.get().toFlatList(Function.identity()));
+                                                     ^
+  required: Function<? super List<String>,? extends Collection<U>>
+  found: Function<Object,Object>
+  reason: inference variable T#2 has incompatible bounds
+    upper bounds: Collection<Object>,Object
+    lower bounds: List<String>
+  where U,T#1,T#2 are type-variables:
+    U extends Object declared in method <U>toFlatList(Function<? super T#1,? extends Collection<U>>)
+    T#1 extends Object declared in interface MyStream
+    T#2 extends Object declared in method <T#2>identity()
+1 error
+
+Regression:
+Compiles fine with javac 8u25, 8u40, 8u60, 8u71, 9ea57, 9ea80, 9ea82, 9ea83, 9ea91. Fails with 9ea105, 9ea111 (sorry, I have no 9ea versions installed between 9ea91 and 9ea105).
+
+Work-around:
+Replace Function.identity() with x -> x.

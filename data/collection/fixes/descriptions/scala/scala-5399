@@ -1,0 +1,46 @@
+The following code compiles without errors in 2.9.1, but fails in 2.10.0-SNAPSHOT (`2.10.0.rdev-4232-2012-01-23-g9a20086`). This looks related to Martin's fix on Jan. 21:
+https://github.com/scala/scala/commit/2e092d4822d044312317c502badd8ad5c2674b58
+
+```scala
+
+class Foo {
+  trait Init[T]
+  class ScopedKey[T] extends Init[T]
+
+  trait Setting[T] {
+    val key: ScopedKey[T]
+  }
+
+  case class ScopedKey1[T](val foo: Init[T]) extends ScopedKey[T]
+
+  val scalaHome: Setting[Option[String]] = null
+  val scalaVersion: Setting[String] = null
+
+  def testPatternMatch(s: Setting[_]) {
+    s.key match {
+      case ScopedKey1(scalaHome.key | scalaVersion.key) => ()
+    }
+  }
+}
+```
+
+Errors when compiled with trunk:
+
+```scala
+
+existential.scala:34: error: type mismatch;
+ found   : Foo.this.ScopedKey[Option[String]]
+ required: Foo.this.Init[Any]
+Note: Option[String] <: Any, but trait Init is invariant in type T.
+You may wish to define T as +T instead. (SLS 4.5)
+      case ScopedKey1(scalaHome.key | scalaVersion.key) => ()
+                                ^
+existential.scala:34: error: type mismatch;
+ found   : Foo.this.ScopedKey[String]
+ required: Foo.this.Init[Any]
+Note: String <: Any, but trait Init is invariant in type T.
+You may wish to define T as +T instead. (SLS 4.5)
+      case ScopedKey1(scalaHome.key | scalaVersion.key) => ()
+                                                   ^
+two errors found
+```

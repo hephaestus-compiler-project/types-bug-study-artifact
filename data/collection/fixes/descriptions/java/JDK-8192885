@@ -1,0 +1,142 @@
+FULL PRODUCT VERSION :
+java version "10-ea"
+Java(TM) SE Runtime Environment (build 10-ea+33)
+Java HotSpot(TM) 64-Bit Server VM (build 10-ea+33, mixed mode)
+
+
+A DESCRIPTION OF THE PROBLEM :
+Compiler in JDK 10-ea+33 misses to include entry in LineNumberTable for goto instruction of foreach loop. Due to this in case if body of a loop is not executed, debugger will misleadingly show that step after line of foreach loop will be a last line of the body.
+
+Background information: I'm one of developers of the JaCoCo code coverage tool. This tool relies on line number debug information within class files to provide code coverage highlighting. We have a regression test suite which uncovered the defect reported here.
+
+And due to this issue in the same case code coverage tool such as JaCoCo will highlight misleadingly last line of a body of foreach loop as partially executed.
+
+After bisection of http://hg.openjdk.java.net/jdk/jdk/ seems that this regression was introduced by changes for JDK-8175883 :
+
+$ hg bisect --good jdk-10+30
+$ hg bisect --bad jdk-10+33
+Testing changeset 47839:314ac2e2db63 (143 changesets remaining, ~7 tests)
+1133 files updated, 0 files merged, 320 files removed, 0 files unresolved
+
+$ hg bisect --good
+Testing changeset 47845:2ac93efc62ed (71 changesets remaining, ~6 tests)
+685 files updated, 0 files merged, 33 files removed, 0 files unresolved
+
+$ hg bisect --good 
+Testing changeset 47862:ebe854b910ff (35 changesets remaining, ~5 tests)
+93 files updated, 0 files merged, 7 files removed, 0 files unresolved
+
+$ hg bisect --good                             
+Testing changeset 47871:5ab3961d20dd (18 changesets remaining, ~4 tests)
+51 files updated, 0 files merged, 1 files removed, 0 files unresolved
+
+$ hg bisect --bad                              
+Testing changeset 47866:39db80b32b69 (9 changesets remaining, ~3 tests)
+29 files updated, 0 files merged, 4 files removed, 0 files unresolved
+
+$ hg bisect --bad                              
+Testing changeset 47864:e29ae57c6421 (4 changesets remaining, ~2 tests)
+17 files updated, 0 files merged, 0 files removed, 0 files unresolved
+
+$ hg bisect --bad                              
+Testing changeset 47863:abe64cd683a4 (2 changesets remaining, ~1 tests)
+2 files updated, 0 files merged, 0 files removed, 0 files unresolved
+
+$ hg bisect --good
+The first bad revision is:
+changeset:   47864:e29ae57c6421
+user:        vromero
+date:        Mon Nov 20 17:07:21 2017 -0500
+summary:     8175883: bytecode generated for the enhanced for loop may block memory garbage collecting
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile the provided source file.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+"line 5" in LineNumberTable as this is the case with JDK 1.8.0_152-b16 , 9.0.1+11 and 10-ea+30 :
+
+  static void example();
+    descriptor: ()V
+    flags: (0x0008) ACC_STATIC
+    Code:
+      stack=1, locals=2, args_size=0
+         0: invokestatic  #2                  // Method java/util/Collections.emptyList:()Ljava/util/List;
+         3: invokeinterface #3,  1            // InterfaceMethod java/util/List.iterator:()Ljava/util/Iterator;
+         8: astore_0
+         9: aload_0
+        10: invokeinterface #4,  1            // InterfaceMethod java/util/Iterator.hasNext:()Z
+        15: ifeq          32
+        18: aload_0
+        19: invokeinterface #5,  1            // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+        24: astore_1
+        25: aload_1
+        26: invokestatic  #6                  // Method nop:(Ljava/lang/Object;)V
+        29: goto          9
+        32: return
+      LineNumberTable:
+        line 3: 0
+        line 4: 25
+        line 5: 29
+        line 6: 32
+      StackMapTable: number_of_entries = 2
+        frame_type = 252 /* append */
+          offset_delta = 9
+          locals = [ class java/util/Iterator ]
+        frame_type = 250 /* chop */
+          offset_delta = 22
+
+ACTUAL -
+No "line 5" in LineNumberTable with JDK 10-ea+33 :
+
+  static void example();
+    descriptor: ()V
+    flags: (0x0008) ACC_STATIC
+    Code:
+      stack=1, locals=2, args_size=0
+         0: invokestatic  #2                  // Method java/util/Collections.emptyList:()Ljava/util/List;
+         3: invokeinterface #3,  1            // InterfaceMethod java/util/List.iterator:()Ljava/util/Iterator;
+         8: astore_0
+         9: aload_0
+        10: invokeinterface #4,  1            // InterfaceMethod java/util/Iterator.hasNext:()Z
+        15: ifeq          32
+        18: aload_0
+        19: invokeinterface #5,  1            // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+        24: astore_1
+        25: aload_1
+        26: invokestatic  #6                  // Method nop:(Ljava/lang/Object;)V
+        29: goto          9
+        32: aconst_null
+        33: astore_0
+        34: aconst_null
+        35: astore_1
+        36: return
+      LineNumberTable:
+        line 3: 0
+        line 4: 25
+        line 6: 36
+      StackMapTable: number_of_entries = 2
+        frame_type = 252 /* append */
+          offset_delta = 9
+          locals = [ class java/util/Iterator ]
+        frame_type = 22 /* same */
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+class Example {
+  static void example() {
+    for (Object o : java.util.Collections.emptyList()) {
+      nop(o);
+    }
+  }
+
+  static void nop(Object o) {
+  }
+}
+
+---------- END SOURCE ----------
+

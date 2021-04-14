@@ -1,0 +1,33 @@
+The following code gives an incorrect dead code warning:
+```scala
+object Test extends App {
+  val Yes1 = true
+  val Yes2 = true
+  val No1 = false
+  val No2 = false
+
+  def test(b1: Boolean, b2: Boolean) {
+    (b1, b2) match {
+      case (No1, No2) => println("1")
+      case (No1, Yes2) => println("2")
+      case (Yes1, No2) => println("3")
+      case (Yes1, Yes2) => println("4")
+    }   
+  }
+
+  test(No1, Yes2)
+}
+```
+
+When compiling this, I get the wraning:
+
+```scala
+[error] test.scala:14: unreachable code
+[error]       case (No1, Yes2) => println("2")
+```
+
+However, when run, it does print "2", so it is clearly not dead code.
+
+It looks like it has something to do the Booleans. If I change all the Booleans to Int's with values of 0/1, the dead code error goes away.
+
+This same code does not produce a warning in scala 2.9.2.

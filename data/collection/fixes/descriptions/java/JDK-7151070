@@ -1,0 +1,129 @@
+FULL PRODUCT VERSION :
+java version "1.7.0_03"
+Java(TM) SE Runtime Environment (build 1.7.0_03-b04)
+Java HotSpot(TM) 64-Bit Server VM (build 22.1-b02, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux PC1374 3.0.0-16-generic #28-Ubuntu SMP Fri Jan 27 17:44:39 UTC 2012 x86_64 x86_64 x86_64 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+Compiler throws a NullPointerException in Resolve.isAccessible when a package-prive class is used in (at least) generics of a public class (see source).
+
+REGRESSION.  Last worked in version 6u29
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Use source delivered, and compile using:
+
+javac -source 1.7 -target 1.7 -encoding utf-8 data/Dto.java data/Dao.java wicket/BugTest.java
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Compiler delivers a readable warning that the (abstract) class Dto should be visible for use in Dao<V extends Dto>
+
+or; should this be legal (I'm doubting that, since Dto would be referenced in Dao to the outside world?); just compile everything.
+ACTUAL -
+NullPointerException (see Error message)
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+java.lang.NullPointerException
+	at com.sun.tools.javac.comp.Resolve.isAccessible(Resolve.java:162)
+	at com.sun.tools.javac.comp.Resolve.isAccessible(Resolve.java:216)
+	at com.sun.tools.javac.comp.Resolve.isAccessible(Resolve.java:212)
+	at com.sun.tools.javac.comp.Resolve$AccessError.getDiagnostic(Resolve.java:2260)
+	at com.sun.tools.javac.comp.Resolve.logResolveError(Resolve.java:1822)
+	at com.sun.tools.javac.comp.Resolve.logAccessError(Resolve.java:1812)
+	at com.sun.tools.javac.comp.TransTypes.cast(TransTypes.java:110)
+	at com.sun.tools.javac.comp.TransTypes.coerce(TransTypes.java:126)
+	at com.sun.tools.javac.comp.TransTypes.retype(TransTypes.java:160)
+	at com.sun.tools.javac.comp.TransTypes.visitApply(TransTypes.java:601)
+	at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1321)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:425)
+	at com.sun.tools.javac.comp.TransTypes.translateArgs(TransTypes.java:190)
+	at com.sun.tools.javac.comp.TransTypes.visitApply(TransTypes.java:598)
+	at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1321)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:425)
+	at com.sun.tools.javac.comp.TransTypes.visitExec(TransTypes.java:564)
+	at com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1167)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:70)
+	at com.sun.tools.javac.tree.TreeTranslator.visitBlock(TreeTranslator.java:160)
+	at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:781)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:425)
+	at com.sun.tools.javac.comp.TransTypes.visitMethodDef(TransTypes.java:459)
+	at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:669)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:70)
+	at com.sun.tools.javac.tree.TreeTranslator.visitClassDef(TreeTranslator.java:134)
+	at com.sun.tools.javac.comp.TransTypes.translateClass(TransTypes.java:871)
+	at com.sun.tools.javac.comp.TransTypes.visitClassDef(TransTypes.java:446)
+	at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:591)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:70)
+	at com.sun.tools.javac.tree.TreeTranslator.visitClassDef(TreeTranslator.java:134)
+	at com.sun.tools.javac.comp.TransTypes.translateClass(TransTypes.java:871)
+	at com.sun.tools.javac.comp.TransTypes.visitClassDef(TransTypes.java:446)
+	at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:591)
+	at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:425)
+	at com.sun.tools.javac.comp.TransTypes.translateTopLevelClass(TransTypes.java:898)
+	at com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1375)
+	at com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1271)
+	at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:870)
+	at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:829)
+	at com.sun.tools.javac.main.Main.compile(Main.java:419)
+	at com.sun.tools.javac.main.Main.compile(Main.java:333)
+	at com.sun.tools.javac.main.Main.compile(Main.java:324)
+	at com.sun.tools.javac.Main.compile(Main.java:76)
+	at com.sun.tools.javac.Main.main(Main.java:61)
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+// -- FILE: data/Dto.java
+
+package data;
+
+abstract class Dto { }
+
+// -- FILE: data/Dao.java
+
+package data;
+
+public abstract class BugDao<V extends Dto> {
+  public void delete(V dto) { }
+  
+  public static class TestDto extends Dto { }
+
+  public static class TestDao extends BugDao<TestDto> { }
+}
+
+// -- FILE: bug/BugTest.java
+
+package bug;
+
+import data.BugDao.TestDao;
+import data.BugDao.TestDto;
+
+public class BugTest {
+  private TestDao dao;
+
+  public void test(Test<TestDto> obj) {
+    dao.delete(obj.getObject());
+  }
+
+  public static class Test<T> {
+    public T getObject() {
+      return null;
+    }
+  }
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+make type Dto (data/Dto.java) public, instead of package-private (default)

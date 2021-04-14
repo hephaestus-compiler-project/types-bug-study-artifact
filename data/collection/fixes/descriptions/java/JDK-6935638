@@ -1,0 +1,50 @@
+FULL PRODUCT VERSION :
+java version "1.6.0_17"
+Java(TM) SE Runtime Environment (build 1.6.0_17-b04-248-9M3125)
+Java HotSpot(TM) 64-Bit Server VM (build 14.3-b01-101, mixed mode)
+
+
+A DESCRIPTION OF THE PROBLEM :
+javac doesn't generate class files for files listed explicitly on the command line when using -processor and -implicit:none.
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+javac DummyProcessor.java
+javac -implicit:none -processor DummyProcessor -processorpath . Fisk.java
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+javac produces the class file Fisk.class.
+ACTUAL -
+javac does not produce the class file Fisk.class.
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+==> Fisk.java <==
+public class Fisk {
+}
+
+==> DummyProcessor.java <==
+// Copyright 2010 Google Inc. All Rights Reserved.
+
+import java.util.Set;
+
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.TypeElement;
+
+@SupportedSourceVersion(SourceVersion.RELEASE_6)
+@SupportedAnnotationTypes("*")
+public class DummyProcessor extends AbstractProcessor {
+  public boolean process(Set<? extends TypeElement> annotations,
+                         RoundEnvironment roundEnv) {
+    return true;
+  }
+}
+
+---------- END SOURCE ----------

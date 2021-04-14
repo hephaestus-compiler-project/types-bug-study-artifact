@@ -1,0 +1,14 @@
+class JDK8148354 {
+    interface I {}
+    interface J { void foo(); }
+
+    public void test() {
+        Object o1 = (I & J) System::gc;
+        Object o2 = (Object & J) System::gc; // error
+        Object o3 = (Object & I & J) System::gc; // error
+    }
+}
+
+javac believes that Object is not allowed here, but it is:
+- "An intersection type that induces a notional functional interface" is a functional interface type (JLS 9.8)
+- "If Ck is Object, a notional interface is induced" -- where Ck is derived by mapping each intersection component to its most specific superclass type and then choosing the most specific of these class types -- in these cases, that's Object (JLS 4.9) 

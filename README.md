@@ -51,6 +51,7 @@ Reproduce Paper results
 -----------------------
 
 ```bash
+./scripts/data_collection_stats.sh data/collection
 python scripts/rq1.py data/bugs.json --output figures/symptoms.pdf
 python scripts/rq2.py data/bugs.json --patterns figures/patterns.pdf \
     --patterns-symptoms figures/patterns_symptoms.pdf

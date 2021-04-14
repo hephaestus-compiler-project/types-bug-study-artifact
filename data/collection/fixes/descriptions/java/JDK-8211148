@@ -1,0 +1,48 @@
+ADDITIONAL SYSTEM INFORMATION :
+Linux x86_64
+
+A DESCRIPTION OF THE PROBLEM :
+"java -source 10" accepts Java syntax that was only introduced in Java 11 and that is rejected by "javac" from JDK 10.
+
+This program
+======================== foo.java ======================
+public class foo { Readable r = (var b) -> 0; }
+======================================================
+
+gives a syntax error with javac from JDK 10:
+
+$ javac foo.java
+foo.java:1: error: 'var' is not allowed here
+public class foo { Readable r = (var b) -> 0; }
+                                 ^
+1 error
+
+But "javac -source 10" from JDK 11 fails to diagnose it:
+
+$ javac -source 10 foo.java
+warning: [options] bootstrap class path not set in conjunction with -source 10
+1 warning
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+echo 'public class foo { Readable r = (var b) -> 0; }' > foo.java
+javac -source 10 foo.java
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+An error diagnostic.
+ACTUAL -
+No error.
+
+---------- BEGIN SOURCE ----------
+public class foo { Readable r = (var b) -> 0; }
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+javac -source 9 foo.java
+
+FREQUENCY : always
+
+

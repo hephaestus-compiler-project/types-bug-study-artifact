@@ -1,0 +1,36 @@
+Given the following record:
+
+    public record Range(int lo, int hi) {}
+
+Javac generates 2 FieldRef constants for either field. javap -c Range.class:
+
+public final class Range extends java.lang.Record {
+  public Range(int, int);
+    Code:
+       0: aload_0
+       1: invokespecial #1                  // Method java/lang/Record."<init>":()V
+       4: aload_0
+       5: iload_1
+       6: putfield      #7                  // Field lo:I
+       9: aload_0
+      10: iload_2
+      11: putfield      #13                 // Field hi:I
+      14: return
+  ...
+
+  public int lo();
+    Code:
+       0: aload_0
+       1: getfield      #16                 // Field lo:I
+       4: ireturn
+
+  public int hi();
+    Code:
+       0: aload_0
+       1: getfield      #17                 // Field hi:I
+       4: ireturn
+}
+
+Note that the constructor and accessors use different FieldRef constants (#7 -> #16, #13 -> #17), while for a regular class these would be the same FieldRef constant. The extra FieldRef constant in the case of the record seems to be redundant.
+
+This issue was found by Nicolai Parlog during his live stream exploring records: https://clips.twitch.tv/PoorCrispyClintmullinsTBCheesePull

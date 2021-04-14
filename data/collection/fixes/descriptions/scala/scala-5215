@@ -1,0 +1,88 @@
+Compile following code with `-Xelide-below OFF` and then Scalac crashed.
+```scala
+import scala.annotation.elidable
+
+trait A {
+  @elidable(elidable.FINEST) def xx()
+}
+
+class B extends A {
+  override def xx() {
+    println("xx")
+  }
+}
+
+object Main {
+
+  def main(args: Array[String]): Unit = {
+    val a:A = new B
+    a.xx()
+  }
+
+}
+```
+```scala
+error: java.lang.Error: Illegal tree in gen: ()
+	at scala.tools.nsc.symtab.SymbolTable.abort(SymbolTable.scala:34)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:139)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:45)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:69)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:136)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:88)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:45)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:69)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:79)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:65)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.apply(GenICode.scala:61)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:329)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:297)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:297)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:660)
+	at scala.collection.mutable.ListBuffer$$anon$1.foreach(ListBuffer.scala:316)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:297)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.run(GenICode.scala:54)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:953)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1038)
+	at scala.tools.nsc.Main$.process(Main.scala:106)
+	at scala.tools.nsc.Main$.main(Main.scala:123)
+	at scala.tools.nsc.Main.main(Main.scala)
+
+Exception in thread "main" java.lang.Error: Illegal tree in gen: ()
+	at scala.tools.nsc.symtab.SymbolTable.abort(SymbolTable.scala:34)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:139)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:45)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:69)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:136)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:88)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:69)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:45)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:69)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:79)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:65)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.apply(GenICode.scala:61)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:329)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:297)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:297)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:660)
+	at scala.collection.mutable.ListBuffer$$anon$1.foreach(ListBuffer.scala:316)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:297)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.run(GenICode.scala:54)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:953)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1038)
+	at scala.tools.nsc.Main$.process(Main.scala:106)
+	at scala.tools.nsc.Main$.main(Main.scala:123)
+	at scala.tools.nsc.Main.main(Main.scala)
+```
+
+If I change `trait A` to `abstract class A`, it's OK.

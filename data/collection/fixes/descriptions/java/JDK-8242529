@@ -1,0 +1,55 @@
+Within the following example, the outcommented lines represent incorrect behavior:
+
+```
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.lang.reflect.*;
+import java.util.concurrent.Callable;
+
+public record SampleRecord(@RegularAnnotation @TypeAnnotation Callable<@TypeAnnotation ?>foo) {
+
+    public static void main(String[] args) throws Exception {
+        RecordComponent recordComponent = SampleRecord.class.getRecordComponents()[0];
+        assert recordComponent.getAnnotations().length == 1;
+        assert recordComponent.getAnnotations()[0] instanceof RegularAnnotation;
+        assert recordComponent.getAnnotatedType().getAnnotations()[0] instanceof TypeAnnotation;
+        assert ((AnnotatedParameterizedType) recordComponent.getAnnotatedType()).getAnnotatedActualTypeArguments().length == 1;
+        assert ((AnnotatedParameterizedType) recordComponent.getAnnotatedType()).getAnnotatedActualTypeArguments()[0].getAnnotations()[0] instanceof TypeAnnotation;
+
+        Method accessor = recordComponent.getAccessor();
+        //assert accessor.getAnnotations().length == 1;
+        assert accessor.getAnnotations()[0] instanceof RegularAnnotation;
+        //assert accessor.getAnnotatedReturnType().getAnnotations().length == 1;
+        //assert accessor.getAnnotatedReturnType().getAnnotations()[0] instanceof TypeAnnotation;
+        //assert ((AnnotatedParameterizedType) accessor.getAnnotatedReturnType()).getAnnotatedActualTypeArguments().length == 1;
+        //assert ((AnnotatedParameterizedType) accessor.getAnnotatedReturnType()).getAnnotatedActualTypeArguments()[0].getAnnotations()[0] instanceof TypeAnnotation;
+
+        Constructor<?> constructor = SampleRecord.class.getConstructor(Callable.class);
+        assert constructor.getParameterAnnotations()[0].length == 1;
+        assert constructor.getParameterAnnotations()[0][0] instanceof RegularAnnotation;
+        assert constructor.getAnnotatedParameterTypes()[0].getAnnotations()[0] instanceof TypeAnnotation;
+        assert ((AnnotatedParameterizedType) constructor.getAnnotatedParameterTypes()[0]).getAnnotatedActualTypeArguments().length == 1;
+        //assert ((AnnotatedParameterizedType) constructor.getAnnotatedParameterTypes()[0]).getAnnotatedActualTypeArguments()[0].getAnnotations()[0] instanceof TypeAnnotation;
+
+        Field field = SampleRecord.class.getDeclaredField(recordComponent.getName());
+        assert field.getAnnotations().length == 1;
+        assert field.getAnnotations()[0] instanceof RegularAnnotation;
+        assert field.getAnnotatedType().getAnnotations()[0] instanceof TypeAnnotation;
+        assert ((AnnotatedParameterizedType) field.getAnnotatedType()).getAnnotatedActualTypeArguments().length == 1;
+        assert ((AnnotatedParameterizedType) field.getAnnotatedType()).getAnnotatedActualTypeArguments()[0].getAnnotations()[0] instanceof TypeAnnotation;
+    }
+}
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE_USE)
+@interface TypeAnnotation { }
+
+@Retention(RetentionPolicy.RUNTIME)
+@interface RegularAnnotation { }
+```
+
+When writing annotations for the constructor, any type annotation that is not on the root type path is set with a reference of FIELD what is invalid for constructor type annotations.
+
+When writing annotations for the accessor, any type annotations not on the root type path are lost entirely in the class file. Type annotations on the root type path are however written as a regular annotation, despite the declared target.

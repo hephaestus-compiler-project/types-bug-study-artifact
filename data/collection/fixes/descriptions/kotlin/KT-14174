@@ -1,0 +1,22 @@
+In the attached example, IDEA can't infer a type when I believe it should be able to. The example involves a higher order function with 3 type parameters. I'm using Kotlin 1.0.4, IDEA 2016.1.4. In case you need further context, the problem came up in this project:
+
+https://github.com/DrFriendless/StatsDownloader/tree/master/worker/src/main/kotlin
+
+By explicitly defining the type of allIDsAndURLs to be List<Pair<Int, String>> I can get the code to compile, but it surprised me that was necessary.
+
+```
+fun <A, B, C> doToFirst(f: (A) -> C): (Pair<A,B>) -> Pair<C,B> {
+    return fun(pair: Pair<A,B>): Pair<C,B> {
+        return Pair(f(pair.first), pair.second)
+    }
+}
+
+class CheckGamesFileEntries() {
+    fun execute() {
+        val gameIDs = listOf(1,2,3,4)
+        fun extractGameId(filename: String) = 4
+        val allIDsAndURLs = listOf(Pair("1.xml", "abc")).map(doToFirst(::extractGameId))
+        val unwantedGamesURLs = allIDsAndURLs.filter { it.first !in gameIDs }.map { it.second }
+    }
+}
+```

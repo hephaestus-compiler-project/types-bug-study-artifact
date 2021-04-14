@@ -1,0 +1,42 @@
+When trying to define `HasThisType` trait in following form
+```Scala
+    // this is compile-able code in both Scala and Dotty compilers
+    type HasThisTypeLoverBounded[PThis] = HasThisType { type This <: PThis }
+    trait HasThisType {
+      type This >: this.type <: HasThisTypeLoverBounded[This]
+    }
+```
+
+Dotty compiler crashes when that snippet is grown to several bigger snippets.
+
+**(1)** While attempting to verify that "that.This#This <: that.This" like
+([complete snippet](https://scastie.scala-lang.org/ibaklan/sPG8lZFjT66YuePrPeESxQ), [same snippet with commented problematic lines](https://scastie.scala-lang.org/ibaklan/hW50JG7BTq2MNXFc1GwbFw))
+```Scala
+      val that: HasThisType = ???
+      // this line works in both Dotty and Scala
+      val that1: that.This = that
+
+      // this like fails in both Dotty and Scala but in Dotty it also makes compiler runtime crash
+      val that2: that1.This = that1
+```
+
+**(2)** While trying to define abstract subclass with qualities similar to original `HasThisType`:
+([complete snippet](https://scastie.scala-lang.org/ibaklan/yjC09ktyTk6eV4m3zMJ8Xw))
+```Scala
+    // this code is compile-able in Scala while in Dotty it makes compiler runtime crash
+    type FooLikeTypeLoverBounded[PThis] = FooLike { type This <: PThis }
+    class FooLike extends HasThisType {
+      type This >: this.type <: FooLikeTypeLoverBounded[This]
+    }
+```
+However simple instantiation/subclassing of such `HasThisType` is still possible in Dotty:
+([complete snippet](https://scastie.scala-lang.org/ibaklan/0HUnMUh1QkuBZRmkFHTWyA))
+```Scala
+    // this code is compile-able in both Scala and Dotty compiler
+    class Foo extends HasThisType {
+      type This = Foo
+    }
+```
+
+FYI: positive case (snippet which compiles and works as expected with Scala compiler)
+could be found [here](https://scastie.scala-lang.org/ibaklan/vteAyqzmRhCkmXeu9tAkMQ)

@@ -1,0 +1,51 @@
+As noticed by Dinko Srkoc in http://thread.gmane.org/gmane.comp.lang.scala.user/58246 sometimes the type parameter on a selectDynamic call gets lost.
+
+With this definition:
+```
+import language.dynamics
+
+class C(v: Any) extends Dynamic {
+  def selectDynamic[T](n: String): Option[T] = Option(v.asInstanceOf[T])
+  def applyDynamic[T](n: String)(): Option[T] = Option(v.asInstanceOf[T])
+}
+```
+
+one gets this behaviour:
+```
+scala> new C(42).foo[Int].get
+java.lang.ClassCastException: java.lang.Integer cannot be cast to scala.runtime.Nothing$
+```
+
+This happens because in Typers.scala, mkInvoke is called with the following cxTree:
+new C.<init>(42).foo[Int].get
+
+Note that the outer element of that tree is a Select(..., "get"), and that's not handled by mkInvoke:
+
+```
+  val (outer, explicitTargs) = cxTree1 match {
+    case TypeApply(fun, targs)              => (fun, targs)
+    case Apply(TypeApply(fun, targs), args) => (Apply(fun, args), targs)
+    case t                                  => (t, Nil)
+  }
+```
+
+That can be fixed by adding another case:
+
+```
+  val (outer, explicitTargs) = cxTree1 match {
+    case TypeApply(fun, targs)              => (fun, targs)
+    case Apply(TypeApply(fun, targs), args) => (Apply(fun, args), targs)
+    case Select(TypeApply(fun, targs), nme) => (Select(fun, nme), targs)
+    case t                                  => (t, Nil)
+  }
+```
+
+With that change, the examples work as expected:
+
+```
+scala> new C(42).foo[Int]().get
+res0: Int = 42
+
+scala> new C(42).foo[Int].get
+res1: Int = 42 
+```

@@ -1,0 +1,33 @@
+What steps will reproduce the problem (please be specific and use wikiformatting)?
+```scala
+$$ cat test1.scala 
+trait TestA {
+  class Sym[T]
+  def foo: List[Sym[_]] = Nil
+}
+
+$$ cat test2.scala 
+trait TestB extends TestA {
+  override def foo: List[Sym[_]] = super.foo
+}
+
+$$ cat test3.scala 
+trait TestC extends TestB {  
+  def bar = foo
+}
+
+$$ scalac test1.scala
+$$ scalac test2.scala
+$$ scalac test3.scala
+error: class file needed by TestB is missing.
+reference type _$$1 of => List[TestA.this.Sym[_]] refers to nonexisting symbol.
+one error found
+```
+Compiling all 3 files together works fine. Removing the super call in `TestB` also makes it work. 
+
+What is the expected behavior? Compile without errors.
+
+What versions of the following are you using?
+Scala:r23727
+Java:1.6.20
+Operating system: Mac 10.6

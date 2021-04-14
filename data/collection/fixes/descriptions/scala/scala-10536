@@ -1,0 +1,25 @@
+tricky situation I just ran in to:
+
+```scala
+trait A
+
+trait B[C <: B[C]] {
+  def ==(o: C)(implicit a: A): Boolean = ???
+}
+
+trait D[C <: B[C]]
+
+case class E[C <: B[C]](c: C) extends D[C]
+```
+
+gives compile error:
+
+```bash
+ error: could not find implicit value for parameter a: A
+       case class E[C <: B[C]](c: C) extends D[C]
+                  ^
+```
+
+seems like a generated method in the case class `E` collides with the overloaded `B.==` which requires an implicit `A`.
+
+maybe the answer is to just not overload `==` in this way, but the error msg is not very clear about the issue so I wanted to document it here.

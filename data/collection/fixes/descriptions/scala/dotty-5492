@@ -1,0 +1,111 @@
+The following code crashes the compiler at backend:
+
+```Scala
+package foo {
+  object A {
+    inline def f(x: Int) = B.f(x)
+  }
+
+  private[foo] object B {
+    def f(x: Int) = x * 5
+  }
+}
+
+class Test {
+  val x = foo.A.f(4)
+}
+```
+
+Code generated after frontend:
+
+```Scala
+package <empty> {
+  package foo {
+    final lazy module val A: foo.A$ = new foo.A$()
+    final module class A$() extends Object() { this: foo.A.type =>
+      inline def f(x: Int): Int = foo.inline$B.f(x)
+    }
+    final lazy module val B: foo.B$ = new foo.B$()
+    final module class B$() extends Object() { this: foo.B.type =>
+      def f(x: Int): Int = x.*(5)
+    }
+  }
+  class Test() extends Object() {
+    val x: Int =
+      /* inlined from foo.A.f(4) */
+        {
+          foo.inline$B.f(4)
+        }
+  }
+}
+```
+
+<details>
+<summary>SI-5604: Cannot use package as value: This(Ident(foo))</summary>
+<pre>
+Warning: mocking up superclass for module class foo
+SI-5604: Cannot use package as value: This(Ident(foo))
+java.lang.RuntimeException: SI-5604: Cannot use package as value: This(Ident(foo))
+	at dotty.tools.backend.jvm.DottyBackendInterface.abort(DottyBackendInterface.scala:398)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genLoadModule(BCodeBodyBuilder.scala:1098)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genLoad(BCodeBodyBuilder.scala:355)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genLoad(BCodeBodyBuilder.scala:271)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genLoadQualifier(BCodeBodyBuilder.scala:1049)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genNormalMethodCall$1(BCodeBodyBuilder.scala:795)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genApply(BCodeBodyBuilder.scala:827)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genLoad(BCodeBodyBuilder.scala:346)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genLoad(BCodeBodyBuilder.scala:271)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genLoadQualifier(BCodeBodyBuilder.scala:1049)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genNormalMethodCall$1(BCodeBodyBuilder.scala:795)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genApply(BCodeBodyBuilder.scala:827)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genLoad(BCodeBodyBuilder.scala:346)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genStat(BCodeBodyBuilder.scala:77)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genNormalBlock$2$$anonfun$1(BCodeBodyBuilder.scala:933)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.immutable.List.foreach(List.scala:388)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genNormalBlock$1(BCodeBodyBuilder.scala:933)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genBlock(BCodeBodyBuilder.scala:965)
+	at scala.tools.nsc.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genLoad(BCodeBodyBuilder.scala:417)
+	at scala.tools.nsc.backend.jvm.BCodeSkelBuilder$PlainSkelBuilder.emitNormalMethodBody$1(BCodeSkelBuilder.scala:602)
+	at scala.tools.nsc.backend.jvm.BCodeSkelBuilder$PlainSkelBuilder.genDefDef(BCodeSkelBuilder.scala:635)
+	at scala.tools.nsc.backend.jvm.BCodeSkelBuilder$PlainSkelBuilder.gen(BCodeSkelBuilder.scala:506)
+	at scala.tools.nsc.backend.jvm.BCodeSkelBuilder$PlainSkelBuilder.gen$$anonfun$1(BCodeSkelBuilder.scala:508)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.immutable.List.foreach(List.scala:388)
+	at scala.tools.nsc.backend.jvm.BCodeSkelBuilder$PlainSkelBuilder.gen(BCodeSkelBuilder.scala:508)
+	at scala.tools.nsc.backend.jvm.BCodeSkelBuilder$PlainSkelBuilder.genPlainClass(BCodeSkelBuilder.scala:116)
+	at dotty.tools.backend.jvm.GenBCodePipeline$Worker1.visit(GenBCode.scala:212)
+	at dotty.tools.backend.jvm.GenBCodePipeline$Worker1.run(GenBCode.scala:179)
+	at dotty.tools.backend.jvm.GenBCodePipeline.buildAndSendToDisk(GenBCode.scala:417)
+	at dotty.tools.backend.jvm.GenBCodePipeline.run(GenBCode.scala:383)
+	at dotty.tools.backend.jvm.GenBCode.run(GenBCode.scala:53)
+	at dotty.tools.dotc.core.Phases$Phase.runOn$$anonfun$1(Phases.scala:299)
+	at scala.collection.immutable.List.map(List.scala:282)
+	at dotty.tools.dotc.core.Phases$Phase.runOn(Phases.scala:301)
+	at dotty.tools.backend.jvm.GenBCode.runOn(GenBCode.scala:58)
+	at dotty.tools.dotc.Run.runPhases$4$$anonfun$4(Run.scala:175)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:32)
+	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:29)
+	at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:194)
+	at dotty.tools.dotc.Run.runPhases$5(Run.scala:187)
+	at dotty.tools.dotc.Run.compileUnits$$anonfun$1(Run.scala:195)
+	at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.util.Stats$.maybeMonitored(Stats.scala:90)
+	at dotty.tools.dotc.Run.compileUnits(Run.scala:202)
+	at dotty.tools.dotc.Run.compileSources(Run.scala:137)
+	at dotty.tools.dotc.Run.compile(Run.scala:121)
+	at dotty.tools.dotc.Driver.doCompile(Driver.scala:31)
+	at dotty.tools.dotc.Driver.process(Driver.scala:134)
+	at dotty.tools.dotc.Driver.process(Driver.scala:103)
+	at dotty.tools.dotc.Driver.process(Driver.scala:115)
+	at dotty.tools.dotc.Driver.main(Driver.scala:142)
+	at dotty.tools.dotc.Main.main(Main.scala)
+Error while emitting inline.scala
+SI-5604: Cannot use package as value: This(Ident(foo))
+two errors found
+</pre>
+</details>

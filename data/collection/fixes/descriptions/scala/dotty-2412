@@ -1,0 +1,23 @@
+This code should only report one error:
+```scala
+object Test {
+  def test(foo: List[String]): Unit = {
+    foo.filter(f => {
+      iDontExist // error
+      true
+    })
+  }
+}
+```
+But with dotty we get two:
+```scala
+-- Error: try/err.scala:3:15 ---------------------------------------------------
+3 |    foo.filter(f => {
+  |               ^
+  |               missing parameter type for parameter f, expected = ?
+-- [E006] Unbound Identifier Error: try/err.scala:4:6 --------------------------
+4 |      iDontExist
+  |      ^^^^^^^^^^
+  |      not found: iDontExist
+```
+Even though the type of `f` is correctly inferred as `String`, as can be seen using `-Xprint:frontend`. Interestingly this does not happen if we replace `filter` by `map`. This seems to be related to the way we fallback in `typedApply`: https://github.com/lampepfl/dotty/blob/master/compiler/src/dotty/tools/dotc/typer/Applications.scala#L695-L707

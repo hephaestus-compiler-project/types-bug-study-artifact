@@ -1,0 +1,35 @@
+While trying to compile dottydoc I ran across this error, here's a minimization:
+```scala
+import scala.collection.JavaConverters._
+
+object Test {
+  def test(x: Any): Unit = {
+    x.asInstanceOf[java.util.List[_]].asScala.toList
+  }
+}
+```
+```scala
+-- Error: jlist.scala ------------------------------------------------------
+5 |    x.asInstanceOf[java.util.List[_]].asScala.toList
+  |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |    unsafe instantiation of type => 
+  |      scala.collection.immutable.List[
+  |        java.util.List'[_] @UnsafeNonvariant#java$util$List$$E
+  |      ]
+  |    (?1.toList)where:    List  is a class in package immutable
+  |              List' is a trait in package util
+```
+
+The error disappear if the code is rewritten as:
+```scala
+import scala.collection.JavaConverters._
+
+object Test {
+  def test(x: Any): Unit = {
+    val y = x.asInstanceOf[java.util.List[_]].asScala
+    y.toList
+  }
+}
+```
+
+@odersky Could you explain why this happens exactly? Is this something that we can fix? Otherwise, we should try to give a better error message to the user, this one does not help you fix the problem. Ideally, the compiler would tell you to do the rewriting above.

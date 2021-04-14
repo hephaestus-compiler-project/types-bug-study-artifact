@@ -1,0 +1,68 @@
+For this class, Dotty does not seem to work properly:
+```scala
+import scala.collection.mutable._
+
+class Tag(val name: String, val buffer: Buffer[Tag] = ArrayBuffer()) {
+	def space(n: Int = 0): String = {
+	    s"${" " * n}<$name>\n" +
+	        (if(buffer.isEmpty) "" else buffer.map(_.space(n + 4)).mkString("", "\n", "\n")) +
+	    s"${" " * n}</$name>"
+	}
+	
+	def apply[U](f: implicit Tag => U)(implicit tag: Tag = null): this.type = {
+		f(this)
+		if(tag != null) tag.buffer += this
+		this
+	}
+	
+	override def toString(): String = space(0)
+}
+
+object Tag {
+	implicit def toTag(symbol: Symbol): Tag = new Tag(symbol.name)
+
+	def main(args: Array[String]): Unit = {
+	}
+}
+```
+run by dotr(0.2.0-RC1-bin-SNAPSHOT-git-54d7089):
+```
+$ dotc Tag.scala
+$ dotr Tag
+Exception in thread "main" java.lang.ClassFormatError: Duplicate method name&signature in class file Tag$
+	at java.lang.ClassLoader.defineClass1(Native Method)
+	at java.lang.ClassLoader.defineClass(ClassLoader.java:763)
+	at java.security.SecureClassLoader.defineClass(SecureClassLoader.java:142)
+	at java.net.URLClassLoader.defineClass(URLClassLoader.java:467)
+	at java.net.URLClassLoader.access$100(URLClassLoader.java:73)
+	at java.net.URLClassLoader$1.run(URLClassLoader.java:368)
+	at java.net.URLClassLoader$1.run(URLClassLoader.java:362)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at java.net.URLClassLoader.findClass(URLClassLoader.java:361)
+	at java.lang.ClassLoader.loadClass(ClassLoader.java:424)
+	at sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:335)
+	at java.lang.ClassLoader.loadClass(ClassLoader.java:357)
+	at Tag.main(HTML.scala)
+```
+Or compiled with SBT and then used in the repl (dottyVersion="0.3.0-bin-20170729-df4b3dd-NIGHTLY"  )
+```scala
+$ sbt console
+[info] Loading global plugins from /home/glavo/.sbt/0.13/plugins
+[info] Loading project definition from /home/glavo/IdeaProjects/Test/test/project
+[info] Set current project to dotty-simple (in build file:/home/glavo/IdeaProjects/Test/test/)
+[info] Compiling 1 Scala source to /home/glavo/IdeaProjects/Test/test/target/scala-0.3/classes...
+Starting dotty interpreter...
+Welcome to Scala.next (pre-alpha, git-hash: df4b3dd)  (OpenJDK 64-Bit Server VM, Java 1.8.0_131).
+Type in expressions to have them evaluated.
+Type :help for more information.
+scala> import Tag._ 
+import Tag._
+scala> 'html {} 
+java.lang.ClassFormatError: Duplicate method name&signature in class file 
+	at java.lang.ClassLoader.defineClass1(Native Method)
+	at java.lang.ClassLoader.defineClass(ClassLoader.java:763)
+	at java.lang.ClassLoader.defineClass(ClassLoader.java:642)
+	at dotty.tools.dotc.repl.AbstractFileClassLoader.findClass(AbstractFileClassLoader.scala:29)
+	at java.lang.ClassLoader.loadClass(ClassLoa...
+
+```

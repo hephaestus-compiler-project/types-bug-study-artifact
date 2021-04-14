@@ -1,0 +1,60 @@
+{code}
+enum class B(y: Int) {
+   X: this(0) // exception after typing "this"
+}
+{code}
+Looks like it permitted by parser (http://kotlinlang.org/docs/reference/grammar.html#initializer) but frontend is not ready for this
+
+Exception text:
+This-calls should be prohibited by the parser
+java.lang.IllegalStateException: This-calls should be prohibited by the parser
+	at org.jetbrains.jet.lang.resolve.BodyResolver$1.visitDelegationToThisCall(BodyResolver.java:249)
+	at org.jetbrains.jet.lang.psi.JetVisitorVoid.visitDelegationToThisCall(JetVisitorVoid.java:587)
+	at org.jetbrains.jet.lang.psi.JetVisitorVoid.visitDelegationToThisCall(JetVisitorVoid.java:21)
+	at org.jetbrains.jet.lang.psi.JetDelegatorToThisCall.accept(JetDelegatorToThisCall.java:41)
+	at org.jetbrains.jet.lang.psi.JetElementImplStub.accept(JetElementImplStub.java:61)
+	at org.jetbrains.jet.lang.resolve.BodyResolver.resolveDelegationSpecifierList(BodyResolver.java:259)
+	at org.jetbrains.jet.lang.resolve.BodyResolver.resolveDelegationSpecifierLists(BodyResolver.java:147)
+	at org.jetbrains.jet.lang.resolve.BodyResolver.resolveBehaviorDeclarationBodies(BodyResolver.java:114)
+	at org.jetbrains.jet.lang.resolve.BodyResolver.resolveBodies(BodyResolver.java:135)
+	at org.jetbrains.jet.lang.resolve.LazyTopDownAnalyzer.analyzeDeclarations(LazyTopDownAnalyzer.java:312)
+	at org.jetbrains.jet.plugin.caches.resolve.KotlinResolveDataProvider.analyze(KotlinResolveCache.kt:258)
+	at org.jetbrains.jet.plugin.caches.resolve.PerFileAnalysisCache.analyze(KotlinResolveCache.kt:179)
+	at org.jetbrains.jet.plugin.caches.resolve.PerFileAnalysisCache.analyze$b$2(KotlinResolveCache.kt:126)
+	at org.jetbrains.jet.plugin.caches.resolve.PerFileAnalysisCache.getAnalysisResults(KotlinResolveCache.kt:164)
+	at org.jetbrains.jet.plugin.caches.resolve.KotlinResolveCache.getAnalysisResultsForElements(KotlinResolveCache.kt:114)
+	at org.jetbrains.jet.plugin.caches.resolve.KotlinCacheService$getResolutionFacade$1.analyzeFullyAndGetResult(KotlinCacheService.kt:66)
+	at org.jetbrains.jet.plugin.caches.resolve.ResolvePackage$resolutionApi$08531357.analyzeFullyAndGetResult(resolutionApi.kt:58)
+	at org.jetbrains.jet.plugin.highlighter.JetPsiChecker.annotate(JetPsiChecker.kt:63)
+	at org.jetbrains.jet.plugin.highlighter.JetPsiCheckerAndHighlightingUpdater.annotate(JetPsiCheckerAndHighlightingUpdater.java:29)
+	at com.intellij.codeInsight.daemon.impl.DefaultHighlightVisitor.runAnnotators(DefaultHighlightVisitor.java:160)
+	at com.intellij.codeInsight.daemon.impl.DefaultHighlightVisitor.visit(DefaultHighlightVisitor.java:103)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass$5.run(GeneralHighlightingPass.java:313)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.analyzeByVisitors(GeneralHighlightingPass.java:399)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.access$300(GeneralHighlightingPass.java:64)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass$6.run(GeneralHighlightingPass.java:405)
+	at com.intellij.codeInsight.daemon.impl.DefaultHighlightVisitor.analyze(DefaultHighlightVisitor.java:87)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.analyzeByVisitors(GeneralHighlightingPass.java:402)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.access$300(GeneralHighlightingPass.java:64)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass$6.run(GeneralHighlightingPass.java:405)
+	at com.intellij.codeInsight.daemon.impl.RefCountHolder.analyze(RefCountHolder.java:321)
+	at com.intellij.codeInsight.daemon.impl.analysis.HighlightVisitorImpl.analyze(HighlightVisitorImpl.java:175)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.analyzeByVisitors(GeneralHighlightingPass.java:402)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.collectHighlights(GeneralHighlightingPass.java:390)
+	at com.intellij.codeInsight.daemon.impl.GeneralHighlightingPass.collectInformationWithProgress(GeneralHighlightingPass.java:230)
+	at com.intellij.codeInsight.daemon.impl.ProgressableTextEditorHighlightingPass.doCollectInformation(ProgressableTextEditorHighlightingPass.java:91)
+	at com.intellij.codeHighlighting.TextEditorHighlightingPass.collectInformation(TextEditorHighlightingPass.java:62)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$1$1.run(PassExecutorService.java:438)
+	at com.intellij.openapi.application.impl.ApplicationImpl.tryRunReadAction(ApplicationImpl.java:1143)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$1.run(PassExecutorService.java:429)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.registerIndicatorAndRun(ProgressManagerImpl.java:281)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.executeProcessUnderProgress(ProgressManagerImpl.java:233)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.doRun(PassExecutorService.java:426)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.run(PassExecutorService.java:402)
+	at com.intellij.concurrency.JobLauncherImpl$VoidForkJoinTask.exec(JobLauncherImpl.java:202)
+	at jsr166e.ForkJoinTask.doExec(ForkJoinTask.java:260)
+	at jsr166e.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:858)
+	at jsr166e.ForkJoinPool.scan(ForkJoinPool.java:1687)
+	at jsr166e.ForkJoinPool.runWorker(ForkJoinPool.java:1642)
+	at jsr166e.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:109)
+

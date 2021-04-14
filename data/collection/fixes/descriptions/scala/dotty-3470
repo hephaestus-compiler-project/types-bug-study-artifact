@@ -1,0 +1,96 @@
+Instead of reporting compilation error only, compiler crashes with NPE for the following source: 
+
+```scala
+object Main {
+    abstract class Factory[T <: Int] {
+      def size: T
+      def create: Array[T] = Array.ofDim(size)
+    }
+}
+```
+
+Actual error: 
+```
+-- Error: Main.scala:5:44 ------------------------------------------------------
+5 |    def create: Array[T] = Array.ofDim(size)
+  |                                            ^
+  |                                  No ClassTag available for Factory.this.T
+
+exception occurred while typechecking Main.scala
+
+exception occurred while compiling Main.scala
+Exception in thread "main" java.lang.NullPointerException
+	at dotty.tools.dotc.core.Types$TypeVar.instantiateWith(Types.scala:3338)
+	at dotty.tools.dotc.core.Types$TypeVar.instantiate(Types.scala:3352)
+	at dotty.tools.dotc.typer.Inferencing$.op$5$$anonfun$1(Inferencing.scala:264)
+	at scala.collection.mutable.ResizableArray.foreach(ResizableArray.scala:59)
+	at scala.collection.mutable.ResizableArray.foreach$(ResizableArray.scala:52)
+	at scala.collection.mutable.ArrayBuffer.foreach(ArrayBuffer.scala:48)
+	at dotty.tools.dotc.typer.Inferencing$.op$4(Inferencing.scala:265)
+	at dotty.tools.dotc.typer.Inferencing$.interpolate$1(Inferencing.scala:221)
+	at dotty.tools.dotc.typer.Inferencing$.interpolateUndetVars(Inferencing.scala:267)
+	at dotty.tools.dotc.typer.Typer.op$2(Typer.scala:1859)
+	at dotty.tools.dotc.typer.Typer.op$1(Typer.scala:1858)
+	at dotty.tools.dotc.typer.Typer.adapt(Typer.scala:1857)
+	at dotty.tools.dotc.typer.Typer.op$7(Typer.scala:1696)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1692)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1718)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1741)
+	at dotty.tools.dotc.typer.Typer.op$14(Typer.scala:1409)
+	at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1339)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1623)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1678)
+	at dotty.tools.dotc.typer.Typer.op$7(Typer.scala:1696)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1692)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1718)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1741)
+	at dotty.tools.dotc.typer.Typer.op$14(Typer.scala:1409)
+	at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1339)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1623)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1678)
+	at dotty.tools.dotc.typer.Typer.op$7(Typer.scala:1696)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1692)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1718)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1741)
+	at dotty.tools.dotc.typer.Typer.op$11(Typer.scala:1522)
+	at dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:1509)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1662)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1679)
+	at dotty.tools.dotc.typer.Typer.op$7(Typer.scala:1696)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1692)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:1753)
+	at dotty.tools.dotc.typer.FrontEnd.typeCheck$$anonfun$1(FrontEnd.scala:64)
+	at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.typer.FrontEnd.monitor(FrontEnd.scala:32)
+	at dotty.tools.dotc.typer.FrontEnd.typeCheck(FrontEnd.scala:68)
+	at dotty.tools.dotc.typer.FrontEnd.runOn$$anonfun$3(FrontEnd.scala:93)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.immutable.List.foreach(List.scala:389)
+	at dotty.tools.dotc.typer.FrontEnd.runOn(FrontEnd.scala:93)
+	at dotty.tools.dotc.Run.op$1(Run.scala:124)
+	at dotty.tools.dotc.Run.compileUnits$$anonfun$2$$anonfun$1(Run.scala:122)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+	at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:32)
+	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:29)
+	at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:191)
+	at dotty.tools.dotc.Run.compileUnits$$anonfun$1(Run.scala:135)
+	at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.util.Stats$.maybeMonitored(Stats.scala:86)
+	at dotty.tools.dotc.Run.compileUnits(Run.scala:137)
+	at dotty.tools.dotc.Run.compileSources(Run.scala:95)
+	at dotty.tools.dotc.Run.compile(Run.scala:79)
+	at dotty.tools.dotc.Driver.doCompile(Driver.scala:26)
+	at dotty.tools.dotc.Driver.process(Driver.scala:124)
+	at dotty.tools.dotc.Driver.process(Driver.scala:93)
+	at dotty.tools.dotc.Driver.process(Driver.scala:105)
+	at dotty.tools.dotc.Driver.main(Driver.scala:132)
+	at dotty.tools.dotc.Main.main(Main.scala)
+```
+
+Compiler crashes in `Types` class because `instantiateWith` method of `TypeVar` class does not take into account that `owningState` field may be null when permanent instance type of the variable is instantiated.  
+
+I have this bug already fixed in the branch with additional minor improvements like removed unused imports and fixed typo. 
+
+Shall I create pull request ?

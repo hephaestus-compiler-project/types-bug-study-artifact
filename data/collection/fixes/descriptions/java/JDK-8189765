@@ -1,0 +1,66 @@
+Executive summary:  Lying error messages are the worst
+time-wasters, especially if they are lying about complex,
+scaled-up configuration information.
+
+When working in modular code, if I attempt to import a package
+which is not visible to my package, sometimes the error message
+just bluntly states that the package does not exist, even if the
+package *does* exist but cannot be accessed due to details of
+the module system.
+
+This has wasted hours of my time today, because I was treating
+the "package does not exist" statement as correct, and therefore
+knocked my head against a wall trying to find the configuration
+error which was causing my package to "not exist".  (It was made
+more difficult of course cause the configuration was set up by an
+IDE, under masses of properties, config. dialogs, ant files, class
+paths, etc., etc.  Much of my time was cutting down to a minimal
+reproducible case.)  Eventually I found that, yes, my package is
+correctly made available (on javac -classpath, as it happens, but
+it might also have been somewhere else more "modern").  So
+the error message was a lie, and due to a very simple root cause:
+The module I was working in does not read the (unnamed) module
+containing the package I was importing–which "does not exist"
+according to the lying error message–but which really exists and
+is not readable.  Due to a simple programmer error.
+
+This is either an incomplete fix of JDK-8169197, or a closely
+related failure mode.  Let's get these messages right, please.
+
+See below for an example.
+
+--------
+        jar -tvf lib/testng.jar org/testng/annotations/Test.class
+  1535 Tue Sep 26 08:53:24 PDT 2017 org/testng/annotations/Test.class
+--------
+        javac -d out --patch-module java.base=src -cp lib/testng.jar src/test0.java
++ javac -d out --patch-module java.base=src -cp lib/testng.jar src/test0.java
+src/test0.java:5: error: package java.sql is not visible
+import java.sql.*;
+           ^
+  (package java.sql is declared in module java.sql, but module java.base does not read it)
+src/test0.java:9: error: package org.testng.annotations does not exist
+import org.testng.annotations.*;
+^
+2 errors
+--------
+        cat src/test0.java 
+// javac -d out --patch-module java.base=src -cp lib/testng.jar src/test0.java
+
+package java.lang.invoke;
+
+import java.sql.*;
+//error: package java.sql is not visible
+//  (package java.sql is declared in module java.sql, but module java.base does not read it)
+
+import org.testng.annotations.*;
+//error: package org.testng.annotations does not exist
+
+// BUG: THE MESSAGE SHOULD SAY SOMETHING LIKE THIS:
+//error: package org.testng.annotations is not visible
+//  (package org.testng.annotations is declared in the unnamed module, but java.base does not read it)
+
+class test0 {
+  // @Test public void test() {...}
+}
+--------

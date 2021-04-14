@@ -1,0 +1,43 @@
+```
+fun Int.extension(foo: (() -> Unit)?): Int {
+    return this
+}
+
+fun test() {
+    2.extension(
+            foo = if (1 == 2) {
+                { // <- compiler error here
+                    println(123)
+                }
+            } else {
+                null
+            }
+    )
+}
+```
+
+(with kotlin 1.3.40 and new inference on in IDE settings) looks fine, no errors, but compilation fails with 
+```
+Type mismatch: inferred type is () -> Unit but Nothing? was expected
+```
+
+(on the line marked above)
+
+
+Extracting the parameter like this
+```
+    val foo: (() -> Unit)? = if (1 == 2) {
+        {
+            println(123)
+        }
+    } else {
+        null
+    }
+
+    2.extension(
+            foo = foo
+    )
+```
+works, as it should (and is probably a good idea).
+
+You asked for weird edge cases, you get them ;-)

@@ -1,0 +1,20 @@
+```
+/*
+ * primary constructor has _private in file_ visibility
+ * secondary constructor has _private in class_ visibility
+ */
+sealed class X() {
+    // "redundant private modifier" diagnostic
+    private constructor(x: Int) : this()
+}
+
+class Y : X() // resolved to public primary constructor, OK
+class Z : X(1) // resolved to private secondary constructor, WTF?
+
+fun foo() {
+    // INVISIBLE_MEMBER diagnostic
+    val z = object : X() {}
+}
+```
+
+Problem is that compiler doesn't have difference between _private in class_ and _private in file_ visibilities

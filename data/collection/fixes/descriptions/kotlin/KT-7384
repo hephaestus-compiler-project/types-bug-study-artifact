@@ -1,0 +1,27 @@
+``` kotlin
+fun main(args : Array<String>) {
+    bar(object : A<Int> {
+        override fun foo(x: (Int) -> Int) {
+            println(x(0))
+        }
+    })
+}
+
+interface A<T> {
+    fun foo(x : (T) -> T)
+}
+
+fun bar(a : A<*>) {
+    a.foo { x -> x.toString() }
+}
+```
+
+``` text
+Exception in thread "main" java.lang.ClassCastException: java.lang.String cannot be cast to java.lang.Number
+	at _DefaultPackage$K$6b0109ff$main$1.foo(K.kt:4)
+	at _DefaultPackage$K$6b0109ff.bar(K.kt:14)
+	at _DefaultPackage$K$6b0109ff.main(K.kt:2)
+	at _DefaultPackage.main(K.kt:1)
+```
+
+The call `a.foo { x -> x.toString() }` is not type-safe.

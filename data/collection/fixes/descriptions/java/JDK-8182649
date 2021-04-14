@@ -1,0 +1,28 @@
+I've tried to integrate the latest changes from jdk10/jdk10 into jdk10/hs several times now, always ending up with the same problem:
+
+/scratch/opt/jprt/T/P1/224118.jesper/s/hotspot/src/jdk.internal.vm.compiler/share/classes/org.graalvm.compiler.word/src/org/graalvm/compiler/word/Word.java:719: error: reference to readWord is ambiguous
+        return readWord(signed(offset), locationIdentity);
+               ^
+  both method <T#1>readWord(WordBase,LocationIdentity) in Word and method <T#2>readWord(int,LocationIdentity) in Word match
+  where T#1,T#2 are type-variables:
+    T#1 extends WordBase declared in method <T#1>readWord(WordBase,LocationIdentity)
+    T#2 extends WordBase declared in method <T#2>readWord(int,LocationIdentity)
+/scratch/opt/jprt/T/P1/224118.jesper/s/hotspot/src/jdk.internal.vm.compiler/share/classes/org.graalvm.compiler.word/src/org/graalvm/compiler/word/Word.java:946: error: reference to readWord is ambiguous
+        return readWord(signed(offset));
+               ^
+  both method <T#1>readWord(WordBase) in Word and method <T#2>readWord(int) in Word match
+  where T#1,T#2 are type-variables:
+    T#1 extends WordBase declared in method <T#1>readWord(WordBase)
+    T#2 extends WordBase declared in method <T#2>readWord(int)
+/scratch/opt/jprt/T/P1/224118.jesper/s/hotspot/src/jdk.internal.vm.compiler/share/classes/org.graalvm.compiler.word/src/org/graalvm/compiler/word/Word.java:1119: error: reference to compareAndSwapWord is ambiguous
+        return compareAndSwapWord(signed(offset), expectedValue, newValue, locationIdentity);
+               ^
+  both method <T#1>compareAndSwapWord(WordBase,T#1,T#1,LocationIdentity) in Word and method <T#2>compareAndSwapWord(int,T#2,T#2,LocationIdentity) in Word match
+  where T#1,T#2 are type-variables:
+    T#1 extends WordBase declared in method <T#1>compareAndSwapWord(WordBase,T#1,T#1,LocationIdentity)
+    T#2 extends WordBase declared in method <T#2>compareAndSwapWord(int,T#2,T#2,LocationIdentity)
+3 errors
+
+A clean clone of jdk10/hs builds fine.
+
+I have tried to replace the entire directory jdk.internal.vm.compiler with a copy from a clean 10/hs but still get the same error. For this reason I doubt the problem is in Graal. Vladimir Kozlov suggested that it might be a javac bug.

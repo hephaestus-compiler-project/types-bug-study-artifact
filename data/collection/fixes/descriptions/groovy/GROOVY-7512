@@ -1,0 +1,41 @@
+When running:
+
+{code:title=test.groovy|borderStyle=solid}
+class X {
+    Closure action = {}
+}
+
+trait T {
+
+    void say(String text) {
+        println text
+    }
+
+    @groovy.transform.CompileStatic
+    X getX() {
+        new X(action: {
+            say "Hello!"
+        })
+    }
+
+}
+
+class A implements T {
+}
+
+new A().x.action()
+{code}
+
+The following exception is thrown:
+
+{code}
+Caught: java.lang.ClassCastException: java.lang.Class cannot be cast to T
+java.lang.ClassCastException: java.lang.Class cannot be cast to T
+	at T$Trait$Helper$_getX_closure1.doCall(test.groovy:14)
+	at T$Trait$Helper$_getX_closure1.doCall(test.groovy)
+	at test.run(test.groovy:23)
+{code}
+
+This is only happening on groovy 2.4.4. Removing the static compilation annotation or reverting to groovy version 2.4.3 makes the code work. 
+
+The commit that is causing this problem seems to be: 1bbed25aa3a08bc0cb7e14e49a1e7c2b82f21a26

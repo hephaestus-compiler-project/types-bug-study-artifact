@@ -1,0 +1,38 @@
+With `-Xstrict-inference`, per #6680:
+
+The inferred type of `blah` below should have something like `forSome &#123;type A >: AnyVal&#125;` at the end of it; instead, it refers to the (now free) type variable `A` from `BoxF`.
+
+```scala
+scala> sealed abstract class Box[+A]; case class BoxF[A](f: A => A) extends Box[A]
+defined class Box
+defined class BoxF
+
+scala> def blah = ((BoxF((_:Int)+1):Box[AnyVal]) match {case BoxF(f) => f; case _ => ???})
+blah: A => A
+
+scala> def blah2 = (blah, blah)
+blah2: (A => A, A => A)
+
+scala> blah2 : ((A => A, A => A) forSome {type A})
+res0: (A => A, A => A) forSome { type A } = (<function1>,<function1>)
+```
+
+I shouldn't be able to give the ascription that resulted in `res0`.
+
+Notwithstanding what seems to be merely a printing issue (the two `A` s in the `blah4` definition seem to be different internally, as expected), when I throw out the free variable explicitly I get what I expect.
+
+```scala
+scala> def blah3 = blah : ((A => A) forSome {type A})
+blah3: A => A forSome { type A }
+
+scala> def blah4 = (blah3, blah3)
+blah4: (A => A, A => A) forSome { type A; type A }
+
+scala> blah4 : ((A => A, A => A) forSome {type A})
+<console>:14: error: type mismatch;
+ found   : (A(in value res1) => A(in value res1), (some other)A(in value res1) => (some other)A(in value res1)) where type (some other)A(in value res1), type A(in value res1)
+ required: (A => A, A => A) forSome { type A }
+
+              blah4 : ((A => A, A => A) forSome {type A})
+              ^
+```

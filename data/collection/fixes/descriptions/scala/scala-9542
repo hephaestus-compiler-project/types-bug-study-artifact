@@ -1,0 +1,219 @@
+https://github.com/xuwei-k/probably-scalac-bug
+https://gitter.im/scala/contributors?at=5631bc0190cea42a0584123e
+
+
+```scala
+package com.example
+
+object Lenses {
+
+  type Mutation[C] = C => C
+
+  trait Lens[Container, A] {
+
+    def get(c: Container): A
+
+    def set(a: A): Mutation[Container]
+
+    def modify(f: A => A): Mutation[Container] = c => set(f(get(c)))(c)
+  }
+
+  object Lens {
+    def apply[Container, A](getter: Container => A)(setter: (Container, A) => Container): Lens[Container, A] = new Lens[Container, A] {
+      def get(c: Container) = getter(c)
+
+      def set(a: A): Mutation[Container] = setter(_, a)
+    }
+
+    def unit[U]: Lens[U, U] = Lens(identity[U])((c, v) => v)
+
+    class OptLens[U, A](val lens: Lens[U, Option[A]]) extends AnyVal {
+      def inplaceMap(f: Lens[A, A] => Mutation[A]) =
+        lens.modify(opt => opt.map {
+          (m: A) =>
+            val field: Lens[A, A] = Lens.unit[A]
+            val p: Mutation[A] = f(field)
+            p(m)
+        })
+    }
+  }
+
+}
+```
+
+
+
+```scala
+scala.reflect.internal.Types$TypeError: type mismatch;
+ found   : com.example.Lenses.Lens[A,A] => com.example.Lenses.Mutation[A]
+    (which expands to)  com.example.Lenses.Lens[A,A] => (A => A)
+ required: com.example.Lenses.Lens[A,A] => com.example.Lenses.Mutation[A]
+    (which expands to)  com.example.Lenses.Lens[A,A] => (A => A)
+    at scala.tools.nsc.typechecker.Contexts$ThrowingReporter.handleError(Contexts.scala:1364)
+    at scala.tools.nsc.typechecker.Contexts$ContextReporter.issue(Contexts.scala:1216)
+    at scala.tools.nsc.typechecker.Contexts$Context.issue(Contexts.scala:573)
+    at scala.tools.nsc.typechecker.ContextErrors$ErrorUtils$.issueTypeError(ContextErrors.scala:106)
+    at scala.tools.nsc.typechecker.ContextErrors$ErrorUtils$.issueNormalTypeError(ContextErrors.scala:99)
+    at scala.tools.nsc.typechecker.ContextErrors$TyperContextErrors$TyperErrorGen$.AdaptTypeError(ContextErrors.scala:218)
+    at scala.tools.nsc.typechecker.Typers$Typer.adaptMismatchedSkolems$1(Typers.scala:1005)
+    at scala.tools.nsc.typechecker.Typers$Typer.fallbackAfterVanillaAdapt$1(Typers.scala:1073)
+    at scala.tools.nsc.typechecker.Typers$Typer.vanillaAdapt$1(Typers.scala:1110)
+    at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1153)
+    at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5399)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedInternal(Typers.scala:5412)
+    at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5359)
+    at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5363)
+    at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$$anonfun$220(Typers.scala:3153)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedArg(Typers.scala:463)
+    at scala.tools.nsc.typechecker.PatternTypers$PatternTyper$class.typedArgWithFormal$1(PatternTypers.scala:112)
+    at scala.tools.nsc.typechecker.PatternTypers$PatternTyper$class.scala$tools$nsc$typechecker$PatternTypers$PatternTyper$class$$$anonfun$4(PatternTypers.scala:115)
+    at scala.tools.nsc.typechecker.PatternTypers$PatternTyper$class$$Lambda$682/1451079763.apply(Unknown Source)
+    at scala.runtime.Tuple2Zipped$.scala$runtime$Tuple2Zipped$$$anonfun$1(Tuple2Zipped.scala:46)
+    at scala.tools.nsc.typechecker.PatternTypers$PatternTyper$class$$Lambda$683/1511401517.apply(Unknown Source)
+    at scala.collection.immutable.List.foreach(List.scala:378)
+    at scala.tools.nsc.typechecker.PatternTypers$PatternTyper$class.typedArgsForFormals(PatternTypers.scala:115)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedArgsForFormals(Typers.scala:111)
+    at scala.tools.nsc.typechecker.Typers$Typer.handleMonomorphicCall$1(Typers.scala:3459)
+    at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$$anonfun$251(Typers.scala:3485)
+    at scala.tools.nsc.typechecker.Typers$Typer.doTypedApply(Typers.scala:3485)
+    at scala.tools.nsc.typechecker.Typers$Typer.normalTypedApply$1(Typers.scala:4535)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedApply$1(Typers.scala:4569)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedInAnyMode$1(Typers.scala:5332)
+    at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5349)
+    at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5385)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedInternal(Typers.scala:5412)
+    at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5359)
+    at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5363)
+    at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5437)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedPos(Typers.scala:5444)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.scala$tools$nsc$transform$ExtensionMethods$Extender$$$anonfun$26(ExtensionMethods.scala:255)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender$$Lambda$2713/928932748.apply(Unknown Source)
+    at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.scala$tools$nsc$transform$ExtensionMethods$Extender$$$anonfun$25(ExtensionMethods.scala:254)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender$$Lambda$2712/27458170.apply(Unknown Source)
+    at scala.reflect.internal.SymbolTable.deriveDefDef(SymbolTable.scala:16)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:252)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:125)
+    at scala.reflect.api.Trees$Transformer.scala$reflect$api$Trees$Transformer$$$anonfun$13(Trees.scala:2589)
+    at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2587)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transformStats(ExtensionMethods.scala:265)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transformStats(ExtensionMethods.scala:125)
+    at scala.reflect.internal.Trees$class.itransform(Trees.scala:1404)
+    at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+    at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+    at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.super$transform(TypingTransformers.scala:40)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$$anonfun$1(TypingTransformers.scala:40)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$Lambda$1411/409726531.apply(Unknown Source)
+    at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:25)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:197)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:125)
+    at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2563)
+    at scala.reflect.internal.Trees$class.scala$reflect$internal$Trees$class$$$anonfun$37(Trees.scala:1408)
+    at scala.reflect.internal.Trees$class$$Lambda$1412/167804097.apply(Unknown Source)
+    at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:25)
+    at scala.reflect.internal.Trees$class.itransform(Trees.scala:1407)
+    at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+    at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+    at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:44)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:260)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:125)
+    at scala.reflect.api.Trees$Transformer.scala$reflect$api$Trees$Transformer$$$anonfun$13(Trees.scala:2589)
+    at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2587)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transformStats(ExtensionMethods.scala:265)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transformStats(ExtensionMethods.scala:125)
+    at scala.reflect.internal.Trees$class.itransform(Trees.scala:1404)
+    at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+    at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+    at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.super$transform(TypingTransformers.scala:40)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$$anonfun$1(TypingTransformers.scala:40)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$Lambda$1411/409726531.apply(Unknown Source)
+    at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:25)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:199)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:125)
+    at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2563)
+    at scala.reflect.internal.Trees$class.scala$reflect$internal$Trees$class$$$anonfun$38(Trees.scala:1413)
+    at scala.reflect.internal.Trees$class$$Lambda$1410/144993038.apply(Unknown Source)
+    at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:25)
+    at scala.reflect.internal.Trees$class.itransform(Trees.scala:1412)
+    at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+    at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+    at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:44)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:260)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:125)
+    at scala.reflect.api.Trees$Transformer.scala$reflect$api$Trees$Transformer$$$anonfun$13(Trees.scala:2589)
+    at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2587)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transformStats(ExtensionMethods.scala:265)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transformStats(ExtensionMethods.scala:125)
+    at scala.reflect.internal.Trees$class.itransform(Trees.scala:1404)
+    at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+    at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+    at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.super$transform(TypingTransformers.scala:40)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$$anonfun$1(TypingTransformers.scala:40)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$Lambda$1411/409726531.apply(Unknown Source)
+    at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:25)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:199)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:125)
+    at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2563)
+    at scala.reflect.internal.Trees$class.scala$reflect$internal$Trees$class$$$anonfun$38(Trees.scala:1413)
+    at scala.reflect.internal.Trees$class$$Lambda$1410/144993038.apply(Unknown Source)
+    at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:25)
+    at scala.reflect.internal.Trees$class.itransform(Trees.scala:1412)
+    at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+    at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+    at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:44)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:260)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:125)
+    at scala.reflect.api.Trees$Transformer.scala$reflect$api$Trees$Transformer$$$anonfun$13(Trees.scala:2589)
+    at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:2587)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transformStats(ExtensionMethods.scala:265)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transformStats(ExtensionMethods.scala:125)
+    at scala.reflect.internal.Trees$class.scala$reflect$internal$Trees$class$$$anonfun$40(Trees.scala:1426)
+    at scala.reflect.internal.Trees$class$$Lambda$1409/1427947138.apply(Unknown Source)
+    at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:25)
+    at scala.reflect.internal.Trees$class.itransform(Trees.scala:1426)
+    at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+    at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:16)
+    at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2555)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.super$transform(TypingTransformers.scala:40)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.scala$tools$nsc$transform$TypingTransformers$TypingTransformer$$$anonfun$2(TypingTransformers.scala:42)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer$$Lambda$1408/1618890983.apply(Unknown Source)
+    at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2600)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:30)
+    at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:25)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:260)
+    at scala.tools.nsc.transform.ExtensionMethods$Extender.transform(ExtensionMethods.scala:125)
+    at scala.tools.nsc.ast.Trees$Transformer.transformUnit(Trees.scala:147)
+    at scala.tools.nsc.transform.Transform$Phase.apply(Transform.scala:30)
+    at scala.tools.nsc.Global$GlobalPhase.scala$tools$nsc$Global$GlobalPhase$$$anonfun$11(Global.scala:440)
+    at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:431)
+    at scala.tools.nsc.Global$GlobalPhase.scala$tools$nsc$Global$GlobalPhase$$$anonfun$10(Global.scala:398)
+    at scala.tools.nsc.Global$GlobalPhase.scala$tools$nsc$Global$GlobalPhase$$$anonfun$10$adapted(Global.scala:398)
+    at scala.tools.nsc.Global$GlobalPhase$$Lambda$399/1750642581.apply(Unknown Source)
+    at scala.collection.AbstractIterator.foreach(Iterator.scala:1370)
+    at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:398)
+    at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1505)
+    at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1490)
+    at scala.tools.nsc.Global$Run.compileSources(Global.scala:1485)
+    at scala.tools.nsc.Global$Run.compile(Global.scala:1586)
+```

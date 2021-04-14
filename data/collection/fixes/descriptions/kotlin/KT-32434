@@ -1,0 +1,15 @@
+Type inference fails in IDEA only using the following code. The library used is https://github.com/ben-manes/caffeine.
+
+IDEA fails to infer the type for the following code:
+```
+fun findByName(name: String): Mono<AttributeDefinition> = CacheMono
+            .lookup(cache.asMap(), name)
+            .onCacheMissResume(findByNameRemote(name))
+```
+with cache defined as following:
+```
+private val cache: Cache<String, Signal<out AttributeDefinition>> = Caffeine.newBuilder()
+            .maximumSize(500)
+            .expireAfterWrite(Duration.ofMinutes(5))
+            .build()
+```

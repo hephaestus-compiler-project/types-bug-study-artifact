@@ -1,0 +1,160 @@
+FULL PRODUCT VERSION :
+$ java -version
+java version "9-ea"
+Java(TM) SE Runtime Environment (build 9-ea+159)
+Java HotSpot(TM) 64-Bit Server VM (build 9-ea+159, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux rhxxxx.microfocus.com 2.6.32-131.0.15.el6.x86_64 #1 SMP Tue May 10 15:42:40 EDT 2011 x86_64 x86_64 x86_64 GNU/Linux
+
+
+EXTRA RELEVANT SYSTEM CONFIGURATION :
+No locale to be set.
+
+A DESCRIPTION OF THE PROBLEM :
+If there is a file present in the current directory whose name consists of ShiftJIS characters, and my locale is not set, 'javac HelloWorld.java' (obviously a trivial Java program) fails.
+
+REGRESSION.  Last worked in version 8u121
+
+ADDITIONAL REGRESSION INFORMATION: 
+java version "9-ea"
+Java(TM) SE Runtime Environment (build 9-ea+159)
+Java HotSpot(TM) 64-Bit Server VM (build 9-ea+159, mixed mode)
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+First we must create a file with a Japanese ShiftJIS name.
+You need a terminal that supports Japanese ShiftJIS first. I do...
+
+$ LANG=ja_JP.SJIS xterm&
+
+... which creates an xterm. I cannot read or write Japanese, so I then do 'ls notexist' to get an error in Japanese from 'ls', and cut and paste some Japanese characters from that error and use 'touch' to create the file...
+
+$ touch <pasted-Japanese-characters>
+
+There is now a file with a name consisting on ShiftJIS Japanese characters. 
+In another terminal (or the Japanese one - it doesn't really matter) unset your language settings, and check your locale - it should now default to 'POSIX'
+
+$ unset LANG
+$ unset LC_ALL
+$ locale
+LANG=
+LC_CTYPE="POSIX"
+LC_NUMERIC="POSIX"
+LC_TIME="POSIX"
+LC_COLLATE="POSIX"
+LC_MONETARY="POSIX"
+LC_MESSAGES="POSIX"
+LC_PAPER="POSIX"
+LC_NAME="POSIX"
+LC_ADDRESS="POSIX"
+LC_TELEPHONE="POSIX"
+LC_MEASUREMENT="POSIX"
+LC_IDENTIFICATION="POSIX"
+LC_ALL=
+
+Next we'll be trying to compile 'HelloWorld.java' - here it is...
+
+public class HelloWorld {
+
+    public static void main(String[] args) {
+        System.out.println("Hello, World");
+    }
+
+}
+
+... now to compile it
+
+
+$ javac HelloWorld.java
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+HelloWorld.java compiles without any warning or error.
+ACTUAL -
+$ javac HelloWorld.java
+An exception has occurred in the compiler (9-ea). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.nio.file.InvalidPathException: Malformed input or input contains unmappable characters: ?????????????y
+	at java.base/sun.nio.fs.UnixPath.encode(UnixPath.java:145)
+	at java.base/sun.nio.fs.UnixPath.<init>(UnixPath.java:69)
+	at java.base/sun.nio.fs.UnixFileSystem.getPath(UnixFileSystem.java:280)
+	at java.base/java.nio.file.Path.resolve(Path.java:402)
+	at jdk.compiler/com.sun.tools.javac.file.RelativePath.resolveAgainst(RelativePath.java:60)
+	at jdk.compiler/com.sun.tools.javac.file.JavacFileManager$DirectoryContainer.list(JavacFileManager.java:478)
+	at jdk.compiler/com.sun.tools.javac.file.JavacFileManager.list(JavacFileManager.java:713)
+	at jdk.compiler/com.sun.tools.javac.code.ClassFinder.list(ClassFinder.java:722)
+	at jdk.compiler/com.sun.tools.javac.code.ClassFinder.scanUserPaths(ClassFinder.java:648)
+	at jdk.compiler/com.sun.tools.javac.code.ClassFinder.fillIn(ClassFinder.java:529)
+	at jdk.compiler/com.sun.tools.javac.code.ClassFinder.complete(ClassFinder.java:293)
+	at jdk.compiler/com.sun.tools.javac.code.Symtab.lambda$addRootPackageFor$7(Symtab.java:758)
+	at jdk.compiler/com.sun.tools.javac.code.Symbol.complete(Symbol.java:633)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.visitTopLevel(Enter.java:354)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCCompilationUnit.accept(JCTree.java:529)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.classEnter(Enter.java:285)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.classEnter(Enter.java:300)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.complete(Enter.java:570)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.main(Enter.java:554)
+	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.enterTrees(JavaCompiler.java:1073)
+	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:944)
+	at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:302)
+	at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:162)
+	at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:55)
+	at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:41)
+
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+$ javac HelloWorld.java
+An exception has occurred in the compiler (9-ea). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.nio.file.InvalidPathException: Malformed input or input contains unmappable characters: ?????????????y
+	at java.base/sun.nio.fs.UnixPath.encode(UnixPath.java:145)
+	at java.base/sun.nio.fs.UnixPath.<init>(UnixPath.java:69)
+	at java.base/sun.nio.fs.UnixFileSystem.getPath(UnixFileSystem.java:280)
+	at java.base/java.nio.file.Path.resolve(Path.java:402)
+	at jdk.compiler/com.sun.tools.javac.file.RelativePath.resolveAgainst(RelativePath.java:60)
+	at jdk.compiler/com.sun.tools.javac.file.JavacFileManager$DirectoryContainer.list(JavacFileManager.java:478)
+	at jdk.compiler/com.sun.tools.javac.file.JavacFileManager.list(JavacFileManager.java:713)
+	at jdk.compiler/com.sun.tools.javac.code.ClassFinder.list(ClassFinder.java:722)
+	at jdk.compiler/com.sun.tools.javac.code.ClassFinder.scanUserPaths(ClassFinder.java:648)
+	at jdk.compiler/com.sun.tools.javac.code.ClassFinder.fillIn(ClassFinder.java:529)
+	at jdk.compiler/com.sun.tools.javac.code.ClassFinder.complete(ClassFinder.java:293)
+	at jdk.compiler/com.sun.tools.javac.code.Symtab.lambda$addRootPackageFor$7(Symtab.java:758)
+	at jdk.compiler/com.sun.tools.javac.code.Symbol.complete(Symbol.java:633)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.visitTopLevel(Enter.java:354)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCCompilationUnit.accept(JCTree.java:529)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.classEnter(Enter.java:285)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.classEnter(Enter.java:300)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.complete(Enter.java:570)
+	at jdk.compiler/com.sun.tools.javac.comp.Enter.main(Enter.java:554)
+	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.enterTrees(JavaCompiler.java:1073)
+	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:944)
+	at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:302)
+	at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:162)
+	at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:55)
+	at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:41)
+$ 
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+public class HelloWorld {
+
+    public static void main(String[] args) {
+        System.out.println("Hello, World");
+    }
+
+}
+
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+If the locale is 'en_GB.UTF8' the compilation works.... and, yep ja_JP.utf8 also. C does not.
+
+$ export LANG=en_GB.UTF8
+$ javac HelloWorld.java
+
+

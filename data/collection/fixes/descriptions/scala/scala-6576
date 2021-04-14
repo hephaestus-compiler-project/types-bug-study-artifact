@@ -1,0 +1,59 @@
+I get the following exception in the IDE when opening certain files. I couldn't nail it down to a specific file yet, but git archeology suggests an existing workaround was removed with the belief that the NPE can't happen anymore:
+
+```scala
+module.attachments.get[ConstructorDefaultsAttachment] match {
+  // by martin: the null case can happen in IDE; this is really an ugly hack on top of an ugly hack but it seems to work
+  // later by lukas: disabled when fixing SI-5975, i think it cannot happen anymore
+  case Some(cda) /*if cma.companionModuleClassNamer == null*/ =>
+    val p = (cda.classWithDefault, cda.companionModuleClassNamer)
+    moduleNamer = Some(p)
+    p
+```
+
+```scala
+java.lang.NullPointerException
+	at scala.tools.nsc.typechecker.Namers$Namer$$anonfun$addDefaultGetters$2$$anonfun$apply$14.apply(Namers.scala:1169)
+	at scala.tools.nsc.typechecker.Namers$Namer$$anonfun$addDefaultGetters$2.apply(Namers.scala:1102)
+	at scala.tools.nsc.typechecker.Namers$Namer$$anonfun$addDefaultGetters$2.apply(Namers.scala:1099)
+	at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:110)
+	at scala.collection.immutable.List.foldLeft(List.scala:78)
+	at scala.tools.nsc.typechecker.Namers$Namer.addDefaultGetters(Namers.scala:1099)
+	at scala.tools.nsc.typechecker.Namers$Namer.methodSig(Namers.scala:1027)
+	at scala.tools.nsc.typechecker.Namers$Namer.getSig$1(Namers.scala:1305)
+	at scala.tools.nsc.typechecker.Namers$Namer.typeSig(Namers.scala:1347)
+	at scala.tools.nsc.typechecker.Namers$Namer$$anonfun$monoTypeCompleter$1$$anonfun$apply$1.apply$mcV$sp(Namers.scala:709)
+	at scala.tools.nsc.typechecker.Namers$Namer$$anonfun$monoTypeCompleter$1$$anonfun$apply$1.apply(Namers.scala:708)
+	at scala.tools.nsc.typechecker.Namers$Namer$$anonfun$monoTypeCompleter$1$$anonfun$apply$1.apply(Namers.scala:708)
+	at scala.tools.nsc.typechecker.Namers$Namer.scala$tools$nsc$typechecker$Namers$Namer$$logAndValidate(Namers.scala:1385)
+	at scala.tools.nsc.typechecker.Namers$Namer$$anonfun$monoTypeCompleter$1.apply(Namers.scala:708)
+	at scala.tools.nsc.typechecker.Namers$Namer$$anonfun$monoTypeCompleter$1.apply(Namers.scala:707)
+	at scala.tools.nsc.typechecker.Namers$$anon$1.completeImpl(Namers.scala:1496)
+	at scala.tools.nsc.typechecker.Namers$LockingTypeCompleter$class.complete(Namers.scala:1504)
+	at scala.tools.nsc.typechecker.Namers$$anon$1.complete(Namers.scala:1494)
+	at scala.reflect.internal.Symbols$Symbol.info(Symbols.scala:1217)
+	at scala.reflect.internal.Symbols$Symbol.paramss(Symbols.scala:1473)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser$DefOwner$class.addDef(ScalaStructureBuilder.scala:668)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser$Builder.addDef(ScalaStructureBuilder.scala:871)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser$DefOwner$class.addDef(ScalaStructureBuilder.scala:658)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser$Builder.addDef(ScalaStructureBuilder.scala:871)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser$TreeTraverser.traverse(ScalaStructureBuilder.scala:943)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser$TreeTraverser$$anonfun$traverse$1.apply(ScalaStructureBuilder.scala:950)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser$TreeTraverser$$anonfun$traverse$1.apply(ScalaStructureBuilder.scala:950)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser$TreeTraverser.traverse(ScalaStructureBuilder.scala:950)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser$TreeTraverser$$anonfun$traverse$1.apply(ScalaStructureBuilder.scala:950)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser$TreeTraverser$$anonfun$traverse$1.apply(ScalaStructureBuilder.scala:950)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser$TreeTraverser.traverse(ScalaStructureBuilder.scala:950)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser$TreeTraverser$$anonfun$traverse$1.apply(ScalaStructureBuilder.scala:950)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser$TreeTraverser$$anonfun$traverse$1.apply(ScalaStructureBuilder.scala:950)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser$TreeTraverser.traverse(ScalaStructureBuilder.scala:950)
+	at scala.tools.eclipse.javaelements.ScalaStructureBuilder$StructureBuilderTraverser.traverse(ScalaStructureBuilder.scala:903)
+	at scala.tools.eclipse.javaelements.ScalaCompilationUnit$$anonfun$buildStructure$2$$anonfun$apply$5$$anonfun$apply$1.apply$mcV$sp(ScalaCompilationUnit.scala:74)
+	at scala.tools.eclipse.javaelements.ScalaCompilationUnit$$anonfun$buildStructure$2$$anonfun$apply$5$$anonfun$apply$1.apply(ScalaCompilationUnit.scala:73)
+	at scala.tools.eclipse.javaelements.ScalaCompilationUnit$$anonfun$buildStructure$2$$anonfun$apply$5$$anonfun$apply$1.apply(ScalaCompilationUnit.scala:73)
+	at scala.tools.nsc.util.InterruptReq.execute(InterruptReq.scala:26)
+	at scala.tools.nsc.interactive.Global.pollForWork(Global.scala:331)
+	at scala.tools.nsc.interactive.PresentationCompilerThread.run(PresentationCompilerThread.scala:22)
+```

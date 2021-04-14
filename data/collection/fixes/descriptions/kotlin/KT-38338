@@ -1,0 +1,53 @@
+Note: this bug is introduced by a fix that at this point is not available in master, only in a custom branch and in 1.4.0-dev-6110.
+
+How to reproduce (you can use the attached project):
+
+* In a multiplatform project with hierarchical project structure enabled, create a Native-shared source set, say, `iosMain`.
+* In `commonMain`, add this code:
+    ```
+    package com.example
+
+    interface CommonMainIface {
+        fun f() = Unit
+    }
+
+    internal expect abstract class CommonMainExpectDerivedClass constructor() : CommonMainIface
+
+    internal abstract class CommonMainImplClass : CommonMainExpectDerivedClass()
+    ```
+
+* In `iosMain`, add the following code:
+
+    ```
+    package com.example
+    
+    internal actual abstract class CommonMainExpectDerivedClass actual constructor() : CommonMainIface
+    
+    internal class IosMainImplClass : CommonMainImplClass()
+    
+    internal fun getInstance() = IosMainImplClass()
+    
+    fun main() {
+        getInstance().f() // FAIL
+        (getInstance() as CommonMainImplClass).f() // FAIL
+        (getInstance() as CommonMainExpectDerivedClass).f() // OK
+        (getInstance() as CommonMainIface).f() // OK
+    }
+    ```
+
+* Run `./gradlew compileIosMainKotlinMetadata`. The compiler will fail:
+    ```
+    > Task :lib:compileIosMainKotlinMetadata FAILED
+    e: .../IosMainIos.kt: (10, 19): Cannot access 'f': it is invisible (private in a supertype) in 'IosMainImplClass'
+    e: .../IosMainIos.kt: (11, 44): Cannot access 'f': it is invisible (private in a supertype) in 'CommonMainImplClass'
+    ```
+
+Notes:
+
+* Trying to override `f` in `IosMainImplClass` leads to the first call not being an error anymore, but the override itself becomes an error:
+
+    ```
+    e: .../IosMainIos.kt: (6, 5): 'public open fun f(): Unit defined in com.example.IosMainImplClass' has no access to 'invisible_fake open fun f(): Unit defined in com.example.CommonMainImplClass', so it cannot override it
+    ```
+
+* Making `actual abstract class CommonMainExpectDerivedClass` public instead of internal fixes the two erroneus calls, but making it public is an error by itself (reported by the IDE, though ignored by the compiler in a Gradle build).

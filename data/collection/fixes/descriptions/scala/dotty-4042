@@ -1,0 +1,31 @@
+Similar to #4031. Derived from [this gist](https://gist.github.com/alexknvl/56028633ef73faeec0f5d3e7e3a14746), which works in Scala2.
+
+```scala
+object App {
+  def coerce[U, V](u: U): V = {
+    trait X { type R >: U }
+    trait Y { type R = V }
+
+    class T[A <: X](val a: A)(val value: a.R)
+
+    object O { val x : Y & X = x }
+
+    val a = new T[Y & X](O.x)(u)
+    a.value
+  }
+
+  def main(args: Array[String]): Unit = {
+    val x: Int = coerce[String, Int]("a")
+    println(x + 1)
+  }
+}
+
+/////////////////////////////////
+
+Exception in thread "main" java.lang.ClassCastException: java.lang.String cannot be cast to java.lang.Integer
+	at scala.runtime.BoxesRunTime.unboxToInt(BoxesRunTime.java:101)
+	at App$.main(HelloWorld.scala:15)
+	at App.main(HelloWorld.scala)
+```
+
+Tested on the most recent master branch.

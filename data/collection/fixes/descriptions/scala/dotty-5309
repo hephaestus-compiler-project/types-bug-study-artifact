@@ -1,0 +1,134 @@
+This test (loosely based on t2667.scala) compiles normally, but does not pass `-Ycheck:all`:
+```scala
+object A {
+  def foo[T](x: T, y: T): Int = 55
+  val x = foo(23, 23f)
+}
+```
+Output of `dotc -Ycheck:all YcheckTest.scala`:
+
+```
+checking YcheckTest.scala after phase frontend
+exception while typing A.foo[Int](23, 23.0) of class class dotty.tools.dotc.ast.Trees$Apply # 116
+exception while typing val x: Int = A.foo[Int](23, 23.0) of class class dotty.tools.dotc.ast.Trees$ValDef # 117
+exception while typing final module class A() extends Object() { this: A.type => 
+  def foo[T >: Nothing <: Any](x: T, y: T): Int = 55
+  val x: Int = A.foo[Int](23, 23.0)
+} of class class dotty.tools.dotc.ast.Trees$TypeDef # 119
+exception while typing package <empty> {
+  final lazy module val A: A = new A()
+  final module class A() extends Object() { this: A.type => 
+    def foo[T >: Nothing <: Any](x: T, y: T): Int = 55
+    val x: Int = A.foo[Int](23, 23.0)
+  }
+} of class class dotty.tools.dotc.ast.Trees$PackageDef # 120
+*** error while checking YcheckTest.scala after phase frontend ***
+exception occurred while compiling YcheckTest.scala
+Exception in thread "main" java.lang.AssertionError: assertion failed: found:    Float(23.0)
+required: Int
+
+
+tree = 23.0
+	at scala.Predef$.assert(Predef.scala:219)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.adapt(TreeChecker.scala:466)
+	at dotty.tools.dotc.typer.ProtoTypes$FunProto.typedArg(ProtoTypes.scala:302)
+	at dotty.tools.dotc.typer.Applications$ApplyToUntyped.typedArg(Applications.scala:696)
+	at dotty.tools.dotc.typer.Applications$ApplyToUntyped.typedArg(Applications.scala:694)
+	at dotty.tools.dotc.typer.Applications$Application.addTyped$1(Applications.scala:467)
+	at dotty.tools.dotc.typer.Applications$Application.matchArgs(Applications.scala:505)
+	at dotty.tools.dotc.typer.Applications$Application.matchArgs(Applications.scala:506)
+	at dotty.tools.dotc.typer.Applications$Application.init(Applications.scala:288)
+	at dotty.tools.dotc.typer.Applications$TypedApply.<init>(Applications.scala:597)
+	at dotty.tools.dotc.typer.Applications$ApplyToUntyped.<init>(Applications.scala:695)
+	at dotty.tools.dotc.typer.Applications.simpleApply$1(Applications.scala:755)
+	at dotty.tools.dotc.typer.Applications.$anonfun$typedApply$7(Applications.scala:780)
+	at dotty.tools.dotc.typer.Typer.tryEither(Typer.scala:2045)
+	at dotty.tools.dotc.typer.Applications.$anonfun$typedApply$1(Applications.scala:781)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:37)
+	at dotty.tools.dotc.typer.Applications.realApply$1(Applications.scala:725)
+	at dotty.tools.dotc.typer.Applications.typedApply(Applications.scala:826)
+	at dotty.tools.dotc.typer.Applications.typedApply$(Applications.scala:723)
+	at dotty.tools.dotc.typer.Typer.typedApply(Typer.scala:79)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1877)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1931)
+	at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:110)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedUnadapted(TreeChecker.scala:272)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1962)
+	at dotty.tools.dotc.reporting.trace$.apply(trace.scala:40)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1958)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1974)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typed(TreeChecker.scala:260)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2037)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typedValDef$1(Typer.scala:1420)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:37)
+	at dotty.tools.dotc.typer.Typer.typedValDef(Typer.scala:1414)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1861)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1930)
+	at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:110)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedUnadapted(TreeChecker.scala:272)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1962)
+	at dotty.tools.dotc.reporting.trace$.apply(trace.scala:40)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1958)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1974)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typed(TreeChecker.scala:260)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1993)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2026)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedStats(TreeChecker.scala:436)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typedClassDef$1(Typer.scala:1588)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:37)
+	at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1510)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedClassDef(TreeChecker.scala:389)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1867)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1930)
+	at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:110)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedUnadapted(TreeChecker.scala:272)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1962)
+	at dotty.tools.dotc.reporting.trace$.apply(trace.scala:40)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1958)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1974)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typed(TreeChecker.scala:260)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1993)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2026)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedStats(TreeChecker.scala:436)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typedPackageDef$1(Typer.scala:1702)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:37)
+	at dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:1695)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1909)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1931)
+	at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:110)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typedUnadapted(TreeChecker.scala:272)
+	at dotty.tools.dotc.typer.Typer.$anonfun$typed$2(Typer.scala:1962)
+	at dotty.tools.dotc.reporting.trace$.apply(trace.scala:40)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1958)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1974)
+	at dotty.tools.dotc.transform.TreeChecker$Checker.typed(TreeChecker.scala:260)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2037)
+	at dotty.tools.dotc.transform.TreeChecker.check(TreeChecker.scala:122)
+	at dotty.tools.dotc.transform.TreeChecker.run(TreeChecker.scala:94)
+	at dotty.tools.dotc.core.Phases$Phase.$anonfun$runOn$1(Phases.scala:297)
+	at scala.collection.immutable.List.map(List.scala:282)
+	at dotty.tools.dotc.core.Phases$Phase.runOn(Phases.scala:295)
+	at dotty.tools.dotc.core.Phases$Phase.runOn$(Phases.scala:294)
+	at dotty.tools.dotc.transform.TreeChecker.runOn(TreeChecker.scala:38)
+	at dotty.tools.dotc.Run.$anonfun$compileUnits$3(Run.scala:172)
+	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.util.Stats$.trackTime(Stats.scala:49)
+	at dotty.tools.dotc.Run.$anonfun$compileUnits$2(Run.scala:169)
+	at dotty.tools.dotc.Run.$anonfun$compileUnits$2$adapted(Run.scala:167)
+	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:32)
+	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:29)
+	at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:194)
+	at dotty.tools.dotc.Run.runPhases$1(Run.scala:167)
+	at dotty.tools.dotc.Run.$anonfun$compileUnits$1(Run.scala:192)
+	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.util.Stats$.maybeMonitored(Stats.scala:90)
+	at dotty.tools.dotc.Run.compileUnits(Run.scala:147)
+	at dotty.tools.dotc.Run.compileSources(Run.scala:134)
+	at dotty.tools.dotc.Run.compile(Run.scala:118)
+	at dotty.tools.dotc.Driver.doCompile(Driver.scala:30)
+	at dotty.tools.dotc.Driver.process(Driver.scala:133)
+	at dotty.tools.dotc.Driver.process(Driver.scala:102)
+	at dotty.tools.dotc.Driver.process(Driver.scala:114)
+	at dotty.tools.dotc.Driver.main(Driver.scala:141)
+	at dotty.tools.dotc.Main.main(Main.scala)
+```

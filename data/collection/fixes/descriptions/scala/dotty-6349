@@ -1,0 +1,19 @@
+```scala
+class Foo[T]
+object Test {
+  class Inner extends Foo[String]
+
+  def main(args: Array[String]): Unit = {
+    class Local extends Foo[String]
+
+    // Prints "Foo<java.lang.String>" as expected
+    println((new Inner).getClass.getGenericSuperclass)
+
+    // Prints "class Foo" instead of "Foo<java.lang.String>" because the generic
+    // signature for the parent is missing.
+    println((new Local).getClass.getGenericSuperclass)
+  }
+}
+```
+
+In particular, this is needed to implement the "super type tokens" pattern described in http://gafter.blogspot.com/2006/12/super-type-tokens.html and used for example in http://fasterxml.github.io/jackson-core/javadoc/2.9/com/fasterxml/jackson/core/type/TypeReference.html

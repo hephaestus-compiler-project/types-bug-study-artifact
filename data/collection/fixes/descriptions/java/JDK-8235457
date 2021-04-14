@@ -1,0 +1,92 @@
+Cannot report messages specific to an annotation on a module.
+
+For full details, see the original email here:
+https://mail.openjdk.java.net/pipermail/compiler-dev/2019-December/014009.html
+
+Extract from email follows:
+
+The first one is when we want to print a compilation message targeting a
+module's annotation, it exists on all versions since JDK 9. Let's say we
+have the following module descriptor:
+
+    @SampleAnnotation
+    module sampleModule {
+
+    }
+
+and a properly configured annotation processor to process the
+@SampleAnnotation, if we do:
+
+    this.processingEnv.getMessager().printMessage(Kind.MANDATORY_WARNING,
+"Module warning", element, annotationMirror);
+
+where element corresponds to the sampleModule and annotationMirror to the
+@SampleAnnotation, the compiler crash with a java.lang.AssertionError:
+
+An annotation processor threw an uncaught exception.
+Consult the following stack trace for details.
+java.lang.AssertionError
+     at jdk.compiler/com.sun.tools.javac.util.Assert.error(Assert.java:155)
+     at
+jdk.compiler/com.sun.tools.javac.tree.JCTree$Visitor.visitTree(JCTree.java:3235)
+     at
+jdk.compiler/com.sun.tools.javac.tree.JCTree$Visitor.visitModuleDef(JCTree.java:3227)
+     at
+jdk.compiler/com.sun.tools.javac.tree.JCTree$JCModuleDecl.accept(JCTree.java:2780)
+     at
+jdk.compiler/com.sun.tools.javac.model.JavacElements.matchAnnoToTree(JavacElements.java:298)
+     at
+jdk.compiler/com.sun.tools.javac.model.JavacElements.getTreeAndTopLevel(JavacElements.java:743)
+     at
+jdk.compiler/com.sun.tools.javac.processing.JavacMessager.printMessage(JavacMessager.java:108)
+     at
+jdk.compiler/com.sun.tools.javac.processing.JavacMessager.printMessage(JavacMessager.java:87)
+     at
+processor/com.example.processor.ModuleWarnProcessor.lambda$process$1(ModuleWarnProcessor.java:21)
+     at
+java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:183)
+     at java.base/java.util.Iterator.forEachRemaining(Iterator.java:133)
+     at
+java.base/java.util.Spliterators$IteratorSpliterator.forEachRemaining(Spliterators.java:1801)
+     at
+java.base/java.util.stream.ReferencePipeline$Head.forEach(ReferencePipeline.java:658)
+     at
+java.base/java.util.stream.ReferencePipeline$7$1.accept(ReferencePipeline.java:274)
+     at java.base/java.util.Iterator.forEachRemaining(Iterator.java:133)
+     at
+java.base/java.util.Spliterators$IteratorSpliterator.forEachRemaining(Spliterators.java:1801)
+     at
+java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:484)
+     at
+java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:474)
+     at
+java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:150)
+     at
+java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:173)
+     at
+java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)
+     at
+java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:497)
+     at
+processor/com.example.processor.ModuleWarnProcessor.process(ModuleWarnProcessor.java:19)
+     at
+jdk.compiler/com.sun.tools.javac.processing.JavacProcessingEnvironment.callProcessor(JavacProcessingEnvironment.java:1023)
+     at
+jdk.compiler/com.sun.tools.javac.processing.JavacProcessingEnvironment.discoverAndRunProcs(JavacProcessingEnvironment.java:939)
+     at
+jdk.compiler/com.sun.tools.javac.processing.JavacProcessingEnvironment$Round.run(JavacProcessingEnvironment.java:1267)
+     at
+jdk.compiler/com.sun.tools.javac.processing.JavacProcessingEnvironment.doProcessing(JavacProcessingEnvironment.java:1381)
+     at
+jdk.compiler/com.sun.tools.javac.main.JavaCompiler.processAnnotations(JavaCompiler.java:1263)
+     at
+jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:935)
+     at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:318)
+     at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:176)
+     at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:57)
+     at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:43)
+
+I've been able to track down the issue in
+com.sun.tools.javac.model.JavacElements#matchAnnoToTree(), the Vis class
+does not implement the visitModuleDef() method and as a result it is not
+possible to find module's annotations hence the AssertionError.

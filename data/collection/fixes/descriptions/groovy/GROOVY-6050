@@ -1,0 +1,69 @@
+Similar to GROOVY-5870, but that has been marked fixed.
+
+Compiling this code:
+{code}
+import groovy.transform.CompileStatic;
+
+import java.io.IOException;
+
+class CastingBugTest {
+
+    
+    public void testCastingToInterface() {
+        Writer myWriter=MyTester.createWriter()
+        MyTester.sayHelloIfSomeInterface(myWriter)
+    }
+}
+
+@CompileStatic
+class MyTester {
+    static Writer createWriter() {
+        return new MyWriter()
+    }
+    
+    static void sayHelloIfSomeInterface(Writer writer) {
+        if(writer instanceof SomeInterface) {
+            ((SomeInterface)writer).sayHello()
+        }
+    }
+}
+
+@CompileStatic
+interface SomeInterface {
+    public void sayHello();
+}
+
+@CompileStatic
+class MyWriter extends Writer implements SomeInterface {
+    public void sayHello() {
+        println "Hello"
+        
+    }
+
+    @Override
+    public void write(char[] cbuf, int off, int len) throws IOException {
+        
+    }
+
+    @Override
+    public void flush() throws IOException {
+        
+    }
+
+    @Override
+    public void close() throws IOException {
+        
+    }
+}
+{code}
+
+Causes this error:
+{code}
+org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
+CastingBugTest.groovy: 22: [Static type checking] - Inconvertible types: cannot cast java.io.Writer to SomeInterface
+ @ line 22, column 13.
+               ((SomeInterface)writer).sayHello()
+               ^
+
+1 error
+{code}

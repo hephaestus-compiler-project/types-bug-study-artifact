@@ -1,0 +1,30 @@
+The class LVTHarness has a method named check():
+
+The change to fix this should be:
+
+    protected void check() throws Exception {
+-        JavacTask ct = (JavacTask)comp.getTask(null, fm, null, Arrays.asList("-g"),
++       JavacTask ct = (JavacTask)comp.getTask(null, fm, null, Arrays.asList("-g", "-d", "."),
+                null, Arrays.asList(jfo));
+        System.err.println("compiling code " + jfo.toString());
+        ct.setProcessors(Collections.singleton(new AliveRangeFinder()));
+        if (!ct.call()) {
+            throw new AssertionError("Error during compilation");
+        }
+
+        checkClassFile(new File(jfo.getName().replace(".java", ".class")));
+
+        //check all candidates have been used up
+        for (Map.Entry<ElementKey, AliveRanges> entry : aliveRangeMap.entrySet()) {
+            if (!seenAliveRanges.contains(entry.getKey())) {
+                error("Redundant @AliveRanges annotation on method " +
+                        entry.getKey().elem);
+            }
+        }
+    }
+
+also call:
+
+    checkClassFile(new File(jfo.getName().replace(".java", ".class")));
+
+will need to be modified, jfo.getName() should return the whole path to the .java file, what is needed here is only the class name. 

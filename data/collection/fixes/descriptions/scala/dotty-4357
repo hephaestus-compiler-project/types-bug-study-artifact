@@ -1,0 +1,83 @@
+I want to use Java Library from Dotty code.
+but particular code is touch off compile error.
+
+this is problem code.
+```java
+// file myexample/A.java
+package myexample;
+
+public class A<T> {}
+
+// file B.java
+package myexample;
+
+public class B extends A<B.C> {
+  public static class C {};
+}
+```
+
+They're compiled by Java8.
+```
+$ java -version
+java version "1.8.0_131"
+Java(TM) SE Runtime Environment (build 1.8.0_131-b11)
+Java HotSpot(TM) 64-Bit Server VM (build 25.131-b11, mixed mode)
+
+$ javac myexample/A.java
+$ javac myexample/B.java
+```
+
+This is the code of Dotty referencing them.
+```scala
+import myexample.B
+
+object Main extends App {
+  val b: B = new B()
+}
+```
+
+This become compile error. dotc0.7.0-RC1.
+```scala
+$ dotc -version
+Dotty compiler version 0.7.0-RC1 -- Copyright 2002-2018, LAMP/EPFL
+
+$ tree ./
+./
+├── C.scala
+└── myexample
+    ├── A.class
+    ├── A.java
+    ├── B$C.class
+    ├── B.class
+    └── B.java
+
+$ dotc -explain -classpath ./ C.scala
+exception caught when loading class C: java.lang.UnsupportedOperationException: class dotty.tools.dotc.core.SymDenotations$NoCompleter.complete
+exception caught when loading class B: dotty.tools.dotc.core.Types$CyclicReference: cyclic reference involving module class B$
+-- [E046] Syntax Error: C.scala:4:9 --------------------------------------------
+4 |  val b: B = new B()
+  |         ^
+  |         cyclic reference involving object B
+
+Explanation
+===========
+object B is declared as part of a cycle which makes it impossible for the
+compiler to decide upon B$'s type.
+
+-- [E006] Unbound Identifier Error: C.scala:4:17 -------------------------------
+4 |  val b: B = new B()
+  |                 ^
+  |                 not found: type B
+
+Explanation
+===========
+The identifier for `type B` is not bound, that is,
+no declaration for this identifier can be found.
+That can happen for instance if B or its declaration has either been
+misspelt, or if you're forgetting an import
+
+two errors found
+```
+
+Is there a way to successed compile without modify java code?
+and then is this a bug?

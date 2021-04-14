@@ -1,0 +1,13 @@
+```scala
+object Test {
+  inline def sum(inline args: Int*): Int = 0
+  val a: Int = 1
+  sum(1, a) // should fail as a is not an inline argumet
+}
+```
+
+The code compiles but should not. `Ycheck:all` checks `checkInlineConformant` and fails as expected.
+
+The issue is that the `@InlineParam` annotation is propagated to the `Int*` type but not to the individual parameters. This implies that when we check the tree for `a` in https://github.com/lampepfl/dotty/blob/f693e040704515cbf01a061b5a2a43e322f39e9d/compiler/src/dotty/tools/dotc/typer/Typer.scala#L2452-L2453
+its type does not have the annotation and the check is not performed. 
+ 

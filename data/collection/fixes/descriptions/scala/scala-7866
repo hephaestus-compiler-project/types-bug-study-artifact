@@ -1,0 +1,180 @@
+When passed the `-implicits` flag, scaladoc throws a `NullPointerException` at [Implicits.scala:595](https://github.com/scala/scala/blob/v2.10.3-RC2/src/compiler/scala/tools/nsc/typechecker/Implicits.scala#L595) when it encounters an implicit conversion defined as a macro. The code in question compiles normally, and looks something like the following:
+
+```scala
+sealed abstract class Else[+A, +B]
+
+// triggers NPE in scaladoc -implicits (otherwise compiles normally)
+implicit def ElseOps[A, B](self: A Else B): ElseOps[A, B] =
+  macro ElseMacros.ElseOps[A, B]
+
+// scaladoc -implicits succeeds when defined this way
+implicit def ElseOps[A, B](self: A Else B): ElseOps[A, B] =
+  new ElseOps(self)
+```
+
+**scaladoc output (via sbt):**
+```scala
+> doc
+[info] Main Scala API documentation to /Users/c9r/ReifyIt/basis-0.1/basis-util/target/scala-2.10/api...
+[warn] /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/Else.scala:133: scala.tools.nsc.typechecker.ContextErrors$TypeErrorWrapper
+[warn] sealed abstract class Trap[+B] private[util] extends (Nothing Else B) {
+[warn]                       ^
+[trace] Stack trace suppressed: run last basis-util/compile:doc for the full output.
+[error] (basis-util/compile:doc) java.lang.NullPointerException
+[error] Total time: 8 s, completed Sep 22, 2013 12:09:20 PM
+                    ^
+> last basis-util/compile:doc
+[info] Main Scala API documentation to /Users/c9r/ReifyIt/basis-0.1/basis-util/target/scala-2.10/api...
+[debug] Getting compiler-interface from component compiler for Scala 2.10.3-RC2
+[debug] Calling Scaladoc with arguments:
+[debug]   -language:_
+[debug]   -Yno-predef
+[debug]   -optimise
+[debug]   -Xno-forwarders
+[debug]   -Ywarn-all
+[debug]   -groups
+[debug]   -implicits
+[debug]   -implicits-sound-shadowing
+[debug]   -diagrams
+[debug]   -sourcepath
+[debug]   /Users/c9r/ReifyIt/basis-0.1
+[debug]   -doc-source-url
+[debug]   https://github.com/reifyit/basis/tree/master€{FILE_PATH}.scala
+[debug]   -d
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/target/scala-2.10/api
+[debug]   -bootclasspath
+[debug]   /Library/Java/JavaVirtualMachines/jdk1.7.0_11.jdk/Contents/Home/jre/lib/resources.jar:/Library/Java/JavaVirtualMachines/jdk1.7.0_11.jdk/Contents/Home/jre/lib/rt.jar:/Library/Java/JavaVirtualMachines/jdk1.7.0_11.jdk/Contents/Home/jre/lib/sunrsasign.jar:/Library/Java/JavaVirtualMachines/jdk1.7.0_11.jdk/Contents/Home/jre/lib/jsse.jar:/Library/Java/JavaVirtualMachines/jdk1.7.0_11.jdk/Contents/Home/jre/lib/jce.jar:/Library/Java/JavaVirtualMachines/jdk1.7.0_11.jdk/Contents/Home/jre/lib/charsets.jar:/Library/Java/JavaVirtualMachines/jdk1.7.0_11.jdk/Contents/Home/jre/lib/jfr.jar:/Library/Java/JavaVirtualMachines/jdk1.7.0_11.jdk/Contents/Home/jre/lib/JObjC.jar:/Library/Java/JavaVirtualMachines/jdk1.7.0_11.jdk/Contents/Home/jre/classes:/Users/c9r/.ivy2/cache/org.scala-lang/scala-library/jars/scala-library-2.10.3-RC2.jar
+[debug]   -classpath
+[debug]   /Users/c9r/.ivy2/cache/org.scala-lang/scala-reflect/jars/scala-reflect-2.10.3-RC2.jar
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/ArrowOps.scala
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/Begin.scala
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/Break.scala
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/DoubleOps.scala
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/Else.scala
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/ElseMacros.scala
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/ElseOps.scala
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/FloatOps.scala
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/FuseMacros.scala
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/FuseOps.scala
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/IntOps.scala
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/LongOps.scala
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/MurmurHash3.scala
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/TruthOps.scala
+[debug]   /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/package.scala
+[warn] /Users/c9r/ReifyIt/basis-0.1/basis-util/src/main/scala/basis/util/Else.scala:133: scala.tools.nsc.typechecker.ContextErrors$TypeErrorWrapper
+[warn] sealed abstract class Trap[+B] private[util] extends (Nothing Else B) {
+[warn]                       ^
+java.lang.NullPointerException
+  at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.loop$1(Implicits.scala:595)
+  at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.checkCompatibility(Implicits.scala:597)
+  at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.normSubType(Implicits.scala:374)
+  at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.matchesPt(Implicits.scala:513)
+  at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.typedImplicit1(Implicits.scala:709)
+  at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.typedImplicit0(Implicits.scala:631)
+  at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.pre211DivergenceLogic$1(Implicits.scala:468)
+  at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.scala$tools$nsc$typechecker$Implicits$ImplicitSearch$$typedImplicit(Implicits.scala:499)
+  at scala.tools.nsc.typechecker.Implicits$ImplicitSearch$$anonfun$eligibleInfos$1$1.apply(Implicits.scala:1469)
+  at scala.tools.nsc.typechecker.Implicits$ImplicitSearch$$anonfun$eligibleInfos$1$1.apply(Implicits.scala:1462)
+  at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:251)
+  at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:251)
+  at scala.collection.immutable.List.foreach(List.scala:318)
+  at scala.collection.TraversableLike$class.flatMap(TraversableLike.scala:251)
+  at scala.collection.AbstractTraversable.flatMap(Traversable.scala:105)
+  at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.eligibleInfos$1(Implicits.scala:1461)
+  at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.allImplicitsPoly(Implicits.scala:1474)
+  at scala.tools.nsc.typechecker.Implicits$class.allViewsFrom(Implicits.scala:142)
+  at scala.tools.nsc.Global$$anon$1.allViewsFrom(Global.scala:493)
+  at scala.tools.nsc.doc.model.ModelFactoryImplicitSupport$class.makeImplicitConversions(ModelFactoryImplicitSupport.scala:99)
+  at scala.tools.nsc.doc.DocFactory$$anon$1.makeImplicitConversions(DocFactory.scala:78)
+  at scala.tools.nsc.doc.model.ModelFactory$DocTemplateImpl.<init>(ModelFactory.scala:391)
+  at scala.tools.nsc.doc.model.ModelFactory$modelCreation$$anon$7.<init>(ModelFactory.scala:695)
+  at scala.tools.nsc.doc.model.ModelFactory$modelCreation$.createDocTemplate$1(ModelFactory.scala:695)
+  at scala.tools.nsc.doc.model.ModelFactory$modelCreation$.createTemplate(ModelFactory.scala:743)
+  at scala.tools.nsc.doc.model.ModelFactory.scala$tools$nsc$doc$model$ModelFactory$$makeMember0$1(ModelFactory.scala:840)
+  at scala.tools.nsc.doc.model.ModelFactory.makeMember(ModelFactory.scala:853)
+  at scala.tools.nsc.doc.model.ModelFactory$DocTemplateImpl$$anonfun$10.apply(ModelFactory.scala:401)
+  at scala.tools.nsc.doc.model.ModelFactory$DocTemplateImpl$$anonfun$10.apply(ModelFactory.scala:401)
+  at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:251)
+  at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:251)
+  at scala.collection.immutable.List.foreach(List.scala:318)
+  at scala.collection.TraversableLike$class.flatMap(TraversableLike.scala:251)
+  at scala.collection.AbstractTraversable.flatMap(Traversable.scala:105)
+  at scala.tools.nsc.doc.model.ModelFactory$DocTemplateImpl.<init>(ModelFactory.scala:401)
+  at scala.tools.nsc.doc.model.ModelFactory$PackageImpl.<init>(ModelFactory.scala:511)
+  at scala.tools.nsc.doc.model.ModelFactory$modelCreation$$anon$4.<init>(ModelFactory.scala:729)
+  at scala.tools.nsc.doc.model.ModelFactory$modelCreation$.createTemplate(ModelFactory.scala:729)
+  at scala.tools.nsc.doc.model.ModelFactory.scala$tools$nsc$doc$model$ModelFactory$$makeMember0$1(ModelFactory.scala:840)
+  at scala.tools.nsc.doc.model.ModelFactory.makeMember(ModelFactory.scala:853)
+  at scala.tools.nsc.doc.model.ModelFactory$DocTemplateImpl$$anonfun$10.apply(ModelFactory.scala:401)
+  at scala.tools.nsc.doc.model.ModelFactory$DocTemplateImpl$$anonfun$10.apply(ModelFactory.scala:401)
+  at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:251)
+  at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:251)
+  at scala.collection.immutable.List.foreach(List.scala:318)
+  at scala.collection.TraversableLike$class.flatMap(TraversableLike.scala:251)
+  at scala.collection.AbstractTraversable.flatMap(Traversable.scala:105)
+  at scala.tools.nsc.doc.model.ModelFactory$DocTemplateImpl.<init>(ModelFactory.scala:401)
+  at scala.tools.nsc.doc.model.ModelFactory$PackageImpl.<init>(ModelFactory.scala:511)
+  at scala.tools.nsc.doc.model.ModelFactory$modelCreation$$anon$4.<init>(ModelFactory.scala:729)
+  at scala.tools.nsc.doc.model.ModelFactory$modelCreation$.createTemplate(ModelFactory.scala:729)
+  at scala.tools.nsc.doc.model.ModelFactory.scala$tools$nsc$doc$model$ModelFactory$$makeMember0$1(ModelFactory.scala:840)
+  at scala.tools.nsc.doc.model.ModelFactory.makeMember(ModelFactory.scala:853)
+  at scala.tools.nsc.doc.model.ModelFactory$DocTemplateImpl$$anonfun$10.apply(ModelFactory.scala:401)
+  at scala.tools.nsc.doc.model.ModelFactory$DocTemplateImpl$$anonfun$10.apply(ModelFactory.scala:401)
+  at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:251)
+  at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:251)
+  at scala.collection.immutable.List.foreach(List.scala:318)
+  at scala.collection.TraversableLike$class.flatMap(TraversableLike.scala:251)
+  at scala.collection.AbstractTraversable.flatMap(Traversable.scala:105)
+  at scala.tools.nsc.doc.model.ModelFactory$DocTemplateImpl.<init>(ModelFactory.scala:401)
+  at scala.tools.nsc.doc.model.ModelFactory$PackageImpl.<init>(ModelFactory.scala:511)
+  at scala.tools.nsc.doc.model.ModelFactory$RootPackageImpl.<init>(ModelFactory.scala:523)
+  at scala.tools.nsc.doc.model.ModelFactory$modelCreation$$anon$1.<init>(ModelFactory.scala:710)
+  at scala.tools.nsc.doc.model.ModelFactory$modelCreation$.createTemplate(ModelFactory.scala:710)
+  at scala.tools.nsc.doc.model.ModelFactory$modelCreation$.createRootPackage(ModelFactory.scala:658)
+  at scala.tools.nsc.doc.model.ModelFactory$$anon$21.<init>(ModelFactory.scala:64)
+  at scala.tools.nsc.doc.model.ModelFactory.makeModel(ModelFactory.scala:61)
+  at scala.tools.nsc.doc.DocFactory.makeUniverse(DocFactory.scala:91)
+  at scala.tools.nsc.doc.DocFactory.generate$1(DocFactory.scala:122)
+  at scala.tools.nsc.doc.DocFactory.document(DocFactory.scala:134)
+  at xsbt.Runner.run(ScaladocInterface.scala:30)
+  at xsbt.ScaladocInterface.run(ScaladocInterface.scala:11)
+  at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+  at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+  at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+  at java.lang.reflect.Method.invoke(Method.java:601)
+  at sbt.compiler.AnalyzingCompiler.call(AnalyzingCompiler.scala:102)
+  at sbt.compiler.AnalyzingCompiler.doc(AnalyzingCompiler.scala:68)
+  at sbt.compiler.AnalyzingCompiler.doc(AnalyzingCompiler.scala:63)
+  at sbt.Doc$$anonfun$scaladoc$1.apply(Doc.scala:22)
+  at sbt.Doc$$anonfun$scaladoc$1.apply(Doc.scala:22)
+  at sbt.RawCompileLike$$anonfun$prepare$1.apply(RawCompileLike.scala:48)
+  at sbt.RawCompileLike$$anonfun$prepare$1.apply(RawCompileLike.scala:39)
+  at sbt.RawCompileLike$$anonfun$cached$1$$anonfun$1$$anonfun$apply$1.apply(RawCompileLike.scala:32)
+  at sbt.RawCompileLike$$anonfun$cached$1$$anonfun$1$$anonfun$apply$1.apply(RawCompileLike.scala:30)
+  at sbt.Tracked$$anonfun$outputChanged$1.apply(Tracked.scala:57)
+  at sbt.Tracked$$anonfun$outputChanged$1.apply(Tracked.scala:52)
+  at sbt.RawCompileLike$$anonfun$cached$1.apply(RawCompileLike.scala:37)
+  at sbt.RawCompileLike$$anonfun$cached$1.apply(RawCompileLike.scala:22)
+  at sbt.Defaults$$anonfun$docTaskSettings$2.apply(Defaults.scala:683)
+  at sbt.Defaults$$anonfun$docTaskSettings$2.apply(Defaults.scala:662)
+  at scala.Function1$$anonfun$compose$1.apply(Function1.scala:47)
+  at sbt.$tilde$greater$$anonfun$$u2219$1.apply(TypeFunctions.scala:42)
+  at sbt.std.Transform$$anon$4.work(System.scala:64)
+  at sbt.Execute$$anonfun$submit$1$$anonfun$apply$1.apply(Execute.scala:237)
+  at sbt.Execute$$anonfun$submit$1$$anonfun$apply$1.apply(Execute.scala:237)
+  at sbt.ErrorHandling$.wideConvert(ErrorHandling.scala:18)
+  at sbt.Execute.work(Execute.scala:244)
+  at sbt.Execute$$anonfun$submit$1.apply(Execute.scala:237)
+  at sbt.Execute$$anonfun$submit$1.apply(Execute.scala:237)
+  at sbt.ConcurrentRestrictions$$anon$4$$anonfun$1.apply(ConcurrentRestrictions.scala:160)
+  at sbt.CompletionService$$anon$2.call(CompletionService.scala:30)
+  at java.util.concurrent.FutureTask$Sync.innerRun(FutureTask.java:334)
+  at java.util.concurrent.FutureTask.run(FutureTask.java:166)
+  at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:471)
+  at java.util.concurrent.FutureTask$Sync.innerRun(FutureTask.java:334)
+  at java.util.concurrent.FutureTask.run(FutureTask.java:166)
+  at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1110)
+  at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:603)
+  at java.lang.Thread.run(Thread.java:722)
+[error] (basis-util/compile:doc) java.lang.NullPointerException
+```

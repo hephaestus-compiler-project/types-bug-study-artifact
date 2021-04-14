@@ -1,0 +1,25 @@
+In 2.12.4 the following code (correctly) warns on compile due to exhaustivity checking
+
+```scala
+sealed abstract class Maybe[A]
+final case class Empty[A]() extends Maybe[A]
+final case class Just[A](a: A) extends Maybe[A]
+
+Just(1) {
+  case Just(2) => true
+  case Empty() => true
+}
+```
+
+but the following, with an alternative encoding of `Empty` (#10659) compiles without warning
+
+```scala
+  final case object Empty extends Maybe[Nothing] {
+    def apply[A](): Maybe[A] = this.asInstanceOf[Maybe[A]]
+    def unapply[A](e: Maybe[A]): Boolean = this == e
+  }
+```
+
+Guessing, it looks like the presence of the "custom" `unapply` causes the more aggressive checkers not to trigger. Perhaps the presence of the custom unapply should only disable the aggressive checking around the `Empty`, not around the entire ADT `Maybe`.
+
+// @xuwei-k

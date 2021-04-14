@@ -1,0 +1,55 @@
+== what was done ==
+I placed some code into the REPL like that in the following:
+```scala
+trait Test {
+ implicit val x = new Test { override def toString = "trait Test" }
+}
+object Test {
+ implicit val y = new Test { override def toString = "object Test" }
+}
+import Test._
+def useTest(implicit t: Test) = print(t)
+```
+== what was observed == 
+In the REPL
+```scala
+Welcome to Scala version 2.9.1.final (Java HotSpot(TM) Client VM, Java 1.6.0_29)
+.
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> trait Test {
+     | implicit val x = new Test { override def toString = "trait Test"}
+     | }
+defined trait Test
+
+scala> object Test {
+     | implicit val y = new Test { override def toString = "object Test" }
+     | }
+defined module Test
+warning: previously defined trait Test is not a companion to object Test.
+Companions must be defined together; you may wish to use :paste mode for this.
+
+scala> import Test._
+import Test._
+
+scala> def useTest(implicit t: Test) = print(t)
+useTest: (implicit t: Test)Unit
+
+scala> useTest
+java.lang.StackOverflowError
+        at Test$$anon$1.<init>(<console>:8)
+        at Test$class.$init$(<console>:8)
+        at Test$$anon$1.<init>(<console>:8)
+        at Test$class.$init$(<console>:8)
+        at Test$$anon$1.<init>(<console>:8)
+        at Test$class.$init$(<console>:8)
+        at Test$$anon$1.<init>(<console>:8)
+        at Test$class.$init$(<console>:8)
+        at Test$$anon$1.<init>(<console>:8)
+        at Test$class.$init$(<console>:8)
+...
+```
+=== what it should have been ===
+It probably shouldn't have produced the stackoverflow error.
+

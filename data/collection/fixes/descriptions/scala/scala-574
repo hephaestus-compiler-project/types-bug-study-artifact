@@ -1,0 +1,48 @@
+given (note that this only happens when Foo's T parameter is instantiated to Object.. extending Foo<String> does not trigger this bug)
+
+```scala
+package test;
+
+class Foo<T> {
+	public void foo(T a) { }
+} 
+
+class Bar extends Foo<Object> { // only goes wrong for Object
+  // scalac now sees two methods in this class:
+    // method foo in class Bar of type (Any)Unit
+    // method foo in class Foo of type (java.lang.Object)Unit
+
+  public void foo(Object a) { }
+}
+```
+
+and 
+
+```scala
+package test
+
+object Test {
+  // should compile, as no overloading should occur
+  // crafted to produce a more meaningful error message
+  val f: Nothing => Unit = (new Bar).foo 
+}
+```
+
+The compiler (2.7.0-RC2) complains as follows:
+
+```scala
+error: type mismatch;
+ found   : Any
+ required: java.lang.Object
+Note that implicit conversions are not applicable because they are ambiguous:
+ both method any2stringadd in object Predef of type (Any)scala.runtime.StringAdd
+ and method any2ArrowAssoc in object Predef of type [A](A)ArrowAssoc[A]
+ are possible conversion functions from Any to java.lang.Object
+/Users/adriaan/src/trunk/test/pending/pos/javagenerics_overloading.scala:4: error: ambiguous reference to overloaded definition,
+both method foo in class Bar of type (Any)Unit
+and  method foo in class Foo of type (java.lang.Object)Unit
+match expected type (Nothing) => Unit
+  val f: Nothing => Unit = (new Bar).foo // should compile, as no overloading should occur
+                                     ^
+two errors found
+```

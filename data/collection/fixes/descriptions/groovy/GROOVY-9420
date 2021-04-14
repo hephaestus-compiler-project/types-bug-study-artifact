@@ -1,0 +1,44 @@
+Consider this example:
+
+ 
+
+{code:groovy}
+package test58
+
+import groovy.transform.CompileStatic;
+
+@CompileStatic
+public class Test58 {
+
+	Map<String, String> m = [
+		foo: 'foo'
+		]
+		
+	void blah() {
+		Object c = boh()
+		def a = m.get(c)
+		uhuh(a)
+		def b = m[c]
+		uhuh(b)
+	}
+	
+	void uhuh(String a) {
+	}
+	
+	Object boh() {
+		'foo'
+	}
+}
+{code}
+
+The call {{uhuh(b)}} fails with error:
+
+{noformat}
+Groovy:[Static type checking] - Cannot find matching method test58.Test58#uhuh(java.lang.Object). Please check if the declared type is correct and if the method exists.
+{noformat}
+
+However, since {{m}} is a {{Map<String, String>}}, {{b}} type should be inferred as {{String}}.
+If an error is in this code, I think it should be signalled on the {{def b = m[c]}} assignment (or even {{def a = m.get(c)}}), because {{c}} declared type is {{Object}}, and not on the subsequent call involving {{b}}.
+Perhaps here {{c}} is inferred as {{String}} thanks to flow typing, but then I still believe {{uhuh(b)}} should succeed, just like {{uhuh(a)}} does.
+
+Originally submitted for Groovy Eclipse Plugin at: https://github.com/groovy/groovy-eclipse/issues/948

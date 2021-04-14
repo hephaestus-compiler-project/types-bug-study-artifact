@@ -1,0 +1,93 @@
+A DESCRIPTION OF THE PROBLEM :
+JDK 12 Compiler throws a NullPointerException, while compiling the following code:
+
+public class LocalVarAndBreakStmtsWithSwitch {
+
+    public Runnable greetings(AgeGroup age) {
+
+        Runnable thread = switch (age) {
+            case KIDS -> () -> System.out.println("Hi!");
+            case TEENS -> {
+                String greetingsFromDB = "";// load value from database
+                // some other complex/ simple processing here
+                break (() -> System.out.println(greetingsFromDB));
+            }
+            default -> () -> System.out.println("Doesn't matter");
+        };
+
+        return thread;
+    }
+    enum AgeGroup {KIDS, TEENS, ADULTS};
+}
+
+REGRESSION : Last worked in version 12
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Create a Java class with the following contents:
+
+public class LocalVarAndBreakStmtsWithSwitch {
+
+    public Runnable greetings(AgeGroup age) {
+
+        Runnable thread = switch (age) {
+            case KIDS -> () -> System.out.println("Hi!");
+            case TEENS -> {
+                String greetingsFromDB = "";// load value from database
+                // some other complex/ simple processing here
+                break (() -> System.out.println(greetingsFromDB));
+            }
+            default -> () -> System.out.println("Doesn't matter");
+        };
+
+        return thread;
+    }
+    enum AgeGroup {KIDS, TEENS, ADULTS};
+}
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Successful compilation of the class, as per the documentation of switch expressions.
+ACTUAL -
+> javac --release 12 --enable-preview LocalVarAndBreakStmtsWithSwitch.java
+
+Note: LocalVarAndBreakStmtsWithSwitch.java uses preview language features.
+Note: Recompile with -Xlint:preview for details.
+An exception has occurred in the compiler (12). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.NullPointerException
+        at jdk.compiler/com.sun.tools.javac.jvm.Code.emitop0(Code.java:567)
+        at jdk.compiler/com.sun.tools.javac.jvm.Items$LocalItem.load(Items.java:397)
+        at jdk.compiler/com.sun.tools.javac.jvm.Gen.genArgs(Gen.java:872)
+        at jdk.compiler/com.sun.tools.javac.jvm.Gen.visitApply(Gen.java:1808)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1709)
+        at jdk.compiler/com.sun.tools.javac.jvm.Gen.genExpr(Gen.java:853)
+        at jdk.compiler/com.sun.tools.javac.jvm.Gen.visitExec(Gen.java:1702)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1519)
+        at jdk.compiler/com.sun.tools.javac.jvm.Gen.genDef(Gen.java:595)
+        at jdk.compiler/com.sun.tools.javac.jvm.Gen.genStat(Gen.java:630)
+        at jdk.compiler/com.sun.tools.javac.jvm.Gen.genStat(Gen.java:616)
+        at jdk.compiler/com.sun.tools.javac.jvm.Gen.genStats(Gen.java:667)
+        at jdk.compiler/com.sun.tools.javac.jvm.Gen.visitBlock(Gen.java:1067)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:1026)
+        at jdk.compiler/com.sun.tools.javac.jvm.Gen.genDef(Gen.java:595)
+        at jdk.compiler/com.sun.tools.javac.jvm.Gen.genStat(Gen.java:630)
+        at jdk.compiler/com.sun.tools.javac.jvm.Gen.genMethod(Gen.java:937)
+       at jdk.compiler/com.sun.tools.javac.jvm.Gen.visitMethodDef(Gen.java:900)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:872)
+        at jdk.compiler/com.sun.tools.javac.jvm.Gen.genDef(Gen.java:595)
+        at jdk.compiler/com.sun.tools.javac.jvm.Gen.genClass(Gen.java:2345)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.genCode(JavaCompiler.java:756)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.generate(JavaCompiler.java:1635)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.generate(JavaCompiler.java:1603)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:973)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:311)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:170)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:57)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:43)
+
+---------- BEGIN SOURCE ----------
+Test case not required - the source doesn't compile. NullPointerException is thrown by JDK 12 compiler.
+---------- END SOURCE ----------
+
+FREQUENCY : always
+
+

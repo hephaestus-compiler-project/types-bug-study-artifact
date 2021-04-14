@@ -1,0 +1,52 @@
+Consider the following:
+
+{code}
+package test;
+
+import java.io.Serializable;
+
+public final class Pair<L, R> implements Serializable {
+
+	public static <L, R> Pair<L, R> of(final L left, final R right) {
+		return new Pair<>(left, right);
+	}
+
+	public final L left;
+	public final R right;
+
+	private Pair(final L left, final R right) {
+		this.left = left;
+		this.right = right;
+	}
+}
+{code}
+
+And the following Groovy class:
+
+{code}
+package test2
+
+import test.Pair
+
+import java.util.Date;
+
+import groovy.transform.CompileStatic
+
+@CompileStatic
+class Test {
+
+	Pair<Pair<Integer, Pair<String, Date>>, Pair<Integer, Pair<String, Date>>> doSmething() {
+		def left = (Pair<Integer, Pair<String, Date>>) null
+		def right = (Pair<Integer, Pair<String, Date>>) null
+		return Pair.of(left, right)
+	}
+}
+{code}
+
+Compilation fails with the following error message:
+
+{noformat}
+[Static type checking] - Incompatible generic argument types. Cannot assign test.Pair <test.Pair, test.Pair> to: test.Pair <Pair, Pair>
+ @ line 15, column 10.
+                return Pair.of(left, right)
+{noformat}

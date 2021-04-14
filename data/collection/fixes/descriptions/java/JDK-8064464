@@ -1,0 +1,55 @@
+FULL PRODUCT VERSION :
+java version "1.8.0_25"
+Java(TM) SE Runtime Environment (build 1.8.0_25-b17)
+Java HotSpot(TM) 64-Bit Server VM (build 25.25-b02, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+x86_64 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+Type inference doesn't work on conditional expressions that compiled with javac7.
+
+REGRESSION.  Last worked in version 7u67
+
+ADDITIONAL REGRESSION INFORMATION: 
+java version "1.7.0_67"
+Java(TM) SE Runtime Environment (build 1.7.0_67-b01)
+Java HotSpot(TM) 64-Bit Server VM (build 24.65-b04, mixed mode)
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+$ javac Test.java
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+The compilation should succeed.
+ACTUAL -
+The compilation does not succeed.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+Test.java:9: error: reference to f is ambiguous
+    f(!lx.isEmpty() ? lx.get(0) : 0); // both method f(Object) in Test and method f(int) in Test match
+    ^
+  both method f(Object) in Test and method f(int) in Test match
+1 error
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import java.util.List;
+
+abstract class Test {
+  abstract void f(Object o);
+  abstract void f(int i);
+
+  void m(List<Integer> lx) {
+    f(!lx.isEmpty() ? 0 : lx.get(0)); // OK
+    f(!lx.isEmpty() ? lx.get(0) : 0); // error: both method f(Object) in Test and method f(int) in Test match
+  }
+}
+
+---------- END SOURCE ----------
+

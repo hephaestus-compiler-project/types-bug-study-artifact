@@ -1,0 +1,59 @@
+My colleague Eddie Aftandilian discovered the following crash, which only occurs when annotation processing is enabled and the flags used include -XDshould-stop.ifError=FLOW.
+
+This bug has some features in common with JDK-8225003, but it may not be an exact duplicate: the stack trace is different, and the required flag is a new wrinkle.
+
+=== EmptyProcessor.java 
+import java.util.Set; 
+import javax.annotation.processing.AbstractProcessor; 
+import javax.annotation.processing.RoundEnvironment; 
+import javax.lang.model.element.TypeElement; 
+
+public class EmptyProcessor extends AbstractProcessor { 
+  @Override 
+  public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) { 
+    return false; 
+  } 
+} 
+=== MyClass.java 
+public class MyClass {
+  enum MyEnum {
+    FIRST,
+    SECOND,
+    THIRD.  // syntax error
+    FOURTH,
+    FIFTH,
+    SIXTH;
+  }
+
+  private void test() {
+    Foo.bar(Object.class);
+    val1 += val2;
+  }
+}
+=== 
+
+$ javac -fullversion 
+javac full version "13-ea+30" 
+$ javac EmptyProcessor.java 
+$ javac -XDshould-stop.ifError=FLOW -processor EmptyProcessor MyClass.java 
+An exception has occurred in the compiler (13-ea). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program, the following diagnostic, and the parameters passed to the Java compiler in your report. Thank you.
+java.lang.AssertionError: Unexpected tree: val1 += val2 with kind: PLUS_ASSIGNMENT within: val1 += val2 with kind: PLUS_ASSIGNMENT
+        at jdk.compiler/com.sun.tools.javac.util.Assert.error(Assert.java:162)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.validateAnnotatedType(Attr.java:5154)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.visitVarDef(Attr.java:5000)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCVariableDecl.accept(JCTree.java:966)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.visitClassDef(Attr.java:5053)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:784)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.validateTypeAnnotations(Attr.java:4949)
+        at jdk.compiler/com.sun.tools.javac.code.TypeAnnotations.lambda$validateTypeAnnotationsSignatures$1(TypeAnnotations.java:134)
+        at jdk.compiler/com.sun.tools.javac.comp.Annotate.flush(Annotate.java:200)
+        at jdk.compiler/com.sun.tools.javac.comp.Annotate.unblockAnnotations(Annotate.java:144)
+        at jdk.compiler/com.sun.tools.javac.comp.Annotate.enterDone(Annotate.java:157)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.enterDone(JavaCompiler.java:1746)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.enterTrees(JavaCompiler.java:1073)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:936)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:318)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:176)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:57)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:43)

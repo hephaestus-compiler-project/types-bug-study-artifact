@@ -1,0 +1,26 @@
+The following code compiles in Scala 2.12.10, fails with a diverging implicit error in Scala 2.13.0:
+
+```scala
+object A {
+  trait B[T]
+  implicit def c[T <: Singleton]: B[T] = ???
+  implicit def d[T1: B, T2: B]: B[Tuple2[T1, T2]] = ???
+  implicit def e[T: B]: B[Option[T]] = ???
+
+  implicit def f[C[_] <: Iterable[_], T](implicit r: B[T]): B[C[T]] = ???
+}
+object G{
+  class H[T: A.B, V: A.B](t: Option[(V, T)]){
+    implicitly[A.B[Option[(V, T)]]]
+  }
+  def h[T: A.B, V: A.B](t: Option[(V, T)]){
+    implicitly[A.B[Option[(V, T)]]]
+  }
+}
+```
+
+`class H` is what fails to compile, even though `def h` compiles just fine. 
+
+As far as I can tell this is a minimal repro. Removing `def f` also is sufficient to make everything (including `class H`) compile. Converting the `Tuple2` to a `Seq` also makes things compile.
+
+This is a regression and causes spurious compile errors when trying to use uPickle with Scala 2.13

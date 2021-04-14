@@ -1,0 +1,32 @@
+*a.scala*:
+
+```scala
+trait Fun[L[_]]
+
+object O1 {
+  trait N[X]
+}
+
+object O2 {
+  def bar: Fun[O1.N] = ???
+}
+```
+
+*b.scala*:
+```scala
+object Test {
+  def c: Fun[O1.N] = O2.bar
+}
+```
+
+Breaks with separate compilation:
+
+```scala
+$ rm *.class; dotc a.scala; dotc b.scala
+-- [E007] Type Mismatch Error: b.scala:2:24 ------------------------------------
+2 |  val c: Fun[O1.N] = O2.bar
+  |                     ^^^^^^
+  |                     found:    Fun[O1.N]
+  |                     required: Fun[O1.N]
+  |
+```

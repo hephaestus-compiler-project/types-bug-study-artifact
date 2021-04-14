@@ -1,0 +1,75 @@
+If a repeatable annotation has TYPE_USE and FIELD as @Targets and it's put on a field, javac crashes with this assertion,
+
+"java.lang.AssertionError: Can't annotate already annotated type: (@A :: java.lang.Integer); adding: @A"
+
+sample and output below.
+
+-steve
+
+8<- - - Test.java - - - - - - - - - - - - - -
+import java.lang.annotation.*;
+import static java.lang.annotation.RetentionPolicy.*;
+import static java.lang.annotation.ElementType.*;
+
+// (repeating) type annotations at class level.
+class Test {
+Test(){}
+@A Integer i1 = 0;   // crash FIELD
+// type usage in method body
+@B @B String test() {  return null;} // ok on METHOD
+}
+
+@Retention(CLASS)
+@Target({TYPE_USE,FIELD})
+@Repeatable( AC.class )
+@interface A { }
+
+@Retention(CLASS)
+@Target({TYPE_USE,FIELD})
+@interface AC { A[] value(); }
+
+@Retention(CLASS)
+@Target({TYPE_USE,METHOD})
+@Repeatable( BC.class )
+@interface B { }
+
+@Retention(CLASS)
+@Target({TYPE_USE,METHOD})
+@interface BC { B[] value(); }
+
+8<- - - compiler output - - - - - - - - - - - - - -
+
+An exception has occurred in the compiler (1.8.0-ea). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.AssertionError: Can't annotate already annotated type: (@A :: java.lang.Integer); adding: @A
+        at com.sun.tools.javac.util.Assert.error(Assert.java:133)
+        at com.sun.tools.javac.util.Assert.check(Assert.java:94)
+        at com.sun.tools.javac.code.Type$AnnotatedType.<init>(Type.java:1505)
+        at com.sun.tools.javac.code.TypeAnnotations$TypeAnnotationPositions$1.visitAnnotatedType(TypeAnnotations.java:410)
+        at com.sun.tools.javac.code.TypeAnnotations$TypeAnnotationPositions$1.visitAnnotatedType(TypeAnnotations.java:389)
+        at com.sun.tools.javac.code.Type$AnnotatedType.accept(Type.java:1527)
+        at com.sun.tools.javac.code.TypeAnnotations$TypeAnnotationPositions.typeWithAnnotations(TypeAnnotations.java:470)
+        at com.sun.tools.javac.code.TypeAnnotations$TypeAnnotationPositions.typeWithAnnotations(TypeAnnotations.java:353)
+        at com.sun.tools.javac.code.TypeAnnotations$TypeAnnotationPositions.separateAnnotationsKinds(TypeAnnotations.java:189)
+        at com.sun.tools.javac.code.TypeAnnotations$TypeAnnotationPositions.visitVarDef(TypeAnnotations.java:917)
+        at com.sun.tools.javac.tree.JCTree$JCVariableDecl.accept(JCTree.java:792)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.code.TypeAnnotations$TypeAnnotationPositions.scan(TypeAnnotations.java:135)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+        at com.sun.tools.javac.code.TypeAnnotations$TypeAnnotationPositions.visitClassDef(TypeAnnotations.java:842)
+        at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:650)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.code.TypeAnnotations$TypeAnnotationPositions.scan(TypeAnnotations.java:135)
+        at com.sun.tools.javac.code.TypeAnnotations.organizeTypeAnnotationsBodies(TypeAnnotations.java:102)
+        at com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:4039)
+        at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:3918)
+        at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:3852)
+        at com.sun.tools.javac.comp.Attr.attrib(Attr.java:3826)
+        at com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1254)
+        at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:907)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:866)
+        at com.sun.tools.javac.main.Main.compile(Main.java:506)
+        at com.sun.tools.javac.main.Main.compile(Main.java:365)
+        at com.sun.tools.javac.main.Main.compile(Main.java:354)
+        at com.sun.tools.javac.main.Main.compile(Main.java:345)
+        at com.sun.tools.javac.Main.compile(Main.java:76)
+        at com.sun.tools.javac.Main.main(Main.java:61)

@@ -1,0 +1,40 @@
+In the following example `getTypeElement("javax.annotation.processing.Generated")` incorrectly returns null and results in a spurious 'multiple elements' warning when using --release < 11.
+
+javax.annotation.processing.Generated is a member of java.compiler and none of the other named modules, so `getTypeElement("javax.annotation.processing.Generated")` is not ambiguous.
+
+The same issue affects JDK 10 and --release 9.
+
+=== P.java
+import java.util.Set;
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.TypeElement;
+
+@SupportedAnnotationTypes("*")
+public class P extends AbstractProcessor {
+
+  @Override
+  public SourceVersion getSupportedSourceVersion() {
+    return SourceVersion.latestSupported();
+  }
+
+  @Override
+  public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+    System.err.println(
+        processingEnv.getElementUtils().getTypeElement("javax.annotation.processing.Generated"));
+    return false;
+  }
+}
+=== T.java
+@Deprecated
+class T {
+}
+===
+
+$ javac -fullversion -processor P --release 9 T.java 
+javac full version "11+27"
+null
+Note: Multiple elements named 'javax.annotation.processing.Generated' in modules 'java.base, java.compiler, jdk.management, java.management, jdk.sctp, jdk.jconsole, jdk.management.agent, java.management.rmi, java.naming, java.security.sasl, java.logging, java.rmi, jdk.attach, java.desktop, java.datatransfer, java.xml, java.prefs, jdk.jdi, jdk.jdwp.agent, jdk.httpserver, jdk.unsupported, jdk.scripting.nashorn, java.scripting, jdk.dynalink, jdk.jartool, jdk.security.auth, java.security.jgss, jdk.accessibility, jdk.security.jgss, jdk.xml.dom, jdk.jsobject, jdk.net, java.sql.rowset, java.sql, java.instrument, java.xml.crypto' were found by javax.lang.model.util.Elements.getTypeElement.
+null

@@ -1,0 +1,29 @@
+Failed in
+{code}
+fun main(args: Array<String>) {
+    val future = CompletableFuture<Future<String?>>()
+
+    future.thenApplyAsync(
+            Function {it.get() },
+            Executors.newCachedThreadPool()
+    )
+}
+{code}
+{cut Error}
+Error:(11, 12) Kotlin: Type inference failed: Not enough information to infer parameter U in fun <U> thenApplyAsync(p0: java.util.function.Function<in java.util.concurrent.Future<kotlin.String?>, out U>?, p1: java.util.concurrent.Executor?): java.util.concurrent.CompletableFuture<U>?
+Please specify it explicitly.
+{cut}
+
+but works in
+{code}
+    future.thenApplyAsync( Function {
+        (f: Future<String?>) -> f.get()
+    }, Executors.newCachedThreadPool())
+{code}
+and in 
+{code}
+future.thenApplyAsync(
+            {it.get() },
+            {Executors.newCachedThreadPool().execute { it }}
+    )
+{code}

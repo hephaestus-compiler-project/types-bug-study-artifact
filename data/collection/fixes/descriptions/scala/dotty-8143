@@ -1,0 +1,32 @@
+## minimized code
+
+```Scala
+class Reflection(val internal: CompilerInterface) { self => // It works if the self is removed
+  opaque type Flags = internal.Flags
+  object Flags {
+    def EmptyFlags: Flags = internal.Flags_EmptyFlags
+  }
+}
+
+trait CompilerInterface {
+  type Flags
+  def Flags_EmptyFlags: Flags
+}
+
+```
+
+## Compilation output
+
+```scala
+-- [E007] Type Mismatch Error: Foo.scala:7:37 ----------------------------------
+7 |    def EmptyFlags: Flags = internal.Flags_EmptyFlags
+  |                            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |                     Found:    Reflection.this.internal.Flags
+  |                     Required: Reflection.this.Flags²
+  |
+  |                     where:    Flags  is a type in trait CompilerInterface
+  |                               Flags² is a type in class Reflection
+```
+
+## expectation
+It should compile and be equivalent to the class without a `self`

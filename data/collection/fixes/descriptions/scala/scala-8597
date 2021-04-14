@@ -1,0 +1,37 @@
+```scala
+object Unchecked {
+  def nowarn[T] = (null: Any) match { case _: Some[T]      => } 
+
+  def warn1[T]  = (null: Any) match { case _: T            => }
+  def warn2     = (null: Any) match { case _: Some[String] => } 
+}
+```
+
+See `matchesPattern`
+
+```scala
+    /** Is this type a subtype of that type in a pattern context?
+     *  Dummy type arguments on the right hand side are replaced with
+     *  fresh existentials, except for Arrays.
+     *
+     *  See bug1434.scala for an example of code which would fail
+     *  if only a <:< test were applied.
+     */
+    def matchesPattern(that: Type): Boolean = (this <:< that) || (that match {
+      case ArrayTypeRef(elem2) if elem2.typeConstructor.isHigherKinded =>
+        this match {
+          case ArrayTypeRef(elem1) => elem1 matchesPattern elem2
+          case _                   => false
+        }
+      case TypeRef(_, sym, args) =>
+        val that1 = existentialAbstraction(args map (_.typeSymbol), that)
+        (that ne that1) && (this <:< that1) && {
+          debuglog(s"$this.matchesPattern($that) depended on discarding args and testing <:< $that1")
+          true
+        }
+      case _ =>
+        false
+    })
+```
+
+And from the sounds of the comment, #1434

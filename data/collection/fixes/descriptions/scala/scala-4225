@@ -1,0 +1,58 @@
+```scala
+trait Foo {
+ val name : String
+ trait Bar {
+   def doSomething : String
+   override def toString = "Foo(" + name + ").Bar -> " + doSomething
+ }
+ object Bar {
+   implicit def fromFunction(func : Function0[String]) = new Bar {
+     def doSomething = func()
+   }
+ }
+ def andThen(b : Bar) = b
+}
+
+object Foo {
+  def foo(n : String) = new Foo {
+    override val name = n
+  }
+}
+```
+
+And then run in the REPL
+```scala
+Welcome to Scala version 2.8.1.final (OpenJDK 64-Bit Server VM, Java 1.6.0_20).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> Foo.foo("foo") andThen (() => "Bar")
+java.lang.AssertionError: assertion failed
+	at scala.Predef$$.assert(Predef.scala:77)
+	at scala.tools.nsc.ast.TreeGen.mkAttributedQualifier(TreeGen.scala:82)
+	at scala.tools.nsc.ast.TreeGen.mkAttributedQualifier(TreeGen.scala:45)
+	at scala.tools.nsc.ast.TreeGen.mkAttributedRef(TreeGen.scala:107)
+	at scala.tools.nsc.ast.TreeGen.mkAttributedStableRef(TreeGen.scala:149)
+	at scala.tools.nsc.ast.TreeGen.mkAttributedQualifier(TreeGen.scala:60)
+	at scala.tools.nsc.ast.TreeGen.mkAttributedQualifier(TreeGen.scala:45)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.typedImplicit0(Implicits.scala:441)
+	at scala.tools.nsc.typechecker.Implicits$$ImplicitSearch.typedImplicit(Implicits.scala:359)
+
+```
+
+
+=== What is the expected behavior? ===
+
+I expect the implicit lookup to succeed in finding an implicit view for foo.Bar.
+
+=== What do you see instead? ===
+
+A stack trace
+
+=== Additional information ===
+(for instance, a link to a relevant mailing list discussion)
+
+=== What versions of the following are you using? ===
+  - Scala:  2.8.1
+  - Java:   OpenJDK  1.6.0_20
+  - Operating system:  Ubuntu

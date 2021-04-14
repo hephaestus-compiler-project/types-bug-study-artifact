@@ -1,0 +1,22 @@
+Most of the time, I get the following compilation error:
+{noformat}
+[ERROR] /Users/fpavageau/devs/bugs/lost-cascading-types/src/main/groovy/BadType.groovy: 22: [Static type checking] - No such property: start for class: T
+[ERROR] @ line 22, column 22.
+[ERROR] println("" + rel.currentState.state.start)
+[ERROR] ^
+[ERROR] 
+[ERROR] 1 error
+{noformat}
+where {{rel}} is an instance of a non-parameterized (Java) class implementing a generic interface with the {{currentState}} generic property. So the type of the property should actually be known, but it's lost and I get a compilation error because the {{start}} property is not part of the lower-bound type of {{currentState}}.
+
+When I say "most of the time", it's because the compilation error is not always triggered (so lots of debugging fun!). I've tried with Oracle JDK 1.7u75 and 1.8u40, and I get around 87% of failures:
+{code:title=JDK 1.7}
+$ failures=0; for i in {1..100}; do mvn clean package > /dev/null 2>&1 || ((failures++)); done; echo $failures
+87
+{code}
+{code:title=JDK 1.8}
+$ failures=0; for i in {1..100}; do mvn clean package > /dev/null 2>&1 || ((failures++)); done; echo $failures
+88
+{code}
+
+I'm attaching a test case, which is also available on [Github|https://github.com/fpavageau/lost-cascading-types].

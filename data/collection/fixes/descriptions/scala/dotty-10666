@@ -1,0 +1,53 @@
+## Minimized code
+
+```Scala
+package ex
+
+trait Txn[T <: Txn[T]]
+
+trait STxn[T <: STxn[T]] extends Txn[T]
+
+object OutputAttr extends Factory {
+  // mistake: it should have been `T <: STxn[T]`
+  def apply[T <: Txn[T]]()(implicit tx: T): Attr[T] =
+    new OutputAttr()
+}
+class OutputAttr[T <: Txn[T]]() extends Attr[T]
+
+object Attr {
+  private val set: Set[Factory] = Set(OutputAttr)
+  
+  def apply[T <: STxn[T]]()(implicit tx: T): Attr[T] = set.head.apply[T]()
+}
+trait Attr[T <: Txn[T]]
+
+trait Factory {
+  def apply[T <: STxn[T]]()(implicit tx: T): Attr[T]
+}
+
+class Foo extends STxn[Foo]
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    type T = Foo
+    implicit val tx: T = new Foo
+    val attr = Attr[T]()
+    println(attr)
+  }
+}
+```
+
+## Output
+
+It compiles, but creates a runtime error:
+
+```scala
+Exception in thread "main" java.lang.AbstractMethodError: Receiver class ex.OutputAttr$ does not define or inherit an implementation of the resolved method 'abstract ex.Attr apply(ex.STxn)' of interface ex.Factory.
+	at ex.Attr$.apply(Test.scala:17)
+	at ex.Main$.main(Test.scala:31)
+	at ex.Main.main(Test.scala)
+```
+
+## Expectation
+
+I'm not sure. It compiles _and runs_ in Scala 2. But I acknowledge that it might be a programming mistake, because I am overriding the type constraint `T <: STxn[T]` with the less specific `T <: Txn[T]`. On the other hand, this should be a possible dynamic dispatch?

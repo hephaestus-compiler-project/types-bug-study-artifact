@@ -1,0 +1,96 @@
+The following produces a compiler crash when specialization is turned on (and compiles with '-no-specialization'):
+
+```scala
+// Test.scala
+package gaga
+
+trait Sys[ Self <: Sys[ Self ]] {
+   type Tx
+}
+
+sealed trait AssocEntry[ S <: Sys[ S ], @specialized( Int ) A ] {
+   def value : A
+   def value( implicit tx: S#Tx ) : A
+}
+```
+
+The problem is due to the overloading of `value` in `AssocEntry`. The crash is
+
+```
+error: scala.tools.nsc.symtab.Types$TypeError: type mismatch;
+ found   : tx.type (with underlying type S#Tx)
+ required: S#Tx
+	at scala.tools.nsc.typechecker.Contexts$Context.error(Contexts.scala:298)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.error(Infer.scala:207)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.typeError(Infer.scala:217)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.typeErrorTree(Infer.scala:232)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:936)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4280)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedArg(Typers.scala:2191)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$typedArgs$3.apply(Typers.scala:2204)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$typedArgs$3.apply(Typers.scala:2203)
+	at scala.Tuple3$Zipped$$anonfun$map$1.apply(Tuple3.scala:66)
+	at scala.Tuple3$Zipped$$anonfun$map$1.apply(Tuple3.scala:64)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:45)
+	at scala.Tuple3$Zipped.map(Tuple3.scala:64)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedArgs(Typers.scala:2203)
+	at scala.tools.nsc.typechecker.Typers$Typer.doTypedApply(Typers.scala:2421)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedApply$1(Typers.scala:3371)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:4104)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4271)
+	at scala.tools.nsc.typechecker.Typers$Typer.transformedOrTyped(Typers.scala:4428)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedDefDef(Typers.scala:1760)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:3919)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4271)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:4331)
+	at scala.tools.nsc.transform.SpecializeTypes$$anon$6.transform(SpecializeTypes.scala:1426)
+	at scala.tools.nsc.ast.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:873)
+	at scala.tools.nsc.ast.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:873)
+	at scala.collection.immutable.List.loop$1(List.scala:117)
+	at scala.collection.immutable.List.mapConserve(List.scala:133)
+	at scala.tools.nsc.ast.Trees$Transformer.transformTrees(Trees.scala:873)
+	at scala.tools.nsc.transform.SpecializeTypes$$anon$6$$anonfun$transform$16.apply(SpecializeTypes.scala:1352)
+	at scala.tools.nsc.transform.SpecializeTypes$$anon$6$$anonfun$transform$16.apply(SpecializeTypes.scala:1352)
+	at scala.tools.nsc.ast.Trees$Transformer.atOwner(Trees.scala:899)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:38)
+	at scala.tools.nsc.transform.SpecializeTypes$$anon$6.transform(SpecializeTypes.scala:1352)
+	at scala.tools.nsc.ast.Trees$Transformer.transformTemplate(Trees.scala:875)
+	at scala.tools.nsc.ast.Trees$Transformer$$anonfun$transform$2.apply(Trees.scala:767)
+	at scala.tools.nsc.ast.Trees$Transformer$$anonfun$transform$2.apply(Trees.scala:766)
+	at scala.tools.nsc.ast.Trees$Transformer.atOwner(Trees.scala:899)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:38)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:31)
+	at scala.tools.nsc.ast.Trees$Transformer.transform(Trees.scala:765)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:53)
+	at scala.tools.nsc.transform.SpecializeTypes$$anon$6.transform(SpecializeTypes.scala:1473)
+	at scala.tools.nsc.ast.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:891)
+	at scala.tools.nsc.ast.Trees$Transformer$$anonfun$transformStats$1.apply(Trees.scala:889)
+	at scala.collection.immutable.List.loop$1(List.scala:117)
+	at scala.collection.immutable.List.mapConserve(List.scala:133)
+	at scala.tools.nsc.ast.Trees$Transformer.transformStats(Trees.scala:889)
+	at scala.tools.nsc.transform.SpecializeTypes$$anon$6$$anonfun$transform$15.apply(SpecializeTypes.scala:1339)
+	at scala.tools.nsc.transform.SpecializeTypes$$anon$6$$anonfun$transform$15.apply(SpecializeTypes.scala:1337)
+	at scala.tools.nsc.ast.Trees$Transformer.atOwner(Trees.scala:899)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:38)
+	at scala.tools.nsc.transform.SpecializeTypes$$anon$6.transform(SpecializeTypes.scala:1337)
+	at scala.tools.nsc.transform.SpecializeTypes$SpecializationTransformer$$anonfun$transform$37.apply(SpecializeTypes.scala:1692)
+	at scala.tools.nsc.transform.SpecializeTypes$SpecializationTransformer$$anonfun$transform$37.apply(SpecializeTypes.scala:1692)
+	at scala.tools.nsc.symtab.SymbolTable.atPhase(SymbolTable.scala:95)
+	at scala.tools.nsc.transform.SpecializeTypes$SpecializationTransformer.transform(SpecializeTypes.scala:1692)
+	at scala.tools.nsc.ast.Trees$Transformer.transformUnit(Trees.scala:892)
+	at scala.tools.nsc.transform.Transform$Phase.apply(Transform.scala:30)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:329)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:297)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:297)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:660)
+	at scala.collection.mutable.ListBuffer$$anon$1.foreach(ListBuffer.scala:316)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:297)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:953)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1038)
+	at scala.tools.nsc.Main$.process(Main.scala:106)
+	at scala.tools.nsc.Main$.main(Main.scala:123)
+	at scala.tools.nsc.Main.main(Main.scala)
+```
+
+Luckily, the duplicate method was a mistake in my case, so after removing the `value` method without implicit argument, it compiles again with specialization. But I guess it should not crash with the overloading.

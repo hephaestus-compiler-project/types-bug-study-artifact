@@ -1,0 +1,30 @@
+```scala
+import scala.collection.mutable
+class C {
+  val m = mutable.Map[Int, mutable.ArrayBuffer[Int]]()
+  m(1, {_ => mutable.ArrayBuffer[Int]()}) ++= mutable.ArrayBuffer(1, 2, 3, 4, 5, 6)
+}
+```
+
+results in
+
+```
+warning: an unexpected type representation reached the compiler backend while compiling Test.scala: <error>. If possible, please file a bug on issues.scala-lang.org.
+scala.MatchError: <error> (of class scala.reflect.internal.Types$ErrorType$)
+	at scala.tools.nsc.backend.jvm.BTypesFromSymbols.typeToBType(BTypesFromSymbols.scala:212)
+```
+
+
+Probably related: adding a type parameter to the function literal (`_: Int => ...`) causes a crash in the typer
+
+```
+Test.scala:4: error: too many arguments (2) for method apply: (key: Int)scala.collection.mutable.ArrayBuffer[Int] in trait MapLike
+  m(1, {_: Int => mutable.ArrayBuffer[Int]()}) ++= mutable.ArrayBuffer(1, 2, 3, 4, 5, 6)
+               ^
+error: java.lang.NullPointerException
+	at scala.tools.nsc.typechecker.Typers$Typer.addLocals$1(Typers.scala:3938)
+	at scala.tools.nsc.typechecker.Typers$Typer.packedType(Typers.scala:3964)
+	at scala.tools.nsc.ast.TreeGen.mkPackedValDef(TreeGen.scala:189)
+	at scala.tools.nsc.ast.TreeGen.$anonfun$evalOnceAll$1(TreeGen.scala:223)
+	at scala.tools.nsc.typechecker.Typers$Typer.mkUpdate$1(Typers.scala:4717)
+```

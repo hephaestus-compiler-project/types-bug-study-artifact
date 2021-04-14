@@ -1,0 +1,42 @@
+The following code snippet 
+
+{{
+class A<Q>(val q: Q)
+typealias B<X> = A<X>
+fun bar() {
+    B(17)
+}
+}} 
+
+is translated to the following IR:
+
+{{
+--- IR after: Psi to IR conversion ----------------------
+
+MODULE_FRAGMENT <program.kt.bc>
+  FILE /Users/jetbrains/kotlin-native/kotlin-native/fc2.kt
+    CLASS CLASS A
+      CONSTRUCTOR public constructor A<Q>(q: Q)
+        BLOCK_BODY
+          DELEGATING_CONSTRUCTOR_CALL 'constructor Any()'
+          INSTANCE_INITIALIZER_CALL classDescriptor='A'
+      PROPERTY public final val q: Q
+        FIELD PROPERTY_BACKING_FIELD public final val q: Q
+          EXPRESSION_BODY
+            GET_VAR 'value-parameter q: Q' type=Q origin=INITIALIZE_PROPERTY_FROM_PARAMETER
+        FUN DEFAULT_PROPERTY_ACCESSOR public final fun <get-q>(): Q
+          BLOCK_BODY
+            RETURN type=kotlin.Nothing from='<get-q>(): Q'
+              GET_FIELD 'q: Q' type=Q origin=null
+                receiver: GET_VAR '<receiver: A>' type=A<Q> origin=null
+    TYPEALIAS typealias B = A<X> type=A<X>
+    FUN public fun bar(): kotlin.Unit
+      BLOCK_BODY
+        TYPE_OP type=kotlin.Unit origin=IMPLICIT_COERCION_TO_UNIT typeOperand=kotlin.Unit
+          CALL 'constructor A(Q)' type=A<Q> origin=null
+            q: TYPE_OP type=Q origin=IMPLICIT_CAST typeOperand=Q
+              CONST Int type=kotlin.Int value='17'
+}}
+
+The use of {{Q}} in the body of {{bar()}} looks suspicious. 
+Besides the constructor call gets {{X->Int}} type argument, not matching {{Q}} the type parameter of the descriptor.

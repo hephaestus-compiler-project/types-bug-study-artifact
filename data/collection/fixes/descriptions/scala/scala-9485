@@ -1,0 +1,24 @@
+```scala
+trait Traversable[+A] {
+  def flatMap[B](f: A => Traversable[B]): Traversable[B] = ???
+}
+
+trait Iterable[+A] extends Traversable[A] {
+  def flatMap[B](f: A => Iterable[B]): Iterable[B] = ???
+}
+
+trait Seq[+A] extends Iterable[A] {
+  def flatMap[B](f: A => Seq[B]): Seq[B] = ???
+}
+
+object Test extends App {
+  val a: Seq[Int] = new Seq[Int] {}
+  val b: Iterable[Int] = new Iterable[Int] {}
+  a.flatMap(i => b) //!! changing the argument to ((i: Int) => b) works 
+}
+```
+
+The type of the argument of the method flatMap is one of Int=>Traversable[Int]; Int=>Iterable[Int] or Int=>Seq[Int].
+Obviously the type of the variable i must be Int, however the type inferrer fails to infer this, causing the compilation to fail. Once designated the type of i as Int, the compilation went on smoothly. 
+
+I think the type would be rather obvious to be inferred but Scala compiler cannot.

@@ -1,0 +1,103 @@
+I get a static type check error for a very simple groovy class.
+
+It uses this java class:
+
+{code}
+package playground.groovy;
+
+import java.util.List;
+
+public class Foo {
+
+    private List<String> names;
+
+    public List<String> getNames() {
+        return names;
+    }
+
+    public void setNames(List<String> names) {
+        this.names = names;
+    }
+}
+{code}
+
+I use the java class in this groovy class:
+
+{code}
+@groovy.transform.TypeChecked()
+class FooWorker {
+
+    public void doSomething() {
+        new playground.groovy.Foo().with {
+            names = new ArrayList()
+        }
+    }
+}
+{code}
+
+I load the groovy class like this:
+
+{code}
+GroovyClassLoader loader = new GroovyClassLoader(GroovyClassTest.class.getClassLoader());
+Class<?> groovyClass = loader.parseClass("...FooWorker.groovy"));
+{code}
+
+And I get this exception:
+
+{code}
+Exception in thread "main" BUG! exception in phase 'instruction selection' in source unit '...\FooWorker.groovy' Declaring class for method call to '<>' declared in playground.groovy.Foo was not matched with found receiver FooWorker. This should not have happened!
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.extractPlaceHolders(StaticTypeCheckingVisitor.java:3575)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.resolvePlaceHoldersFromDeclartion(StaticTypeCheckingVisitor.java:3500)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.storeWithResolve(StaticTypeCheckingVisitor.java:1133)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.storeField(StaticTypeCheckingVisitor.java:1143)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.existsProperty(StaticTypeCheckingVisitor.java:955)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.existsProperty(StaticTypeCheckingVisitor.java:882)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitPropertyExpressionSilent(StaticTypeCheckingVisitor.java:351)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitVariableExpression(StaticTypeCheckingVisitor.java:336)
+        at org.codehaus.groovy.ast.expr.VariableExpression.visit(VariableExpression.java:70)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitBinaryExpression(StaticTypeCheckingVisitor.java:400)
+        at org.codehaus.groovy.ast.expr.BinaryExpression.visit(BinaryExpression.java:49)
+        at org.codehaus.groovy.ast.CodeVisitorSupport.visitExpressionStatement(CodeVisitorSupport.java:69)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitExpressionStatement(ClassCodeVisitorSupport.java:193)
+        at org.codehaus.groovy.ast.stmt.ExpressionStatement.visit(ExpressionStatement.java:40)
+        at org.codehaus.groovy.ast.CodeVisitorSupport.visitBlockStatement(CodeVisitorSupport.java:35)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitBlockStatement(ClassCodeVisitorSupport.java:163)
+        at org.codehaus.groovy.ast.stmt.BlockStatement.visit(BlockStatement.java:69)
+        at org.codehaus.groovy.ast.CodeVisitorSupport.visitClosureExpression(CodeVisitorSupport.java:174)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitClosureExpression(StaticTypeCheckingVisitor.java:1625)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.getInferredReturnTypeFromWithClosureArgument(StaticTypeCheckingVisitor.java:2341)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitMethodCallExpression(StaticTypeCheckingVisitor.java:2229)
+        at org.codehaus.groovy.ast.expr.MethodCallExpression.visit(MethodCallExpression.java:64)
+        at org.codehaus.groovy.ast.CodeVisitorSupport.visitExpressionStatement(CodeVisitorSupport.java:69)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitExpressionStatement(ClassCodeVisitorSupport.java:193)
+        at org.codehaus.groovy.ast.stmt.ExpressionStatement.visit(ExpressionStatement.java:40)
+        at org.codehaus.groovy.ast.CodeVisitorSupport.visitBlockStatement(CodeVisitorSupport.java:35)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitBlockStatement(ClassCodeVisitorSupport.java:163)
+        at org.codehaus.groovy.ast.stmt.BlockStatement.visit(BlockStatement.java:69)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitClassCodeContainer(ClassCodeVisitorSupport.java:101)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitConstructorOrMethod(ClassCodeVisitorSupport.java:112)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitConstructorOrMethod(StaticTypeCheckingVisitor.java:1450)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitMethod(ClassCodeVisitorSupport.java:123)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.startMethodInference(StaticTypeCheckingVisitor.java:1732)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitMethod(StaticTypeCheckingVisitor.java:1705)
+        at org.codehaus.groovy.ast.ClassNode.visitContents(ClassNode.java:1055)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitClass(ClassCodeVisitorSupport.java:50)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitClass(StaticTypeCheckingVisitor.java:162)
+        at org.codehaus.groovy.transform.StaticTypesTransformation.visit(StaticTypesTransformation.java:62)
+        at org.codehaus.groovy.transform.ASTTransformationVisitor.visitClass(ASTTransformationVisitor.java:132)
+        at org.codehaus.groovy.transform.ASTTransformationVisitor$2.call(ASTTransformationVisitor.java:176)
+        at org.codehaus.groovy.control.CompilationUnit.applyToPrimaryClassNodes(CompilationUnit.java:1036)
+        at org.codehaus.groovy.control.CompilationUnit.doPhaseOperation(CompilationUnit.java:572)
+        at org.codehaus.groovy.control.CompilationUnit.processPhaseOperations(CompilationUnit.java:550)
+        at org.codehaus.groovy.control.CompilationUnit.compile(CompilationUnit.java:527)
+        at groovy.lang.GroovyClassLoader.doParseClass(GroovyClassLoader.java:279)
+        at groovy.lang.GroovyClassLoader.parseClass(GroovyClassLoader.java:258)
+        at groovy.lang.GroovyClassLoader.parseClass(GroovyClassLoader.java:244)
+        at groovy.lang.GroovyClassLoader.parseClass(GroovyClassLoader.java:185)
+        at playground.groovy.GroovyClassTest.main(GroovyClassTest.java:43)
+{code}
+
+It seems the property name "names" causes a problem. When I change the name (to namesX, for example), it works just fine. <edit> After further testing, I found that the exception disappears when I either rename the getter/setter or the private field in class Foo. </edit>
+
+I created this bug as requested by  Cedric Champeau, see http://groovy.329449.n5.nabble.com/Possible-bug-in-static-type-checker-td5717794.html
+

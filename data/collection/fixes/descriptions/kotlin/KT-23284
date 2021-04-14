@@ -1,0 +1,29 @@
+Consider the test:
+
+```
+inline val <reified T> T.foo: () -> Unit
+    get() {
+        println(this is T)
+        return {}
+    }
+
+fun main(args: Array<String>) {
+    6.foo()
+}
+```
+
+On JVM it throws an exception when executing:
+```
+Exception in thread "main" java.lang.UnsupportedOperationException: This function has a reified type parameter and thus can only be inlined at compilation time, not called directly.
+	at kotlin.jvm.internal.Intrinsics.throwUndefinedForReified(Intrinsics.java:204)
+	at kotlin.jvm.internal.Intrinsics.throwUndefinedForReified(Intrinsics.java:198)
+	at kotlin.jvm.internal.Intrinsics.reifiedOperationMarker(Intrinsics.java:208)
+	at TKt.main(t.kt:11)
+...
+```
+
+It also doesn't work on JS and Native backends.
+
+The test works as expected if `6.foo` value is not invoked after evaluating.
+
+The problem seems to be related to frontend giving not enough information about type arguments of property access when the value is used as invoke operator receiver.

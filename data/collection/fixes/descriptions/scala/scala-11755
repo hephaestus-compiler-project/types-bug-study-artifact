@@ -1,0 +1,37 @@
+The following file compiles fine with 2.13.0 but not with 2.13.1 (nor the latest 2.13.x), without any compiler flag:
+```scala
+package test
+
+trait Map[K, V]
+
+class HashMap[K, V] extends Map[K, V] {
+  override def clone(): AnyRef = super.clone()
+}
+
+class IdentityBox[+A]
+
+class IdentityHashMap[K, V](inner: HashMap[IdentityBox[K], V])
+    extends Map[K, V] {
+
+  def this(initialMap: Map[_ <: K, _ <: V]) =
+    this(new HashMap[IdentityBox[K], V]())
+
+  override def clone(): AnyRef = {
+    new IdentityHashMap(
+        inner.clone().asInstanceOf[HashMap[IdentityBox[K], V]])
+  }
+}
+```
+With 2.13.1 the following compile error is reported:
+```
+[error] Test.scala:18:5: ambiguous reference to overloaded definition,
+[error] both constructor IdentityHashMap in class IdentityHashMap of type (initialMap: test.Map[_ <: K, _ <: V])test.IdentityHashMap[K,V]
+[error] and  constructor IdentityHashMap in class IdentityHashMap of type (inner: test.HashMap[test.IdentityBox[K],V])test.IdentityHashMap[K,V]
+[error] match argument types (test.HashMap[test.IdentityBox[K],V]) and expected result type AnyRef
+[error]     new IdentityHashMap(
+[error]     ^
+[error] one error found
+```
+This is a minimization of a build failure of scala-js/scala-js in the community build, initially reported at https://github.com/scala-js/scala-js/issues/3792.
+
+It seems to me that this is a bug in scalac. The first overload (the primary constructor) should be picked, IMO, as its argument has a much more specific type than the second overload.

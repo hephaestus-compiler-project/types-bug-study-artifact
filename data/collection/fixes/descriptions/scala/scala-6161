@@ -1,0 +1,23 @@
+If I change the definition of encode in Names to `def encode: Name with ThisNameType` then this compiles, which should make it definitive that this is a bug given that `ThisNameType <: Name`.
+```scala
+trait Namers {
+  val global: scala.tools.nsc.Global
+  import global.{ Name, Symbol }
+
+  // Relevant definitions in Names
+  //
+  // def encode: ThisNameType
+  // type ThisNameType >: Null <: Name
+  //
+  def f(x: Symbol): Name = x.name.encode
+
+  /**
+  b.scala:5: error: type mismatch;
+   found   : Name.this.ThisNameType
+   required: Namers.this.global.Name
+    def f(x: Symbol): Name = x.name.encode
+                                    ^
+  one error found
+  **/
+}
+```

@@ -1,0 +1,58 @@
+I got a new exhaustivity warning when switching to 2.10.0-M7 and it *seems* spurious to me, but it involves existentials so I'm not sure.
+
+To reproduce this warning, we first need to define a sealed abstract class or sealed trait:
+
+```scala
+scala> sealed abstract class FoundNode[T]
+defined class FoundNode
+```
+and then tuple it with another parameterized *case class*, like `Some` (a fresh case class would also be fine, but `Option` wouldn't).
+
+```scala
+scala> object Foo {
+     | val v: (Some[_], FoundNode[_]) = (???, ???)
+     |   v match {
+     |     case (x: Some[t], _) =>
+     |   }
+     | }
+<console>:10: warning: match may not be exhaustive.
+It would fail on the following input: (_, _)
+         v match {
+         ^
+defined module Foo
+```
+
+The warning is triggered by matching the first component, of type `Some[_]`, against `x: Some[t]` (or `x: Some[_]`). Removing that match removes the warning, as do a lot of other changes. Since the first component has type `Some[_]`, I believe it will *always* match against `Some[_]`, even if I think of existentials the correct way, so I think the warning is spurious.
+
+Necessary conditions to reproduce this warning seem to be that the scrutinee:
+
+- must be a tuple;
+- must have a sealed component (above, `FoundNode`);
+- must have a parametererized case class component (above, `Some`);
+- finally, the matching must include a typed pattern match on the parameterized case class component (above, `: Some[_]`).
+
+I tried to alter the above example to violate any of those conditions, but that suppresses the warning; I made my experiments available here:
+https://github.com/Blaisorblade/scala/blob/583184fa02586765922b6c64846669f345f2c381/test/pending/pos/ExhaustivityWarnBugReportMinimal.scala
+
+Compiler output on the code linked above:
+
+```scala
+$ ./qbin/scalac test/pending/pos/ExhaustivityWarnBugReportMinimal.scala
+test/pending/pos/ExhaustivityWarnBugReportMinimal.scala:19: warning: match may not be exhaustive.
+It would fail on the following inputs: (_, FoundFilter()), (_, FoundTypeCase())
+  v match {
+  ^
+test/pending/pos/ExhaustivityWarnBugReportMinimal.scala:22: warning: match may not be exhaustive.
+It would fail on the following input: (_, _)
+  v match {
+  ^
+test/pending/pos/ExhaustivityWarnBugReportMinimal.scala:26: warning: match may not be exhaustive.
+It would fail on the following input: (_, _)
+  v match {
+  ^
+test/pending/pos/ExhaustivityWarnBugReportMinimal.scala:32: warning: match may not be exhaustive.
+It would fail on the following input: (_, _)
+  vp match {
+  ^
+four warnings found
+```

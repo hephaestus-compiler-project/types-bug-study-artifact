@@ -1,0 +1,73 @@
+FULL PRODUCT VERSION :
+1.8.0 build 72
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux kuling.bothner.com 3.6.11-1.fc17.x86_64 #1 SMP Mon Dec 17 22:16:35 UTC 2012 x86_64 x86_64 x86_64 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+Compiling a simple program (see  " Step to Reproduce) that uses a MethodHandle causes javac to crash if passed the flags  -target 1.6 -source 1.6
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile the following simple program with the flags -target 1.6 -source 1.6
+
+$ cat Crasher.java
+public class Crasher {
+    static java.lang.invoke.MethodHandle getNamedMember;
+    public static Object getMember(String name, Object rec) throws Throwable {
+        return getNamedMember.invoke(rec, name);
+    }
+}    
+$ javac -target 1.6 -source 1.6 Crasher.java
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+A warning about the bootstrap class path.
+ACTUAL -
+javac crashes with an assertion.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+warning: [options] bootstrap class path not set in conjunction with -source 1.6
+An exception has occurred in the compiler (1.8.0-ea). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.AssertionError
+at com.sun.tools.javac.util.Assert.error(Assert.java:126)
+at com.sun.tools.javac.util.Assert.check(Assert.java:45)
+at com.sun.tools.javac.comp.TransTypes.visitApply(TransTypes.java:642)
+at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1391)
+at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:453)
+at com.sun.tools.javac.comp.TransTypes.visitReturn(TransTypes.java:614)
+at com.sun.tools.javac.tree.JCTree$JCReturn.accept(JCTree.java:1310)
+at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:70)
+at com.sun.tools.javac.tree.TreeTranslator.visitBlock(TreeTranslator.java:160)
+at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:835)
+at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:453)
+at com.sun.tools.javac.comp.TransTypes.visitMethodDef(TransTypes.java:487)
+at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:723)
+at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:70)
+at com.sun.tools.javac.tree.TreeTranslator.visitClassDef(TreeTranslator.java:134)
+at com.sun.tools.javac.comp.TransTypes.translateClass(TransTypes.java:934)
+at com.sun.tools.javac.comp.TransTypes.visitClassDef(TransTypes.java:474)
+at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:644)
+at com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+at com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:453)
+at com.sun.tools.javac.comp.TransTypes.translateTopLevelClass(TransTypes.java:961)
+at com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1461)
+at com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1357)
+at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:907)
+at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:866)
+at com.sun.tools.javac.main.Main.compile(Main.java:506)
+at com.sun.tools.javac.main.Main.compile(Main.java:365)
+at com.sun.tools.javac.main.Main.compile(Main.java:354)
+at com.sun.tools.javac.main.Main.compile(Main.java:345)
+at com.sun.tools.javac.Main.compile(Main.java:76)
+at com.sun.tools.javac.Main.main(Main.java:61)
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+CUSTOMER SUBMITTED WORKAROUND :
+Modify -source 1.6 -target 1.6 to -source 1.7 -target 1.7.

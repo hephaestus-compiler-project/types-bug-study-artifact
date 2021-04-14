@@ -1,0 +1,16 @@
+Consider the following (might be related to KT-23768)
+```
+import kotlin.reflect.KFunction1
+
+inline fun <T, R> foo /* aka foo1 */(f: KFunction1<T, R>): R = TODO()
+inline fun <T, R: Any> foo /* aka foo2 */(f: KFunction1<T, R>): R = TODO()
+
+fun bar(s: String): Int? = TODO()
+fun baz(s: String): Int = TODO()
+
+fun test() {
+    foo(::bar)   // that's fine, invokes foo1
+    foo<String, Int?>(::bar) // states Int? is not a subtype of Any => should try to invoke foo1
+    foo<String, Int>(::baz) // that's fine, invokes foo2
+}
+```

@@ -1,0 +1,33 @@
+When the diamond operator is used to instantiate a generic and the generic is specialized on the class the method is in, static compilation fails with a Nullpointer Exception. Dynamic compilation works, also replacing the diamond operator with the exact type or using "raw" typing.
+
+The following code reproduces the bug on both machines(listed in Environment):
+
+{code:java}
+import groovy.transform.CompileStatic
+
+@CompileStatic
+class BugTest {
+    private class CompilerKiller<T> {
+        private T t
+        public CompilerKiller(T t){
+            this.t = t
+        }
+    }
+
+    public void "This causes a NPE"(){
+        CompilerKiller<BugTest> sample = new CompilerKiller<>(this)
+    }
+
+    public void "This causes a NPE as well"(){
+        CompilerKiller<BugTest> sample = new CompilerKiller<>(new BugTest())
+    }
+
+    public void "This does work"(){
+        CompilerKiller<BugTest> sample = new CompilerKiller<BugTest>(this)
+    }
+
+    public void "This works as well"(){
+        CompilerKiller<BugTest> sample = new CompilerKiller(this)
+    }
+}
+{code}

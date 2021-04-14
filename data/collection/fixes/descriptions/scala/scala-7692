@@ -1,0 +1,33 @@
+```scala
+object Test extends App {
+  trait Fundep[T, U]
+  class C { def y = "x" }
+  implicit val FundepStringC = new Fundep[String, C]{}
+  implicit def foo[T, U](x: T)(implicit y: Fundep[T, U]): U = ???
+  println("x".y)
+}
+```
+
+```scala
+16:15 ~/Projects/210x/sandbox (2.10.x)$ sli
+Test.scala:6: foo is not a valid implicit value for String("x") => ?{def y: ?} because:
+incompatible: (x: String)(implicit y: Test.Fundep[String,U])U does not match expected type String("x") => ?{def y: ?}
+  println("x".y)
+          ^
+Test.scala:6: foo is not a valid implicit value for (=> String("x")) => ?{def y: ?} because:
+incompatible: (x: String)(implicit y: Test.Fundep[String,U])U does not match expected type (=> String("x")) => ?{def y: ?}
+  println("x".y)
+          ^
+Test.scala:6: foo is not a valid implicit value for String("x") => ?{def y: ?} because:
+incompatible: (x: String)(implicit y: Test.Fundep[String,U])U does not match expected type String("x") => ?{def y: ?}
+  println("x".y)
+          ^
+Test.scala:6: foo is not a valid implicit value for (=> String("x")) => ?{def y: ?} because:
+incompatible: (x: String)(implicit y: Test.Fundep[String,U])U does not match expected type (=> String("x")) => ?{def y: ?}
+  println("x".y)
+          ^
+Test.scala:6: error: value y is not a member of String
+  println("x".y)
+              ^
+one error found
+```

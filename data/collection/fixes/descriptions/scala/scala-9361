@@ -1,0 +1,15 @@
+The following will evince the compiler crash:
+
+```scala
+abstract class Foo[Tc[_]] { def tc: Tc[_] }
+object Foo {
+  def foo[Tc[_]](): Foo[Tc] { type T = Nothing } =
+    new Foo { def tc = null.asInstanceOf[Tc[_]] }
+}
+```
+
+It appears that in the absence of a type parameter to the `new Foo` instantiation, the type inferencer looks to the expected type of `foo` to try to infer it. In the presence of the type refinement in the expected type, this crashes the compiler.
+
+This doesn't crash in Scala 2.10.6 (although it doesn't compile), but does with every version from a random sample of 2.11.x releases.
+
+Could be related to #2712.

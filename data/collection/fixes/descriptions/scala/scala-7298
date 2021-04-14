@@ -1,0 +1,42 @@
+the following has an exhaustiveness warning in 2.10.1 but not in 2.10.0:
+
+```scala
+sealed trait Bool
+object Bool {
+  case object FALSE extends Bool
+  case object TRUE extends Bool
+
+  def show(b: Bool) = b match {
+    case FALSE => "1"
+    case TRUE  => "2"
+  }
+}
+```
+
+but this is ok:
+
+```scala
+sealed trait Bool
+case object FALSE extends Bool
+case object TRUE extends Bool
+
+object Bool {
+  def show(b: Bool) = b match {
+    case FALSE => "1"
+    case TRUE  => "2"
+  }
+}
+```
+
+warning is:
+
+```
+[info] Compiling 2 Scala sources to /Volumes/src/test/target/scala-2.10/classes...
+[warn] /Volumes/src/test/src/main/scala/Bool.scala:6: match may not be exhaustive.
+[warn] It would fail on the following inputs: FALSE, TRUE
+[warn]   def show(b: Bool) = b match {
+[warn]                       ^
+[warn] one warning found
+```
+
+Note that if I change the inner case objects to case classes the warning remains.

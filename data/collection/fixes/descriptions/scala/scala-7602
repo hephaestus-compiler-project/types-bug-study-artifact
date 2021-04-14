@@ -1,0 +1,188 @@
+scalac crashes when building the least upper bound for two types which implement a method of a common super trait, but one accidentally implements it twice.
+
+
+
+```scala
+// tables.scala
+trait Table[T]{
+  def foo : T
+}
+trait Computer
+trait Device
+
+object schema{
+  def lub[T]( a:T, b:T ) = ???
+  lub(null:Computers,null:Devices)
+}
+trait Computers extends Table[Computer]{
+  def foo : Computer
+}
+trait Devices extends Table[Device]{
+  def foo : Device
+  def foo : Device
+}
+```
+**expected result**
+```
+$ ~/Downloads/scala-2.11.0-20130623-145044-693a36d769/bin/scalac tables.scala 
+tables.scala:16: error: method foo is defined twice
+  conflicting symbols both originated in file 'tables.scala'
+  def foo : Device
+      ^
+one error found
+```
+
+**actual result**
+```
+$ ~/Downloads/scala-2.11.0-20130623-145044-693a36d769/bin/scalac tables.scala 
+error: java.lang.AssertionError: assertion failed: List(method foo, method foo)
+	at scala.reflect.internal.Symbols$Symbol.suchThat(Symbols.scala:1780)
+	at scala.reflect.internal.tpe.GlbLubs$$anonfun$29.apply(GlbLubs.scala:352)
+	at scala.reflect.internal.tpe.GlbLubs$$anonfun$29.apply(GlbLubs.scala:351)
+	at scala.collection.TraversableLike$$anonfun$map$1.apply(TraversableLike.scala:245)
+	at scala.collection.TraversableLike$$anonfun$map$1.apply(TraversableLike.scala:245)
+	at scala.collection.immutable.List.foreach(List.scala:302)
+	at scala.collection.TraversableLike$class.map(TraversableLike.scala:245)
+	at scala.collection.AbstractTraversable.map(Traversable.scala:104)
+	at scala.reflect.internal.tpe.GlbLubs$class.lubsym$1(GlbLubs.scala:351)
+	at scala.reflect.internal.tpe.GlbLubs$$anonfun$32.apply(GlbLubs.scala:381)
+	at scala.reflect.internal.tpe.GlbLubs$$anonfun$32.apply(GlbLubs.scala:380)
+	at scala.collection.TraversableLike$WithFilter$$anonfun$foreach$1.apply(TraversableLike.scala:776)
+	at scala.reflect.internal.Scopes$Scope.foreach(Scopes.scala:374)
+	at scala.collection.TraversableLike$WithFilter.foreach(TraversableLike.scala:775)
+	at scala.reflect.internal.tpe.GlbLubs$class.lub1$1(GlbLubs.scala:380)
+	at scala.reflect.internal.tpe.GlbLubs$class.lub0$1(GlbLubs.scala:324)
+	at scala.reflect.internal.tpe.GlbLubs$class.lub(GlbLubs.scala:419)
+	at scala.reflect.internal.SymbolTable.lub(SymbolTable.scala:14)
+	at scala.reflect.internal.tpe.TypeConstraints$class.solveOne$1(TypeConstraints.scala:270)
+	at scala.reflect.internal.tpe.TypeConstraints$$anonfun$solve$1.apply(TypeConstraints.scala:280)
+	at scala.reflect.internal.tpe.TypeConstraints$$anonfun$solve$1.apply(TypeConstraints.scala:280)
+	at scala.reflect.internal.util.Collections$class.foreach3(Collections.scala:159)
+	at scala.reflect.internal.SymbolTable.foreach3(SymbolTable.scala:14)
+	at scala.reflect.internal.tpe.TypeConstraints$class.solve(TypeConstraints.scala:280)
+	at scala.reflect.internal.SymbolTable.solve(SymbolTable.scala:14)
+	at scala.tools.nsc.typechecker.Infer$class.solvedTypes(Infer.scala:222)
+	at scala.tools.nsc.Global$$anon$1.solvedTypes(Global.scala:448)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.methTypeArgs(Infer.scala:636)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.inferMethodInstance(Infer.scala:1078)
+	at scala.tools.nsc.typechecker.Typers$Typer.handlePolymorphicCall$1(Typers.scala:3372)
+	at scala.tools.nsc.typechecker.Typers$Typer.doTypedApply(Typers.scala:3377)
+	at scala.tools.nsc.typechecker.Typers$Typer.normalTypedApply$1(Typers.scala:4524)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedApply$1(Typers.scala:4553)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5280)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5356)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedByValueExpr(Typers.scala:5419)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:2916)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$59.apply(Typers.scala:3020)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$59.apply(Typers.scala:3020)
+	at scala.collection.immutable.List.loop$1(List.scala:172)
+	at scala.collection.immutable.List.mapConserve(List.scala:188)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3020)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:2024)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1889)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5300)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5356)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedByValueExpr(Typers.scala:5419)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:2916)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$59.apply(Typers.scala:3020)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$59.apply(Typers.scala:3020)
+	at scala.collection.immutable.List.loop$1(List.scala:172)
+	at scala.collection.immutable.List.mapConserve(List.scala:188)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3020)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedPackageDef$1(Typers.scala:4988)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5303)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5356)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5415)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.apply(Analyzer.scala:99)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:417)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:91)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:90)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:743)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1174)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.run(Analyzer.scala:90)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1518)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1503)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1499)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1596)
+	at scala.tools.nsc.Driver.doCompile(Driver.scala:34)
+	at scala.tools.nsc.MainClass.doCompile(Main.scala:23)
+	at scala.tools.nsc.Driver.process(Driver.scala:55)
+	at scala.tools.nsc.Driver.main(Driver.scala:68)
+	at scala.tools.nsc.Main.main(Main.scala)
+
+Exception in thread "main" java.lang.AssertionError: assertion failed: List(method foo, method foo)
+	at scala.reflect.internal.Symbols$Symbol.suchThat(Symbols.scala:1780)
+	at scala.reflect.internal.tpe.GlbLubs$$anonfun$29.apply(GlbLubs.scala:352)
+	at scala.reflect.internal.tpe.GlbLubs$$anonfun$29.apply(GlbLubs.scala:351)
+	at scala.collection.TraversableLike$$anonfun$map$1.apply(TraversableLike.scala:245)
+	at scala.collection.TraversableLike$$anonfun$map$1.apply(TraversableLike.scala:245)
+	at scala.collection.immutable.List.foreach(List.scala:302)
+	at scala.collection.TraversableLike$class.map(TraversableLike.scala:245)
+	at scala.collection.AbstractTraversable.map(Traversable.scala:104)
+	at scala.reflect.internal.tpe.GlbLubs$class.lubsym$1(GlbLubs.scala:351)
+	at scala.reflect.internal.tpe.GlbLubs$$anonfun$32.apply(GlbLubs.scala:381)
+	at scala.reflect.internal.tpe.GlbLubs$$anonfun$32.apply(GlbLubs.scala:380)
+	at scala.collection.TraversableLike$WithFilter$$anonfun$foreach$1.apply(TraversableLike.scala:776)
+	at scala.reflect.internal.Scopes$Scope.foreach(Scopes.scala:374)
+	at scala.collection.TraversableLike$WithFilter.foreach(TraversableLike.scala:775)
+	at scala.reflect.internal.tpe.GlbLubs$class.lub1$1(GlbLubs.scala:380)
+	at scala.reflect.internal.tpe.GlbLubs$class.lub0$1(GlbLubs.scala:324)
+	at scala.reflect.internal.tpe.GlbLubs$class.lub(GlbLubs.scala:419)
+	at scala.reflect.internal.SymbolTable.lub(SymbolTable.scala:14)
+	at scala.reflect.internal.tpe.TypeConstraints$class.solveOne$1(TypeConstraints.scala:270)
+	at scala.reflect.internal.tpe.TypeConstraints$$anonfun$solve$1.apply(TypeConstraints.scala:280)
+	at scala.reflect.internal.tpe.TypeConstraints$$anonfun$solve$1.apply(TypeConstraints.scala:280)
+	at scala.reflect.internal.util.Collections$class.foreach3(Collections.scala:159)
+	at scala.reflect.internal.SymbolTable.foreach3(SymbolTable.scala:14)
+	at scala.reflect.internal.tpe.TypeConstraints$class.solve(TypeConstraints.scala:280)
+	at scala.reflect.internal.SymbolTable.solve(SymbolTable.scala:14)
+	at scala.tools.nsc.typechecker.Infer$class.solvedTypes(Infer.scala:222)
+	at scala.tools.nsc.Global$$anon$1.solvedTypes(Global.scala:448)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.methTypeArgs(Infer.scala:636)
+	at scala.tools.nsc.typechecker.Infer$Inferencer.inferMethodInstance(Infer.scala:1078)
+	at scala.tools.nsc.typechecker.Typers$Typer.handlePolymorphicCall$1(Typers.scala:3372)
+	at scala.tools.nsc.typechecker.Typers$Typer.doTypedApply(Typers.scala:3377)
+	at scala.tools.nsc.typechecker.Typers$Typer.normalTypedApply$1(Typers.scala:4524)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedApply$1(Typers.scala:4553)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5280)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5356)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedByValueExpr(Typers.scala:5419)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:2916)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$59.apply(Typers.scala:3020)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$59.apply(Typers.scala:3020)
+	at scala.collection.immutable.List.loop$1(List.scala:172)
+	at scala.collection.immutable.List.mapConserve(List.scala:188)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3020)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:2024)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1889)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5300)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5356)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedByValueExpr(Typers.scala:5419)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:2916)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$59.apply(Typers.scala:3020)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$59.apply(Typers.scala:3020)
+	at scala.collection.immutable.List.loop$1(List.scala:172)
+	at scala.collection.immutable.List.mapConserve(List.scala:188)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3020)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedPackageDef$1(Typers.scala:4988)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5303)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5356)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5415)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.apply(Analyzer.scala:99)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:417)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:91)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:90)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:743)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1174)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.run(Analyzer.scala:90)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1518)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1503)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1499)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1596)
+	at scala.tools.nsc.Driver.doCompile(Driver.scala:34)
+	at scala.tools.nsc.MainClass.doCompile(Main.scala:23)
+	at scala.tools.nsc.Driver.process(Driver.scala:55)
+	at scala.tools.nsc.Driver.main(Driver.scala:68)
+	at scala.tools.nsc.Main.main(Main.scala)
+```
+

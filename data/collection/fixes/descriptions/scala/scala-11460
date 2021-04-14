@@ -1,0 +1,56 @@
+When you implement the `apply` in the companion object using default parameters and try to call it without providing any argument the compiler crash.
+
+This compiles fine:
+
+```scala
+case class test private (foo: Map[String, List[Int]],
+                         bar: List[Int],
+                         baz: Map[String, List[String]]) {}
+
+case object test {
+  def getInstance = apply(Map.empty, List.empty, Map.empty)
+
+  def apply(foo: Map[String, List[Int]],
+            bar: List[Int],
+            baz: Map[String, List[String]]) = new test(foo, bar, baz)
+}
+```
+This compiles too:
+
+```scala
+case class test private (foo: Map[String, List[Int]],
+                         bar: List[Int],
+                         baz: Map[String, List[String]]) {}
+
+case object test {
+  def getInstance = apply(Map.empty)
+
+  def apply(foo: Map[String, List[Int]] = Map.empty,
+            bar: List[Int] = List.empty,
+            baz: Map[String, List[String]] = Map.empty) =
+    new test(foo, bar, baz)
+}
+
+```
+
+
+This doesn't:
+
+```scala
+case class test private (foo: Map[String, List[Int]],
+                           bar: List[Int],
+                           baz: Map[String, List[String]]) {}
+
+case object test {
+  def getInstance = apply()
+
+  def apply(foo: Map[String, List[Int]] = Map.empty,
+            bar: List[Int] = List.empty,
+            baz: Map[String, List[String]] = Map.empty) =
+    new test(foo, bar, baz)
+}
+```
+
+compiler output: https://gist.github.com/franktominc/c10fe33bf31fadf341a306b4e7bdfc1d
+
+tested on 2.12.8, 2.12.7 and 2.12.5

@@ -1,0 +1,35 @@
+Given code:
+
+```
+// JDBI mapper
+class PairMapper: RowMapper<Pair<Any, Any?>> {
+
+    override fun map(rs: ResultSet, ctx: StatementContext?): Pair<Any, Any?>? {
+```
+
+and 
+
+```
+   @Test
+   def foo {
+           assertThat(p1.map(mock(), mock()), equalTo(Pair(53.0, "Sandy")))
+    }
+```
+
+the compiler surfaces an error:
+
+```
+Error:(32, 9) Kotlin: None of the following functions can be called with the arguments supplied: 
+public open fun <T : Any!> assertThat(p0: (???..???), p1: Matcher<in (???..???)>!): Unit defined in org.hamcrest.MatcherAssert
+public open fun assertThat(p0: String!, p1: Boolean): Unit defined in org.hamcrest.MatcherAssert
+```
+
+When providing an explicitly typed comparison, it is happy:
+
+```
+   @Test
+   def foo() {
+        val expected: Pair<Any, Any?>? = Pair(53.0, "Sandy")
+        assertThat(p1.map(rs1, mock()), equalTo(expected))
+    }
+```

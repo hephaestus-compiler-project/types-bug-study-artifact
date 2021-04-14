@@ -1,0 +1,60 @@
+The following code works in 2.12.x but fails to compile on 2.13.1:
+
+```scala
+object Blah {
+
+  trait TC[F[_]]
+
+  final class Ops[F[_], A](m: F[A])(implicit p: TC[F]) {
+    def example = 0
+  }
+
+  implicit def toTcOps[F[_], A](fa: F[A])(implicit tc: TC[F]): Ops[F, A] =
+    new Ops[F, A](fa)(tc)
+
+  final case class X[A]()
+
+  implicit val tcX: TC[X] =
+    new TC[X] {}
+
+  object Example1 {
+    type Y[A, B] = X[(A, B)] // both arguments used
+
+    def woah[A, B](a: Y[A, B]) = {
+      a.example                      // Error in 2.13 but ok in 2.12
+      toTcOps(a).example             // Error in 2.13 but ok in 2.12
+      toTcOps[X, (A, B)](a).example  // OK in 2.13 & 2.12
+    }
+  }
+
+  object Example2 {
+    type Y[A, B] = X[A] // phantom type
+
+    def woah[A, B](a: Y[A, B]) = {
+      a.example                 // Error in 2.13 but ok in 2.12
+      toTcOps(a).example        // Error in 2.13 but ok in 2.12
+      toTcOps[X, A](a).example  // OK in 2.13 & 2.12
+    }
+  }
+
+}
+```
+
+Error:
+
+```
+[error] Blah.scala:21:9: value example is not a member of Blah.Example1.Y[A,B]
+[error]       a.example                 // Error in 2.13 but ok in 2.12
+[error]         ^
+[error] Blah.scala:22:14: could not find implicit value for parameter tc: Blah.TC[[B]Blah.Example1.Y[A,B]]
+[error]       toTcOps(a).example        // Error in 2.13 but ok in 2.12
+[error]              ^
+[error] Blah.scala:31:9: value example is not a member of Blah.Example2.Y[A,B]
+[error]       a.example                 // Error in 2.13 but ok in 2.12
+[error]         ^
+[error] Blah.scala:32:14: could not find implicit value for parameter tc: Blah.TC[[B]Blah.Example2.Y[A,B]]
+[error]       toTcOps(a).example        // Error in 2.13 but ok in 2.12
+[error]              ^
+[error] four errors found
+
+```

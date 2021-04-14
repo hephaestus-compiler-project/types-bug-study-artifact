@@ -1,0 +1,16 @@
+javac Arguments checking allows some module related options to be specified for use with older releases, but not others. This is inconsistent and should be fixed.
+
+        checkOptionAllowed(t.compareTo(Target.JDK1_8) <= 0,
+                option -> error("err.option.not.allowed.with.target", option.getPrimaryName(), t.name),
+                Option.BOOT_CLASS_PATH,
+                Option.XBOOTCLASSPATH_PREPEND, Option.XBOOTCLASSPATH, Option.XBOOTCLASSPATH_APPEND,
+                Option.ENDORSEDDIRS, Option.DJAVA_ENDORSED_DIRS,
+                Option.EXTDIRS, Option.DJAVA_EXT_DIRS);
+
+        checkOptionAllowed(t.compareTo(Target.JDK1_9) >= 0,
+                option -> error("err.option.not.allowed.with.target", option.getPrimaryName(), t.name),
+                Option.MODULE_SOURCE_PATH, Option.UPGRADE_MODULE_PATH,
+                Option.SYSTEM, Option.MODULE_PATH, Option.ADD_MODULES, Option.LIMIT_MODULES,
+                Option.PATCH_MODULE);
+
+The first block of checks are OK; these options should not be allowed with -target 9;  the second block lists --add-modules but not --add-exports, --add-opens, --add-reads. Arguably, all should be allowed if using the platform modules, i.e. using older -release, or using older -target without -bootclasspath.

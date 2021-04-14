@@ -1,0 +1,63 @@
+Code analysys hangs in some cases with "AssertionError: Can't serialize error types"
+
+Code to reproduce:
+```kotlin
+import com.azagroup.anizoptera.axon.keloop.KotlinEventLoop
+import java.nio.channels.SelectableChannel
+
+class Foo(loop: KotlinEventLoop) {
+	abstract val channel: SelectableChannel
+
+	{
+		loop.selector
+	}
+}
+```
+
+Kotlin: 0.6.219
+IDEA (Cardea) IU-132.27
+
+Exception:
+java.lang.AssertionError: Can't serialize error types: [ERROR : KotlinEventLoop]
+	at org.jetbrains.jet.descriptors.serialization.DescriptorSerializer.type(DescriptorSerializer.java:328)
+	at org.jetbrains.jet.descriptors.serialization.DescriptorSerializer.valueParameter(DescriptorSerializer.java:279)
+	at org.jetbrains.jet.descriptors.serialization.DescriptorSerializer.callableProto(DescriptorSerializer.java:209)
+	at org.jetbrains.jet.descriptors.serialization.DescriptorSerializer.classProto(DescriptorSerializer.java:101)
+	at org.jetbrains.jet.codegen.ImplementationBodyCodegen.generateKotlinAnnotation(ImplementationBodyCodegen.java:221)
+	at org.jetbrains.jet.codegen.ClassBodyCodegen.generate(ClassBodyCodegen.java:77)
+	at org.jetbrains.jet.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:100)
+	at org.jetbrains.jet.codegen.NamespaceCodegen.generateClassOrObject(NamespaceCodegen.java:213)
+	at org.jetbrains.jet.asJava.KotlinJavaFileStubProvider$2.generate(KotlinJavaFileStubProvider.java:110)
+	at org.jetbrains.jet.asJava.KotlinJavaFileStubProvider.compute(KotlinJavaFileStubProvider.java:160)
+	at com.intellij.psi.impl.PsiCachedValueImpl.doCompute(PsiCachedValueImpl.java:49)
+	at com.intellij.util.CachedValueBase.getValueWithLock(CachedValueBase.java:200)
+	at com.intellij.psi.impl.PsiCachedValueImpl.getValue(PsiCachedValueImpl.java:38)
+	at com.intellij.util.CachedValuesManagerImpl.getCachedValue(CachedValuesManagerImpl.java:81)
+	at org.jetbrains.jet.asJava.KotlinLightClassForExplicitDeclaration.getJavaFileStub(KotlinLightClassForExplicitDeclaration.java:150)
+	at org.jetbrains.jet.asJava.KotlinLightClassForExplicitDeclaration.getDelegate(KotlinLightClassForExplicitDeclaration.java:132)
+	at com.intellij.psi.impl.light.AbstractLightClass.getMethods(AbstractLightClass.java:184)
+	at org.jetbrains.jet.asJava.LightClassUtil.getPsiMethodWrappers(LightClassUtil.java:178)
+	at org.jetbrains.jet.asJava.LightClassUtil.extractPropertyAccessors(LightClassUtil.java:264)
+	at org.jetbrains.jet.asJava.LightClassUtil.getLightClassPropertyMethods(LightClassUtil.java:152)
+	at org.jetbrains.jet.plugin.highlighter.JetLineMarkerProvider.collectOverridingPropertiesAccessors(JetLineMarkerProvider.java:443)
+	at org.jetbrains.jet.plugin.highlighter.JetLineMarkerProvider.collectSlowLineMarkers(JetLineMarkerProvider.java:390)
+	at com.intellij.codeInsight.daemon.impl.SlowLineMarkersPass.addLineMarkers(SlowLineMarkersPass.java:78)
+	at com.intellij.codeInsight.daemon.impl.SlowLineMarkersPass.doCollectInformation(SlowLineMarkersPass.java:65)
+	at com.intellij.codeHighlighting.TextEditorHighlightingPass.collectInformation(TextEditorHighlightingPass.java:62)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$1$1.run(PassExecutorService.java:357)
+	at com.intellij.openapi.application.impl.ApplicationImpl.tryRunReadAction(ApplicationImpl.java:1190)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass$1.run(PassExecutorService.java:348)
+	at com.intellij.openapi.progress.ProgressManager.executeProcessUnderProgress(ProgressManager.java:207)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.executeProcessUnderProgress(ProgressManagerImpl.java:212)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.a(PassExecutorService.java:345)
+	at com.intellij.codeInsight.daemon.impl.PassExecutorService$ScheduledPass.run(PassExecutorService.java:321)
+	at com.intellij.concurrency.JobLauncherImpl$2.call(JobLauncherImpl.java:139)
+	at com.intellij.concurrency.JobLauncherImpl$2.call(JobLauncherImpl.java:135)
+	at java.util.concurrent.FutureTask$Sync.innerRun(FutureTask.java:334)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:166)
+	at com.intellij.concurrency.PrioritizedFutureTask.access$101(PrioritizedFutureTask.java:32)
+	at com.intellij.concurrency.PrioritizedFutureTask$1.run(PrioritizedFutureTask.java:72)
+	at com.intellij.concurrency.PrioritizedFutureTask.run(PrioritizedFutureTask.java:115)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:615)
+	at java.lang.Thread.run(Thread.java:724)

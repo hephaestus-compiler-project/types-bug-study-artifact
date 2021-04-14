@@ -1,0 +1,34 @@
+```scala
+class ImplicitNotFound {
+
+  def main(arguments: Array[String]) {
+    {
+      implicit def view[A: Manifest](a: Int): Array[A] = ???
+      val array: Array[Int] = 1 // OK
+    }
+
+    {
+      implicit def view[A: Manifest](a: Int): Seq[A] = ???
+      val seq: Seq[Int] = view(1) // OK
+    }
+
+    {
+      implicit def view[A: Manifest](a: Int): Seq[A] = ???
+      val seq: Seq[Int] = 1 // type mismatch;  found   : Int(1)  required: Seq[Int]
+    }
+  }
+}
+```
+
+I think this is a bug, because:
+ - `val seq: Seq[Int] = view(1)` is valid.
+ - `view` is implicit.
+ - `val seq: Seq[Int] = 1` should be converted to `val seq: Seq[Int] = view(1)`, but it's not.
+
+Workaround:
+```scala
+type InvariantSeq[A] = Seq[A]
+implicit def view[A: Manifest](a: Int): InvariantSeq[A] = ???
+val invariantSeq: InvariantSeq[Int] = 1 // OK
+val seq: Seq[Int] = invariantSeq // OK
+```

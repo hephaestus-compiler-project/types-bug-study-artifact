@@ -1,0 +1,53 @@
+To successfully typecheck
+```scala
+class Foo extends someTree
+```
+we need to detect correctly if `someTree` should be typechecked as a term or a
+type.
+
+If `someTree` is `Int => 1`, dotty crashes because `typedFunction` sees that `Tree.isTerm` on `Int => this` (or, `untpd.Function(List('Int), 'this)`) gives `true` and calls `typedFunctionValue` to typecheck this as a term. `typedFunctionValue` then crashes on an unchecked pattern match, because `'Int` becomes an `Ident` and not a `ValDef` as it expects.
+
+Instead, I think `Int => 1` should be typechecked as a type, though I'm open to feedback.
+
+Really, we shouldn't call `isType` at all, because the user might write a type in
+place of a term or viceversa. I think we only want to know this is a constructor
+call or a type; and maybe we should just let the parser tell us which, since it
+knows.
+
+Minimized from a testcase in #4389, in particular:
+```scala
+// 0f12f42d878dcd4cb8b8ab62dbfb6b41861989b1.scala
+object i0 {
+def main(i1: Array[String]): Unit = {
+class i2
+}
+class i3(i4: => String) extends (i1 => (this
+19): Option[String, Int] => 1
+}
+```
+
+which triggers
+```
+Exception in thread "main" java.lang.ClassCastException: dotty.tools.dotc.ast.Trees$Ident cannot be cast to dotty.tools.dotc.ast.Trees$ValDef
+	at dotty.tools.dotc.typer.Typer.$anonfun$11(Typer.scala:922)
+	at scala.collection.TraversableLike$WithFilter.$anonfun$map$2(TraversableLike.scala:739)
+	at scala.collection.immutable.List.foreach(List.scala:389)
+	at scala.collection.TraversableLike$WithFilter.map(TraversableLike.scala:738)
+	at dotty.tools.dotc.typer.Typer.typedFunctionValue(Typer.scala:926)
+	at dotty.tools.dotc.typer.Typer.typedFunction(Typer.scala:756)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1790)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1832)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1819)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1832)
+	at dotty.tools.dotc.typer.Typer.op1$2(Typer.scala:1863)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1859)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1871)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:1931)
+	at dotty.tools.dotc.typer.Typer.typedParent$2(Typer.scala:1491)
+	at dotty.tools.dotc.typer.Typer.$anonfun$29(Typer.scala:1525)
+	at dotty.tools.dotc.core.Decorators$ListDecorator$.loop$1(Decorators.scala:62)
+	at dotty.tools.dotc.core.Decorators$ListDecorator$.mapconserve$extension(Decorators.scala:78)
+	at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1453)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1772)
+[...]
+```

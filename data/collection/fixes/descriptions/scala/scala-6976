@@ -1,0 +1,115 @@
+Hello.
+
+We're migrating from Play 2.0 & Scala 2.9.1 to Play 2.1 & Scala 2.10 and we have encountered a weird compiler error.
+
+I think it's from this code:
+```scala
+      def mockIso = {
+        val isochrone = mock[Isochrone]
+        when(isochrone.rankPoints(
+          time.eqM, startTime.near, mode.eqM, origin.eqM, points.eqM,
+          accuracy.eqM
+        )(Remote.timeout.eqM)).thenReturn(promiseOpt(expected))
+
+        isochrone
+      }
+```
+
+The eqM is defined in trait Mocks which is mixed into the test class (using scalatest here).
+
+```scala
+object Mocks {
+  // Time precision in milliseconds
+  private[this] val TimePrecision = 1000
+
+  implicit class AnyMatchers[T](val o: T) extends AnyVal {
+    def eqM = M.eq(o)
+  }
+
+  implicit class DateTimeMatchers(val instant: DateTime) extends AnyVal {
+    def within(millis: Int) = M.argThat(new Within(instant, millis))
+    def near = within(TimePrecision)
+  }
+}
+
+trait Mocks extends MockitoSugar {
+  implicit def AnyMatchers[T](o: T) = Mocks.AnyMatchers(o)
+  implicit def DateTimeMatchers(o: DateTime) = Mocks.DateTimeMatchers(o)
+}
+```
+
+The crash info is attached to the bug below. 
+
+My project configuration:
+```scala
+import sbt._
+import Keys._
+import play.Project._
+
+object ApiBuild extends Build {
+  val appName         = "tt-api"
+  val appVersion      = "1.0"
+
+  object V {
+    val Akka = "2.1.0"
+  }
+
+  object S {
+    val test = "test"
+  }
+
+  val appDependencies = Seq(
+    //"org.scalaz" %% "scalaz-core" % "6.0.4",
+    
+    // Java libraries
+
+    // Google geocoding library
+    "com.google.code.geocoder-java" % "geocoder-java" % "0.9",
+    // Emailer
+    "org.apache.commons" % "commons-email" % "1.2",
+    // CSV generator
+    "net.sf.opencsv" % "opencsv" % "2.0",
+
+    // Scala test libraries
+
+    "org.scalatest" %% "scalatest" % "2.0.M5b" % S.test,
+    "org.scalacheck" %% "scalacheck" % "1.10.0" % S.test,
+    "com.typesafe.akka" % "akka-testkit_2.10" % V.Akka % S.test,
+    //"org.scalamock" %% "scalamock-scalatest-support" % "3.0" % S.test
+
+    // Java test libraries
+
+    "org.mockito" % "mockito-all" % "1.9.0" % S.test
+  )
+
+  /** Custom tasks **/
+
+  val igLib = RootProject(file("vendor/ig-lib"))
+
+  lazy val main = play.Project(
+    appName, appVersion, appDependencies
+  ).settings(
+    scalaVersion := "2.10.0",
+    scalaBinaryVersion := "2.10",
+    scalacOptions ++= Seq("-feature"),
+    // Add your own project settings here
+    resolvers ++= Seq(
+      "Sonatype Snapshots" at
+        "http://oss.sonatype.org/content/repositories/snapshots",
+      "Sonatype Releases" at
+        "http://oss.sonatype.org/content/repositories/releases"
+    ),
+    // When doing test runs do not launch them in the aggregated projects.
+    aggregate in test := false,
+    aggregate in testOnly := false,
+    // Scalatest compatibility
+    testOptions in Test := Nil
+//    parallelExecution in Test := false
+  ).dependsOn(igLib % "compile->compile;test->test")
+   .aggregate(igLib)
+}
+```
+
+I'm not sure what else I can provide, but just ask if you need any more information.
+
+Meanwhile - perhaps anyone can give me a hint what's happening and how to work around this?

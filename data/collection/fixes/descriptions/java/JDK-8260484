@@ -1,0 +1,34 @@
+These tests worked fine with jtreg 4.1, but it looks like we need to explicitly specify the classpath for NoJavaLang.java (compiled by CheckExamples) and NoJavaLangTest.java when run with jtreg 4.2 and later.
+
+Here is an example of running CheckExamples.java
+===
+----------System.err:(29/1937)----------
+Error: Example /home/dbuck/check_langtools/test/tools/javac/diags/examples/NoJavaLang.java declares key compiler.misc.fatal.err.no.java.lang but does not generate it
+Error: Example /home/dbuck/check_langtools/test/tools/javac/diags/examples/NoJavaLang.java generates key compiler.err.cant.access but does not declare it
+Error: Example /home/dbuck/check_langtools/test/tools/javac/diags/examples/NoJavaLang.java generates key compiler.err.error but does not declare it
+Error: Example /home/dbuck/check_langtools/test/tools/javac/diags/examples/NoJavaLang.java generates key compiler.misc.class.file.not.found but does not declare it
+Error: Example /home/dbuck/check_langtools/test/tools/javac/diags/examples/NoJavaLang.java generates key compiler.misc.count.error but does not declare it
+332 examples checked
+115 keys on not-yet list
+
+prefix          #keys in tests  #keys in javac    %
+compiler.err.              218             263  82%
+compiler.warn.              60              74  81%
+compiler.note.              17              17 100%
+compiler.misc.              82             138  59%
+other                        0               0
+total                      377             492  76%
+java.lang.Exception: 5 errors occurred.
+        at CheckExamples.run(CheckExamples.java:124)
+        at CheckExamples.main(CheckExamples.java:55)
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:606)
+        at com.sun.javatest.regtest.agent.MainWrapper$MainThread.run(MainWrapper.java:127)
+        at java.lang.Thread.run(Thread.java:745)
+===
+
+Since JPRT upgraded to jtreg 4.2 last year, langtools testing has been failing. These test was blacklisted for 8u-cpu, but 7u-cpu still fail CheckExamples.java OOTB. Both releases should be fixed. This was fixed in JDK 9 and later as part of JDK-8177530 [0].
+
+[0] http://hg.openjdk.java.net/jdk9/jdk9/langtools/rev/4012b3f11f0d

@@ -1,0 +1,137 @@
+FULL PRODUCT VERSION :
+java version "1.8.0_25"
+Java(TM) SE Runtime Environment (build 1.8.0_25-b17)
+Java HotSpot(TM) 64-Bit Server VM (build 25.25-b02, mixed mode)
+
+
+A DESCRIPTION OF THE PROBLEM :
+I have not been able to isolate a simple test case, but when attempting to compile the 1.8 JDK source code with the 1.8 Java compiler, it crashes in Attr.TypeAnnotationsValidator.visitNewClass:
+
+Caused by: java.lang.NullPointerException
+	at com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.visitNewClass(Attr.java:4504)
+	at com.sun.tools.javac.tree.JCTree$JCNewClass.accept(JCTree.java:1516)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+	at com.sun.tools.javac.tree.TreeScanner.visitApply(TreeScanner.java:200)
+	at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1465)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.tree.TreeScanner.visitReturn(TreeScanner.java:185)
+	at com.sun.tools.javac.tree.JCTree$JCReturn.accept(JCTree.java:1384)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+...
+
+Inspecting the code in question (from Attr.java), it's clear that the code is in error:
+
+        public void visitNewClass(JCNewClass tree) {
+            if (tree.clazz.hasTag(ANNOTATED_TYPE)) {
+                checkForDeclarationAnnotations(((JCAnnotatedType) tree.clazz).annotations,
+                        tree.clazz.type.tsym);
+            }
+            if (tree.def != null) {
+                checkForDeclarationAnnotations(tree.def.mods.annotations, tree.clazz.type.tsym);
+            }
+            if (tree.clazz.type != null) {
+                validateAnnotatedType(tree.clazz, tree.clazz.type);
+            }
+            super.visitNewClass(tree);
+        }
+
+The "if (tree.def != null)" conditional goes on to call "tree.clazz.type.tsym" and the crash is because "tree.clazz.type" is null. The very next line of code checks whether "tree.clazz.type" is non-null, so clearly the expectation is that null is possible there. I assume the preceding code should also be guarded by a "three.clazz.type != null" check, but I don't know this code well enough to be sure that that is the correct solution.
+
+I will say that with that null check inserted, the openjdk8u-dev branch of langtools is able to compile the JDK 1.8 source without crashing. It crashes in the same way as the shipped compiler without the check.
+
+REGRESSION.  Last worked in version 8u5
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Unfortunately I can't trigger the bug in any simple way. It occurs inside a code analysis tool that I've written which uses JavacTool to analyze/attribute Java code.
+
+However, this same bug appears to crop up in other circumstances as evidenced by a Google search for "TypeAnnotationsValidator NullPointerException". For example: https://netbeans.org/bugzilla/show_bug.cgi?id=242717
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+No null pointer exception.
+ACTUAL -
+The null pointer exception described above.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+Caused by: java.lang.NullPointerException
+	at com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.visitNewClass(Attr.java:4504)
+	at com.sun.tools.javac.tree.JCTree$JCNewClass.accept(JCTree.java:1516)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+	at com.sun.tools.javac.tree.TreeScanner.visitApply(TreeScanner.java:200)
+	at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1465)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.tree.TreeScanner.visitReturn(TreeScanner.java:185)
+	at com.sun.tools.javac.tree.JCTree$JCReturn.accept(JCTree.java:1384)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+	at com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.visitBlock(Attr.java:4537)
+	at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:909)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.visitMethodDef(Attr.java:4475)
+	at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:778)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.visitClassDef(Attr.java:4532)
+	at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:693)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.tree.TreeScanner.visitNewClass(TreeScanner.java:208)
+	at com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.visitNewClass(Attr.java:4509)
+	at com.sun.tools.javac.tree.JCTree$JCNewClass.accept(JCTree.java:1516)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.visitVarDef(Attr.java:4484)
+	at com.sun.tools.javac.tree.JCTree$JCVariableDecl.accept(JCTree.java:852)
+	at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.visitClassDef(Attr.java:4532)
+	at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:693)
+	at com.sun.tools.javac.comp.Attr.validateTypeAnnotations(Attr.java:4430)
+	at com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:4354)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4231)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4180)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4180)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4184)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4180)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4180)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4180)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4180)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4160)
+	at com.sun.tools.javac.comp.Attr.visitClassDef(Attr.java:851)
+	at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:693)
+	at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:566)
+	at com.sun.tools.javac.comp.Attr.attribStat(Attr.java:635)
+	at com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:4321)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4231)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4160)
+	at com.sun.tools.javac.comp.Attr.attrib(Attr.java:4135)
+	at com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1248)
+	at com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1221)
+	at com.sun.tools.javac.api.JavacTaskImpl.analyze(JavacTaskImpl.java:364)
+	at com.sun.tools.javac.api.JavacTaskImpl.analyze(JavacTaskImpl.java:344)
+	at codex.extract.JavaExtractor.process0(JavaExtractor.java:106)
+	... 14 more
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+The tree it is processing when it crashes is:
+
+new PrivilegedAction<Boolean>(){
+    public Boolean run() {
+        try {
+            type.getDeclaredMethod("processInputMethodEvent", InputMethodEvent.class);
+            return Boolean.TRUE;
+        } catch (NoSuchMethodException exception) {
+            return Boolean.FALSE;
+        }
+    }
+}
+
+which is from line 3888 of javax/swing/text/JTextComponent.java (from the JDK).
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Insert the null check and compile my own version of langtools.
+

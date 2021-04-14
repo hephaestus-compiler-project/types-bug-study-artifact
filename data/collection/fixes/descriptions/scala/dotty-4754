@@ -1,0 +1,33 @@
+```scala
+object Foo {
+  private final val C = 1
+}
+
+class Foo {
+  import Foo._
+  inline def foo(x: Int): Boolean = x == C
+}
+```
+This code snippet crashes the compiler
+
+```scala
+dotc -d out tests/allan/Foo.scala
+exception occurred while compiling Foo.scala
+Exception in thread "main" java.lang.AssertionError: assertion failed: unresolved symbols: method inline$C in object Foo when pickling Foo.scala
+	at scala.Predef$.assert(Predef.scala:219)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickle(TreePickler.scala:642)
+	at dotty.tools.dotc.transform.Pickler.$anonfun$run$3(Pickler.scala:56)
+	at dotty.tools.dotc.transform.Pickler.$anonfun$run$3$adapted(Pickler.scala:49)
+	at scala.collection.immutable.List.foreach(List.scala:389)
+	at dotty.tools.dotc.transform.Pickler.$anonfun$run$2(Pickler.scala:49)
+	at dotty.tools.dotc.transform.Pickler.$anonfun$run$2$adapted(Pickler.scala:48)
+	at scala.collection.immutable.List.foreach(List.scala:389)
+	at dotty.tools.dotc.transform.Pickler.run(Pickler.scala:48)
+	at dotty.tools.dotc.core.Phases$Phase.$anonfun$runOn$1(Phases.scala:298)
+	at scala.collection.immutable.List.map(List.scala:283)
+	at dotty.tools.dotc.core.Phases$Phase.runOn(Phases.scala:296)
+	at dotty.tools.dotc.core.Phases$Phase.runOn$(Phases.scala:295)
+	at dotty.tools.dotc.transform.Pickler.runOn(Pickler.scala:83)
+	at dotty.tools.dotc.Run.$anonfun$compileUnits$3(Run.scala:174)
+...
+```

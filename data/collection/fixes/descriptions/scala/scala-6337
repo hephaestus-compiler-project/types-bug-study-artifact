@@ -1,0 +1,22 @@
+Getting the value from nested, parameterized value classes throws ClassCastException at runtime.
+
+```scala
+object C {
+  def main(args: Array[String]) {
+    val x = new X(new XX(3))
+    println(x.i.x + 9)
+  }
+}
+
+class X[T](val i: XX[T]) extends AnyVal
+class XX[T](val x: T) extends AnyVal
+```
+
+```
+$ scalac C.scala
+$ scala C
+java.lang.ClassCastException: XX cannot be cast to java.lang.Integer
+	at scala.runtime.BoxesRunTime.unboxToInt(Unknown Source)
+	at C$.main(C.scala:4)
+	at C.main(C.scala)
+```

@@ -1,0 +1,106 @@
+Fails in Kotlin 1.4.0-rc, works in 1.3.72.
+
+Repro:
+```shell
+git clone git@github.com:fluidsonic/fluid-mongo.git -b KT-40693
+cd fluid-mongo
+./gradlew build
+```
+
+The offensive code is the delegation to `source.asFlow()` here:
+https://github.com/fluidsonic/fluid-mongo/blob/KT-40693/sources/jvm/flows/ReactiveChangeStreamFlow.kt#L31
+
+Casting away the `out` projection works around the issue:
+```kotlin
+by (source as ChangeStreamPublisher<TResult>).asFlow()
+```
+
+```stacktrace
+e: java.lang.IllegalStateException: Backend Internal error: Exception during file facade code generation
+File being compiled: sources/jvm/flows/ReactiveChangeStreamFlow.kt
+The root cause java.lang.RuntimeException was thrown at: org.jetbrains.kotlin.codegen.ImplementationBodyCodegen.generateConstructors(ImplementationBodyCodegen.java:458)
+        at org.jetbrains.kotlin.backend.common.CodegenUtil.reportBackendException(CodegenUtil.kt:239)
+        at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generate(PackageCodegenImpl.java:78)
+        at org.jetbrains.kotlin.codegen.DefaultCodegenFactory.generatePackage(CodegenFactory.kt:88)
+        at org.jetbrains.kotlin.codegen.DefaultCodegenFactory.generateModule(CodegenFactory.kt:67)
+        at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.compileCorrectFiles(KotlinCodegenFacade.java:35)
+        at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.kt:616)
+        at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt:203)
+        at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:164)
+        at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:51)
+        at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:86)
+        at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:44)
+        at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:98)
+        at org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunner.runCompiler(IncrementalJvmCompilerRunner.kt:346)
+        at org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunner.runCompiler(IncrementalJvmCompilerRunner.kt:102)
+        at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileIncrementally(IncrementalCompilerRunner.kt:240)
+        at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.access$compileIncrementally(IncrementalCompilerRunner.kt:39)
+        at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner$compile$2.invoke(IncrementalCompilerRunner.kt:81)
+        at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:93)
+        at org.jetbrains.kotlin.daemon.CompileServiceImplBase.execIncrementalCompiler(CompileServiceImpl.kt:601)
+        at org.jetbrains.kotlin.daemon.CompileServiceImplBase.access$execIncrementalCompiler(CompileServiceImpl.kt:93)
+        at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:1633)
+        at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+        at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.base/java.lang.reflect.Method.invoke(Method.java:564)
+        at java.rmi/sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:359)
+        at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:200)
+        at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:197)
+        at java.base/java.security.AccessController.doPrivileged(AccessController.java:691)
+        at java.rmi/sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+        at java.rmi/sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:587)
+        at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:828)
+        at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:705)
+        at java.base/java.security.AccessController.doPrivileged(AccessController.java:391)
+        at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:704)
+        at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1130)
+        at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:630)
+        at java.base/java.lang.Thread.run(Thread.java:832)
+Caused by: java.lang.RuntimeException: Error generating constructors of class ReactiveChangeStreamFlow with kind IMPLEMENTATION
+        at org.jetbrains.kotlin.codegen.ImplementationBodyCodegen.generateConstructors(ImplementationBodyCodegen.java:458)
+        at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateBody(ClassBodyCodegen.java:97)
+        at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:128)
+        at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:301)
+        at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:285)
+        at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateClassesAndObjectsInFile(PackageCodegenImpl.java:119)
+        at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateFile(PackageCodegenImpl.java:138)
+        at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generate(PackageCodegenImpl.java:70)
+        ... 36 more
+Caused by: java.lang.UnsupportedOperationException: no descriptor for type constructor of (CapturedType(out TResult)..CapturedType(out TResult)?)
+        at org.jetbrains.kotlin.load.kotlin.TypeSignatureMappingKt.mapType(typeSignatureMapping.kt:96)
+        at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.mapType(KotlinTypeMapper.kt:262)
+        at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$writeGenericArguments$$inlined$with$lambda$1.invoke(KotlinTypeMapper.kt:353)
+        at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$writeGenericArguments$$inlined$with$lambda$1.invoke(KotlinTypeMapper.kt:77)
+        at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$Companion.writeGenericArguments(KotlinTypeMapper.kt:1514)
+        at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.writeGenericArguments(KotlinTypeMapper.kt:352)
+        at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.writeGenericArguments(KotlinTypeMapper.kt:342)
+        at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.writeGenericType(KotlinTypeMapper.kt:295)
+        at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.access$writeGenericType(KotlinTypeMapper.kt:77)
+        at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$mapType$1.invoke(KotlinTypeMapper.kt:265)
+        at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper$mapType$1.invoke(KotlinTypeMapper.kt:77)
+        at org.jetbrains.kotlin.load.kotlin.TypeSignatureMappingKt.mapType(typeSignatureMapping.kt:163)
+        at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.mapType(KotlinTypeMapper.kt:262)
+        at org.jetbrains.kotlin.codegen.state.KotlinTypeMapper.mapTypeArgument(KotlinTypeMapper.kt:216)
+        at org.jetbrains.kotlin.codegen.ExpressionCodegen.getOrCreateCallGenerator(ExpressionCodegen.java:2816)
+        at org.jetbrains.kotlin.codegen.ExpressionCodegen.getOrCreateCallGenerator(ExpressionCodegen.java:2797)
+        at org.jetbrains.kotlin.codegen.ExpressionCodegen.invokeMethodWithArguments(ExpressionCodegen.java:2589)
+        at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:41)
+        at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:13)
+        at org.jetbrains.kotlin.codegen.OperationStackValue.putSelector(StackValue.kt:79)
+        at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:124)
+        at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:117)
+        at org.jetbrains.kotlin.codegen.StackValue$StackValueWithSimpleReceiver.store(StackValue.java:2195)
+        at org.jetbrains.kotlin.codegen.StackValue.store(StackValue.java:145)
+        at org.jetbrains.kotlin.codegen.ConstructorCodegen.genCallToDelegatorByExpressionSpecifier(ConstructorCodegen.java:285)
+        at org.jetbrains.kotlin.codegen.ConstructorCodegen.generatePrimaryConstructorImpl(ConstructorCodegen.java:209)
+        at org.jetbrains.kotlin.codegen.ConstructorCodegen.access$000(ConstructorCodegen.java:42)
+        at org.jetbrains.kotlin.codegen.ConstructorCodegen$1.doGenerateBody(ConstructorCodegen.java:98)
+        at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$CodegenBased.generateBody(FunctionGenerationStrategy.java:86)
+        at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:639)
+        at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:467)
+        at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:249)
+        at org.jetbrains.kotlin.codegen.ConstructorCodegen.generatePrimaryConstructor(ConstructorCodegen.java:94)
+        at org.jetbrains.kotlin.codegen.ImplementationBodyCodegen.generateConstructors(ImplementationBodyCodegen.java:446)
+        ... 43 more
+```

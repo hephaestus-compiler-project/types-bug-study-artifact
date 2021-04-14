@@ -1,0 +1,63 @@
+Annotation Processor crashes when trying to process the following code: 
+
+public class ReceiverData {
+    class Inner {
+        class InnerInner {
+            public @Anno(3) InnerInner(@Anno(1) ReceiverData. @Anno(2) Inner Inner.this) {}
+        }
+    }
+}
+
+with the following simple processor:
+
+package jck.proc;
+
+import javax.annotation.processing.*;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.TypeElement;
+import java.util.Set;
+
+@SupportedAnnotationTypes("*")
+@SupportedSourceVersion(SourceVersion.RELEASE_8)
+public class Proc extends AbstractProcessor {
+    @Override
+    public void init(ProcessingEnvironment env) {
+        super.init(env);
+    }
+
+    @Override
+    public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        return true;
+    }
+}
+
+Command to reproduce: 
+C:\Java\8b113\windows-i586\bin\javac.exe -processor jck.proc.Proc ReceiverData.java
+
+The result: 
+An exception has occurred in the compiler (1.8.0-ea). Please file a bug at the Java Developer Connection (http://java.su
+n.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnosti
+c in your report.  Thank you.
+java.lang.NullPointerException
+        at com.sun.tools.javac.code.TypeAnnotations.annotationType(TypeAnnotations.java:165)
+        at com.sun.tools.javac.comp.Attr.checkForDeclarationAnnotations(Attr.java:2243)
+        at com.sun.tools.javac.comp.Attr.access$600(Attr.java:77)
+        at com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.visitMethodDef(Attr.java:4444)
+        at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:772)
+        at com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at com.sun.tools.javac.comp.Attr$TypeAnnotationsValidator.visitClassDef(Attr.java:4504)
+        at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:687)
+        at com.sun.tools.javac.comp.Attr.validateTypeAnnotations(Attr.java:4414)
+        at com.sun.tools.javac.code.TypeAnnotations$2.run(TypeAnnotations.java:142)
+        at com.sun.tools.javac.comp.Annotate.flush(Annotate.java:155)
+        at com.sun.tools.javac.comp.Annotate.enterDone(Annotate.java:129)
+        at com.sun.tools.javac.comp.Enter.complete(Enter.java:516)
+        at com.sun.tools.javac.comp.Enter.main(Enter.java:475)
+        at com.sun.tools.javac.main.JavaCompiler.enterTrees(JavaCompiler.java:991)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:866)
+        at com.sun.tools.javac.main.Main.compile(Main.java:523)
+        at com.sun.tools.javac.main.Main.compile(Main.java:381)
+        at com.sun.tools.javac.main.Main.compile(Main.java:370)
+        at com.sun.tools.javac.main.Main.compile(Main.java:361)
+        at com.sun.tools.javac.Main.compile(Main.java:56)
+        at com.sun.tools.javac.Main.main(Main.java:42)

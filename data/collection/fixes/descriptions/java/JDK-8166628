@@ -1,0 +1,40 @@
+Let's consider following code:
+
+public class Test52 {
+    void test() {
+        Object o = new Object() {
+            class IC {}
+            public Object get() {
+                return new IC();
+            }
+        };
+    }
+}
+
+javac from JDK build 137 produces following error when compiling code above:
+
+./Test52.java:6: error: .IC is not public in <anonymous Test52$1>; cannot be accessed from outside package
+                return new IC();
+
+This error is produced under following conditions only:
+1. Annotation processing is switched on when compiling this code.
+2. Annotation processor invokes getEnclosedElements() on the Element instance corresponding to the package.
+3. Both Test52$1$IC.class and Test52$1.class are on the class path passed to javac via -classpath option.
+
+The minimized test case is attached, in order to reproduce the bug please:
+1. Unzip attached archive to some dir, say A, on Unix/Linux machine.
+2. Modify A/Test52/test.sh by setting JDK_HOME variable to your JDK installation dir.
+3. Run A/Test52/test.sh. 
+
+It produces following output:
+
+First compilation
+Root elemnts count: 1
+Root elemnts count: 0
+Second compilation
+Root elemnts count: 1
+Root elemnts count: 0
+./Test52.java:6: error: .IC is not public in <anonymous Test52$1>; cannot be accessed from outside package
+                return new IC();
+                           ^
+1 error

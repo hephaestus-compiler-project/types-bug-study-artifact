@@ -1,0 +1,71 @@
+The following programs compiles and runs fine on JDK6/6-open, but it fails at runtime with an IllegalArgumentException with JDK 7
+
+import com.sun.source.util.JavacTask;
+import com.sun.source.tree.*;
+import java.io.IOException;
+import java.net.URI;
+import java.util.Arrays;
+import javax.tools.JavaCompiler;
+import javax.tools.JavaFileObject;
+import javax.tools.SimpleJavaFileObject;
+import javax.tools.ToolProvider;
+import com.sun.tools.javac.api.JavacTrees;
+import com.sun.tools.javac.tree.JCTree.*;
+import com.sun.source.util.TreePath;
+import com.sun.source.util.Trees;
+
+class TestAPI {
+    static class MyFileObject extends SimpleJavaFileObject {
+        private String text;
+        public MyFileObject(String text) {
+            super(URI.create("myfo:/Test.java"), JavaFileObject.Kind.SOURCE);
+            this.text = text;
+        }
+        @Override
+        public CharSequence getCharContent(boolean ignoreEncodingErrors) {
+            return text;
+        }
+    }
+    
+    public static void main(String[] args) throws IOException {        
+        final JavaCompiler tool = ToolProvider.getSystemJavaCompiler();
+
+        String code = "class BadName { Object o = j; }";
+        
+        JavacTask ct = (JavacTask)tool.getTask(null, null, null, null, null, Arrays.asList(new MyFileObject(code)));
+        
+        Iterable<? extends CompilationUnitTree> compUnits = ct.parse();
+		CompilationUnitTree cu = compUnits.iterator().next();
+		ClassTree cdef = (ClassTree)cu.getTypeDecls().get(0);
+		JCVariableDecl vdef = (JCVariableDecl)cdef.getMembers().get(0);		
+		TreePath path = TreePath.getPath(cu, vdef.init);
+		Trees.instance(ct).getScope(path);
+    }
+}
+
+Output with JDK6 is:
+
+null:0: cannot find symbol
+symbol  : variable j
+location: class BadName
+
+Output with JDK7 is:
+
+Exception in thread "main" java.lang.IllegalArgumentException
+        at com.sun.tools.javac.util.JCDiagnostic.<init>(JCDiagnostic.java:276)
+        at com.sun.tools.javac.util.JCDiagnostic$Factory.error(JCDiagnostic.java:86)
+        at com.sun.tools.javac.util.AbstractLog.error(AbstractLog.java:86)
+        at com.sun.tools.javac.comp.Resolve$ResolveError.report(Resolve.java:1667)
+        at com.sun.tools.javac.comp.Resolve.access(Resolve.java:1093)
+        at com.sun.tools.javac.comp.Resolve.access(Resolve.java:1113)
+        at com.sun.tools.javac.comp.Resolve.resolveIdent(Resolve.java:1176)
+        at com.sun.tools.javac.comp.Attr.visitIdent(Attr.java:1755)
+        at com.sun.tools.javac.tree.JCTree$JCIdent.accept(JCTree.java:1679)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:372)
+        at com.sun.tools.javac.comp.Attr.attribExpr(Attr.java:396)
+        at com.sun.tools.javac.comp.Attr.attribExprToTree(Attr.java:301)
+        at com.sun.tools.javac.api.JavacTrees.attribExprToTree(JavacTrees.java:302)
+        at com.sun.tools.javac.api.JavacTrees.getAttrContext(JavacTrees.java:282)
+        at com.sun.tools.javac.api.JavacTrees.getScope(JavacTrees.java:199)
+        at com.sun.tools.javac.api.JavacTrees.getScope(JavacTrees.java:78)
+        at TestAPI.main(TestAPI.java:41)

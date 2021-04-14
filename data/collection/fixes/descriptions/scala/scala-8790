@@ -1,0 +1,77 @@
+In the current version of Scala, pattern matching on tuples results in extra objects being created at runtime.
+
+Consider the following MWE:
+```scala
+object Test {
+
+  def slow(x: Int, y: Int): String = (x, y) match {
+  	case (7, 8) => "You got it!"
+  	case _ => "No such luck."
+  }
+
+  def faster(x: Int, y: Int): String = x match {
+  	case 7 => 
+  	  y match {
+  	  	case 8 => "You got it!"
+  	  	case _ => "No such luck."
+  	  }
+  	case _ => "No such luck."
+  }
+
+}
+```
+where the method `faster` in the above is some attempt to hand-optimise the implementation of the `slow` method. (I know that I will now have a duplicated case in the generated code, but you get the idea: the pair `(x,y)` has been eliminated.)
+
+Compiling with `scalac -print` we see that the pattern matcher generates a Tuple2 when generating the bytecode for `slow`:
+```
+package <empty> {
+  object Test extends Object {
+    def slow(x: Int, y: Int): String = {
+      case <synthetic> val x1: Tuple2 = new Tuple2$mcII$sp(x, y);
+      case8(){
+        if (x1.ne(null))
+          {
+            <synthetic> val p2: Int = x1._1$mcI$sp();
+            <synthetic> val p3: Int = x1._2$mcI$sp();
+            if (7.==(p2))
+              if (8.==(p3))
+                matchEnd7("You got it!")
+              else
+                case9()
+            else
+              case9()
+          }
+        else
+          case9()
+      };
+      case9(){
+        matchEnd7("No such luck.")
+      };
+      matchEnd7(x: String){
+        x
+      }
+    };
+    def faster(x: Int, y: Int): String = {
+      case <synthetic> val x1: Int = x;
+      (x1: Int) match {
+        case 7 => {
+          case <synthetic> val x1: Int = y;
+          (x1: Int) match {
+            case 8 => "You got it!"
+            case _ => "No such luck."
+          }
+        }
+        case _ => "No such luck."
+      }
+    };
+    def <init>(): Test.type = {
+      Test.super.<init>();
+      ()
+    }
+  }
+}
+```
+
+Reading the generated code, we can see that the Tuple generation is unnecessary.
+
+I pattern match on pairs quite often, and the extra strain of short-lived objects such that these Tuples is quite burdensome on the garbage collector, particularly in multi-threaded applications.

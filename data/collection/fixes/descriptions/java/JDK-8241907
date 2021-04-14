@@ -1,0 +1,106 @@
+ADDITIONAL SYSTEM INFORMATION :
+System Version: macOS 10.15.3 (19D76)
+Kernel Version: Darwin 19.3.0
+
+$ java -version
+java version "13.0.2" 2020-01-14
+Java(TM) SE Runtime Environment (build 13.0.2+8)
+Java HotSpot(TM) 64-Bit Server VM (build 13.0.2+8, mixed mode, sharing)
+
+A DESCRIPTION OF THE PROBLEM :
+For code that uses the JFR package, cross compilation (--release X) does not work when using JDK 13 or 12. It seems to be a regression since the same problem does Not exist in JDK 10 and 11.
+
+ For below java code, assuming it's called "App.java", the command "javac --release 11 App.java" fails with two types of errors:
+
+* annotation @Label is missing a default value for the element 'value'
+* reference to commit is ambiguous
+
+```
+package jfrtest;
+
+import jdk.jfr.Category;
+import jdk.jfr.Event;
+import jdk.jfr.Label;
+
+public class App {
+
+    @Label("Hello World")
+    @Category({"Sample", "My Custom Event"})
+    static class HelloWorldEvent extends Event {
+        @Label("My Message")
+        String msg;
+    }
+
+    public static void main(String[] args) {
+        HelloWorldEvent event = new HelloWorldEvent();
+        event.msg = "Hello World event message!";
+        event.commit();
+    }
+}
+```
+
+REGRESSION : Last worked in version 11.0.6
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+For the attached source code (App.java), the following compilation command results in errors:
+javac --release 11 App.java
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+It should successfully generate the class files.
+ACTUAL -
+It errors out with following messages:
+
+App.java:9: error: annotation @Label is missing a default value for the element 'value'
+    @Label("Hello World")
+    ^
+App.java:10: error: annotation @Category is missing a default value for the element 'value'
+    @Category({"Sample", "My Custom Event"})
+    ^
+App.java:12: error: annotation @Label is missing a default value for the element 'value'
+        @Label("My Message")
+        ^
+App.java:11: error: reference to Event is ambiguous
+    static class HelloWorldEvent extends Event {
+           ^
+  both constructor Event() in Event and constructor Event() in Event match
+App.java:19: error: reference to commit is ambiguous
+        event.commit();
+             ^
+  both method commit() in Event and method commit() in Event match
+5 errors
+
+
+---------- BEGIN SOURCE ----------
+package jfrtest;
+
+import jdk.jfr.Category;
+import jdk.jfr.Event;
+import jdk.jfr.Label;
+
+public class App {
+
+    @Label("Hello World")
+    @Category({"Sample", "My Custom Event"})
+    static class HelloWorldEvent extends Event {
+        @Label("My Message")
+        String msg;
+    }
+
+    public static void main(String[] args) {
+        HelloWorldEvent event = new HelloWorldEvent();
+        event.msg = "Hello World event message!";
+        event.commit();
+    }
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+The workaround is either:
+* Do no use cross compilation, i.e. remove the '--release X` option, or
+* Use version 11 and under
+
+FREQUENCY : always
+
+

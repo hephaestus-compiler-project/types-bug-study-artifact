@@ -1,0 +1,69 @@
+The following Scala code:
+
+```scala
+package app
+object App1{
+  def main(args: Array[String]): Unit = {
+    val start: Long = System.currentTimeMillis()
+    var count: Int = 0
+    var total: Int = 0
+    val items = Array("i", "am", "cow", "hear", "me", "moo", "i", "weigh", "twice", "as", "much", "as", "you")
+    val num = items.length
+    while(count < 1000000000){
+      count += 1
+      items(count % num) match{
+        case "i" => total += 1
+        case "am" => total += 2
+        case "cow" => total += 3
+        case "hear" => total += 4
+        case "me" => total += 5
+        case "moo" => total += 6
+        case "weigh" => total += 7
+        case "twice" => total += 8
+        case "as" => total += 9
+        case "much" => total += 10
+        case "you" => total += 11
+      }
+    }
+
+    println(total)
+    println((System.currentTimeMillis() - start) + "s")
+  }
+}
+```
+Runs about 15-20% slower than the equivalent Java code:
+
+```java
+package app;
+public class App2{
+    public static void main(String[] args){
+       long start = System.currentTimeMillis();
+       int count = 0;
+       int total = 0;
+       String[] items = {"i", "am", "cow", "hear", "me", "moo", "i", "weigh", "twice", "as", "much", "as", "you"};
+       int num = items.length;
+       while(count < 1000000000){
+           count += 1;
+           switch(items[count % num]){
+               case "i": total += 1; break;
+               case "am": total += 2; break;
+               case "cow": total += 3; break;
+               case "hear": total += 4; break;
+               case "me": total += 5; break;
+               case "moo": total += 6; break;
+               case "weigh": total += 7; break;
+               case "twice": total += 8; break;
+               case "as": total += 9; break;
+               case "much": total += 10; break;
+               case "you": total += 11; break;
+           }
+       }
+       System.out.println(total);
+       System.out.println((System.currentTimeMillis() - start) + "s");
+    }
+}
+```
+
+The Scala code takes 10600 ± 500 milliseconds, while the Java code takes 8600 ± 200ms (on my 2015 Macbook Pro running Java 1.8.0_131 Scala 2.13.0), a difference of 20% or so. This is because the Scala code generates a naive sequence of cascading if-else checks, while the Java code generates first a `tableswitch` instruction on the pre-computed hash-codes of the various case string literals, and only after looking up the hash code does it perform an equality check for confirmation (more than one check in the case of a hash collision)
+
+I don't see any reason why the Scala code should not run just as fast as the Java equivalent, and anyway it's surprising that the roughly-equivalent source code doesn't generate roughly-equivalent bytecode.

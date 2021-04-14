@@ -1,0 +1,42 @@
+If a conditional expression is a last statement of lambda, 
+and at least one of its branches has type `Unit` (or `Unit?`),
+do not report IMPLICIT_CAST_TO_ANY.
+
+Technically this is an implicit cast to any. However, this is a rather frequent case that's a bit annoying and not really helpful.
+Ideally, we should be able to coerce the result to `Unit`. Unfortunately, we can't distinguish between the following high-level functions:
+{code lang=kt}
+fun <T, R> T.apply(block: T.() -> R) = block() // result can be coerced to Unit
+fun <T, R> T.str(block: T.() -> R) = block().toString() // result CAN NOT be coerced to Unit
+{code}
+
+So, the solution is to just silently ignore this warning (will be a type mismatch or some other error in the surrounding code) for a last statement of lambda with `Unit` or `Unit?` in one of the branches.
+
+Note that this would still be a warning:
+{code lang=kt}
+fun ifUnderLambda(list: MutableList<String>) {
+    run {
+        if (true) {
+            list.apply { /* ... */ } // : MutableList<String>
+        } 
+        else {
+            list.add("") // : Boolean
+        }
+    }
+}
+{code}
+
+Workaround: use `Unit` to return Unit explicitly. E.g.:
+{code lang=kt}
+fun ifUnderLambda(list: MutableList<String>) {
+    run {
+        if (true) {
+            list.apply { /* ... */ } // : MutableList<String>
+        }
+        else {
+            list.add("") // : Boolean
+            Unit // : Unit
+        }
+    }
+}
+{code}
+Another possible workaround (for one-liner lovers): use `.let{}` (stylish equivalent to `.ignore()`, which is not in stdlib, anyway).

@@ -1,0 +1,26 @@
+In Scala 2.10.1, the following pattern match produces an unreachable code warning, but prints "cancelling" as expected:
+
+```scala
+object test extends App {
+  type Tagged[T] = {type Tag = T}
+  type @@[T, Tag] = T with Tagged[Tag]
+
+  trait StatusTag
+  type ProductStatus = (String @@ StatusTag)
+
+  def instance(s: String) = s.asInstanceOf[ProductStatus]
+
+  val DRAFT = instance("draft")
+  val CANCELLING = instance("cancelling")
+
+  CANCELLING match {
+    case DRAFT      => println("draft")
+    case CANCELLING => println("cancelling")
+    case _          => println("fallback")
+  }
+}
+```
+
+In Scala 2.10.2 and onwards, however, the warning is still present, but the code now has started printing "fallback".
+
+Running "scalac -print" on the code shows that the pattern matcher in 2.10.2 and onwards does a shortcut that is wrong.

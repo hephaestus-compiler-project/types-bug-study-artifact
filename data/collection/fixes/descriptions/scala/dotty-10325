@@ -1,0 +1,44 @@
+Using Scala version `3.0.0-M1`
+
+## Minimized code
+
+```scala
+def nullToNone[K, V](tuple: (K, V)): (K, Option[V]) = {                                                                                                                                                                                
+    val (k, v) = tuple
+    (k, Option(v))
+}
+
+val scalaMap: Map[String, String] = Map()
+
+val m2: Map[String, Option[String]] = scalaMap.map(nullToNone).toMap
+
+// For troubleshooting, does not work in Scala 2.x neither
+val m3: Map[String, Option[String]] = scalaMap.map(nullToNone)
+```
+
+## Output
+
+```scala
+1 |val m2: Map[String, Option[String]] = scalaMap.map(nullToNone).toMap
+  |                                                                    ^
+  |         Cannot prove that (Any, Option[Any]) <:< (String, V2)
+  |
+  |         where:    V2 is a type variable with constraint <: Option[String]
+  |         .
+
+1 |val m3: Map[String, Option[String]] = scalaMap.map(nullToNone)
+  |                                                   ^^^^^^^^^^
+  |                  Found:    ((Any, Any)) => (Any, Option[Any])
+  |                  Required: ((String, String)) => (String, Option[String])
+```
+
+## Expectation
+
+I'm quite new to Scala 3 but there shouldn't be any need for more explicit types, isn't it?
+
+`val m2` should compile without error.
+
+## Notes
+
+This is actually part of existing code: https://github.com/cucumber/cucumber-jvm-scala/blob/main/cucumber-scala/src/main/scala/io/cucumber/scala/Implicits.scala#L35
+

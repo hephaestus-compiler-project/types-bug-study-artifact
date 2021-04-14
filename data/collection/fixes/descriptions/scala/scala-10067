@@ -1,0 +1,48 @@
+**File OuterClass.java**
+
+```java
+package innerClassPatternMatching;
+
+public class OuterClass {
+	public class InnerClass { }
+	
+	public Object getInnerClassInstance() {
+		return new InnerClass();
+	}
+}
+```
+
+**File Bug.scala**
+
+```java
+package innerClassPatternMatching
+
+class Bug {
+	def show() : Unit = {
+		//get inner class as some instance of super type
+		var oc = new OuterClass();
+		var icObj = oc.getInnerClassInstance();
+		
+		//get a stable identifier on outer class
+		val ocStable = oc;
+		
+		//these will work
+		icObj.isInstanceOf[ocStable.InnerClass];
+		icObj.asInstanceOf[ocStable.InnerClass];
+		
+		//this will fail with java.lang.NoSuchMethodError
+		icObj match {
+			case ic : ocStable.InnerClass =>;
+		}
+	}
+}
+```
+
+Pattern matching will fail at runtime with the following exception:
+
+```
+Exception in thread "main" java.lang.NoSuchMethodError: innerClassPatternMatching.OuterClass$InnerClass.innerClassPatternMatching$OuterClass$InnerClass$$$outer()LinnerClassPatternMatching/OuterClass;
+	at innerClassPatternMatching.Bug.show(Bug.scala:18)
+```
+
+Might be related to #4440.

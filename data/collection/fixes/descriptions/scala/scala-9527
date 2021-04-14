@@ -1,0 +1,27 @@
+```scala
+class C {
+  implicit def f(x: Int): String = "f was here"
+  implicit def g(x: Int): String = "g was here"
+  def test: Unit = {
+    implicitly[Int => String]
+  }
+}
+```
+
+Reported https://groups.google.com/d/msg/scala-user/dzWIwyAjVh8/8nz1u8GlCwAJ
+
+The recently added code:
+
+```scala
+        context.issueAmbiguousError(AmbiguousImplicitTypeError(tree,
+          (tree1.symbol, tree2.symbol) match {
+            case (ImplicitAmbiguousMsg(msg), _) => msg.format(treeTypeArgs(tree1))
+            case (_, ImplicitAmbiguousMsg(msg)) => msg.format(treeTypeArgs(tree2))
+            case (_, _) if isView => viewMsg
+            case (_, _) => s"ambiguous implicit values:\n${coreMsg}match expected type $pt"
+          }
+        ))
+```
+
+hits a null symbol if the tree is a `Block`.
+

@@ -1,0 +1,31 @@
+I am trying to get ScalaPB to compile with Dotty. It looks like `SeqLike` has been changed such that the original code doesn't compile with Dotty. I then found a signature that works with Dotty only, but not with ScalaPB. And finally one that works on both:
+
+```scala
+import scala.collection._
+import scala.language.higherKinds
+
+class F[A]
+
+// Compiles with Scala 2, but not with dotty.
+object Scala2Only {
+  def func[A, C[A] <: SeqLike[A, C[A]]](x: F[C[A]]) = {}
+
+  func(new F[Seq[Int]])
+}
+
+// Compiles with Dotty, but not with Scala 2
+object DottyOnly {
+  def func[A, CA <: SeqLike[A, CA]](x: F[CA]) = {}
+
+  func(new F[Seq[Int]])
+}
+
+// Compiles on both
+object Both {
+  def func[A, C[_] <: SeqLike[_, C[_]]](a: F[C[A]]) = {}
+
+  func(new F[Seq[Int]])
+}
+```
+
+I am not sure if these incompatibilities is a bug or a known breaking change.

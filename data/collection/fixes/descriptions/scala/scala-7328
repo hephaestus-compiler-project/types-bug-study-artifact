@@ -1,0 +1,27 @@
+Reflection understands correctly the type of value-class fields, but the instance mirrors return values of the wrong type when accessing these fields:
+
+```scala
+import scala.reflect.runtime._
+
+case class Foo(x: Int) extends AnyVal
+case class Bar(foo: Foo)
+
+object Test {
+  def main(args: Array[String]) {
+    val fooTerm = universe.typeOf[Bar].declaration(universe.newTermName("foo")).asMethod
+    val fooType = fooTerm.returnType // correctly gives typeOf[Foo]
+    println(fooType) // Foo
+
+    val bar = Bar(Foo(3))
+    println(bar.foo) // Foo(3)
+
+    val im = currentMirror.reflect(bar)
+
+    val obj1 = im.reflectField(fooTerm).get // incorrectly gives java.lang.Integer(3) not Foo(3)
+    println(obj1) // 3
+
+    val obj2 = im.reflectMethod(fooTerm)() // ditto
+    println(obj2) // 3
+  }
+}
+```

@@ -1,0 +1,46 @@
+If I define a typeclass in a class's companion object and use it in the class, like this:
+
+```scala
+// Util.scala
+class Util {
+	import Util._
+
+	val reading = implicitly[Read[Int]].read("100")
+}
+
+object Util {
+	sealed trait Read[T] {
+		def read(s: String): T
+	}
+
+	implicit object IntRead extends Read[Int] { def read(s: String) = s.toInt }
+}
+```
+
+The following compilation error is fired:
+
+error: could not find implicit value for parameter e: Util.Read[Int]
+       val reading = implicitly[Read[Int]].read("100")
+
+But if the object is defined before the class, it works OK.
+
+```scala
+// Util.scala
+object Util {
+	sealed trait Read[T] {
+		def read(s: String): T
+	}
+
+	implicit object IntRead extends Read[Int] { def read(s: String) = s.toInt }
+}
+
+class Util {
+	import Util._
+
+	val reading = implicitly[Read[Int]].read("100")
+}
+```
+
+I'm not sure whether this is an intended behaviour? But it doesn't feel right since it shouldn't matter to the developer the order of class and its companion object.
+
+Note that these also happens for traits.

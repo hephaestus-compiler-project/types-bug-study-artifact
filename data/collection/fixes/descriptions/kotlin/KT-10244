@@ -1,0 +1,57 @@
+In the code like 
+{code lang=Kotlin}
+open class B
+interface A
+interface C
+
+fun foo(b: B) = if (b is A && b is C) b else null
+{code}
+
+the `foo` return type is `(A & C)?` (intersection type of A and C) that provokes exception in back-end.
+
+{code}
+org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: Failed to generate function foo1
+Cause: no descriptor for type constructor of Any
+File being compiled and position: ... in ...
+PsiElement: fun foo(b: B) = if (b is A && b is C) b else null
+The root cause was thrown at: JetTypeMapper.java:456
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genFunctionOrProperty(MemberCodegen.java:194)
+	at org.jetbrains.kotlin.codegen.PackagePartCodegen.generateBody(PackagePartCodegen.java:95)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:122)
+	at org.jetbrains.kotlin.codegen.PackageCodegen.generateFile(PackageCodegen.java:117)
+	at org.jetbrains.kotlin.codegen.PackageCodegen.generate(PackageCodegen.java:61)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.generatePackage(KotlinCodegenFacade.java:99)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.doGenerateFiles(KotlinCodegenFacade.java:77)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.compileCorrectFiles(KotlinCodegenFacade.java:44)
+	at org.jetbrains.kotlin.idea.internal.KotlinBytecodeToolWindow.getBytecodeForFile(KotlinBytecodeToolWindow.java:239)
+	at org.jetbrains.kotlin.idea.internal.KotlinBytecodeToolWindow$UpdateBytecodeToolWindowTask.processRequest(KotlinBytecodeToolWindow.java:108)
+	at org.jetbrains.kotlin.idea.internal.KotlinBytecodeToolWindow$UpdateBytecodeToolWindowTask.processRequest(KotlinBytecodeToolWindow.java:69)
+	at org.jetbrains.kotlin.idea.util.LongRunningReadTask$1$1.run(LongRunningReadTask.java:110)
+	at com.intellij.openapi.application.impl.ApplicationImpl.runReadAction(ApplicationImpl.java:943)
+	at org.jetbrains.kotlin.idea.util.LongRunningReadTask$3.run(LongRunningReadTask.java:226)
+	at com.intellij.openapi.progress.impl.CoreProgressManager$2.run(CoreProgressManager.java:142)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.a(CoreProgressManager.java:446)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.executeProcessUnderProgress(CoreProgressManager.java:392)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.executeProcessUnderProgress(ProgressManagerImpl.java:54)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.runProcess(CoreProgressManager.java:127)
+	at org.jetbrains.kotlin.idea.util.LongRunningReadTask.runWithWriteActionPriority(LongRunningReadTask.java:223)
+	at org.jetbrains.kotlin.idea.util.LongRunningReadTask$1.run(LongRunningReadTask.java:105)
+	at com.intellij.openapi.application.impl.ApplicationImpl$8.run(ApplicationImpl.java:365)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:471)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:262)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:615)
+	at java.lang.Thread.run(Thread.java:745)
+	at org.jetbrains.ide.PooledThreadExecutor$1$1.run(PooledThreadExecutor.java:55)
+Caused by: java.lang.UnsupportedOperationException: no descriptor for type constructor of Any
+	at org.jetbrains.kotlin.codegen.state.JetTypeMapper.mapType(JetTypeMapper.java:456)
+	at org.jetbrains.kotlin.codegen.state.JetTypeMapper.mapReturnType(JetTypeMapper.java:367)
+	at org.jetbrains.kotlin.codegen.state.JetTypeMapper.mapSignature(JetTypeMapper.java:1070)
+	at org.jetbrains.kotlin.codegen.state.JetTypeMapper.mapSignature(JetTypeMapper.java:1027)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:159)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:143)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.gen(FunctionCodegen.java:118)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genFunctionOrProperty(MemberCodegen.java:185)
+	... 27 more
+
+{code}

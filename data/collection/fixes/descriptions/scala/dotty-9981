@@ -1,0 +1,41 @@
+## Minimized code
+
+```Scala
+class A1
+class A2 extends A1
+
+class B(arg: Int)
+
+trait T
+object T {
+  def apply(a: A1, b: B): T = ???
+  def apply(a: A2, b: B): T = ???
+}
+
+def m(): Unit = T(A2(), B())
+```
+
+## Output
+
+```scala
+-- Error: sample.scala:12:20 --------------------------------------
+12 |def m(): Unit = T(A2(), B())
+   |                  ^^^^
+   |                  too many arguments for constructor T: (): T
+1 error found
+```
+
+## Expectation
+
+If we comment out the `trait T` line or one of `def apply` lines, error message becomes more reasonable:
+```scala
+-- Error: sample-modified.scala:12:25 --------------------------------------
+12 |def m(): Unit = T(A2(), B())
+   |                        ^^^
+   |      missing argument for parameter arg of constructor B: (arg: Int): B
+1 error found
+```
+
+I expect that either the latter message appears always, or at least some generic error message appears instead of “too many arguments” (e.g. “cannot disambiguate overloaded method call”).
+
+P.S.: I understand that it actually works, just produces not very clear messages in some cases, so the priority is very low.

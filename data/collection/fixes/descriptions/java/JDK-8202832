@@ -1,0 +1,23 @@
+This issue was originally reported here:
+http://mail.openjdk.java.net/pipermail/jigsaw-dev/2018-May/013775.html
+
+I've been able to duplicate the issue with the following simple test case:
+
+src/m1/module-info.java:
+module m1 {
+    requires m2;
+}
+
+src/m2/module-info.java:
+module m2 {
+    requires m3;
+    requires m1;
+}
+
+src/m3/module-info.java:
+module m3 { }
+
+This will compile with:
+javac --module-source-path src -d mods $(find src -name module-info.java)
+
+If the ordering of the requires is changed in m2 then the cycle will be correctly detected.

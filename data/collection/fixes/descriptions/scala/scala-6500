@@ -1,0 +1,33 @@
+Overriding a method C => A with a method C => B, where C is some value class and A and B are regular classes with B <: A, generates a broken forwarder. The forwarder attempts to box to the value class erasure's box and then cast to the value class box, producing a ClassCastException at runtime. Naturally, this affects overrides returning this.type as well. Tested with nightly Scala-2.11.0-SNAPSHOT.
+
+```scala
+object ValueClassForwarderVariance extends App {
+  class Box(val value: Int) extends AnyVal
+  
+  trait Foo {
+    def append(box: Box): Foo
+  }
+  
+  class Bar extends Foo {
+    override def append(box: Box): Bar = this // produces bad forwarder
+  }
+  
+  // throws ClassCastException: java.lang.Integer cannot be cast to _$Box
+  ((new Bar): Foo).append(new Box(0))
+}
+```
+
+```scala
+// boxes to value class erasure's box,
+// casts to value class box (fail),
+// then unboxes and forwards.
+public ValueClassForwarderVariance$Foo append(int);
+Code:
+   0: aload_0       
+   1: iload_1       
+   2: invokestatic  #20 // Method scala/runtime/BoxesRunTime.boxToInteger:(I)Ljava/lang/Integer;
+   5: checkcast     #22 // class ValueClassForwarderVariance$Box
+   8: invokevirtual #26 // Method ValueClassForwarderVariance$Box.value:()I
+  11: invokevirtual #28 // Method append:(I)LValueClassForwarderVariance$Bar;
+  14: areturn            
+```

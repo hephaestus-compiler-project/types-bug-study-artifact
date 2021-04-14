@@ -1,0 +1,51 @@
+I have a feeling this is not easily fixable, but it looks like it is  impossible to pattern match on a type that is parameterized on a type constructor, when that type constructor is instantiated to a type alias or some sort of type level function. 
+
+Here's an example, from a stream processing library I am working on:
+
+```scala
+trait Process[F[_,_], A]
+case class Halt[F[_,_],A]() extends Process[F,A]
+case class Emit[F[_,_],A](head: A, tail: Process[F,A]) extends Process[F,A]
+case class Await[F[_,_],X,Y,A](fn: F[X,Y], arg: X, recv: Y => Process[F,A]) extends Process[F,A]
+```
+
+So, a Process can either halt, emit a value, or make an external request of its driver, where the external request is a call to evaluate the 'function' F. As a special case of this, we can constrain the requests to be of a particular type:
+
+```scala
+trait F1[A,B]
+case class Get[B]() extends F1[Unit,B]
+
+trait One[A] {
+  type f[X,Y] = F1[Unit,A]
+}
+```
+
+Now Process[One[Int]#f, String] is a stream transducer that can only request integer values from its sole input stream (and which emits Strings as its output type). The problem arises when I want to pattern match on a Process[One[A]#f, B]. I get 'constructor cannot be instantiated' errors:
+
+```scala
+object Failing {
+  val a1 = Await[One[Int]#f,Unit,Int,String](Get[Int](), (), (i:Int) => Halt[One[Int]#f,String]())
+  val x: Process[One[Int]#f,String] = a1
+  val r = a1 match { case Await(f,x,r) => f }
+}
+```
+
+This gives me:
+
+```scala
+<console>:32: error: constructor cannot be instantiated to expected type;
+ found   : Await[F,X,Y,A]
+ required: Await[[X, Y]F1[Unit,Int],Unit,Int,String]
+         val r = a1 match { case Await(f,x,r) => f }
+                                 ^
+<console>:32: error: not found: value f
+         val r = a1 match { case Await(f,x,r) => f }
+```
+
+I'm guessing this is just the usual limitation that a type constructor will never be inferred as a type level function, however it means that I can't meaningfully pattern match on Process, like if I want to implement piping the output of one process to another: 
+
+```scala
+def pipe[A,B,C](p: Process[One[A]#f, B])(p2: Process[One[B]#f, C]): Process[One[A]#f, c] = ...
+```
+
+Is the only workaround here to define my own custom extractors?

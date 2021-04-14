@@ -1,0 +1,34 @@
+FULL PRODUCT VERSION :
+
+
+A DESCRIPTION OF THE PROBLEM :
+If a jar containing a manifest that has a Class-path: entry is passed to javac through -cp or -classpath, javac prepends the location of that jar to each entry in the Class-path: attribute to build its class search path.
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+I created a jar file that contains the class com.test.Test. I called that jar classes.jar, and placed it in /tmp.
+
+I then create a jar that only contains a manifest, and on said manifest I put the entry
+
+Class-path: /tmp/classes.jar
+
+I called this second jar classpath.jar, and I also placed it in /tmp.
+
+Running
+
+java -classpath /tmp/classpath.jar com.test.Test
+
+succeeds. Running
+
+javac -classpath /tmp/classpath.jar
+
+doesn't. The -verbose option to javac shows me that it's looking for classes in /tmp/tmp/classes.jar. That is, it prepended the location of classpath.jar to the entry in its manifest.
+
+I also tried using
+
+Class-path: file:///tmp/classes.jar
+
+In that, java still works, and javac looks for things in /tmp/file:/tmp/classes.jar
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.

@@ -1,0 +1,25 @@
+Basically, if xxx.java exists, and a string of the form xxx.yyy is passed to 
+    JavaCompiler.CompilationTask.getTask(...)
+
+Then something bad happens. For example, if xxx.java is passed, then this occurs:
+An exception has occurred in the compiler (1.7.0-internal). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.AssertionError
+	at com.sun.tools.javac.util.Assert.error(Assert.java:126)
+	at com.sun.tools.javac.util.Assert.check(Assert.java:45)
+	at com.sun.tools.javac.main.JavaCompiler.processAnnotations(JavaCompiler.java:1095)
+	at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:830)
+	at com.sun.tools.javac.main.Main.compile(Main.java:441)
+	at com.sun.tools.javac.api.JavacTaskImpl.call(JavacTaskImpl.java:132)
+	at BugDT03.main(BugDT03.java:35)
+
+This did not occur before the fix for 7126832.
+
+To see this, and a related problem, run the jj.sh script in the attachment, after substituting into it your own jdk (and javac if desired).
+This test gets the above assertion error for cases:
+- "Test1.java" is passed in, where Test1.java exists but Test1.class does not
+- "Test1.foo" is passed in , same conditions as above, and no *foo* file exists
+    (Actually, the assert happens for this case both before and after the fix for 7126832)
+- "Test3.java" is passed in and both Test3.java and Test3.class exist
+
+
+The attached test also has a case (Test 2) where different error msgs are printed out before and after the fix for 7126832.

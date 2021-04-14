@@ -1,0 +1,60 @@
+Compiling the following source code will cause an internal ClassCastException in javac.
+
+Uncomment the cast of null to Long in order to compile without the crash.
+
+public class Puke {
+    public static void main(String[] args) {
+        doit(/* (Long) */ null, new Exception());
+    }
+
+    public static void doit(Long l) {
+    }
+
+    public static void doit(Exception... exception) {
+    }
+
+    public static void doit(Long l, Exception... exception) {
+    }
+}
+
+The crash error on 1.8.0-ea-b118 is:
+
+
+java.lang.ClassCastException: com.sun.tools.javac.comp.Resolve$BadVarargsMethod cannot be cast to com.sun.tools.javac.comp.Resolve$AmbiguityError
+        at com.sun.tools.javac.comp.Resolve$BasicLookupHelper.lookup(Resolve.java:3058)
+        at com.sun.tools.javac.comp.Resolve.lookupMethod(Resolve.java:3307)
+        at com.sun.tools.javac.comp.Resolve.lookupMethod(Resolve.java:3292)
+        at com.sun.tools.javac.comp.Resolve.resolveMethod(Resolve.java:2361)
+        at com.sun.tools.javac.comp.Attr.visitIdent(Attr.java:3129)
+        at com.sun.tools.javac.tree.JCTree$JCIdent.accept(JCTree.java:2005)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:597)
+        at com.sun.tools.javac.comp.Attr.visitApply(Attr.java:1828)
+        at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1459)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:597)
+        at com.sun.tools.javac.comp.Attr.attribExpr(Attr.java:646)
+        at com.sun.tools.javac.comp.Attr.visitExec(Attr.java:1596)
+        at com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1290)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:597)
+        at com.sun.tools.javac.comp.Attr.attribStat(Attr.java:666)
+        at com.sun.tools.javac.comp.Attr.attribStats(Attr.java:682)
+        at com.sun.tools.javac.comp.Attr.visitBlock(Attr.java:1127)
+        at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:903)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:597)
+        at com.sun.tools.javac.comp.Attr.attribStat(Attr.java:666)
+        at com.sun.tools.javac.comp.Attr.visitMethodDef(Attr.java:1020)
+        at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:772)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:597)
+        at com.sun.tools.javac.comp.Attr.attribStat(Attr.java:666)
+        at com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:4287)
+        at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4197)
+        at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4131)
+        at com.sun.tools.javac.comp.Attr.attrib(Attr.java:4106)
+        at com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1251)
+        at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:904)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:863)
+        at com.sun.tools.javac.main.Main.compile(Main.java:523)
+        at com.sun.tools.javac.main.Main.compile(Main.java:381)
+        at com.sun.tools.javac.main.Main.compile(Main.java:370)
+        at com.sun.tools.javac.main.Main.compile(Main.java:361)
+        at com.sun.tools.javac.Main.compile(Main.java:56)
+        at com.sun.tools.javac.Main.main(Main.java:42)

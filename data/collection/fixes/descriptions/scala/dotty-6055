@@ -1,0 +1,87 @@
+```scala
+opaque type i1[_]
+```
+```scala
+opaque type x[_] <: Int
+```
+But not
+```scala
+opaque type i1[_] = Int
+```
+
+AE-eaee021b253a54df99a0a6d87046719008781d3b
+
+---
+
+```scala
+exception occurred while typechecking test.scala
+exception occurred while compiling test.scala
+java.lang.AssertionError: assertion failed: TypeBounds(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Nothing),TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Any)) AppliedType(TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class test$package$)),type I1),List(TypeParamRef(X0))) while compiling test.scala
+Exception in thread "main" java.lang.AssertionError: assertion failed: TypeBounds(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Nothing),TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Any)) AppliedType(TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class test$package$)),type I1),List(TypeParamRef(X0)))
+	at scala.Predef$.assert(Predef.scala:223)
+	at dotty.tools.dotc.core.Types$OrType.<init>(Types.scala:2750)
+	at dotty.tools.dotc.core.Types$CachedOrType.<init>(Types.scala:2778)
+	at dotty.tools.dotc.core.Types$OrType$.apply(Types.scala:2783)
+	at dotty.tools.dotc.core.TypeComparer.$anonfun$orType$1(TypeComparer.scala:1693)
+	at dotty.tools.dotc.core.TypeComparer.liftIfHK(TypeComparer.scala:1707)
+	at dotty.tools.dotc.core.TypeComparer.orType(TypeComparer.scala:1693)
+	at dotty.tools.dotc.core.TypeComparer.$anonfun$lub$2(TypeComparer.scala:1517)
+	at dotty.tools.dotc.reporting.trace$.apply(trace.scala:40)
+	at dotty.tools.dotc.core.TypeComparer.lub(TypeComparer.scala:1501)
+	at dotty.tools.dotc.core.Types$Type.$anonfun$$bar$1(Types.scala:960)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:37)
+	at dotty.tools.dotc.core.Types$Type.$bar(Types.scala:960)
+	at dotty.tools.dotc.core.Types$TypeBounds.$bar(Types.scala:3991)
+	at dotty.tools.dotc.core.TypeComparer.$anonfun$orType$2(TypeComparer.scala:1693)
+	at dotty.tools.dotc.core.TypeComparer.$anonfun$liftIfHK$5(TypeComparer.scala:1720)
+	at dotty.tools.dotc.core.Types$HKTypeLambda.<init>(Types.scala:3279)
+	at dotty.tools.dotc.core.Types$HKTypeLambda$.apply(Types.scala:3333)
+	at dotty.tools.dotc.core.TypeComparer.liftIfHK(TypeComparer.scala:1715)
+	at dotty.tools.dotc.core.TypeComparer.orType(TypeComparer.scala:1693)
+	at dotty.tools.dotc.typer.Namer$ClassCompleter.refineOpaqueCompanionSelfType$1(Namer.scala:1052)
+	at dotty.tools.dotc.typer.Namer$ClassCompleter.completeInCreationContext(Namer.scala:1059)
+	at dotty.tools.dotc.typer.Namer$Completer.complete(Namer.scala:796)
+	at dotty.tools.dotc.core.SymDenotations$SymDenotation.completeFrom(SymDenotations.scala:236)
+```
+
+---
+
+Amusingly, this gives the same assertion (with a very similar stacktrace):
+```scala
+def x(): Unit = {
+    List(Array()) => 
+}
+```
+```scala
+assertion failure for (implicit evidence$2: ClassTag[T]): Array[T] <:< A, frozen = false
+assertion failure for (implicit evidence$2: ClassTag[T]): Array[T] <:< A, frozen = false
+exception occurred while typechecking test.scala
+exception occurred while compiling test.scala
+java.lang.AssertionError: assertion failed: AppliedType(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Array),List(TypeVar(TypeParamRef(T)))) ImplicitMethodType(List(evidence$2), List(AppliedType(TypeRef(ThisType(TypeRef(NoPrefix,module class reflect)),class ClassTag),List(TypeVar(TypeParamRef(T))))), AppliedType(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Array),List(TypeVar(TypeParamRef(T))))) while compiling test.scala
+Exception in thread "main" java.lang.AssertionError: assertion failed: AppliedType(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Array),List(TypeVar(TypeParamRef(T)))) ImplicitMethodType(List(evidence$2), List(AppliedType(TypeRef(ThisType(TypeRef(NoPrefix,module class reflect)),class ClassTag),List(TypeVar(TypeParamRef(T))))), AppliedType(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Array),List(TypeVar(TypeParamRef(T)))))
+	at scala.Predef$.assert(Predef.scala:223)
+	at dotty.tools.dotc.core.Types$OrType.<init>(Types.scala:2750)
+	at dotty.tools.dotc.core.Types$CachedOrType.<init>(Types.scala:2778)
+	at dotty.tools.dotc.core.Types$OrType$.apply(Types.scala:2783)
+	at dotty.tools.dotc.core.TypeComparer.$anonfun$orType$1(TypeComparer.scala:1693)
+	at dotty.tools.dotc.core.TypeComparer.liftIfHK(TypeComparer.scala:1707)
+	at dotty.tools.dotc.core.TypeComparer.orType(TypeComparer.scala:1693)
+	at dotty.tools.dotc.core.TypeComparer.$anonfun$lub$2(TypeComparer.scala:1517)
+	at dotty.tools.dotc.reporting.trace$.apply(trace.scala:40)
+	at dotty.tools.dotc.core.TypeComparer.lub(TypeComparer.scala:1501)
+	at dotty.tools.dotc.core.Types$Type.$anonfun$$bar$1(Types.scala:960)
+	at dotty.tools.dotc.util.Stats$.track(Stats.scala:37)
+	at dotty.tools.dotc.core.Types$Type.$bar(Types.scala:960)
+	at dotty.tools.dotc.core.ConstraintHandling.addOneBound(ConstraintHandling.scala:105)
+	at dotty.tools.dotc.core.ConstraintHandling.addOneBound$(ConstraintHandling.scala:69)
+	at dotty.tools.dotc.core.TypeComparer.addOneBound(TypeComparer.scala:28)
+	at dotty.tools.dotc.core.ConstraintHandling.addLowerBound(ConstraintHandling.scala:140)
+	at dotty.tools.dotc.core.ConstraintHandling.addLowerBound$(ConstraintHandling.scala:135)
+	at dotty.tools.dotc.core.TypeComparer.addLowerBound(TypeComparer.scala:28)
+	at dotty.tools.dotc.core.ConstraintHandling.addConstraint(ConstraintHandling.scala:503)
+	at dotty.tools.dotc.core.ConstraintHandling.addConstraint$(ConstraintHandling.scala:394)
+```
+but it looks like it silently drops
+```scala
+assertion failure for (implicit evidence$2: ClassTag[T]): Array[T] <:< A, frozen = false
+```

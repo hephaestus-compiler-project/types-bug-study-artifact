@@ -1,0 +1,25 @@
+A new warning is appearing since the previous RC and the one today.
+
+for this call:
+
+```
+open class Parser<T>(val name: String) {}
+
+addSingleton(Parser<String>("one-string"))
+```
+
+to 
+
+```
+public inline fun <reified T : Any> InjektRegistry.addSingleton(singleInstance: T) {
+    addSingleton(fullType<T>(), singleInstance)
+}
+```
+
+I now get warnings like:
+
+> Warning:(28, 13) Kotlin: It may be not safe to use 'uy.kohesive.injekt.tests.TestGithub13.Parser<kotlin.String>' as an argument for a reified type parameter. Use a non-generic type or * if possible
+
+This makes every single inline function with reified parameters look evil.  They DO receive full type info in the reified parameter just fine, the warning is wrong.  It is misleading, scary, and the "use generic type" does resolve it, instead just breaks the persons code.
+
+(related to KT-6484?  @udelov you played with that issue the other day, maybe someone did the wrong thing here?)

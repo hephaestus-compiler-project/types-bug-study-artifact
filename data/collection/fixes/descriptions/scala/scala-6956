@@ -1,0 +1,71 @@
+This one is trickier, as it requires the pattern matcher and the backend to agree that tableswitches can be generated for something other than literals:
+
+```scala
+$ cat testTableSwitch.scala 
+package test.switch
+
+object Test {
+  private[this] final val ONE = 1
+
+  def switchBad(i: Byte): Int = i match {
+    case ONE => 1
+    case 2 => 2
+    case 3 => 3
+    case _ => 0
+  }
+
+  def switchOkay(i: Byte): Int = i match {
+    case 1 => 1
+    case 2 => 2
+    case 3 => 3
+    case _ => 0
+  }
+}
+
+$ ../build/quick/bin/scalac testTableSwitch.scala
+
+$ javap -classpath . -c 'test.switch.Test$'
+Compiled from "testTableSwitch.scala"
+public final class test.switch.Test$ {
+  public static final test.switch.Test$ MODULE$;
+
+  public static {};
+    Code:
+       0: new           #2                  // class test/switch/Test$
+       3: invokespecial #12                 // Method "<init>":()V
+       6: return        
+
+  public int switchBad(byte);
+    Code:
+       0: iload_1       
+       1: istore_2      
+       2: iconst_1      
+       3: iload_2       
+       4: if_icmpne     15
+     ... comparing with each constant ...
+      43: iconst_0      
+      44: istore        4
+      46: iload         4
+      48: ireturn       
+
+  public int switchOkay(byte);
+    Code:
+       0: iload_1       
+       1: istore_2      
+       2: iload_2       
+       3: tableswitch   { // 1 to 3
+                     1: 40
+                     2: 36
+                     3: 32
+               default: 28
+          }
+      28: iconst_0      
+      29: goto          41
+      32: iconst_3      
+      33: goto          41
+      36: iconst_2      
+      37: goto          41
+      40: iconst_1      
+      41: ireturn       
+}
+```

@@ -1,0 +1,31 @@
+From Neal Gafter:
+
+The following demonstrates a bug in javac's handling of wildcard types that results in a hole in the type system. javac accepts this program without even a warning but it blows up with a class cast error at runtime.  The Java compiler for Eclipse rejects this code.
+
+import java.util.*;
+
+class Comp {
+  static <T> Comparator<T> compound(final Iterable<? extends Comparator<? super T>> it) {
+    return new Comparator<T>() {
+      public int compare(T t1, T t2) {
+        for (Comparator<? super T> c : it) {
+          int r = c.compare(t1, t2);
+          if (r != 0) return r;
+        }
+        return 0;
+      }
+    };
+  }
+  public static void main(String[] args) {
+    List<Comparator<?>> x = new ArrayList<Comparator<?>>();
+    Comparator<Integer> c1 = new Comparator<Integer>() {
+      public int compare(Integer i1, Integer i2) {
+        return i1.compareTo(i2);
+      }
+    };
+    x.add(c1);
+    x.add(String.CASE_INSENSITIVE_ORDER);
+    Comparator<String> c3 = compound(x);
+    c3.compare("foo", "bar");
+  }
+}

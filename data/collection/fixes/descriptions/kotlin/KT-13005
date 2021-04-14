@@ -1,0 +1,29 @@
+```kotlin
+package test
+
+interface IBase {
+    fun foo(): Any
+}
+
+interface IDerived : IBase {
+    override fun foo(): String
+}
+
+class Broken(val b: IBase) : IBase by b, IDerived
+
+fun useDerived(d: IDerived) {
+    println(d.foo())
+}
+
+fun main(args: Array<String>) {
+    val broken = Broken(object : IBase { override fun foo(): Any = 42 })
+    useDerived(broken)
+}
+```
+
+Exception in thread "main" java.lang.ClassCastException: java.lang.Integer cannot be cast to java.lang.String
+	at test.Broken.foo(TestMe.kt:11)
+	at test.TestMeKt.useDerived(TestMe.kt:14)
+	at test.TestMeKt.main(TestMe.kt:19)
+
+Looks like this should be a compilation error.

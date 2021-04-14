@@ -1,0 +1,29 @@
+```scala
+scala> def foo = { lazy val bar: Unit = { println("Hello") }; bar }
+def foo: Unit
+
+scala> bar
+// nothing happen
+```
+
+Given:
+```scala
+class Test {
+  def foo = {
+    lazy val bar: Unit = println("Hello")
+    bar
+  }
+}
+```
+After erasure:
+```scala
+class Test() {
+  def foo(): Unit = {
+    lazy <accessor> def bar(): scala.runtime.BoxedUnit = {
+      println("Hello")
+      scala.runtime.BoxedUnit$#UNIT
+    }
+    () // no more call to `bar`
+  }
+}
+```

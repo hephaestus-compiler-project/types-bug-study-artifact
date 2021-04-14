@@ -1,0 +1,112 @@
+Objects are singletons, thus they can't have a reference to an outer classes
+```
+class A {
+    val x = "OK"
+
+    inner class B {
+        object Q { // must be prohibited
+            fun foo() = x
+        }
+    }
+}
+
+fun main(args: Array<String>) {
+    println(A.B.Q.foo())
+}
+```
+Error:Kotlin: [Internal Error] org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: Failed to generate function foo
+Cause: Don't know how to generate outer expression for lazy class Q
+File being compiled and position: (30,13) in /home/sufix/work/kotlin-experiments/src/q.kt
+PsiElement: fun foo() = x
+The root cause was thrown at: CodegenContext.java:224
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genSimpleMember(MemberCodegen.java:199)
+	at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateDeclaration(ClassBodyCodegen.java:133)
+	at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateBody(ClassBodyCodegen.java:76)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:127)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:285)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:269)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:295)
+	at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateDeclaration(ClassBodyCodegen.java:140)
+	at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateBody(ClassBodyCodegen.java:68)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:127)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:285)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:269)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:295)
+	at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateDeclaration(ClassBodyCodegen.java:140)
+	at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateBody(ClassBodyCodegen.java:68)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:127)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:285)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:269)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateClassOrObject(PackageCodegenImpl.java:162)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateClassesAndObjectsInFile(PackageCodegenImpl.java:86)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateFile(PackageCodegenImpl.java:124)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generate(PackageCodegenImpl.java:66)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.generatePackage(KotlinCodegenFacade.java:99)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.doGenerateFiles(KotlinCodegenFacade.java:77)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.compileCorrectFiles(KotlinCodegenFacade.java:44)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.kt:417)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules(KotlinToJVMBytecodeCompiler.kt:151)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:170)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:55)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:192)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.execCompiler(CompileServiceImpl.kt:391)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.access$execCompiler(CompileServiceImpl.kt:95)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$compile$1$1.invoke(CompileServiceImpl.kt:354)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$compile$1$1.invoke(CompileServiceImpl.kt:95)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$2$$special$$inlined$withValidClientOrSessionProxy$lambda$1.invoke(CompileServiceImpl.kt:717)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$2$$special$$inlined$withValidClientOrSessionProxy$lambda$1.invoke(CompileServiceImpl.kt:95)
+	at org.jetbrains.kotlin.daemon.common.DummyProfiler.withMeasure(PerfUtils.kt:137)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.checkedCompile(CompileServiceImpl.kt:744)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.access$checkedCompile(CompileServiceImpl.kt:95)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$2.invoke(CompileServiceImpl.kt:716)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$2.invoke(CompileServiceImpl.kt:95)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.ifAlive(CompileServiceImpl.kt:897)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.ifAlive$default(CompileServiceImpl.kt:784)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.doCompile(CompileServiceImpl.kt:710)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.access$doCompile(CompileServiceImpl.kt:95)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$compile$1.invoke(CompileServiceImpl.kt:352)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$compile$1.invoke(CompileServiceImpl.kt:95)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.ifAlive(CompileServiceImpl.kt:897)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.ifAlive$default(CompileServiceImpl.kt:784)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:331)
+	at sun.reflect.GeneratedMethodAccessor61.invoke(Unknown Source)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:324)
+	at sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:568)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:826)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:683)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:682)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+Caused by: java.lang.UnsupportedOperationException: Don't know how to generate outer expression for lazy class Q
+	at org.jetbrains.kotlin.codegen.context.CodegenContext.getOuterExpression(CodegenContext.java:224)
+	at org.jetbrains.kotlin.codegen.context.CodegenContext.getOuterExpression(CodegenContext.java:218)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.generateThisOrOuter(ExpressionCodegen.java:3174)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.generateThisOrOuter(ExpressionCodegen.java:3130)
+	at org.jetbrains.kotlin.codegen.StackValue$ThisOuter.putSelector(StackValue.java:1442)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:108)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:101)
+	at org.jetbrains.kotlin.codegen.StackValue$CallReceiver.putSelector(StackValue.java:1589)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:108)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:101)
+	at org.jetbrains.kotlin.codegen.StackValue$StackValueWithSimpleReceiver.putReceiver(StackValue.java:1626)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:106)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:101)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.putStackValue(ExpressionCodegen.java:349)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:334)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.returnExpression(ExpressionCodegen.java:2256)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$FunctionDefault.doGenerateBody(FunctionGenerationStrategy.java:49)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$CodegenBased.generateBody(FunctionGenerationStrategy.java:69)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:489)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:250)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:175)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.gen(FunctionCodegen.java:146)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genSimpleMember(MemberCodegen.java:190)
+	... 65 more

@@ -1,0 +1,41 @@
+In the below code, pattern matching silently upcasts invariant type Exp, from Exp[Double] to Exp[Any] even though Exp is invariant.
+
+```scala
+case class Man[T]()
+implicit def man[T] = Man[T]()
+
+abstract class Exp[T:Man] {
+  def mT = man[T]
+}
+
+case class Const[A:Man](x: A) extends Exp[A]
+
+case class Node[A:Man, B:Man](base: Exp[A]) extends Exp[B] {
+  def mA = man[A]
+  def mB = man[B]
+}
+
+val m = Node[Int, String](Node[Double, Int](Const(3.14)))
+
+val n = m match {
+  case Node(Node(t)) => t
+}
+//At the REPL we get
+//n: Exp[Any] = Const(3.14)
+
+//scala> n.mT
+//res0: Man[Any] = Man()
+```
+
+This example was shown to me by my colleague Cai Yufei; the above typing issue occurs when trying to write a type-correct map fusion in LMS-like scenarios - this explains the strange type for `Node` above.
+
+The use of primitive types above is irrelevant, as shown below:
+```scala
+scala> val m = Node[java.io.File, StringBuffer](Node[String, java.io.File](Const("a string")))
+m: Node[java.io.File,java.lang.StringBuffer] = Node(Node(Const(a string)))
+
+scala> val n = m match {
+     |   case Node(Node(t)) => t
+     | }
+n: Exp[Any] = Const(a string)
+```

@@ -1,0 +1,40 @@
+NOTE: I've marked the affected version as Unreleased-2.10.x since JIRA doesn't know about 2.10.0-M7 yet, but it is that specific version.
+
+This program causes the backend of the 2.10.0-M7 compiler to crash. I have no idea why, but I've marked a few things in the code that affect whether it crashes or not.
+
+```scala
+trait Crash {
+
+    // USE THIS VERSION OF rewrite AND WE GET THE CRASH
+    def rewrite (s : => String => String) (t : String) : String
+
+    // USE THIS VERSION OF rewrite AND THERE IS NO CRASH
+    // def rewrite (s : => String => String) : String => String
+
+    def rule (f : String => String) : String => String
+
+    def func : String => String = {
+        // PUT DECLARATION OF count HERE AND THERE IS NO CRASH
+        // var count = 0
+        rewrite {
+            // PUT DECLARATION OF count HERE AND WE GET THE CRASH
+            var count = 0
+            // THE REFERENCE TO count IN THE NEXT LINE IS NEEDED TO INDUCE THE CRASH
+            rule { case s => s + count.toString }
+        }
+    }
+
+}
+```
+
+The top part of the stack trace is as follows. I've attached the full log from sbt's "last" command.
+
+```scala
+symbol variable count does not exist in Crash$class.func
+	at scala.reflect.internal.SymbolTable.abort(SymbolTable.scala:48)
+	at scala.tools.nsc.Global.abort(Global.scala:246)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadIdent$1(GenICode.scala:1092)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1098)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1306)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1304)
+```

@@ -1,0 +1,58 @@
+It's probably a known issue but I couldn't find it. 
+Scala 2.12.4, Scala 2.12.6.
+
+    object Bug {
+      type S[A[_]] = A[A[Int]]
+      type F[A] = S[S] // StackOverflow
+      // type F = S[S] // this complains: cyclic aliasing or subtyping involving type S
+    }
+
+causes 
+
+    java.lang.StackOverflowError
+	at scala.reflect.internal.Types$SimpleTypeProxy.baseType(Types.scala:160)
+	at scala.reflect.internal.Types$SimpleTypeProxy.baseType$(Types.scala:160)
+	at scala.reflect.internal.Types$SingletonType.baseType(Types.scala:1095)
+	at scala.reflect.internal.tpe.TypeMaps$AsSeenFromMap.loop$4(TypeMaps.scala:680)
+	at scala.reflect.internal.tpe.TypeMaps$AsSeenFromMap.thisTypeAsSeen(TypeMaps.scala:686)
+	at scala.reflect.internal.tpe.TypeMaps$AsSeenFromMap.apply(TypeMaps.scala:481)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:102)
+	at scala.reflect.internal.tpe.TypeMaps$AsSeenFromMap.apply(TypeMaps.scala:484)
+	at scala.reflect.internal.tpe.TypeMaps$AsSeenFromMap.apply(TypeMaps.scala:454)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:111)
+	at scala.reflect.internal.tpe.TypeMaps$AsSeenFromMap.apply(TypeMaps.scala:484)
+	at scala.reflect.internal.tpe.TypeMaps$AsSeenFromMap.apply(TypeMaps.scala:454)
+	at scala.reflect.internal.tpe.TypeMaps$TypeMap.mapOver(TypeMaps.scala:111)
+	at scala.reflect.internal.tpe.TypeMaps$AsSeenFromMap.apply(TypeMaps.scala:484)
+	at scala.reflect.internal.Types$Type.asSeenFrom(Types.scala:693)
+	at scala.reflect.internal.Types$TypeRef.seenFromOwnerInstantiated$1(Types.scala:2210)
+	at scala.reflect.internal.Types$TypeRef.relativize(Types.scala:2214)
+	at scala.reflect.internal.Types$AliasTypeRef.betaReduce(Types.scala:2037)
+	at scala.reflect.internal.Types$AliasTypeRef.betaReduce$(Types.scala:2037)
+	at scala.reflect.internal.Types$AliasArgsTypeRef.betaReduce(Types.scala:2430)
+	at scala.reflect.internal.Types$AliasTypeRef.normalizeImpl(Types.scala:2017)
+	at scala.reflect.internal.Types$AliasTypeRef.normalizeImpl$(Types.scala:2016)
+	at scala.reflect.internal.Types$AliasArgsTypeRef.normalizeImpl(Types.scala:2430)
+	at scala.reflect.internal.Types$TypeRef.normalize(Types.scala:2254)
+	at scala.reflect.internal.Types$AliasTypeRef.normalizeImpl(Types.scala:2017)
+	at scala.reflect.internal.Types$AliasTypeRef.normalizeImpl$(Types.scala:2016)
+	at scala.reflect.internal.Types$AliasArgsTypeRef.normalizeImpl(Types.scala:2430)
+	at scala.reflect.internal.Types$TypeRef.normalize(Types.scala:2254)
+	at scala.reflect.internal.Types$AliasTypeRef.normalizeImpl(Types.scala:2017)
+	at scala.reflect.internal.Types$AliasTypeRef.normalizeImpl$(Types.scala:2016)
+    ...
+
+
+Haskell manages to handle this correctly:
+
+```
+    GHCi, version 8.2.2: http://www.haskell.org/ghc/  :? for help
+   Prelude> type T a = a (a Int)
+   Prelude> type F c = T T
+
+<interactive>:2:14: error:
+    • Expected kind ‘* -> *’, but ‘T’ has kind ‘(* -> *) -> *’
+    • In the first argument of ‘T’, namely ‘T’
+      In the type ‘T T’
+      In the type declaration for ‘F’
+```

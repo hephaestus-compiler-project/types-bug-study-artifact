@@ -1,0 +1,21 @@
+Since https://github.com/scala/scala/pull/6502, the following is rejected:
+
+```scala
+object Test {
+  def main(args: Array[String]): Unit = {
+    val a : Nil.type = (Vector(): Any) match { case n @ Nil => n } // error
+  }
+}
+```
+... but the following isn't, and yet will crash in the same way:
+```scala
+object Test {
+  def main(args: Array[String]): Unit = {
+    val a : Nil.type = (Vector(): Any) match { case n @ (m @ Nil) => n } // error
+  }
+}
+```
+```scala
+java.lang.ClassCastException: scala.collection.immutable.Vector cannot be cast to scala.collection.immutable.Nil$
+        at Test$.main(i3200b.scala:3)
+```

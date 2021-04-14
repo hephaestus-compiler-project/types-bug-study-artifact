@@ -1,0 +1,97 @@
+Create two-module Kotlin-JVM project in IDEA, add file1.kt to module mod1, file2.kt to module mod2 (mod2 should have dependency on mod1) and try to build project.
+{code:lang=kotlin}
+// file1.kt in module mod1
+package pkg
+
+public interface ClassA {
+    public companion object {
+        public val DEFAULT = object : ClassA {}
+    }
+}
+{code}
+
+{code:lang=kotlin}
+// file2.kt in module mod2
+package pkg
+
+fun main(args: Array<String>) {
+    val obj = ClassA.DEFAULT
+}
+{code}
+
+Error:(3, 31) Kotlin: [Internal Error] org.jetbrains.kotlin.codegen.CompilationException: Back-end (JVM) Internal error: Error type encountered: [ERROR : ClassA$Companion$DEFAULT$1] (DeserializedType). One of the possible reasons may be that this type is not directly accessible from this module. To workaround this error, try adding an explicit dependency on the module or library which contains this type to the classpath
+Cause: Error type encountered: [ERROR : ClassA$Companion$DEFAULT$1] (DeserializedType). One of the possible reasons may be that this type is not directly accessible from this module. To workaround this error, try adding an explicit dependency on the module or library which contains this type to the classpath
+File being compiled and position: (3,31) in .../src/test/main.kt
+PsiElement: {
+    val obj = ClassA.DEFAULT
+}
+The root cause was thrown at: JetTypeMapper.java:303
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:299)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genStatement(ExpressionCodegen.java:319)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:309)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.returnExpression(ExpressionCodegen.java:1932)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$FunctionDefault.doGenerateBody(FunctionGenerationStrategy.java:50)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$CodegenBased.generateBody(FunctionGenerationStrategy.java:72)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:351)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:201)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:138)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.gen(FunctionCodegen.java:112)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genFunctionOrProperty(MemberCodegen.java:153)
+	at org.jetbrains.kotlin.codegen.PackagePartCodegen.generateBody(PackagePartCodegen.java:66)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:112)
+	at org.jetbrains.kotlin.codegen.PackageCodegen.generate(PackageCodegen.java:336)
+	at org.jetbrains.kotlin.codegen.PackageCodegen.generate(PackageCodegen.java:217)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.generatePackage(KotlinCodegenFacade.java:87)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.compileCorrectFiles(KotlinCodegenFacade.java:73)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.java:395)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules(KotlinToJVMBytecodeCompiler.java:150)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:171)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:54)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:174)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:135)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execAndOutputXml(CLICompiler.java:63)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+	at java.lang.reflect.Method.invoke(Method.java:597)
+	at org.jetbrains.kotlin.compilerRunner.CompilerRunnerUtil.invokeExecMethod(CompilerRunnerUtil.java:93)
+	at org.jetbrains.kotlin.compilerRunner.KotlinCompilerRunner.execCompiler(KotlinCompilerRunner.java:149)
+	at org.jetbrains.kotlin.compilerRunner.KotlinCompilerRunner.runCompiler(KotlinCompilerRunner.java:103)
+	at org.jetbrains.kotlin.compilerRunner.KotlinCompilerRunner.runK2JvmCompiler(KotlinCompilerRunner.java:68)
+	at org.jetbrains.kotlin.jps.build.KotlinBuilder.compileToJvm(KotlinBuilder.kt:540)
+	at org.jetbrains.kotlin.jps.build.KotlinBuilder.doCompileModuleChunk(KotlinBuilder.kt:282)
+	at org.jetbrains.kotlin.jps.build.KotlinBuilder.doBuild(KotlinBuilder.kt:171)
+	at org.jetbrains.kotlin.jps.build.KotlinBuilder.build(KotlinBuilder.kt:104)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.runModuleLevelBuilders(IncProjectBuilder.java:1210)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.runBuildersForChunk(IncProjectBuilder.java:884)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.buildTargetsChunk(IncProjectBuilder.java:956)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.buildChunkIfAffected(IncProjectBuilder.java:850)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.buildChunks(IncProjectBuilder.java:675)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.runBuild(IncProjectBuilder.java:373)
+	at org.jetbrains.jps.incremental.IncProjectBuilder.build(IncProjectBuilder.java:193)
+	at org.jetbrains.jps.cmdline.BuildRunner.runBuild(BuildRunner.java:137)
+	at org.jetbrains.jps.cmdline.BuildSession.runBuild(BuildSession.java:294)
+	at org.jetbrains.jps.cmdline.BuildSession.run(BuildSession.java:125)
+	at org.jetbrains.jps.cmdline.BuildMain$MyMessageHandler$1.run(BuildMain.java:232)
+	at org.jetbrains.jps.service.impl.SharedThreadPoolImpl$1.run(SharedThreadPoolImpl.java:42)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:439)
+	at java.util.concurrent.FutureTask$Sync.innerRun(FutureTask.java:303)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:138)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.runTask(ThreadPoolExecutor.java:895)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:918)
+	at java.lang.Thread.run(Thread.java:662)
+Caused by: java.lang.IllegalStateException: Error type encountered: [ERROR : ClassA$Companion$DEFAULT$1] (DeserializedType). One of the possible reasons may be that this type is not directly accessible from this module. To workaround this error, try adding an explicit dependency on the module or library which contains this type to the classpath
+	at org.jetbrains.kotlin.codegen.state.JetTypeMapper.mapType(JetTypeMapper.java:303)
+	at org.jetbrains.kotlin.codegen.state.JetTypeMapper.mapType(JetTypeMapper.java:260)
+	at org.jetbrains.kotlin.codegen.state.JetTypeMapper.mapType(JetTypeMapper.java:235)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.asmType(ExpressionCodegen.java:377)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.getVariableType(ExpressionCodegen.java:1625)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.putLocalVariableIntoFrameMap(ExpressionCodegen.java:1657)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.putDescriptorIntoFrameMap(ExpressionCodegen.java:1642)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.generateBlock(ExpressionCodegen.java:1589)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.generateBlock(ExpressionCodegen.java:1549)
+	at org.jetbrains.kotlin.codegen.CodegenStatementVisitor.visitBlockExpression(CodegenStatementVisitor.java:56)
+	at org.jetbrains.kotlin.codegen.CodegenStatementVisitor.visitBlockExpression(CodegenStatementVisitor.java:22)
+	at org.jetbrains.kotlin.psi.JetBlockExpression.accept(JetBlockExpression.java:44)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.genQualified(ExpressionCodegen.java:282)
+	... 53 more

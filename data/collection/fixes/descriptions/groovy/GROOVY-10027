@@ -1,0 +1,35 @@
+Consider the following:
+{code:groovy}
+import groovy.transform.NamedParam
+import groovy.transform.NamedParams
+
+@groovy.transform.TypeChecked
+//@Configuration
+class Config {
+  //@Value
+  String indexName
+  //@Bean
+  ResultType resultType() {  }
+  //@Bean
+  def facetApplier() { new FacetApplier(index:indexName, resultType:resultType()) }
+}
+//@Component
+class FacetApplier {
+    protected final String index
+    protected final ResultType resultType
+
+    FacetApplier(@NamedParams([
+        @NamedParam(value='index', type=String, required=true),
+        @NamedParam(value='resultType', type=ResultType, required=true)]) Map props)
+    {
+        this.index = props.index
+        this.resultType = props.resultType
+    }
+}
+class ResultType {
+}
+{code}
+
+Constructor call expression "new FacetApplier(index:indexName, resultType:resultType())" has static type checking error for "resultType" named parameter.  {{[Static type checking] - parameter for named arg 'resultType' has type 'java.lang.Object' but expected 'ResultType'.}}
+
+If {{resultType()}} is cast or replaced with a variable, the error goes away.

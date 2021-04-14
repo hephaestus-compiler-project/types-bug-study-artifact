@@ -1,0 +1,19 @@
+Consider this code:
+
+```kotlin
+open class Foo
+
+class Bar : Foo()
+
+fun findByName(name: String): Foo? = TODO()
+
+private fun findOrCreateBar(name: String): Bar =
+    findByName(name)?.let { existing ->
+        if (existing !is Bar) error("!!!")
+        existing as Bar
+    } ?: Bar()
+```
+
+In the line 10, there is a warning on the `existing as Bar` cast: 'No cast needed'
+
+However, removing this cast leads to an error where the whole `.let { ... }` expression is typed as `Foo`, not `Bar` as one would expect.

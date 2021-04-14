@@ -1,0 +1,42 @@
+Pattern matching against a tuple of `Enumeration` values complains with "match may not be exhaustive" even if all possible combinations are included. 
+
+In the console output below, I create an `Enumeration` with two values and show that I do NOT get a warning for matching against the two possible values when I define `fn`. Then I introduce a second 2-value `Enumeration` and pattern match against a tuple of my two enums. Even though I have all 4 possible combinations, I still get a compiler warning when I define `fn2`.
+
+I used Scala 2.12.4 and sbt 0.13.15.
+
+```
+Welcome to Scala 2.12.4 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_151).
+Type in expressions for evaluation. Or try :help.
+
+scala> object MyEnum extends Enumeration {
+     | val e1 = Value("e1")
+     | val e2 = Value("e2")
+     | }
+defined object MyEnum
+
+scala> def fn(e: MyEnum.Value) = e match {
+     | case MyEnum.e1 => "1"
+     | case MyEnum.e2 => "2"
+     | }
+fn: (e: MyEnum.Value)String
+
+scala> object MyOtherEnum extends Enumeration { 
+     | val e3 = Value("e3")
+     | val e4 = Value("e4")
+     | }
+defined object MyOtherEnum
+
+scala> def fn2(e: MyEnum.Value, o: MyOtherEnum.Value) = (e, o) match {
+     | case (MyEnum.e1, MyOtherEnum.e3) => "4"
+     | case (MyEnum.e1, MyOtherEnum.e4) => "5"
+     | case (MyEnum.e2, MyOtherEnum.e3) => "6"
+     | case (MyEnum.e2, MyOtherEnum.e4) => "7"
+     | }
+<console>:13: warning: match may not be exhaustive.
+It would fail on the following inputs: (Value(), _), (_, Value()), (_, _)
+       def fn2(e: MyEnum.Value, o: MyOtherEnum.Value) = (e, o) match {
+                                                        ^
+fn2: (e: MyEnum.Value, o: MyOtherEnum.Value)String
+
+scala> 
+```

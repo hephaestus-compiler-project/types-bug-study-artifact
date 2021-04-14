@@ -1,0 +1,148 @@
+## Minimized code
+
+```Scala
+class B(y: Int) extends A(new C(y){})
+
+class A(c: C)
+
+abstract class C(y: Int) {
+  def x: Int = y
+}
+```
+
+Compiles in scala 2.13.2, but hangs in dotty. 
+
+## Output (click arrow to expand)
+Output of  `dotc -Xprint:all -d out test5.scala`
+<details>
+
+```
+dotc -Xprint:all -d out test5.scala
+
+package <empty> {
+  class B(y: Int) extends A(
+    {
+      final class $anon() extends C(B.this.y) {}
+      new $anon():C
+    }
+  ) {
+    private[this] val y: Int
+  }
+  class A(c: C) extends Object() {
+    private[this] val c: C
+  }
+  abstract class C(y: Int) extends Object() {
+    private[this] val y: Int
+    def x: Int = C.this.y
+  }
+}
+result of test5.scala after inlinedPositions:
+  Unchanged since typer
+result of test5.scala after staging:
+  Unchanged since typer
+result of test5.scala after posttyper:
+package <empty> {
+  @scala.annotation.internal.SourceFile("test5.scala") class B(y: Int) extends A
+    (
+  {
+    final class $anon() extends C(B.this.y) {}
+    new $anon():C
+  }
+  ) {
+    private[this] val y: Int
+  }
+  @scala.annotation.internal.SourceFile("test5.scala") class A(c: C) extends 
+    Object
+  () {
+    private[this] val c: C
+  }
+  @scala.annotation.internal.SourceFile("test5.scala") abstract class C(y: Int)
+     extends
+   Object() {
+    private[this] val y: Int
+    def x: Int = C.this.y
+  }
+}
+result of test5.scala after pickler:
+  Unchanged since posttyper
+result of test5.scala after reifyQuotes:
+  Unchanged since posttyper
+result of test5.scala after MegaPhase{firstTransform, checkReentrant, elimPackagePrefixes, cookComments, checkStatic, betaReduce}:
+package <empty> {
+  @scala.annotation.internal.SourceFile("test5.scala") class B(y: Int) extends A
+    (
+  {
+    final class $anon() extends C(B.this.y) {}
+    new C {...}():C
+  }
+  ) {
+    private[this] val y: Int
+  }
+  @scala.annotation.internal.SourceFile("test5.scala") class A(c: C) extends 
+    Object
+  () {
+    private[this] val c: C
+  }
+  @scala.annotation.internal.SourceFile("test5.scala") abstract class C(y: Int)
+     extends
+   Object() {
+    private[this] val y: Int
+    def x: Int = C.this.y
+  }
+}
+result of test5.scala after MegaPhase{completeJavaEnums, elimRepeated, expandSAMs, protectedAccessors, extmethods, cacheAliasImplicits, byNameClosures, hoistSuperArgs, classOf, refchecks}:
+package <empty> {
+  @scala.annotation.internal.SourceFile("test5.scala") class B(y: Int) extends A
+    (
+  B#B$superArg$1(this.y)) {
+    private[this] val y: Int
+    private <static> def B$superArg$1(y: Int): C = 
+      {
+        final class $anon() extends C($anon$superArg$1()) {}
+        private def $anon$superArg$1(): (y : Int) = B.this.y
+        new C {...}():C
+      }
+  }
+  @scala.annotation.internal.SourceFile("test5.scala") class A(c: C) extends 
+    Object
+  () {
+    private[this] val c: C
+  }
+  @scala.annotation.internal.SourceFile("test5.scala") abstract class C(y: Int)
+     extends
+   Object() {
+    private[this] val y: Int
+    def x: Int = C.this.y
+  }
+}
+result of test5.scala after MegaPhase{elimOpaque, tryCatchPatterns, patternMatcher, explicitOuter, explicitSelf, stringInterpolatorOpt, crossCast}:
+  Unchanged since MegaPhase{completeJavaEnums, elimRepeated, expandSAMs, protectedAccessors, extmethods, cacheAliasImplicits, byNameClosures, hoistSuperArgs, classOf, refchecks}
+result of test5.scala after MegaPhase{pruneErasedDefs, inlinePatterns, vcInlineMethods, seqLiterals, intercepted, getters, elimByName, liftTry, collectNullableFields, elimOuterSelect, augmentScala2Traits, resolveSuper, functionXXLForwarders, paramForwarding, genericTuples, arrayConstructors}:
+package <empty> {
+  @scala.annotation.internal.SourceFile("test5.scala") class B(y: Int) extends A
+    (
+  B#B$superArg$1(this.y)) {
+    private val y: Int
+    private <static> def B$superArg$1(y: Int): C = 
+      {
+        final class $anon() extends C($anon$superArg$1()) {}
+        private def $anon$superArg$1(): (y : Int) = B.this.y
+        new C {...}():C
+      }
+  }
+  @scala.annotation.internal.SourceFile("test5.scala") class A(c: C) extends 
+    Object
+  () {
+    private val c: C
+  }
+  @scala.annotation.internal.SourceFile("test5.scala") abstract class C(y: Int)
+     extends
+   Object() {
+    private val y: Int
+    def x: Int = C.this.y
+  }
+}
+```
+
+... hangs forever.
+</details>

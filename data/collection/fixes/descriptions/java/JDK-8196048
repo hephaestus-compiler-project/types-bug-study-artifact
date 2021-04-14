@@ -1,0 +1,108 @@
+FULL PRODUCT VERSION :
+java version "9.0.4"
+Java(TM) SE Runtime Environment (build 9.0.4+11)
+Java HotSpot(TM) 64-Bit Server VM (build 9.0.4+11, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Darwin hostname 17.3.0 Darwin Kernel Version 17.3.0: Thu Nov  9 18:09:22 PST 2017; root:xnu-4570.31.3~1/RELEASE_X86_64 x86_64
+
+A DESCRIPTION OF THE PROBLEM :
+In case when there are generic exception types defined for a function and an implementing method can throw multiple exception types, the compiler will not recognize all exception types, and will report a confusing compilation issue even when the necessary try-catch blocks are in place:
+
+Java9Bug.java:12: error: unreported exception UnsupportedEncodingException; must be caught or declared to be thrown
+                    return Optional.of(x).map(rethrowFunction(z -> createZ(z)));
+                                                                          ^
+
+REGRESSION.  Last worked in version 8u162
+
+ADDITIONAL REGRESSION INFORMATION: 
+java version "1.8.0_162"
+Java(TM) SE Runtime Environment (build 1.8.0_162-b12)
+Java HotSpot(TM) 64-Bit Server VM (build 25.162-b12, mixed mode)
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+* Create Java9Bug.java file with the contents of the provided source code
+* Execute: javac Java9Bug.java
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+The compilation succeeds with Java 9 as well
+ACTUAL -
+The compilation works with Java 8, but does not work with Java 9.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+Java9Bug.java:12: error: unreported exception UnsupportedEncodingException; must be caught or declared to be thrown
+                    return Optional.of(x).map(rethrowFunction(z -> createZ(z)));
+                                                                          ^
+1 error
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import java.io.UnsupportedEncodingException;
+import java.net.BindException;
+import java.util.function.Function;
+import java.util.Optional;
+import java.util.function.BiFunction;
+
+public class Java9Bug {
+
+    public static void main(String[] args) {
+        try {
+            BiFunction<String, String, Optional<String>> function = rethrowBiFunction((x, y) -> {
+                    return Optional.of(x).map(rethrowFunction(z -> createZ(z)));
+            });
+            System.out.println(function.apply("hello", "world"));
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    public static String createZ(String x) throws UnsupportedEncodingException, BindException {
+        return x + " world";
+    }
+
+    public static <T, R, E extends Exception> Function<T, R> rethrowFunction(ThrowingFunction<T, R, E> function) throws E  {
+        return t -> {
+            try {
+                return function.apply(t);
+            } catch (Exception exception) {
+                throwActualException(exception);
+                return null;
+            }
+        };
+    }
+
+    public static <T, U, R, E extends Exception> BiFunction<T, U, R> rethrowBiFunction(
+            ThrowingBiFunction<T, U, R, E> function) throws E  {
+        return (t, u) -> {
+            try {
+                return function.apply(t, u);
+            } catch (Exception exception) {
+                throwActualException(exception);
+                return null;
+            }
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <E extends Exception> void throwActualException(Exception exception) throws E {
+        throw (E) exception;
+    }
+
+    @FunctionalInterface
+    public interface ThrowingBiFunction<T, U, R, E extends Exception> {
+        R apply(T t, U u) throws E;
+    }
+
+    @FunctionalInterface
+    public interface ThrowingFunction<T, R, E extends Exception> {
+        R apply(T t) throws E;
+    }
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+The only workaround appears to be to restructure the source code and rely less on lambda.
+

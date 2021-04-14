@@ -1,0 +1,29 @@
+```scala
+trait DeconstructorCommon[T >: Null <: Tree] {
+    var field: T = null
+    def get: this.type = this
+    def isEmpty: Boolean = field eq null
+    def unapply(s: T): this.type ={
+      field = s
+      this
+    }
+  }
+trait BlockDeconstructor extends DeconstructorCommon[Block]{
+    def _1: List[Tree] = field.stats
+    def _2: Tree = field.expr
+  }
+val Block = new BlockDeconstructor{}
+```
+
+now if used in example
+```scala
+def foo(tree: Tree) =  tree match {
+ case Block(e, e1) =>
+    foo(tree)
+    e1
+ case _ => tree 
+}
+```
+All references to e1 in this block will get rewritten to {code}Block._1{code}. But what happens if one calls foo on Block(Block(A, B), C). The value returned would be B instead of A.
+
+The problem manifests itself only in run-time and does it silently. So marking this critical.

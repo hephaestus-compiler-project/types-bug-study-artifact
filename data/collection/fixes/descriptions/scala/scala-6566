@@ -1,0 +1,48 @@
+Minimization is due to paulp,
+
+```scala
+object WhatsYourTypeIsMyType {
+  class TypeCheat[+T] { type MyType = T }
+
+  class Foo {
+    val tc = new TypeCheat[Foo]
+    var x: tc.MyType = _
+    def setX() = x = new Foo
+  }
+  class Bar extends Foo {
+    override val tc = new TypeCheat[Bar]
+    def unsound = this
+
+    setX()
+    println(x.unsound)
+  }
+  def main(args: Array[String]): Unit = new Bar
+}
+```
+
+Compiles and when run produces a CCE,
+
+```scala
+iles@lewis:scala$ scala-master -classpath . WhatsYourTypeIsMyType
+java.lang.ClassCastException: WhatsYourTypeIsMyType$Foo cannot be cast to WhatsYourTypeIsMyType$Bar
+        at WhatsYourTypeIsMyType$Bar.<init>(bug.scala:14)
+        at WhatsYourTypeIsMyType$.main(bug.scala:16)
+        at WhatsYourTypeIsMyType.main(bug.scala)
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:601)
+        at scala.tools.nsc.util.ScalaClassLoader$$anonfun$run$1.apply(ScalaClassLoader.scala:71)
+        at scala.tools.nsc.util.ScalaClassLoader$class.asContext(ScalaClassLoader.scala:31)
+        at scala.tools.nsc.util.ScalaClassLoader$URLClassLoader.asContext(ScalaClassLoader.scala:139)
+        at scala.tools.nsc.util.ScalaClassLoader$class.run(ScalaClassLoader.scala:71)
+        at scala.tools.nsc.util.ScalaClassLoader$URLClassLoader.run(ScalaClassLoader.scala:139)
+        at scala.tools.nsc.CommonRunner$class.run(ObjectRunner.scala:28)
+        at scala.tools.nsc.ObjectRunner$.run(ObjectRunner.scala:45)
+        at scala.tools.nsc.CommonRunner$class.runAndCatch(ObjectRunner.scala:35)
+        at scala.tools.nsc.ObjectRunner$.runAndCatch(ObjectRunner.scala:45)
+        at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:74)
+        at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:96)
+        at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:105)
+        at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+```

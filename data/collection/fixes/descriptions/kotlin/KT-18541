@@ -1,0 +1,77 @@
+# Classification
+
+**Type of change**
+- New errors are introduced
+
+**Motivation types**
+- Problematic usage patterns need to be discouraged/blocked
+  - Code is error-prone
+
+**Impact types**
+- Compilation. Some code that used to compile won't compile anymore
+
+**Detection and Migration modes**
+- All code locations affected by this change can be accurately detected statically
+- Migration can't be automated
+
+# Existing behavior
+
+## Code example
+
+No error is reported in the following case:
+
+```
+open class A {
+    open tailrec fun foo(count: Int) { // Note: open & tailrec modifiers
+        println("A.foo($count)")
+        if (count > 0) foo(count - 1)
+    }
+}
+
+class B : A() {
+    override fun foo(count: Int) {
+        println("B.foo($count)")
+    }
+    
+    fun callSuperFoo(count: Int) = super.foo(count)
+}
+
+fun main(args: Array<String>) {
+    B().callSuperFoo(1)
+}
+```
+
+## What's wrong with it
+
+Output of this program is:
+```
+A.foo(1)
+A.foo(0)
+```
+
+But if we remove `tailrec` modifier from function `A.foo` then it will be:
+```
+A.foo(1)
+B.foo(0)
+```
+
+Which is correct. First, function `foo` is called via super call: `super.foo(count)`, then function `foo` calls itself via virtual call.
+Version with the `tailrec` modifier works differently because the compiler optimized recursion and eliminated the virtual call to `foo`, see [docs](https://kotlinlang.org/docs/reference/functions.html#tail-recursive-functions) about `tailrec` modifier for details. 
+
+# Affected versions: when did the problem appear first?
+
+The problem exists since Kotlin 1.0
+
+# Proposed changes
+
+We propose reporting an error on `open` functions with `tailrec` modifier, so there will be no similar situations when virtual calls are eliminated by the compiler.
+
+# Impact
+
+The initial example will not compile anymore, but we assume that this code pattern is rare because of rarely used `tailrec` modifier and because of functions are final by default.
+
+# Migration plan
+
+- Report a warning in 1.3.x
+  - Report an error in progressive mode
+- Turn the warning into an error in 1.4

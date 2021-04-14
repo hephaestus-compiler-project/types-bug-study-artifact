@@ -1,0 +1,23 @@
+In the following lambda: 
+
+[1:33:03 PM] Brian Goetz:     static Runnable composeWithExceptions(Runnable a, Runnable b) {
+        return () -> {
+            try {
+                a.run();
+            }
+            catch (Throwable e1) {
+                try {
+                    b.run();
+                }
+                catch (Throwable e2) {
+                    e1.addSuppressed(e2);
+                }
+                finally {
+                    throw e1;
+                }
+            }
+            b.run();
+        };
+    }
+
+The compiler complains that throwing a Throwable is not allowed.  If the lambda is refactored to an inner class instance, enhanced rethrow allows e1 to be rethrown.  

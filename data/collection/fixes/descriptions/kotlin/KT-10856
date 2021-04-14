@@ -1,0 +1,39 @@
+private fun bindDependsOn(key: String) : Subscription {
+    val dependsOn = dependsOn.remove(key) ?: return MockSubscription()
+    return when(dependsOn) {
+        is OneWayPropertyBinding<*, *> -> dependsOn.bindTo(property<Any>(dependsOn.key))
+        is MultiplePropertyBinding<*> -> dependsOn.bindTo(properties(dependsOn.keys))
+        else -> MockSubscription()
+    }
+}
+
+private fun <T> property(key: String) : Property<T> {
+    val property: Property<T> = properties[key] as? Property<T> ?: throw RuntimeException("invalid key:$key for binding")
+    return property;
+}
+
+the line 4 of code above compile failed.  The code works well with version 1.0.0-beta-4589, but compile failed with eap 1.0.0-rc-1017
+
+bindTo function code is 
+
+public fun bindTo(property: Property<R>): Subscription {
+    if (observable != null) {
+        return observable!!.map { (converter!!).convert(it as Any) }
+                .doOnSubscribe { LogBind(key, "OneWay") }
+                .doOnUnsubscribe { LogUnbind(key, "OneWay") }
+                .subscribe(property.observer)
+    }
+
+    val ob = property.observable.map { backConverter!!.convert(it as Any) }
+            .doOnSubscribe { LogBind(key, "OneWay") }
+            .doOnUnsubscribe { LogUnbind(key, "OneWay") }
+            .doOnNext { LogOnNext(key, it) }
+
+    return if(!oneTime) ob.subscribe(observer) else ob.take(1).subscribe(observer)
+}
+
+Error message:
+
+Type mismatch: inferred type is com.benny.library.kbinding.bind.Property<kotlin.Any> but kotlin.Nothing was expected
+
+I don't know why it expect kotlin.Nothing

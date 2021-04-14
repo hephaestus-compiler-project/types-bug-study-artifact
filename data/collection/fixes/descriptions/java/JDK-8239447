@@ -1,0 +1,36 @@
+It's observed that from JDK 8 few tests from annotation processing started failing.
+Possibly this could be a side effect of JDK-8236210.
+
+FAILURE CASE :
+Below is the sample code throws the error during annotation processing
+==========================
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.math.BigInteger;
+public record S_Record(int x, BigInteger bigInt, R1 r1, float floatValue, @MyAnn(value=5) Character c, R1 recordInstance){}
+
+record R1(){}
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.RECORD_COMPONENT,ElementType.METHOD})
+@interface MyAnn {
+     int value() default 1;
+}
+==========================
+
+Error log :
+=======
+S_Record.java:11: error: duplicate element 'value' in annotation @MyAnn.
+public record S_Record(int x, BigInteger bigInt, R1 r1, float floatValue, @MyAnn(value=5) Character c, R1 recordInstance){}
+
+SUCCESS CASE:
+=============
+Noticed that when i add TYPE_USE to the available targets it works as expected.
+
+As per the jls -- "The implicitly declared accessor method is annotated with the annotation that appears on the corresponding record component, if this annotation type is applicable to a method declaration or type context"
+
+But it looks it works only for type context not for method declaration
+
+attached stand alone code for failure and success cases.

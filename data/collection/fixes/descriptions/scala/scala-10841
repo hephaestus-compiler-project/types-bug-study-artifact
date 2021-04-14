@@ -1,0 +1,25 @@
+As part of an effort to try and document when I get predictable red squigglies using FP in Scala, this is an example of something I hit in my day job. Could benefit from minimisation without the cats library.
+
+```scala
+import cats._, implicits._
+import cats.effect.Effect
+
+object RedSquiggles {
+  def red[F[_]: Effect](ss: List[String]): F[List[String]] = ss.traverse(b => bar(b))
+  def bar[F[_]: Effect](b: String): F[String] = ???
+}
+```
+
+This code does compile in the regular 2.12 batch compiler.
+
+There are several things going on here...
+
+1. `.traverse` is generated syntax, via the rules at https://github.com/mpilquist/simulacrum but is a binary dependency so macro-paradise should not be in play.
+2. `Traverse.traverse` (which is provided via `Traverse[List]`) https://github.com/typelevel/cats/blob/v1.1.0/core/src/main/scala/cats/Traverse.scala#L36 takes `Applicative[F]` (where `F` is defined on `red`)
+2. we are provided a `Monad[F]`, which extends `Applicative`
+
+My guess is that deep inside implicit search, there is a branch that somebody disabled for the presentation compiler. If so, I think we should enable it. The PC should not be behaving differently to the real compiler for implicit search: for extreme resolution cases we can set various checkpoints in the IDE to skip a derivation (if needed).
+
+This is not a "partial update" problem. This happens with a fresh presentation compiler, even if the underlying sources are compiled to binary and available on the classpath.
+
+// @tpolecat this is the sort of bug report that is useful for fixing the presentation compiler when used on FP codebases. Please add more. There is probably an easy fix, but finding the bug will take some time.

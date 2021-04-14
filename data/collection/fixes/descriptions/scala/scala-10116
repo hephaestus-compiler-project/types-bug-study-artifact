@@ -1,0 +1,30 @@
+The following code used to compile under 2.11.8. What is strange is that removing the `final` modifier from `Bar` is sufficient to make it compile under 2.12.1
+
+```scala
+$ scala-2.12.1/bin/scala
+Welcome to Scala 2.12.1 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_102).
+Type in expressions for evaluation. Or try :help.
+
+scala> import scala.language.higherKinds
+import scala.language.higherKinds
+
+scala> :paste
+// Entering paste mode (ctrl-D to finish)
+
+sealed trait Foo[F[_], A]
+final case class Bar[F[_]](f: F[Unit]) extends Foo[F, Unit]
+
+def f[F[_], A](foo: Foo[F, A]): Unit = foo match {
+  case Bar(f) => ()
+}
+
+// Exiting paste mode, now interpreting.
+
+<pastie>:16: error: constructor cannot be instantiated to expected type;
+ found   : Bar[F(in class Bar)]
+ required: Foo[F(in method f),A]
+         case Bar(f) => ()
+              ^
+
+scala> 
+```

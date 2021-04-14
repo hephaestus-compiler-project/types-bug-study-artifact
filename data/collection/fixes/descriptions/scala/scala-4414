@@ -1,0 +1,38 @@
+This occurs only when implicit value is pulled using parametrized types.
+
+Code to reproduce the problem:
+```scala
+package p {
+  package object a {
+    trait Type
+    implicit val someImplicit = (new Type{}, new Type{})
+    def parametrized[T](implicit i: (T, T)) = i._1
+  }
+  package a {
+    package object b {
+      //import a._ //workaround, works when package objects b is in a different file.
+      val f = parametrized[Type]
+    }
+  }
+}
+```
+
+There is only one implicit defined, however the compiler gives the following error.
+
+```scala
+Test.scala:10: error: ambiguous implicit values:
+ both value someImplicit in package a of type => (java.lang.Object with p.a.package.Type, java.lang.Object with p.a.package.Type)
+ and value someImplicit in package a of type => (java.lang.Object with p.a.package.Type, java.lang.Object with p.a.package.Type)
+ match expected type (p.a.package.Type, p.a.package.Type)
+      val f = parametrized[Type]
+                          ^
+one error found
+```
+
+The only implicit value creates ambiguity with itself.
+
+
+=== What versions of the following are you using? ===
+  - Scala: 2.8.1.final and 2.10.0.r24623
+  - Java: 6.24
+  - Operating system: Linux

@@ -1,0 +1,2795 @@
+FULL PRODUCT VERSION :
+java version "9-ea"
+Java(TM) SE Runtime Environment (build 9-ea+138)
+Java HotSpot(TM) 64-Bit Server VM (build 9-ea+138, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux xxxxx 3.10.0-327.28.2.el7.x86_64 #1 SMP Mon Jun 27 14:48:28 EDT 2016 x86_64 x86_64 x86_64 GNU/Linux
+
+
+A DESCRIPTION OF THE PROBLEM :
+I have a large system (millions of lines of code) that takes a few minutes to compile with jdk8u102, but more than an hour to compile with the latest Java 9 version (build 138).  I believe this has something to do with having a lot of interfaces that extend each other causing the new javac tiered attribution to behave extremely suboptimally.  Stack traces often look something like this:
+
+"main" #1 prio=5 os_prio=0 tid=0x00007f4db800f000 nid=0x1d97e runnable [0x00007f4dbedc8000]
+   java.lang.Thread.State: RUNNABLE
+	at com.sun.tools.javac.util.Iterators$CompoundIterator.hasNext(jdk.compiler@9-ea/Iterators.java:57)
+	at com.sun.tools.javac.util.Iterators$CompoundIterator.hasNext(jdk.compiler@9-ea/Iterators.java:57)
+	at com.sun.tools.javac.util.Iterators$CompoundIterator.hasNext(jdk.compiler@9-ea/Iterators.java:60)
+	at com.sun.tools.javac.util.Iterators$CompoundIterator.hasNext(jdk.compiler@9-ea/Iterators.java:60)
+	at com.sun.tools.javac.util.Iterators$CompoundIterator.hasNext(jdk.compiler@9-ea/Iterators.java:57)
+	at com.sun.tools.javac.util.Iterators$CompoundIterator.next(jdk.compiler@9-ea/Iterators.java:64)
+	at com.sun.tools.javac.util.Iterators$CompoundIterator.next(jdk.compiler@9-ea/Iterators.java:67)
+	at com.sun.tools.javac.comp.Check.checkOverrideClashes(jdk.compiler@9-ea/Check.java:2416)
+	at com.sun.tools.javac.comp.Attr.visitMethodDef(jdk.compiler@9-ea/Attr.java:963)
+	at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(jdk.compiler@9-ea/JCTree.java:852)
+	at com.sun.tools.javac.comp.Attr$ResultInfo.attr(jdk.compiler@9-ea/Attr.java:501)
+	at com.sun.tools.javac.comp.Attr.attribTree(jdk.compiler@9-ea/Attr.java:639)
+	at com.sun.tools.javac.comp.Attr.attribStat(jdk.compiler@9-ea/Attr.java:708)
+	at com.sun.tools.javac.comp.Attr.attribClassBody(jdk.compiler@9-ea/Attr.java:4509)
+	at com.sun.tools.javac.comp.Attr.attribClass(jdk.compiler@9-ea/Attr.java:4413)
+	at com.sun.tools.javac.comp.Attr.attribClass(jdk.compiler@9-ea/Attr.java:4342)
+	at com.sun.tools.javac.comp.Attr.attrib(jdk.compiler@9-ea/Attr.java:4287)
+	at com.sun.tools.javac.main.JavaCompiler.attribute(jdk.compiler@9-ea/JavaCompiler.java:1315)
+	at com.sun.tools.javac.main.JavaCompiler.compile(jdk.compiler@9-ea/JavaCompiler.java:948)
+	at com.sun.tools.javac.main.Main.compile(jdk.compiler@9-ea/Main.java:292)
+	at com.sun.tools.javac.main.Main.compile(jdk.compiler@9-ea/Main.java:148)
+	at com.sun.tools.javac.Main.compile(jdk.compiler@9-ea/Main.java:55)
+	at com.sun.tools.javac.Main.main(jdk.compiler@9-ea/Main.java:41)
+
+
+REGRESSION.  Last worked in version 8u102
+
+ADDITIONAL REGRESSION INFORMATION: 
+Version exhibiting the problem:
+java version "9-ea"
+Java(TM) SE Runtime Environment (build 9-ea+138)
+Java HotSpot(TM) 64-Bit Server VM (build 9-ea+138, mixed mode)
+
+Version where it builds much faster:
+java version "1.8.0_102"
+Java(TM) SE Runtime Environment (build 1.8.0_102-b14)
+Java HotSpot(TM) 64-Bit Server VM (build 25.102-b14, mixed mode)
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+As noted earlier, it takes hours to build my large project with jdk9, but only minutes with jdk8.  However, I can't submit my entire source code for intellectual property protection reasons.  
+
+That said, I've created a small sample file that exhibits the issue, though not to the same extent.  If you build the attached code with jdk8 (using simply "javac Selection.java"), you'll see that it takes only about a third of the time it takes to build the same code with jdk9.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+I would expect the time of the javac run to be about the same between jdk8 and jdk9.  
+ACTUAL -
+On my machine, I see the following:
+
+$ time /user/foo/jdk9/bin/javac Selection.java
+
+real	1m20.883s
+user	1m33.011s
+sys	0m0.766s
+
+$ time /user/foo/jdk8/bin/javac Selection.java
+
+real	0m26.745s
+user	0m39.239s
+sys	0m0.980s
+
+Note that jdk8 builds the file much, much faster.
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import java.io.*;
+import java.util.*;
+import java.util.function.*;
+
+class Fruit {
+    public AccountKey getAccountKey() { return null; }
+    public FactionKey getFactionKey() { return null; }
+}
+
+class AccountKey {
+}
+
+
+class BookKey {}
+class BrokerKey {}
+class FactionKey {}
+class EntityKey {}
+class InstrumentKey {}
+class PositionKey {}
+class OrderKey {}
+interface CollectionManager {}
+
+class ArrayUtil
+{
+    public static <T, R> R[] map(T[]               a,
+                                 Function<T,R>     f,
+                                 IntFunction <R[]> ctor)
+    {
+        return null;
+    }
+}
+
+
+abstract class AbstractSelection
+    implements Selection
+{
+}
+
+abstract class AbstractCompoundSelection<S extends Selection>
+    extends AbstractSelection
+{
+    protected List<S> getSelections()
+    {
+        return null;
+    }
+}
+
+abstract class AbstractAndSelection<S extends Selection>
+    extends AbstractCompoundSelection<S>
+{
+}
+
+abstract class AbstractOrSelection<S extends Selection>
+    extends AbstractCompoundSelection<S>
+{
+}
+
+abstract class AbstractNotSelection<S extends Selection>
+    extends AbstractCompoundSelection<S>
+{
+    protected S getSelectionToInvert() 
+    {
+        return null;
+    }
+}
+
+interface Selector
+{
+    public static interface AccountLegSelector
+        extends Selector,
+                FruitLegAppleSauceSelector,
+                FruitLegSelector,
+                QuarterFruitLegSelector
+    {
+        public Selection.AccountLegSelection getSelection();
+    }
+
+    public static interface AccountSelector
+        extends Selector,
+                AccountLegSelector,
+                FactionAccountSelector,
+                FruitLegAppleSauceSelector,
+                FruitLegSelector,
+                FruitSelector,
+                QuarterFruitLegSelector,
+                QuarterFruitSelector
+    {
+        public Selection.AccountSelection getSelection();
+    }
+
+    public static interface BookSelector
+        extends Selector,
+                FruitLegAppleSauceSelector,
+                FruitLegSelector,
+                FruitSelector,
+                QuarterFruitLegSelector,
+                QuarterFruitSelector
+    {
+        public Selection.BookSelection getSelection();
+    }
+
+    public static interface EntityLegSelector
+        extends Selector,
+                AccountLegSelector,
+                FruitLegAppleSauceSelector,
+                FruitLegSelector,
+                QuarterFruitLegSelector
+    {
+        public Selection.EntityLegSelection getSelection();
+    }
+
+    public static interface EntitySelector
+        extends Selector,
+                AccountLegSelector,
+                AccountSelector,
+                EntityLegSelector,
+                EntityGangSelector,
+                FactionAccountSelector,
+                FruitLegAppleSauceSelector,
+                FruitLegSelector,
+                FruitSelector,
+                QuarterFruitLegSelector,
+                QuarterFruitSelector
+    {
+        public Selection.EntitySelection getSelection();
+    }
+
+    public static interface EntityGangSelector
+        extends Selector,
+                AccountLegSelector,
+                AccountSelector,
+                FactionAccountSelector,
+                FruitLegAppleSauceSelector,
+                FruitLegSelector,
+                FruitSelector,
+                QuarterFruitLegSelector,
+                QuarterFruitSelector
+    {
+        public Selection.EntityGangSelection getSelection();
+    }
+
+    public static interface FactionAccountSelector
+        extends Selector,
+                FruitLegAppleSauceSelector,
+                FruitLegSelector,
+                FruitSelector,
+                QuarterFruitLegSelector,
+                QuarterFruitSelector
+    {
+        public Selection.FactionAccountSelection getSelection();
+    }
+
+    public static interface FactionLegSelector
+        extends Selector,
+                FruitLegAppleSauceSelector,
+                FruitLegSelector,
+                QuarterFruitLegSelector
+    {
+        public Selection.FactionLegSelection getSelection();
+    }
+
+    public static interface FactionSelector
+        extends Selector,
+                FactionAccountSelector,
+                FactionLegSelector,
+                FruitLegAppleSauceSelector,
+                FruitLegSelector,
+                FruitSelector,
+                QuarterFruitLegSelector,
+                QuarterFruitSelector
+    {
+        public Selection.FactionSelection getSelection();
+    }
+
+    public static interface LegSelector
+        extends Selector,
+                AccountLegSelector,
+                EntityLegSelector,
+                FactionLegSelector,
+                FruitLegAppleSauceSelector,
+                FruitLegSelector,
+                QuarterFruitLegSelector
+    {
+        public Selection.LegSelection getSelection();
+    }
+
+    public static interface FruitLegAppleSauceSelector
+        extends Selector
+    {
+        public Selection.FruitLegAppleSauceSelection getSelection();
+    }
+
+    public static interface FruitLegSelector
+        extends Selector,
+                FruitLegAppleSauceSelector,
+                QuarterFruitLegSelector
+    {
+        public Selection.FruitLegSelection getSelection();
+    }
+
+    public static interface FruitSelector
+        extends Selector,
+                FruitLegAppleSauceSelector,
+                FruitLegSelector,
+                QuarterFruitLegSelector,
+                QuarterFruitSelector
+    {
+        public Selection.FruitSelection getSelection();
+    }
+
+    public static interface GangSelector
+        extends Selector,
+                AccountLegSelector,
+                AccountSelector,
+                EntityGangSelector,
+                FactionAccountSelector,
+                FruitLegAppleSauceSelector,
+                FruitLegSelector,
+                FruitSelector,
+                QuarterFruitLegSelector,
+                QuarterFruitSelector,
+                QuarterGangSelector
+    {
+        public Selection.GangSelection getSelection();
+    }
+
+    public static interface QuarterFruitLegSelector
+        extends Selector
+    {
+        public Selection.QuarterFruitLegSelection getSelection();
+    }
+
+    public static interface QuarterFruitSelector
+        extends Selector,
+                QuarterFruitLegSelector
+    {
+        public Selection.QuarterFruitSelection getSelection();
+    }
+
+    public static interface QuarterGangSelector
+        extends Selector,
+                QuarterFruitLegSelector,
+                QuarterFruitSelector
+    {
+        public Selection.QuarterGangSelection getSelection();
+    }
+}
+
+public interface Selection
+{
+    public default void serialize(final OutputStream out)
+        throws IOException,
+               UnsupportedOperationException
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public default <S extends Selection> void deserialize(final InputStream in,
+                                                          final Class<S> klass)
+        throws IOException,
+               UnsupportedOperationException
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public default void serializeBinary(final DataOutput out)
+        throws IOException,
+               UnsupportedOperationException
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public default <S extends Selection> void deserializeBinary(final DataInput in,
+                                                                final Class<S> klass)
+        throws IOException,
+               UnsupportedOperationException
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public default boolean hasLegSelection()
+    {
+        return false;
+    }
+
+    public default String toString(CollectionManager cm)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public default String toInfixString(CollectionManager cm)
+    {
+        return toString(cm);
+    }
+
+    public default int compareTo(Selection that)
+    {
+        return 0;
+    }
+
+    public static interface AccountLegSelection
+        extends Selection,
+                Selector.AccountLegSelector,
+                FruitLegAppleSauceSelection,
+                FruitLegSelection,
+                QuarterFruitLegSelection
+    {
+        public boolean matchesAccountLeg(final CollectionManager cm, final AccountKey account, final int leg);
+
+        public default AccountLegSelection getSelection() { return this; }
+    }
+
+    public static interface AccountSelection
+        extends Selection,
+                Selector.AccountSelector,
+                AccountLegSelection,
+                FactionAccountSelection,
+                FruitLegAppleSauceSelection,
+                FruitLegSelection,
+                FruitSelection,
+                QuarterFruitLegSelection,
+                QuarterFruitSelection
+    {
+        public boolean matchesAccount(final CollectionManager cm, final AccountKey account);
+
+        public default AccountSelection getSelection() { return this; }
+    }
+
+    public static interface BookSelection
+        extends Selection,
+                Selector.BookSelector,
+                FruitLegAppleSauceSelection,
+                FruitLegSelection,
+                FruitSelection,
+                QuarterFruitLegSelection,
+                QuarterFruitSelection
+    {
+        public boolean matchesBook(final CollectionManager cm, final BookKey book);
+
+        public default BookSelection getSelection() { return this; }
+    }
+
+    public static interface EntityLegSelection
+        extends Selection,
+                Selector.EntityLegSelector,
+                AccountLegSelection,
+                FruitLegAppleSauceSelection,
+                FruitLegSelection,
+                QuarterFruitLegSelection
+    {
+        public boolean matchesEntityLeg(final CollectionManager cm, final EntityKey entity, final int leg);
+
+        public default EntityLegSelection getSelection() { return this; }
+    }
+
+    public static interface EntitySelection
+        extends Selection,
+                Selector.EntitySelector,
+                AccountLegSelection,
+                AccountSelection,
+                EntityLegSelection,
+                EntityGangSelection,
+                FactionAccountSelection,
+                FruitLegAppleSauceSelection,
+                FruitLegSelection,
+                FruitSelection,
+                QuarterFruitLegSelection,
+                QuarterFruitSelection
+    {
+        public boolean matchesEntity(final CollectionManager cm, final EntityKey entity);
+
+        public default EntitySelection getSelection() { return this; }
+    }
+
+    public static interface EntityGangSelection
+        extends Selection,
+                Selector.EntityGangSelector,
+                AccountLegSelection,
+                AccountSelection,
+                FactionAccountSelection,
+                FruitLegAppleSauceSelection,
+                FruitLegSelection,
+                FruitSelection,
+                QuarterFruitLegSelection,
+                QuarterFruitSelection
+    {
+        public boolean matchesEntityGang(final CollectionManager cm, final EntityKey entity, final BrokerKey gang);
+
+        public default EntityGangSelection getSelection() { return this; }
+    }
+
+    public static interface FactionAccountSelection
+        extends Selection,
+                Selector.FactionAccountSelector,
+                FruitLegAppleSauceSelection,
+                FruitLegSelection,
+                FruitSelection,
+                QuarterFruitLegSelection,
+                QuarterFruitSelection
+    {
+        public boolean matchesFactionAccount(final CollectionManager cm, final FactionKey faction, final AccountKey account);
+
+        public default FactionAccountSelection getSelection() { return this; }
+    }
+
+    public static interface FactionLegSelection
+        extends Selection,
+                Selector.FactionLegSelector,
+                FruitLegAppleSauceSelection,
+                FruitLegSelection,
+                QuarterFruitLegSelection
+    {
+        public boolean matchesFactionLeg(final CollectionManager cm, final FactionKey faction, final int leg);
+
+        public default FactionLegSelection getSelection() { return this; }
+    }
+
+    public static interface FactionSelection
+        extends Selection,
+                Selector.FactionSelector,
+                FactionAccountSelection,
+                FactionLegSelection,
+                FruitLegAppleSauceSelection,
+                FruitLegSelection,
+                FruitSelection,
+                QuarterFruitLegSelection,
+                QuarterFruitSelection
+    {
+        public boolean matchesFaction(final CollectionManager cm, final FactionKey faction);
+
+        public default FactionSelection getSelection() { return this; }
+    }
+
+    public static interface LegSelection
+        extends Selection,
+                Selector.LegSelector,
+                AccountLegSelection,
+                EntityLegSelection,
+                FactionLegSelection,
+                FruitLegAppleSauceSelection,
+                FruitLegSelection,
+                QuarterFruitLegSelection
+    {
+        public boolean matchesLeg(final CollectionManager cm, final int leg);
+
+        public default LegSelection getSelection() { return this; }
+    }
+
+    public static interface FruitLegAppleSauceSelection
+        extends Selection,
+                Selector.FruitLegAppleSauceSelector
+    {
+        public boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit positionQuark, final int leg, final InstrumentKey appleSauce);
+
+        public default FruitLegAppleSauceSelection getSelection() { return this; }
+    }
+
+    public static interface FruitLegSelection
+        extends Selection,
+                Selector.FruitLegSelector,
+                FruitLegAppleSauceSelection,
+                QuarterFruitLegSelection
+    {
+        public boolean matchesFruitLeg(final CollectionManager cm, final Fruit positionQuark, final int leg);
+
+        public default FruitLegSelection getSelection() { return this; }
+    }
+
+    public static interface FruitSelection
+        extends Selection,
+                Selector.FruitSelector,
+                FruitLegAppleSauceSelection,
+                FruitLegSelection,
+                QuarterFruitLegSelection,
+                QuarterFruitSelection
+    {
+        public boolean matchesFruit(final CollectionManager cm, final Fruit positionQuark);
+
+        public default FruitSelection getSelection() { return this; }
+
+         public default boolean isRestrictsToBundle() { return false; }
+
+         public default boolean isRestrictsToBusinessUnit() { return false; }
+    }
+
+    public static interface GangSelection
+        extends Selection,
+                Selector.GangSelector,
+                AccountLegSelection,
+                AccountSelection,
+                EntityGangSelection,
+                FactionAccountSelection,
+                FruitLegAppleSauceSelection,
+                FruitLegSelection,
+                FruitSelection,
+                QuarterFruitLegSelection,
+                QuarterFruitSelection,
+                QuarterGangSelection
+    {
+        public boolean matchesGang(final CollectionManager cm, final BrokerKey gang);
+
+        public default GangSelection getSelection() { return this; }
+    }
+
+    public static interface QuarterFruitLegSelection
+        extends Selection,
+                Selector.QuarterFruitLegSelector
+    {
+        public boolean matchesQuarterFruitLeg(final CollectionManager cm, final int quarter, final Fruit positionQuark, final int leg);
+
+        public default QuarterFruitLegSelection getSelection() { return this; }
+    }
+
+    public static interface QuarterFruitSelection
+        extends Selection,
+                Selector.QuarterFruitSelector,
+                QuarterFruitLegSelection
+    {
+        public boolean matchesQuarterFruit(final CollectionManager cm, final int quarter, final Fruit positionQuark);
+
+        public default QuarterFruitSelection getSelection() { return this; }
+    }
+
+    public static interface QuarterGangSelection
+        extends Selection,
+                Selector.QuarterGangSelector,
+                QuarterFruitLegSelection,
+                QuarterFruitSelection
+    {
+        public boolean matchesQuarterGang(final CollectionManager cm, final int quarter, final BrokerKey gang);
+
+        public default QuarterGangSelection getSelection() { return this; }
+    }
+
+    public static class AndAccountLegSelection
+        extends AbstractAndSelection<AccountLegSelection>
+        implements AbstractAccountLegSelection
+    {
+        public AndAccountLegSelection(AccountLegSelection... selections)
+        {
+        }
+
+        public boolean matchesAccountLeg(final CollectionManager cm, final AccountKey account, final int leg)
+        {
+            final List<AccountLegSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesAccountLeg(cm, account, leg)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrAccountLegSelection
+        extends AbstractOrSelection<AccountLegSelection>
+        implements AbstractAccountLegSelection
+    {
+        public OrAccountLegSelection(AccountLegSelection... selections)
+        {
+        }
+
+        public boolean matchesAccountLeg(CollectionManager cm, final AccountKey account, final int leg)
+        {
+            final List<AccountLegSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesAccountLeg(cm, account, leg)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotAccountLegSelection
+        extends AbstractNotSelection<AccountLegSelection>
+        implements AbstractAccountLegSelection
+    {
+        public NotAccountLegSelection(AccountLegSelection selection)
+        {
+        }
+
+        public boolean matchesAccountLeg(CollectionManager cm, final AccountKey account, final int leg)
+        {
+            return !getSelectionToInvert().matchesAccountLeg(cm, account, leg);
+        }
+
+    }
+
+    public static AccountLegSelection and(AccountLegSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndAccountLegSelection(selections);
+        }
+    }
+
+    public static AccountLegSelection and(Selector.AccountLegSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), AccountLegSelection[]::new));
+    }
+
+    public static AccountLegSelection or(AccountLegSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrAccountLegSelection(selections);
+        }
+    }
+
+    public static AccountLegSelection or(Selector.AccountLegSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), AccountLegSelection[]::new));
+    }
+
+    public static AccountLegSelection not(Selector.AccountLegSelector selector)
+    {
+        return new NotAccountLegSelection(selector.getSelection());
+    }
+
+    public static class AndAccountSelection
+        extends AbstractAndSelection<AccountSelection>
+        implements AbstractAccountSelection
+    {
+        public AndAccountSelection(AccountSelection... selections)
+        {
+        }
+
+        public boolean matchesAccount(final CollectionManager cm, final AccountKey account)
+        {
+            final List<AccountSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesAccount(cm, account)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrAccountSelection
+        extends AbstractOrSelection<AccountSelection>
+        implements AbstractAccountSelection
+    {
+        public OrAccountSelection(AccountSelection... selections)
+        {
+        }
+
+        public boolean matchesAccount(CollectionManager cm, final AccountKey account)
+        {
+            final List<AccountSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesAccount(cm, account)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotAccountSelection
+        extends AbstractNotSelection<AccountSelection>
+        implements AbstractAccountSelection
+    {
+        public NotAccountSelection(AccountSelection selection)
+        {
+        }
+
+        public boolean matchesAccount(CollectionManager cm, final AccountKey account)
+        {
+            return !getSelectionToInvert().matchesAccount(cm, account);
+        }
+
+    }
+
+    public static AccountSelection and(AccountSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndAccountSelection(selections);
+        }
+    }
+
+    public static AccountSelection and(Selector.AccountSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), AccountSelection[]::new));
+    }
+
+    public static AccountSelection or(AccountSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrAccountSelection(selections);
+        }
+    }
+
+    public static AccountSelection or(Selector.AccountSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), AccountSelection[]::new));
+    }
+
+    public static AccountSelection not(Selector.AccountSelector selector)
+    {
+        return new NotAccountSelection(selector.getSelection());
+    }
+
+    public static class AndBookSelection
+        extends AbstractAndSelection<BookSelection>
+        implements AbstractBookSelection
+    {
+        public AndBookSelection(BookSelection... selections)
+        {
+        }
+
+        public boolean matchesBook(final CollectionManager cm, final BookKey book)
+        {
+            final List<BookSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesBook(cm, book)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrBookSelection
+        extends AbstractOrSelection<BookSelection>
+        implements AbstractBookSelection
+    {
+        public OrBookSelection(BookSelection... selections)
+        {
+        }
+
+        public boolean matchesBook(CollectionManager cm, final BookKey book)
+        {
+            final List<BookSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesBook(cm, book)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotBookSelection
+        extends AbstractNotSelection<BookSelection>
+        implements AbstractBookSelection
+    {
+        public NotBookSelection(BookSelection selection)
+        {
+        }
+
+        public boolean matchesBook(CollectionManager cm, final BookKey book)
+        {
+            return !getSelectionToInvert().matchesBook(cm, book);
+        }
+
+    }
+
+    public static BookSelection and(BookSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndBookSelection(selections);
+        }
+    }
+
+    public static BookSelection and(Selector.BookSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), BookSelection[]::new));
+    }
+
+    public static BookSelection or(BookSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrBookSelection(selections);
+        }
+    }
+
+    public static BookSelection or(Selector.BookSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), BookSelection[]::new));
+    }
+
+    public static BookSelection not(Selector.BookSelector selector)
+    {
+        return new NotBookSelection(selector.getSelection());
+    }
+
+    public static class AndEntityLegSelection
+        extends AbstractAndSelection<EntityLegSelection>
+        implements AbstractEntityLegSelection
+    {
+        public AndEntityLegSelection(EntityLegSelection... selections)
+        {
+        }
+
+        public boolean matchesEntityLeg(final CollectionManager cm, final EntityKey entity, final int leg)
+        {
+            final List<EntityLegSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesEntityLeg(cm, entity, leg)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrEntityLegSelection
+        extends AbstractOrSelection<EntityLegSelection>
+        implements AbstractEntityLegSelection
+    {
+        public OrEntityLegSelection(EntityLegSelection... selections)
+        {
+        }
+
+        public boolean matchesEntityLeg(CollectionManager cm, final EntityKey entity, final int leg)
+        {
+            final List<EntityLegSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesEntityLeg(cm, entity, leg)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotEntityLegSelection
+        extends AbstractNotSelection<EntityLegSelection>
+        implements AbstractEntityLegSelection
+    {
+        public NotEntityLegSelection(EntityLegSelection selection)
+        {
+        }
+
+        public boolean matchesEntityLeg(CollectionManager cm, final EntityKey entity, final int leg)
+        {
+            return !getSelectionToInvert().matchesEntityLeg(cm, entity, leg);
+        }
+
+    }
+
+    public static EntityLegSelection and(EntityLegSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndEntityLegSelection(selections);
+        }
+    }
+
+    public static EntityLegSelection and(Selector.EntityLegSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), EntityLegSelection[]::new));
+    }
+
+    public static EntityLegSelection or(EntityLegSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrEntityLegSelection(selections);
+        }
+    }
+
+    public static EntityLegSelection or(Selector.EntityLegSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), EntityLegSelection[]::new));
+    }
+
+    public static EntityLegSelection not(Selector.EntityLegSelector selector)
+    {
+        return new NotEntityLegSelection(selector.getSelection());
+    }
+
+    public static class AndEntitySelection
+        extends AbstractAndSelection<EntitySelection>
+        implements AbstractEntitySelection
+    {
+        public AndEntitySelection(EntitySelection... selections)
+        {
+        }
+
+        public boolean matchesEntity(final CollectionManager cm, final EntityKey entity)
+        {
+            final List<EntitySelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesEntity(cm, entity)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrEntitySelection
+        extends AbstractOrSelection<EntitySelection>
+        implements AbstractEntitySelection
+    {
+        public OrEntitySelection(EntitySelection... selections)
+        {
+        }
+
+        public boolean matchesEntity(CollectionManager cm, final EntityKey entity)
+        {
+            final List<EntitySelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesEntity(cm, entity)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotEntitySelection
+        extends AbstractNotSelection<EntitySelection>
+        implements AbstractEntitySelection
+    {
+        public NotEntitySelection(EntitySelection selection)
+        {
+        }
+
+        public boolean matchesEntity(CollectionManager cm, final EntityKey entity)
+        {
+            return !getSelectionToInvert().matchesEntity(cm, entity);
+        }
+
+    }
+
+    public static EntitySelection and(EntitySelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndEntitySelection(selections);
+        }
+    }
+
+    public static EntitySelection and(Selector.EntitySelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), EntitySelection[]::new));
+    }
+
+    public static EntitySelection or(EntitySelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrEntitySelection(selections);
+        }
+    }
+
+    public static EntitySelection or(Selector.EntitySelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), EntitySelection[]::new));
+    }
+
+    public static EntitySelection not(Selector.EntitySelector selector)
+    {
+        return new NotEntitySelection(selector.getSelection());
+    }
+
+    public static class AndEntityGangSelection
+        extends AbstractAndSelection<EntityGangSelection>
+        implements AbstractEntityGangSelection
+    {
+        public AndEntityGangSelection(EntityGangSelection... selections)
+        {
+        }
+
+        public boolean matchesEntityGang(final CollectionManager cm, final EntityKey entity, final BrokerKey gang)
+        {
+            final List<EntityGangSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesEntityGang(cm, entity, gang)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrEntityGangSelection
+        extends AbstractOrSelection<EntityGangSelection>
+        implements AbstractEntityGangSelection
+    {
+        public OrEntityGangSelection(EntityGangSelection... selections)
+        {
+        }
+
+        public boolean matchesEntityGang(CollectionManager cm, final EntityKey entity, final BrokerKey gang)
+        {
+            final List<EntityGangSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesEntityGang(cm, entity, gang)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotEntityGangSelection
+        extends AbstractNotSelection<EntityGangSelection>
+        implements AbstractEntityGangSelection
+    {
+        public NotEntityGangSelection(EntityGangSelection selection)
+        {
+        }
+
+        public boolean matchesEntityGang(CollectionManager cm, final EntityKey entity, final BrokerKey gang)
+        {
+            return !getSelectionToInvert().matchesEntityGang(cm, entity, gang);
+        }
+
+    }
+
+    public static EntityGangSelection and(EntityGangSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndEntityGangSelection(selections);
+        }
+    }
+
+    public static EntityGangSelection and(Selector.EntityGangSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), EntityGangSelection[]::new));
+    }
+
+    public static EntityGangSelection or(EntityGangSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrEntityGangSelection(selections);
+        }
+    }
+
+    public static EntityGangSelection or(Selector.EntityGangSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), EntityGangSelection[]::new));
+    }
+
+    public static EntityGangSelection not(Selector.EntityGangSelector selector)
+    {
+        return new NotEntityGangSelection(selector.getSelection());
+    }
+
+    public static class AndFactionAccountSelection
+        extends AbstractAndSelection<FactionAccountSelection>
+        implements AbstractFactionAccountSelection
+    {
+        public AndFactionAccountSelection(FactionAccountSelection... selections)
+        {
+        }
+
+        public boolean matchesFactionAccount(final CollectionManager cm, final FactionKey faction, final AccountKey account)
+        {
+            final List<FactionAccountSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesFactionAccount(cm, faction, account)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrFactionAccountSelection
+        extends AbstractOrSelection<FactionAccountSelection>
+        implements AbstractFactionAccountSelection
+    {
+        public OrFactionAccountSelection(FactionAccountSelection... selections)
+        {
+        }
+
+        public boolean matchesFactionAccount(CollectionManager cm, final FactionKey faction, final AccountKey account)
+        {
+            final List<FactionAccountSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesFactionAccount(cm, faction, account)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotFactionAccountSelection
+        extends AbstractNotSelection<FactionAccountSelection>
+        implements AbstractFactionAccountSelection
+    {
+        public NotFactionAccountSelection(FactionAccountSelection selection)
+        {
+        }
+
+        public boolean matchesFactionAccount(CollectionManager cm, final FactionKey faction, final AccountKey account)
+        {
+            return !getSelectionToInvert().matchesFactionAccount(cm, faction, account);
+        }
+
+    }
+
+    public static FactionAccountSelection and(FactionAccountSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndFactionAccountSelection(selections);
+        }
+    }
+
+    public static FactionAccountSelection and(Selector.FactionAccountSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), FactionAccountSelection[]::new));
+    }
+
+    public static FactionAccountSelection or(FactionAccountSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrFactionAccountSelection(selections);
+        }
+    }
+
+    public static FactionAccountSelection or(Selector.FactionAccountSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), FactionAccountSelection[]::new));
+    }
+
+    public static FactionAccountSelection not(Selector.FactionAccountSelector selector)
+    {
+        return new NotFactionAccountSelection(selector.getSelection());
+    }
+
+    public static class AndFactionLegSelection
+        extends AbstractAndSelection<FactionLegSelection>
+        implements AbstractFactionLegSelection
+    {
+        public AndFactionLegSelection(FactionLegSelection... selections)
+        {
+        }
+
+        public boolean matchesFactionLeg(final CollectionManager cm, final FactionKey faction, final int leg)
+        {
+            final List<FactionLegSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesFactionLeg(cm, faction, leg)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrFactionLegSelection
+        extends AbstractOrSelection<FactionLegSelection>
+        implements AbstractFactionLegSelection
+    {
+        public OrFactionLegSelection(FactionLegSelection... selections)
+        {
+        }
+
+        public boolean matchesFactionLeg(CollectionManager cm, final FactionKey faction, final int leg)
+        {
+            final List<FactionLegSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesFactionLeg(cm, faction, leg)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotFactionLegSelection
+        extends AbstractNotSelection<FactionLegSelection>
+        implements AbstractFactionLegSelection
+    {
+        public NotFactionLegSelection(FactionLegSelection selection)
+        {
+        }
+
+        public boolean matchesFactionLeg(CollectionManager cm, final FactionKey faction, final int leg)
+        {
+            return !getSelectionToInvert().matchesFactionLeg(cm, faction, leg);
+        }
+
+    }
+
+    public static FactionLegSelection and(FactionLegSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndFactionLegSelection(selections);
+        }
+    }
+
+    public static FactionLegSelection and(Selector.FactionLegSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), FactionLegSelection[]::new));
+    }
+
+    public static FactionLegSelection or(FactionLegSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrFactionLegSelection(selections);
+        }
+    }
+
+    public static FactionLegSelection or(Selector.FactionLegSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), FactionLegSelection[]::new));
+    }
+
+    public static FactionLegSelection not(Selector.FactionLegSelector selector)
+    {
+        return new NotFactionLegSelection(selector.getSelection());
+    }
+
+    public static class AndFactionSelection
+        extends AbstractAndSelection<FactionSelection>
+        implements AbstractFactionSelection
+    {
+        public AndFactionSelection(FactionSelection... selections)
+        {
+        }
+
+        public boolean matchesFaction(final CollectionManager cm, final FactionKey faction)
+        {
+            final List<FactionSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesFaction(cm, faction)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrFactionSelection
+        extends AbstractOrSelection<FactionSelection>
+        implements AbstractFactionSelection
+    {
+        public OrFactionSelection(FactionSelection... selections)
+        {
+        }
+
+        public boolean matchesFaction(CollectionManager cm, final FactionKey faction)
+        {
+            final List<FactionSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesFaction(cm, faction)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotFactionSelection
+        extends AbstractNotSelection<FactionSelection>
+        implements AbstractFactionSelection
+    {
+        public NotFactionSelection(FactionSelection selection)
+        {
+        }
+
+        public boolean matchesFaction(CollectionManager cm, final FactionKey faction)
+        {
+            return !getSelectionToInvert().matchesFaction(cm, faction);
+        }
+
+    }
+
+    public static FactionSelection and(FactionSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndFactionSelection(selections);
+        }
+    }
+
+    public static FactionSelection and(Selector.FactionSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), FactionSelection[]::new));
+    }
+
+    public static FactionSelection or(FactionSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrFactionSelection(selections);
+        }
+    }
+
+    public static FactionSelection or(Selector.FactionSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), FactionSelection[]::new));
+    }
+
+    public static FactionSelection not(Selector.FactionSelector selector)
+    {
+        return new NotFactionSelection(selector.getSelection());
+    }
+
+    public static class AndLegSelection
+        extends AbstractAndSelection<LegSelection>
+        implements AbstractLegSelection
+    {
+        public AndLegSelection(LegSelection... selections)
+        {
+        }
+
+        public boolean matchesLeg(final CollectionManager cm, final int leg)
+        {
+            final List<LegSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesLeg(cm, leg)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrLegSelection
+        extends AbstractOrSelection<LegSelection>
+        implements AbstractLegSelection
+    {
+        public OrLegSelection(LegSelection... selections)
+        {
+        }
+
+        public boolean matchesLeg(CollectionManager cm, final int leg)
+        {
+            final List<LegSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesLeg(cm, leg)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotLegSelection
+        extends AbstractNotSelection<LegSelection>
+        implements AbstractLegSelection
+    {
+        public NotLegSelection(LegSelection selection)
+        {
+        }
+
+        public boolean matchesLeg(CollectionManager cm, final int leg)
+        {
+            return !getSelectionToInvert().matchesLeg(cm, leg);
+        }
+
+    }
+
+    public static LegSelection and(LegSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndLegSelection(selections);
+        }
+    }
+
+    public static LegSelection and(Selector.LegSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), LegSelection[]::new));
+    }
+
+    public static LegSelection or(LegSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrLegSelection(selections);
+        }
+    }
+
+    public static LegSelection or(Selector.LegSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), LegSelection[]::new));
+    }
+
+    public static LegSelection not(Selector.LegSelector selector)
+    {
+        return new NotLegSelection(selector.getSelection());
+    }
+
+    public static class AndFruitLegAppleSauceSelection
+        extends AbstractAndSelection<FruitLegAppleSauceSelection>
+        implements AbstractFruitLegAppleSauceSelection
+    {
+        public AndFruitLegAppleSauceSelection(FruitLegAppleSauceSelection... selections)
+        {
+        }
+
+        public boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit positionQuark, final int leg, final InstrumentKey appleSauce)
+        {
+            final List<FruitLegAppleSauceSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesFruitLegAppleSauce(cm, positionQuark, leg, appleSauce)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrFruitLegAppleSauceSelection
+        extends AbstractOrSelection<FruitLegAppleSauceSelection>
+        implements AbstractFruitLegAppleSauceSelection
+    {
+        public OrFruitLegAppleSauceSelection(FruitLegAppleSauceSelection... selections)
+        {
+        }
+
+        public boolean matchesFruitLegAppleSauce(CollectionManager cm, final Fruit positionQuark, final int leg, final InstrumentKey appleSauce)
+        {
+            final List<FruitLegAppleSauceSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesFruitLegAppleSauce(cm, positionQuark, leg, appleSauce)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotFruitLegAppleSauceSelection
+        extends AbstractNotSelection<FruitLegAppleSauceSelection>
+        implements AbstractFruitLegAppleSauceSelection
+    {
+        public NotFruitLegAppleSauceSelection(FruitLegAppleSauceSelection selection)
+        {
+        }
+
+        public boolean matchesFruitLegAppleSauce(CollectionManager cm, final Fruit positionQuark, final int leg, final InstrumentKey appleSauce)
+        {
+            return !getSelectionToInvert().matchesFruitLegAppleSauce(cm, positionQuark, leg, appleSauce);
+        }
+
+    }
+
+    public static FruitLegAppleSauceSelection and(FruitLegAppleSauceSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndFruitLegAppleSauceSelection(selections);
+        }
+    }
+
+    public static FruitLegAppleSauceSelection and(Selector.FruitLegAppleSauceSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), FruitLegAppleSauceSelection[]::new));
+    }
+
+    public static FruitLegAppleSauceSelection or(FruitLegAppleSauceSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrFruitLegAppleSauceSelection(selections);
+        }
+    }
+
+    public static FruitLegAppleSauceSelection or(Selector.FruitLegAppleSauceSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), FruitLegAppleSauceSelection[]::new));
+    }
+
+    public static FruitLegAppleSauceSelection not(Selector.FruitLegAppleSauceSelector selector)
+    {
+        return new NotFruitLegAppleSauceSelection(selector.getSelection());
+    }
+
+    public static class AndFruitLegSelection
+        extends AbstractAndSelection<FruitLegSelection>
+        implements AbstractFruitLegSelection
+    {
+        public AndFruitLegSelection(FruitLegSelection... selections)
+        {
+        }
+
+        public boolean matchesFruitLeg(final CollectionManager cm, final Fruit positionQuark, final int leg)
+        {
+            final List<FruitLegSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesFruitLeg(cm, positionQuark, leg)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrFruitLegSelection
+        extends AbstractOrSelection<FruitLegSelection>
+        implements AbstractFruitLegSelection
+    {
+        public OrFruitLegSelection(FruitLegSelection... selections)
+        {
+        }
+
+        public boolean matchesFruitLeg(CollectionManager cm, final Fruit positionQuark, final int leg)
+        {
+            final List<FruitLegSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesFruitLeg(cm, positionQuark, leg)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotFruitLegSelection
+        extends AbstractNotSelection<FruitLegSelection>
+        implements AbstractFruitLegSelection
+    {
+        public NotFruitLegSelection(FruitLegSelection selection)
+        {
+        }
+
+        public boolean matchesFruitLeg(CollectionManager cm, final Fruit positionQuark, final int leg)
+        {
+            return !getSelectionToInvert().matchesFruitLeg(cm, positionQuark, leg);
+        }
+
+    }
+
+    public static FruitLegSelection and(FruitLegSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndFruitLegSelection(selections);
+        }
+    }
+
+    public static FruitLegSelection and(Selector.FruitLegSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), FruitLegSelection[]::new));
+    }
+
+    public static FruitLegSelection or(FruitLegSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrFruitLegSelection(selections);
+        }
+    }
+
+    public static FruitLegSelection or(Selector.FruitLegSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), FruitLegSelection[]::new));
+    }
+
+    public static FruitLegSelection not(Selector.FruitLegSelector selector)
+    {
+        return new NotFruitLegSelection(selector.getSelection());
+    }
+
+    public static class AndFruitSelection
+        extends AbstractAndSelection<FruitSelection>
+        implements AbstractFruitSelection
+    {
+        public AndFruitSelection(FruitSelection... selections)
+        {
+        }
+
+        public boolean matchesFruit(final CollectionManager cm, final Fruit positionQuark)
+        {
+            final List<FruitSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesFruit(cm, positionQuark)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public boolean isRestrictsToBundle()
+        {
+            final List<FruitSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).isRestrictsToBundle()) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        public boolean isRestrictsToBusinessUnit()
+        {
+            final List<FruitSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).isRestrictsToBusinessUnit()) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    public static class OrFruitSelection
+        extends AbstractOrSelection<FruitSelection>
+        implements AbstractFruitSelection
+    {
+        public OrFruitSelection(FruitSelection... selections)
+        {
+        }
+
+        public boolean matchesFruit(CollectionManager cm, final Fruit positionQuark)
+        {
+            final List<FruitSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesFruit(cm, positionQuark)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public boolean isRestrictsToBundle()
+        {
+            final List<FruitSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).isRestrictsToBundle()) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        public boolean isRestrictsToBusinessUnit()
+        {
+            final List<FruitSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).isRestrictsToBusinessUnit()) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    public static class NotFruitSelection
+        extends AbstractNotSelection<FruitSelection>
+        implements AbstractFruitSelection
+    {
+        public NotFruitSelection(FruitSelection selection)
+        {
+        }
+
+        public boolean matchesFruit(CollectionManager cm, final Fruit positionQuark)
+        {
+            return !getSelectionToInvert().matchesFruit(cm, positionQuark);
+        }
+
+        public boolean isRestrictsToBundle()
+        {
+            return getSelectionToInvert().isRestrictsToBundle();
+        }
+        public boolean isRestrictsToBusinessUnit()
+        {
+            return getSelectionToInvert().isRestrictsToBusinessUnit();
+        }
+    }
+
+    public static FruitSelection and(FruitSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndFruitSelection(selections);
+        }
+    }
+
+    public static FruitSelection and(Selector.FruitSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), FruitSelection[]::new));
+    }
+
+    public static FruitSelection or(FruitSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrFruitSelection(selections);
+        }
+    }
+
+    public static FruitSelection or(Selector.FruitSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), FruitSelection[]::new));
+    }
+
+    public static FruitSelection not(Selector.FruitSelector selector)
+    {
+        return new NotFruitSelection(selector.getSelection());
+    }
+
+    public static class AndGangSelection
+        extends AbstractAndSelection<GangSelection>
+        implements AbstractGangSelection
+    {
+        public AndGangSelection(GangSelection... selections)
+        {
+        }
+
+        public boolean matchesGang(final CollectionManager cm, final BrokerKey gang)
+        {
+            final List<GangSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesGang(cm, gang)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrGangSelection
+        extends AbstractOrSelection<GangSelection>
+        implements AbstractGangSelection
+    {
+        public OrGangSelection(GangSelection... selections)
+        {
+        }
+
+        public boolean matchesGang(CollectionManager cm, final BrokerKey gang)
+        {
+            final List<GangSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesGang(cm, gang)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotGangSelection
+        extends AbstractNotSelection<GangSelection>
+        implements AbstractGangSelection
+    {
+        public NotGangSelection(GangSelection selection)
+        {
+        }
+
+        public boolean matchesGang(CollectionManager cm, final BrokerKey gang)
+        {
+            return !getSelectionToInvert().matchesGang(cm, gang);
+        }
+
+    }
+
+    public static GangSelection and(GangSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndGangSelection(selections);
+        }
+    }
+
+    public static GangSelection and(Selector.GangSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), GangSelection[]::new));
+    }
+
+    public static GangSelection or(GangSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrGangSelection(selections);
+        }
+    }
+
+    public static GangSelection or(Selector.GangSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), GangSelection[]::new));
+    }
+
+    public static GangSelection not(Selector.GangSelector selector)
+    {
+        return new NotGangSelection(selector.getSelection());
+    }
+
+    public static class AndQuarterFruitLegSelection
+        extends AbstractAndSelection<QuarterFruitLegSelection>
+        implements AbstractQuarterFruitLegSelection
+    {
+        public AndQuarterFruitLegSelection(QuarterFruitLegSelection... selections)
+        {
+        }
+
+        public boolean matchesQuarterFruitLeg(final CollectionManager cm, final int quarter, final Fruit positionQuark, final int leg)
+        {
+            final List<QuarterFruitLegSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesQuarterFruitLeg(cm, quarter, positionQuark, leg)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrQuarterFruitLegSelection
+        extends AbstractOrSelection<QuarterFruitLegSelection>
+        implements AbstractQuarterFruitLegSelection
+    {
+        public OrQuarterFruitLegSelection(QuarterFruitLegSelection... selections)
+        {
+        }
+
+        public boolean matchesQuarterFruitLeg(CollectionManager cm, final int quarter, final Fruit positionQuark, final int leg)
+        {
+            final List<QuarterFruitLegSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesQuarterFruitLeg(cm, quarter, positionQuark, leg)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotQuarterFruitLegSelection
+        extends AbstractNotSelection<QuarterFruitLegSelection>
+        implements AbstractQuarterFruitLegSelection
+    {
+        public NotQuarterFruitLegSelection(QuarterFruitLegSelection selection)
+        {
+        }
+
+        public boolean matchesQuarterFruitLeg(CollectionManager cm, final int quarter, final Fruit positionQuark, final int leg)
+        {
+            return !getSelectionToInvert().matchesQuarterFruitLeg(cm, quarter, positionQuark, leg);
+        }
+
+    }
+
+    public static QuarterFruitLegSelection and(QuarterFruitLegSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndQuarterFruitLegSelection(selections);
+        }
+    }
+
+    public static QuarterFruitLegSelection and(Selector.QuarterFruitLegSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), QuarterFruitLegSelection[]::new));
+    }
+
+    public static QuarterFruitLegSelection or(QuarterFruitLegSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrQuarterFruitLegSelection(selections);
+        }
+    }
+
+    public static QuarterFruitLegSelection or(Selector.QuarterFruitLegSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), QuarterFruitLegSelection[]::new));
+    }
+
+    public static QuarterFruitLegSelection not(Selector.QuarterFruitLegSelector selector)
+    {
+        return new NotQuarterFruitLegSelection(selector.getSelection());
+    }
+
+    public static class AndQuarterFruitSelection
+        extends AbstractAndSelection<QuarterFruitSelection>
+        implements AbstractQuarterFruitSelection
+    {
+        public AndQuarterFruitSelection(QuarterFruitSelection... selections)
+        {
+        }
+
+        public boolean matchesQuarterFruit(final CollectionManager cm, final int quarter, final Fruit positionQuark)
+        {
+            final List<QuarterFruitSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesQuarterFruit(cm, quarter, positionQuark)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrQuarterFruitSelection
+        extends AbstractOrSelection<QuarterFruitSelection>
+        implements AbstractQuarterFruitSelection
+    {
+        public OrQuarterFruitSelection(QuarterFruitSelection... selections)
+        {
+        }
+
+        public boolean matchesQuarterFruit(CollectionManager cm, final int quarter, final Fruit positionQuark)
+        {
+            final List<QuarterFruitSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesQuarterFruit(cm, quarter, positionQuark)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotQuarterFruitSelection
+        extends AbstractNotSelection<QuarterFruitSelection>
+        implements AbstractQuarterFruitSelection
+    {
+        public NotQuarterFruitSelection(QuarterFruitSelection selection)
+        {
+        }
+
+        public boolean matchesQuarterFruit(CollectionManager cm, final int quarter, final Fruit positionQuark)
+        {
+            return !getSelectionToInvert().matchesQuarterFruit(cm, quarter, positionQuark);
+        }
+
+    }
+
+    public static QuarterFruitSelection and(QuarterFruitSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndQuarterFruitSelection(selections);
+        }
+    }
+
+    public static QuarterFruitSelection and(Selector.QuarterFruitSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), QuarterFruitSelection[]::new));
+    }
+
+    public static QuarterFruitSelection or(QuarterFruitSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrQuarterFruitSelection(selections);
+        }
+    }
+
+    public static QuarterFruitSelection or(Selector.QuarterFruitSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), QuarterFruitSelection[]::new));
+    }
+
+    public static QuarterFruitSelection not(Selector.QuarterFruitSelector selector)
+    {
+        return new NotQuarterFruitSelection(selector.getSelection());
+    }
+
+    public static class AndQuarterGangSelection
+        extends AbstractAndSelection<QuarterGangSelection>
+        implements AbstractQuarterGangSelection
+    {
+        public AndQuarterGangSelection(QuarterGangSelection... selections)
+        {
+        }
+
+        public boolean matchesQuarterGang(final CollectionManager cm, final int quarter, final BrokerKey gang)
+        {
+            final List<QuarterGangSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (!selections.get(i).matchesQuarterGang(cm, quarter, gang)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
+
+    public static class OrQuarterGangSelection
+        extends AbstractOrSelection<QuarterGangSelection>
+        implements AbstractQuarterGangSelection
+    {
+        public OrQuarterGangSelection(QuarterGangSelection... selections)
+        {
+        }
+
+        public boolean matchesQuarterGang(CollectionManager cm, final int quarter, final BrokerKey gang)
+        {
+            final List<QuarterGangSelection> selections = getSelections();
+            for (int i = 0; i < selections.size(); i++) {
+                if (selections.get(i).matchesQuarterGang(cm, quarter, gang)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+    }
+
+    public static class NotQuarterGangSelection
+        extends AbstractNotSelection<QuarterGangSelection>
+        implements AbstractQuarterGangSelection
+    {
+        public NotQuarterGangSelection(QuarterGangSelection selection)
+        {
+        }
+
+        public boolean matchesQuarterGang(CollectionManager cm, final int quarter, final BrokerKey gang)
+        {
+            return !getSelectionToInvert().matchesQuarterGang(cm, quarter, gang);
+        }
+
+    }
+
+    public static QuarterGangSelection and(QuarterGangSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new AndQuarterGangSelection(selections);
+        }
+    }
+
+    public static QuarterGangSelection and(Selector.QuarterGangSelector... selectors)
+    {
+        return and(ArrayUtil.map(selectors, s -> s.getSelection(), QuarterGangSelection[]::new));
+    }
+
+    public static QuarterGangSelection or(QuarterGangSelection... selections)
+    {
+        if (selections.length == 0) {
+            return NoneSelection.NONE;
+        }
+        else if (selections.length == 1) {
+            return selections[0];
+        }
+        else {
+            return new OrQuarterGangSelection(selections);
+        }
+    }
+
+    public static QuarterGangSelection or(Selector.QuarterGangSelector... selectors)
+    {
+        return or(ArrayUtil.map(selectors, s -> s.getSelection(), QuarterGangSelection[]::new));
+    }
+
+    public static QuarterGangSelection not(Selector.QuarterGangSelector selector)
+    {
+        return new NotQuarterGangSelection(selector.getSelection());
+    }
+
+    public interface AbstractAccountLegSelection
+        extends AccountLegSelection
+    {
+        public default boolean matchesFruitLeg(final CollectionManager cm, final Fruit aFruit, final int aLeg)
+        {
+            return matchesAccountLeg(cm, aFruit.getAccountKey(), aLeg);
+        }
+        public default boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit aFruit, final int aLeg, final InstrumentKey aAppleSauce)
+        {
+            return matchesAccountLeg(cm, aFruit.getAccountKey(), aLeg);
+        }
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesAccountLeg(cm, aFruit.getAccountKey(), aLeg);
+        }
+    }
+
+    public interface AbstractAccountSelection
+        extends AccountSelection
+    {
+        public default boolean matchesAccountLeg(final CollectionManager cm, final AccountKey aAccount, final int aLeg)
+        {
+            return matchesAccount(cm, aAccount);
+        }
+        public default boolean matchesFactionAccount(final CollectionManager cm, final FactionKey aFaction, final AccountKey aAccount)
+        {
+            return matchesAccount(cm, aAccount);
+        }
+        public default boolean matchesFruit(final CollectionManager cm, final Fruit aFruit)
+        {
+            return matchesAccount(cm, aFruit.getAccountKey());
+        }
+        public default boolean matchesFruitLeg(final CollectionManager cm, final Fruit aFruit, final int aLeg)
+        {
+            return matchesAccount(cm, aFruit.getAccountKey());
+        }
+        public default boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit aFruit, final int aLeg, final InstrumentKey aAppleSauce)
+        {
+            return matchesAccount(cm, aFruit.getAccountKey());
+        }
+        public default boolean matchesQuarterFruit(final CollectionManager cm, final int aQuarter, final Fruit aFruit)
+        {
+            return matchesAccount(cm, aFruit.getAccountKey());
+        }
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesAccount(cm, aFruit.getAccountKey());
+        }
+    }
+
+    public interface AbstractBookSelection
+        extends BookSelection
+    {
+        public default boolean matchesFruit(final CollectionManager cm, final Fruit aFruit)
+        {
+            return matchesBook(
+                cm,
+                null
+            );
+        }
+        public default boolean matchesFruitLeg(final CollectionManager cm, final Fruit aFruit, final int aLeg)
+        {
+            return matchesBook(
+                cm,
+                null
+            );
+        }
+        public default boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit aFruit, final int aLeg, final InstrumentKey aAppleSauce)
+        {
+            return matchesBook(
+                cm,
+                null
+            );
+        }
+        public default boolean matchesQuarterFruit(final CollectionManager cm, final int aQuarter, final Fruit aFruit)
+        {
+            return matchesBook(
+                cm,
+                null
+            );
+        }
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesBook(
+                cm,
+                null
+            );
+        }
+    }
+
+    public interface AbstractEntityLegSelection
+        extends EntityLegSelection
+    {
+        public default boolean matchesAccountLeg(final CollectionManager cm, final AccountKey aAccount, final int aLeg)
+        {
+            return matchesEntityLeg(cm, null, aLeg);
+        }
+        public default boolean matchesFruitLeg(final CollectionManager cm, final Fruit aFruit, final int aLeg)
+        {
+            return matchesEntityLeg(cm, null, aLeg);
+        }
+        public default boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit aFruit, final int aLeg, final InstrumentKey aAppleSauce)
+        {
+            return matchesEntityLeg(cm, null, aLeg);
+        }
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesEntityLeg(cm, null, aLeg);
+        }
+    }
+
+    public interface AbstractEntitySelection
+        extends EntitySelection
+    {
+        public default boolean matchesEntityLeg(final CollectionManager cm, final EntityKey aEntity, final int aLeg)
+        {
+            return matchesEntity(cm, aEntity);
+        }
+        public default boolean matchesAccount(final CollectionManager cm, final AccountKey aAccount)
+        {
+            return matchesEntity(cm, null);
+        }
+        public default boolean matchesAccountLeg(final CollectionManager cm, final AccountKey aAccount, final int aLeg)
+        {
+            return matchesEntity(cm, null);
+        }
+        public default boolean matchesEntityGang(final CollectionManager cm, final EntityKey aEntity, final BrokerKey aGang)
+        {
+            return matchesEntity(cm, aEntity);
+        }
+        public default boolean matchesFactionAccount(final CollectionManager cm, final FactionKey aFaction, final AccountKey aAccount)
+        {
+            return matchesEntity(cm, null);
+        }
+        public default boolean matchesFruit(final CollectionManager cm, final Fruit aFruit)
+        {
+            return matchesEntity(cm, null);
+        }
+        public default boolean matchesFruitLeg(final CollectionManager cm, final Fruit aFruit, final int aLeg)
+        {
+            return matchesEntity(cm, null);
+        }
+        public default boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit aFruit, final int aLeg, final InstrumentKey aAppleSauce)
+        {
+            return matchesEntity(cm, null);
+        }
+        public default boolean matchesQuarterFruit(final CollectionManager cm, final int aQuarter, final Fruit aFruit)
+        {
+            return matchesEntity(cm, null);
+        }
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesEntity(cm, null);
+        }
+    }
+
+    public interface AbstractEntityGangSelection
+        extends EntityGangSelection
+    {
+        public default boolean matchesAccount(CollectionManager cm,
+                                              AccountKey aAccount)
+        {
+            return matchesEntityGang(cm, null, null);
+        }
+        public default boolean matchesAccountLeg(CollectionManager cm,
+                                                 AccountKey aAccount, int aLeg)
+        {
+            return matchesEntityGang(cm, null, null);
+        }
+        public default boolean matchesFactionAccount(final CollectionManager cm, final FactionKey aFaction, final AccountKey aAccount)
+        {
+            return matchesEntityGang(cm, null, null);
+        }
+        public default boolean matchesFruit(final CollectionManager cm, final Fruit aFruit)
+        {
+            return matchesEntityGang(cm, null, null);
+        }
+        public default boolean matchesFruitLeg(final CollectionManager cm, final Fruit aFruit, final int aLeg)
+        {
+            return matchesEntityGang(cm, null, null);
+        }
+        public default boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit aFruit, final int aLeg, final InstrumentKey aAppleSauce)
+        {
+            return matchesEntityGang(cm, null, null);
+        }
+        public default boolean matchesQuarterFruit(final CollectionManager cm, final int aQuarter, final Fruit aFruit)
+        {
+            return matchesEntityGang(cm, null, null);
+        }
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesEntityGang(cm, null, null);
+        }
+    }
+
+    public interface AbstractFactionAccountSelection
+        extends FactionAccountSelection
+    {
+        public default boolean matchesFruit(final CollectionManager cm, final Fruit aFruit)
+        {
+            return matchesFactionAccount(cm, aFruit.getFactionKey(), aFruit.getAccountKey());
+        }
+        public default boolean matchesFruitLeg(final CollectionManager cm, final Fruit aFruit, final int aLeg)
+        {
+            return matchesFactionAccount(cm, aFruit.getFactionKey(), aFruit.getAccountKey());
+        }
+        public default boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit aFruit, final int aLeg, final InstrumentKey aAppleSauce)
+        {
+            return matchesFactionAccount(cm, aFruit.getFactionKey(), aFruit.getAccountKey());
+        }
+        public default boolean matchesQuarterFruit(final CollectionManager cm, final int aQuarter, final Fruit aFruit)
+        {
+            return matchesFactionAccount(cm, aFruit.getFactionKey(), aFruit.getAccountKey());
+        }
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesFactionAccount(cm, aFruit.getFactionKey(), aFruit.getAccountKey());
+        }
+    }
+
+    public interface AbstractFactionLegSelection
+        extends FactionLegSelection
+    {
+        public default boolean matchesFruitLeg(final CollectionManager cm, final Fruit aFruit, final int aLeg)
+        {
+            return matchesFactionLeg(cm, aFruit.getFactionKey(), aLeg);
+        }
+        public default boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit aFruit, final int aLeg, final InstrumentKey aAppleSauce)
+        {
+            return matchesFactionLeg(cm, aFruit.getFactionKey(), aLeg);
+        }
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesFactionLeg(cm, aFruit.getFactionKey(), aLeg);
+        }
+    }
+
+    public interface AbstractFactionSelection
+        extends FactionSelection
+    {
+        public default boolean matchesFactionAccount(final CollectionManager cm, final FactionKey aFaction, final AccountKey aAccount)
+        {
+            return matchesFaction(cm, aFaction);
+        }
+        public default boolean matchesFactionLeg(final CollectionManager cm, final FactionKey aFaction, final int aLeg)
+        {
+            return matchesFaction(cm, aFaction);
+        }
+        public default boolean matchesFruit(final CollectionManager cm, final Fruit aFruit)
+        {
+            return matchesFaction(cm, aFruit.getFactionKey());
+        }
+        public default boolean matchesFruitLeg(final CollectionManager cm, final Fruit aFruit, final int aLeg)
+        {
+            return matchesFaction(cm, aFruit.getFactionKey());
+        }
+        public default boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit aFruit, final int aLeg, final InstrumentKey aAppleSauce)
+        {
+            return matchesFaction(cm, aFruit.getFactionKey());
+        }
+        public default boolean matchesQuarterFruit(final CollectionManager cm, final int aQuarter, final Fruit aFruit)
+        {
+            return matchesFaction(cm, aFruit.getFactionKey());
+        }
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesFaction(cm, aFruit.getFactionKey());
+        }
+    }
+
+    public interface AbstractLegSelection
+        extends LegSelection
+    {
+        public default boolean matchesAccountLeg(final CollectionManager cm, final AccountKey aAccount, final int aLeg)
+        {
+            return matchesLeg(cm, aLeg);
+        }
+        public default boolean matchesEntityLeg(final CollectionManager cm, final EntityKey aEntity, final int aLeg)
+        {
+            return matchesLeg(cm, aLeg);
+        }
+        public default boolean matchesFactionLeg(final CollectionManager cm, final FactionKey aFaction, final int aLeg)
+        {
+            return matchesLeg(cm, aLeg);
+        }
+        public default boolean matchesFruitLeg(final CollectionManager cm, final Fruit aFruit, final int aLeg)
+        {
+            return matchesLeg(cm, aLeg);
+        }
+        public default boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit aFruit, final int aLeg, final InstrumentKey aAppleSauce)
+        {
+            return matchesLeg(cm, aLeg);
+        }
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesLeg(cm, aLeg);
+        }
+    }
+
+    public interface AbstractFruitLegAppleSauceSelection
+        extends FruitLegAppleSauceSelection
+    {
+    }
+
+    public interface AbstractFruitLegSelection
+        extends FruitLegSelection
+    {
+        public default boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit aFruit, final int aLeg, final InstrumentKey aAppleSauce)
+        {
+            return matchesFruitLeg(cm, aFruit, aLeg);
+        }
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesFruitLeg(cm, aFruit, aLeg);
+        }
+    }
+
+    public interface AbstractFruitSelection
+        extends FruitSelection
+    {
+        public default boolean matchesFruitLeg(final CollectionManager cm, final Fruit aFruit, final int aLeg)
+        {
+            return matchesFruit(cm, aFruit);
+        }
+        public default boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit aFruit, final int aLeg, final InstrumentKey aAppleSauce)
+        {
+            return matchesFruit(cm, aFruit);
+        }
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesFruit(cm, aFruit);
+        }
+        public default boolean matchesQuarterFruit(final CollectionManager cm, final int aQuarter, final Fruit aFruit)
+        {
+            return matchesFruit(cm, aFruit);
+        }
+    }
+
+    public interface AbstractGangSelection
+        extends GangSelection
+    {
+        public default boolean matchesAccount(final CollectionManager cm, final AccountKey aAccount)
+        {
+            return matchesGang(cm, null);
+        }
+        public default boolean matchesAccountLeg(final CollectionManager cm, final AccountKey aAccount, final int aLeg)
+        {
+            return matchesGang(cm, null);
+        }
+        public default boolean matchesEntityGang(final CollectionManager cm, final EntityKey aEntity, final BrokerKey aGang)
+        {
+            return matchesGang(cm, aGang);
+        }
+        public default boolean matchesFactionAccount(final CollectionManager cm, final FactionKey aFaction, final AccountKey aAccount)
+        {
+            return matchesGang(cm, null);
+        }
+        public default boolean matchesFruit(final CollectionManager cm, final Fruit aFruit)
+        {
+            return matchesGang(cm, null);
+        }
+        public default boolean matchesFruitLeg(final CollectionManager cm, final Fruit aFruit, final int aLeg)
+        {
+            return matchesGang(cm, null);
+        }
+        public default boolean matchesFruitLegAppleSauce(final CollectionManager cm, final Fruit aFruit, final int aLeg, final InstrumentKey aAppleSauce)
+        {
+            return matchesGang(cm, null);
+        }
+        public default boolean matchesQuarterFruit(final CollectionManager cm, final int aQuarter, final Fruit aFruit)
+        {
+            return matchesGang(cm, null);
+        }
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesGang(cm, null);
+        }
+        public default boolean matchesQuarterGang(final CollectionManager cm, final int aQuarter, final BrokerKey aGang)
+        {
+            return matchesGang(cm, aGang);
+        }
+    }
+
+    public interface AbstractQuarterFruitLegSelection
+        extends QuarterFruitLegSelection
+    {
+    }
+
+    public interface AbstractQuarterFruitSelection
+        extends QuarterFruitSelection
+    {
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesQuarterFruit(cm, aQuarter, aFruit);
+        }
+    }
+
+    public interface AbstractQuarterGangSelection
+        extends QuarterGangSelection
+    {
+        public default boolean matchesQuarterFruit(final CollectionManager cm, final int aQuarter, final Fruit aFruit)
+        {
+            return matchesQuarterGang(cm, aQuarter, null);
+        }
+        public default boolean matchesQuarterFruitLeg(final CollectionManager cm, final int aQuarter, final Fruit aFruit, final int aLeg)
+        {
+            return matchesQuarterGang(cm, aQuarter, null);
+        }
+    }
+}
+
+
+class NoneSelection
+    extends AbstractSelection
+    implements Selection.AccountLegSelection,
+               Selection.BookSelection,
+               Selection.EntityLegSelection,
+               Selection.EntityGangSelection,
+               Selection.EntitySelection,
+               Selection.FactionAccountSelection,
+               Selection.FactionLegSelection,
+               Selection.FactionSelection,
+               Selection.LegSelection,
+               Selection.FruitLegAppleSauceSelection,
+               Selection.FruitLegSelection,
+               Selection.FruitSelection,
+               Selection.GangSelection,
+               Selection.QuarterFruitLegSelection,
+               Selection.QuarterFruitSelection,
+               Selection.QuarterGangSelection
+{
+    public static final NoneSelection NONE = new NoneSelection();
+
+    public NoneSelection getSelection()
+    {
+        return null;
+    }
+
+    public boolean matchesAccountLeg(CollectionManager cm, final AccountKey account, final int leg) { return false; }
+    public boolean matchesAccount(CollectionManager cm, final AccountKey account) { return false; }
+    public boolean matchesBook(CollectionManager cm, final BookKey book) { return false; }
+    public boolean matchesEntityLeg(CollectionManager cm, final EntityKey entity, final int leg) { return false; }
+    public boolean matchesEntity(CollectionManager cm, final EntityKey entity) { return false; }
+    public boolean matchesEntityGang(CollectionManager cm, final EntityKey entity, final BrokerKey gang) { return false; }
+    public boolean matchesFactionAccount(CollectionManager cm, final FactionKey faction, final AccountKey account) { return false; }
+    public boolean matchesFactionLeg(CollectionManager cm, final FactionKey faction, final int leg) { return false; }
+    public boolean matchesFaction(CollectionManager cm, final FactionKey faction) { return false; }
+    public boolean matchesLeg(CollectionManager cm, final int leg) { return false; }
+    public boolean matchesFruitLegAppleSauce(CollectionManager cm, final Fruit positionQuark, final int leg, final InstrumentKey appleSauce) { return false; }
+    public boolean matchesFruitLeg(CollectionManager cm, final Fruit positionQuark, final int leg) { return false; }
+    public boolean matchesFruit(CollectionManager cm, final Fruit positionQuark) { return false; }
+    public boolean matchesGang(CollectionManager cm, final BrokerKey gang) { return false; }
+    public boolean matchesQuarterFruitLeg(CollectionManager cm, final int quarter, final Fruit positionQuark, final int leg) { return false; }
+    public boolean matchesQuarterFruit(CollectionManager cm, final int quarter, final Fruit positionQuark) { return false; }
+    public boolean matchesQuarterGang(CollectionManager cm, final int quarter, final BrokerKey gang) { return false; }
+}
+
+---------- END SOURCE ----------
+

@@ -1,0 +1,50 @@
+false TYPE_MISMATCH when When expression branches have try-catch blocks where try block return type is
+1) Int 
+```
+fun case1(x: Any){
+    when (x){
+        1 -> try { {"1"}; ""; 1}catch (e: Exception) { { }} //Type mismatch.
+        "1" -> try { 1 }catch (e: Exception) { { }} //Type mismatch.
+        else -> try { 1 }catch (e: Exception) { {1 }} //Type mismatch.
+    }
+
+    when (x){
+        1 -> try { {"1"}; ""}catch (e: Exception) { { }} //ok
+        "1" -> try { 1 }catch (e: Exception) { { }} //ok
+       else -> try { 1 }catch (e: Exception) { {1 }} //ok
+   }
+}
+```
+2) Nothing
+```
+fun case2(x: Any){
+    when (x){
+        1 -> try { {"1"}; ""; TODO()}catch (e: Exception) { { }} //Type mismatch.
+        "1" -> try { 1 }catch (e: Exception) { { }} //Type mismatch.
+        else -> try { 1 }catch (e: Exception) { {1 }} //Type mismatch.
+    }
+    when (x){
+        1 -> try { {"1"}; ""; TODO(); ""}catch (e: Exception) { { }} //ok
+        "1" -> try { 1 }catch (e: Exception) { { }} //ok
+        else -> try { 1 }catch (e: Exception) { {1 }} //ok
+    }
+    when (x){
+        1 -> try { {"1"}; ""; TODO()}catch (e: Exception) { { }} //ok
+        "1" -> try { 1; "" }catch (e: Exception) { { }} //ok
+       else -> try { 1 }catch (e: Exception) { {1 }} //ok
+   }
+}
+```
+3) Any lambda
+ ```
+fun case3(x: Any){
+    when (x){
+        1 -> try { {"1"}}catch (e: Exception) { { }} //Type mismatch.
+        "1" -> try { 1 }catch (e: Exception) { { }} //Type mismatch.
+        else -> try { 1 }catch (e: Exception) { {1 }} //Type mismatch.
+    }
+}
+```
+
+**Note:** 
+The issue is relevant for both when-expressions without bound value and with bound value

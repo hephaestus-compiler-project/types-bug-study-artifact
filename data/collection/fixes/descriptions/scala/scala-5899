@@ -1,0 +1,26 @@
+I will suppose this happens because sym.name has an abstract type.
+```scala
+import scala.tools.nsc._
+
+trait Foo {
+  val global: Global
+  import global._
+
+  case class Bippy(name: Name)
+  
+  def f(x: Bippy, sym: Symbol): Int = {
+    // no warning (!) for
+    // val Stable = sym.name.toTermName
+
+    val Stable = sym.name
+    // ./a.scala:18: warning: unreachable code
+    //       case Bippy(Stable)       => 2
+    //                                   ^
+    // one warning found
+    x match {
+      case Bippy(nme.WILDCARD) => 1
+      case Bippy(Stable)       => 2
+    }
+  }
+}
+```

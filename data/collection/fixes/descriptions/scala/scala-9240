@@ -1,0 +1,18 @@
+Value classes appear to always expect a value to be allocated to the stack, even when their type is Unit, and the implementation does not allocate any value. This results in a `java.lang.VerifyError`.
+
+This is sufficient to replicate the error:
+
+```scala
+class MyUnit(val unit: Unit) extends AnyVal
+
+object Test {
+  def main(args: Array[String]): Unit = {
+    new MyUnit(()).toString
+    // java.lang.VerifyError: Bad type on operand stack
+    // Exception Details:
+    //   Location:
+    //     MyUnit.equals(Ljava/lang/Object;)Z @12: athrow
+    //   Reason:
+  }
+}
+```

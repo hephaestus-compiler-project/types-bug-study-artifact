@@ -1,0 +1,30 @@
+I wrote following code and compiled it(scala 2.7.3.final). 
+
+```scala
+case class Num(n : scala.Int) extends Term
+case class Add(x : Term,y : Term) extends Term
+object Value {
+  def unapply(term : Term) : Boolean =
+    term match {
+      case Num(_) => true
+      case Add(_,_) => false
+    }
+}
+
+object App {
+  def main(args: Array[String]) {
+    val term = Add(Num(1), Add(Num(2),Num(3)))
+    term match {
+      case Add(Num(x),Num(y)) =>
+        println("Add(Num, Num)")
+      case Add(Value(),y) => // <- not match!
+        println("Add(Value, ?)")
+      case _ =>
+        println("?")
+    }
+  }
+}
+```
+
+I expects that "Add(Value, ?)" is displayed , but "?" is displayed.
+Diassembling the compiled code, It seems that the compiler generates the code that skips pattern "Add(Value(),y)" when pattern "Num(y)" fails.

@@ -1,0 +1,12 @@
+In `ClassDenotation#baseTypeOf`, we have: https://github.com/lampepfl/dotty/blob/cedef0d317e39ee114a5ec0409604613837743a2/compiler/src/dotty/tools/dotc/core/SymDenotations.scala#L1697-L1707
+
+Notice that `record(tp, baseTp)` is always called, even if `tp` contains uninstantiated type variables which could later be instantiated in a way that changes the base type. I haven't been able to make a test case that shows how this is broken in master, but I've hit this in a branch where I'm doing unrelated changes. I was able to work around the issue by doing:
+```scala
+if (isFullyDefined(tp, ForceDegree.none))
+  record(tp, baseTp)
+else
+  btrCache.remove(tp) // Remove the "NoPrefix" sentinel value
+```
+but that causes many tests to fail with a cyclic error.
+
+@odersky WDYT ?

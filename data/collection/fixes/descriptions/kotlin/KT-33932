@@ -1,0 +1,29 @@
+Example (dependencies should not be transitive, so export check-box should be off in IDEA):
+```
+// MODULE: m1 (depends on m2)
+// FILE: my/first.kt
+package my
+class First : Base()
+// MODULE: m2 (depends on m3)
+// FILE: my/Base.java
+package my;
+public class Base {
+    private Some some;
+}
+// MODULE: m3
+// FILE: my/Some.java
+package my;
+public class Some {
+    private int foo = 42;
+    public int getFoo() { return foo; }
+}
+```
+
+Launch rebuild with `-Xuse-javac -Xcompile-java`. You will get
+
+```
+Error: Kotlin: [Internal Error] com.sun.tools.javac.code.Symbol$CompletionFailure: class file for my.Some not found
+Error: Kotlin: Compiler terminated with internal error
+```
+
+Error occurs during attempt of resolve of `some` property type from `m1` context. In this context `Some` is inaccessible because dependencies aren't transitive.

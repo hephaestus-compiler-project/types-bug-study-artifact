@@ -1,0 +1,30 @@
+{code}import kotlin.test.assertEquals
+
+open class Base {
+    protected fun<T> assertEquals (collection : Collection<T>, expected : Collection<T>) {
+        assertEquals (expected.size, collection.size(), "Count mismatch")
+        for (p in collection) {
+            assert(expected.any {it.equals(p)}, "Unexpected element in collection pair $p")
+        }
+    }
+
+    protected fun<T> assertEquals (collection : Collection<T>, vararg expected : T) {
+        assertEquals(collection, expected.toList())
+    }
+
+    protected fun<T> assertEquals (collection : Iterable<T>, vararg expected : T) {
+        assertEquals(collection.toList(), expected.toList())
+    }
+
+    protected fun<T> assertEquals (collection : Iterable<T>, expected : Collection<T>) {
+        assertEquals(collection.toList(), expected)
+    }
+}
+
+class Derived: Base() {
+  fun test() {
+    var x: Int? = null
+    assertEquals (null, x) // resolved to inherited function, instead of kotlin.test.assertEquals(Any?, Any?)
+                    //Kotlin: Null can not be a value of a non-null type Collection<Int?>
+  }
+}{code}

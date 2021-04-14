@@ -1,0 +1,83 @@
+Suppose that some file defines an object:
+```scala
+package dummy
+object Foo
+```
+While typechecking this file, a term for `Foo` is entered in the scope of `dummy`, but no corresponding type is entered because there is no `class Foo`. However, once compilation is done, we output:
+```scala
+./dummy/Foo.class
+./dummy/Foo$.class
+```
+If the current directory is on the classpath, this means that any subsequent compiler run will enter a type `Foo` in the scope of `dummy` because of how `PackageLoader` works. Of course, `dummy.Foo` is not a valid class, `TypeAssigner` contains a method `reallyExists` to determine this:
+```scala
+  /** A denotation exists really if it exists and does not point to a stale symbol. */
+  final def reallyExists(denot: Denotation)(implicit ctx: Context): Boolean = try
+    denot match {
+      case denot: SymDenotation =>
+        denot.exists && {
+          denot.ensureCompleted
+          !denot.isAbsent
+        }
+      case denot: SingleDenotation =>
+        val sym = denot.symbol
+        (sym eq NoSymbol) || reallyExists(sym.denot)
+      case _ =>
+        true
+    }
+  catch {
+    case ex: StaleSymbol => false
+  }
+```
+
+I think there is a fatal flaw in `reallyExists`: it requires forcing the info of the potentially-stale/absent symbol, this means we might unpickle trees from the classpath and pollute the scope with things that no longer exist. Here's a demonstration of how this might lead the compiler to crash:
+
+
+`outerFoo_1.scala`:
+```scala
+package outer
+class Foo
+```
+`outerinnerFoo_1.scala`:
+```scala
+package outer
+package inner
+object Foo {
+  val a: Int = 1
+}
+```
+
+`outerinnerFoo_2.scala`:
+```scala
+package outer
+package inner
+object Foo {
+  // val a: Int = 1
+}
+```
+`outerinnerTest_2.scala`
+```scala
+package outer
+package inner
+object Test {
+  val x: Foo = new Foo
+}
+```
+
+```
+$ dotc outerFoo_1.scala outerinnerFoo_1.scala
+$ dotc outerinnerTest_2.scala outerinnerFoo_2.scala
+exception occurred while typechecking outerinnerFoo_2.scala
+
+exception occurred while compiling outerinnerTest_2.scala, outerinnerFoo_2.scala
+Exception in thread "main" java.util.NoSuchElementException: None.get
+        at scala.None$.get(Option.scala:347)
+        at scala.None$.get(Option.scala:345)
+        at dotty.tools.dotc.typer.Typer.localTyper(Typer.scala:1500)
+        at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1519)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1577)
+```
+Full stacktrace: https://gist.github.com/smarter/c854842847e1e4d12794adabee5ad7c0
+
+I don't know exactly why this is crashing but the root cause here is that when I do `val x: Foo` in `Test`, `typedIdent` will first try `outer.inner.Foo`, which means calling `reallyExists` on it and thus unpickling `outer.inner.Foo` and `outer.inner.Foo$` from `outer/inner/Foo.class` even though we are also compiling `outerinnerFoo_2.scala` which contains a more recent version of the object `outer.inner.Foo$`.
+
+The only solution I can think of is that whenever we enter the symbol for a class or object without companion, we should mark the companion as absent to make very sure that we never try to load it from the classpath.

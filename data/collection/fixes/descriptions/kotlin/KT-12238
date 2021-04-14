@@ -1,0 +1,36 @@
+I have an interface, a class implementing it and a function returning Observable that emits instances of subclasses of the interface:
+```
+import rx.Observable;
+
+public class Foo {
+    interface AnInterface { }
+
+    public static class AnInterfaceImpl implements AnInterface { }
+
+    public static Observable<? extends AnInterface> getObservable() {
+        return Observable.just(new AnInterfaceImpl());
+    }
+}
+```
+
+In Java it works as expected:
+```
+public class Bar {
+    public static void bar() {
+        Foo.getObservable().subscribe(next -> { /* next is Foo.AnInterface */ });
+    }
+}
+```
+
+In Kotlin:
+```
+import rx.functions.Action1
+
+fun bar() {
+    // 1. Not as in Java
+    Foo.getObservable().subscribe { /* it is Any? */ }
+    // 2. As in Java
+    Foo.getObservable().subscribe(Action1 { /* it is Foo.AnInterface */ })
+}
+```
+Also IDE suggests me to remove SAM-constructor, which changes 2 to 1, making members of `it` inaccessible due to `it` becoming `Any?` (see attached screenshot).

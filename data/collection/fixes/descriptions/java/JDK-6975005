@@ -1,0 +1,30 @@
+6966604 added a new class JavacProcessingEnvironment.Round to simplify the JavacProcessingEnvironment.doProcessing runAround loop. There were some residual issues left over, such as not using a propely initialized new round for the last round, and not updating elementUtils before using it via the annotationComputer in findAnnotationsPresent.
+
+We need to fix those issues.
+
+----
+
+From a private email thread:
+
+
+[1]
+The first issue is the expected state when exiting the runAround loop in doProcessing, and the related expectations when calling runLastRound.
+
+There are 4 breaks from the runAround loop.
+
+-- The first is used if there were any issues preparing for the round (such as Enter errors).  The contextual info should be otherwise complete and unused at this point.
+
+-- The second is used if any errors were reported by the messager while running a round. The contextual info should be complete, but has been used to run a round of processing.
+
+-- Lexically, the third is used if there were any unrecoverable errors (such as parse errors) in generated code.  THIS CASE LOOKS PROBLEMATIC.  In this case, the context and compiler are fresh, and updateProcessingState has not been called, so filer/messager/elementUtils/typeUtils all point to a context/compiler which have now been closed, meaning that many fields have been nulled out.
+
+-- The last break is used if there is no more work to do. This is effectively the same as the second case. The contextual info should be complete, but has been used to run a round of processing.
+
+As for the expectations for running rounds
+-- in the main rounds, there is an explicit dependence on the currentContext, which is not present for the last round.
+-- after the last round has occurred, there is an explicit dependence on the compiler to parse newly generated source files; in the main rounds this is done with a fresh compiler in prepartion for the next round.  The parser will probably be reuable, and the code is careful to avoid checking compiler.errorCount, which may be polluted by errors running the last round, so this dependence may be benign.
+In both cases, there are hidden dependencies on the context and associated values via the processing state and elementUtils/typeUtils.
+
+
+[2]
+The second issue is that the annotations are computed from classes computed in the new context using elementUtils from the previous round.  In other words, updateProcessingState(currentContext, false); is called after using annotationComputer.scan.

@@ -1,0 +1,34 @@
+The attached file causes `kotlinc` (1.4.10, jvm) to hang indefinitely. I tried to pause randomly in the debugger to look at the the stacktrace, and looks like it was doing subtype checking.
+```
+interface DataTemplate<A : DataTemplate<A>> {
+}
+
+interface CollectionTemplate<A, B> {
+}
+
+class DataManagerBackedPagedResourceFlow<E: DataTemplate<E>, M: DataTemplate<M>>
+private constructor(
+    internal val loadMorePredicate: LoadMorePredicate<E, M>?,
+    internal val uniqueIdForModel: UniqueIdentifierProvider<E>,
+) {
+
+    class Builder<E : DataTemplate<E>, M : DataTemplate<M>>() {
+        fun build(): DataManagerBackedPagedResourceFlow<E, M> {
+            return DataManagerBackedPagedResourceFlow(
+                // Seems to be caused by type inference from these two SAM literals.
+                loadMorePredicate = LoadMorePredicate { },
+                uniqueIdForModel = UniqueIdentifierProvider { },
+            )
+        }
+    }
+
+    fun interface LoadMorePredicate<E : DataTemplate<E>?, M : DataTemplate<M>?> {
+        fun shouldLoadMore(previousResult: CollectionTemplate<E, M>?)
+    }
+
+    fun interface UniqueIdentifierProvider<E : DataTemplate<E>> {
+        fun getUniqueIdForModel(model: E)
+    }
+}
+
+```

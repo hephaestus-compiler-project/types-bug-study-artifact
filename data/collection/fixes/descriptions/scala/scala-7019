@@ -1,0 +1,60 @@
+I'm able to crash the compiler with the following code.
+
+```scala
+package foo
+
+object Foo {
+  final class Foo(val i: Int) extends AnyVal {
+    def foo() = go(i)
+    private[this] def go(i: Int) = i * 2
+  }
+}
+```
+
+Taking the [this] modifier off allows the code to fully compile.
+
+[info] Compiling 1 Scala source to
+/home/adam/src/default-project/target/scala-2.10/classes...
+[error]
+[error]      while compiling:
+/home/adam/src/default-project/src/main/scala/Code.scala
+[error]         during phase: extmethods
+[error]      library version: version 2.10.0
+[error]     compiler version: version 2.10.0
+[error]   reconstructed args: -classpath
+/home/adam/src/default-project/target/scala-2.10/classes -d
+/home/adam/src/default-project/target/scala-2.10/classes
+-bootclasspath /usr/lib/jvm/java-6-openjdk-amd64/jre/lib/resources.jar:/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/rt.jar:/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/sunrsasign.jar:/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/jsse.jar:/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/jce.jar:/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/charsets.jar:/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/netx.jar:/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/plugin.jar:/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/rhino.jar:/usr/lib/jvm/java-6-openjdk-amd64/jre/lib/modules/jdk.boot.jar:/usr/lib/jvm/java-6-openjdk-amd64/jre/classes:/home/adam/.sbt/0.12.1/boot/scala-2.10.0/lib/scala-library.jar
+[error]
+[error]   last tree to typer: Select(This(object Foo), Foo)
+[error]               symbol: object Foo in object Foo (flags:
+<module> <synthetic>)
+[error]    symbol definition: object Foo
+[error]                  tpe: foo.Foo.Foo.type
+[error]        symbol owners: object Foo -> object Foo -> package foo
+[error]       context owners: method go -> class Foo -> object Foo ->
+package foo
+[error]
+[error] == Enclosing template or block ==
+[error]
+[error] Apply( // val <error>: <error> in class <error>, tree.tpe=<error>
+[error]   Foo.this."Foo"."go$extension" // val <error>: <error> in
+class <error>, tree.tpe=<error>
+[error]   This("Foo")final implicit class Foo extends AnyVal in object Foo
+[error] )
+[error]
+[error] == Expanded type of tree ==
+[error]
+[error] TypeRef(
+[error]   pre = ThisType(object Foo)
+[error]   TypeSymbol(class Foo extends AnyRef)
+[error] )
+[error]
+[error] uncaught exception during compilation:
+scala.reflect.internal.Types$TypeError
+[trace] Stack trace suppressed: run last compile:compile for the full output.
+[error] (compile:compile) scala.reflect.internal.Types$TypeError:
+method go$extension in object Foo cannot be accessed in object
+foo.Foo.Foo
+[error] Total time: 2 s, completed Jan 22, 2013 8:29:03 PM
+>

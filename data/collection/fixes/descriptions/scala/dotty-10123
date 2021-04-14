@@ -1,0 +1,47 @@
+## Minimized code
+
+```Scala
+// build.sbt
+lazy val root = project
+  .in(file("."))
+  .settings(
+    scalaVersion := "3.0.0-M1-bin-20201027-b5a1715-NIGHTLY",
+    libraryDependencies ++= Seq(
+      "com.sksamuel.elastic4s" % "elastic4s-embedded_2.13" % "5.6.11"
+    )
+  )
+```
+```scala
+//src/main/scala/Main.scala
+import com.sksamuel.elastic4s.TcpClient
+import com.sksamuel.elastic4s.ElasticDsl
+import org.elasticsearch.cluster.health.ClusterHealthStatus
+
+object Main {
+  import ElasticDsl._
+
+  def status1(client: TcpClient): ClusterHealthStatus = {
+    val response = client.execute(clusterHealth()).await
+    response.getStatus()
+  }
+
+  def status2(client: TcpClient): ClusterHealthStatus =
+    client.execute(clusterHealth()).await.getStatus()
+}
+```
+
+
+## Output
+
+```scala
+[info] compiling 1 Scala source to /target/scala-3.0.0-M1/classes ...
+[error] -- [E008] Not Found Error: /src/main/scala/Main.scala:15:42 
+[error] 15 |    client.execute(clusterHealth()).await.getStatus()
+[error]    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[error]    |value getStatus is not a member of org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse - did you mean org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse.getStatus
+[error] one error found
+```
+
+## Expectation
+
+Method `status1` does compile and so method `status2` should compile as well.

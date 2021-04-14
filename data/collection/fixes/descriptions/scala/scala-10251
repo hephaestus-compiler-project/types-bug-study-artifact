@@ -1,0 +1,46 @@
+``` scala
+Welcome to Scala 2.12.1 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_102).
+Type in expressions for evaluation. Or try :help.
+
+scala> :paste
+// Entering paste mode (ctrl-D to finish)
+
+sealed trait Base {
+  type A
+  type B
+}
+object Base {
+  type Aux[A0, B0] = Base {
+    type A = A0
+    type B = B0
+  }
+}
+
+trait Child0 extends Base
+trait Child1 extends Base
+
+val base: Base.Aux[Float, Float] = new Child1 {
+  override type A = Float
+  override type B = Float
+}
+base match {
+  case child0: Child0 =>
+    throw new AssertionError()
+  case child1: Child1 =>
+    child1.ensuring(_ == base)
+}
+
+// Exiting paste mode, now interpreting.
+
+<console>:35: warning: unreachable code
+           child1.ensuring(_ == base)
+                          ^
+defined trait Base
+defined object Base
+defined trait Child0
+defined trait Child1
+base: Base.Aux[Float,Float] = $anon$1@71ad3d8a
+res0: Base{type A = Float; type B = Float} with Child1 = $anon$1@71ad3d8a
+```
+
+The `unreachable code` mentioned by the warning message is actually reachable.

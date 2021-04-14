@@ -1,0 +1,43 @@
+The latest stable release of scalac (version 2.12) can compile, but dotc crashes.
+```
+$ cat abc.scala
+package +
+import tools.nsc._, reporters._, typechecker._
+class CustomGlobal(currentSettings: Reporter) extends Global(currentSettings) {
+  override lazy val analyzer = new { val global: this.type = this }
+  with Analyzer {
+    override def newTyper(context: Context) = new CustomTyper(context)
+    class CustomTyper(context: Context) extends Typer(context) {
+      override def typed(tree: Tree, pt: Type) = {
+        if (tree.summaryString contains "Bippy") ()
+        super.typed(tree, pt)
+      }
+    }
+  }
+}
+
+```
+```
+$ dotc abc.scala
+-- [E009] Syntax Error: abc.scala:5:2 ------------------------------------------
+5 |  with Analyzer {
+  |  ^^^^
+  |  early definitions are not supported; use trait parameters instead
+
+longer explanation available when compiling with `-explain`
+-- [E006] Unbound Identifier Error: abc.scala:1:8 ------------------------------
+1 |package +
+  |        ^
+  |        not found: +
+
+longer explanation available when compiling with `-explain`
+
+exception occurred while compiling abc.scala
+Exception in thread "main" dotty.tools.dotc.ast.Trees$UnAssignedTypeException: type of TypeDef(CustomGlobal,Template(DefDef(<init>,List(),List(List(ValDef(currentSettings,Ident(Reporter),EmptyTree))),TypeTree,EmptyTree),List(Apply(Select(New(Ident(Global)),<init>),List(Ident(currentSettings)))),ValDef(_,EmptyTree,EmptyTree),List(ValDef(analyzer,TypeTree,New(Template(DefDef(<init>,List(),List(),TypeTree,EmptyTree),List(),ValDef(_,EmptyTree,EmptyTree),List(ValDef(global,SingletonTypeTree(This(Ident())),This(Ident()))))))))) is not assigned
+	at dotty.tools.dotc.ast.Trees$Tree.tpe(Trees.scala:97)
+	at dotty.tools.dotc.ast.Trees$DenotingTree.denot(Trees.scala:236)
+	at dotty.tools.dotc.ast.Trees$Tree.symbol(Trees.scala:148)
+	at dotty.tools.dotc.typer.FrontEnd.firstTopLevelDef(FrontEnd.scala:73)
+	at dotty.tools.dotc.typer.FrontEnd.discardAfterTyper(FrontEnd.scala:78)
+<...>
+```

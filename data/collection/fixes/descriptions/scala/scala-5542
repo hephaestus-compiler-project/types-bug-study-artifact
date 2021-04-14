@@ -1,0 +1,24 @@
+When switching from Scala 2.9.1 to 2.10.0-M2 with virtpatmatch enabled, a wrong type erasure warning is emitted in this class: https://github.com/Sciss/ScalaAudioFile/blob/scala-2.10.0-M2-test/src/main/scala/de/sciss/synth/io/AudioFile.scala . The code is as follows:
+
+```scala
+      val sf   = spec.sampleFormat
+      ...
+      sf.bidiFactory match {
+         case Some( bbf ) =>
+            val bb   = bbf( ch, ch, buf, spec.numChannels )
+            new BidiFileImpl( f, raf, afh, bb )
+         case None        =>
+            val bw = sf.writerFactory.map( _.apply( ch, buf, spec.numChannels )).getOrElse( noEncoder( sf ))
+            new WritableFileImpl( f, raf, afh, bw )
+      }
+```
+
+Method `bidiFactory` has return type `Option[ BufferBidiFactory ]`, so there is no further generics involved other than having the option. Without virtpatmat it compiles fine, with virtpatmat the following warning is emitted:
+
+```scala
+[warn] /Users/hhrutz/Documents/devel/ScalaAudioFile/src/main/scala/de/sciss/synth/io/AudioFile.scala:188: non variable type-argument de.sciss.synth.io.BufferBidiFactory in type Some[de.sciss.synth.io.BufferBidiFactory] is unchecked since it is eliminated by erasure
+[warn]          case Some( bbf ) =>
+[warn]                   ^
+```
+
+Clearly the extractor should work without any erasure warnings. To reproduce clone the following project/branch https://github.com/Sciss/ScalaAudioFile/tree/scala-2.10.0-M2-test and run `sbt compile` (use the nightly sbt from http://repo.typesafe.com/typesafe/ivy-snapshots/org.scala-tools.sbt/sbt-launch/0.11.3-20120130-052105/ )

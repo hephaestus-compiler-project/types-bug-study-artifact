@@ -1,0 +1,37 @@
+We have started seeing failures in the cmp-baseline builds that look like this:
+
+Differing files in ./lib/modules
+/java.base/java/lang/invoke/MemberName.class
+
+This looks like a new case of non deterministic behavior when generating classes. The first appearance in CI is build jdk-17+15-1221. The previous build that got to tier5 was 1209, but since this is an intermittent problem, we can't know for sure if that build was actually affected or not.
+
+From what I can tell, this file is just compiled with javac and not subject to any further modification by any build tool.
+
+Looking at javap output for two differing builds of this class, the difference looks to be benign from a functional perspective. (The value in the "slot" column for 2 and 3 have switched places)
+
+Variant1:
+    LocalVariableTable:
+      Start  Length  Slot  Name   Signature
+         38      12     1  type   Ljava/lang/Object;
+         84       6     4   res   Ljava/lang/invoke/MethodType;
+         74      19     3   sig   Ljava/lang/String;
+        121      24     4 ptypes   [Ljava/lang/Class;
+        129      16     5 rtype   Ljava/lang/Class;
+        139       6     6   res   Ljava/lang/invoke/MethodType;
+        113      32     2 typeInfo   [Ljava/lang/Object;
+          0     211     0  this   Ljava/lang/invoke/MemberName;
+
+Variant2:
+    LocalVariableTable:
+      Start  Length  Slot  Name   Signature
+         38      12     1  type   Ljava/lang/Object;
+         84       6     4   res   Ljava/lang/invoke/MethodType;
+         74      19     2   sig   Ljava/lang/String;
+        121      24     4 ptypes   [Ljava/lang/Class;
+        129      16     5 rtype   Ljava/lang/Class;
+        139       6     6   res   Ljava/lang/invoke/MethodType;
+        113      32     3 typeInfo   [Ljava/lang/Object;
+          0     211     0  this   Ljava/lang/invoke/MemberName;
+
+
+While this will not have any functional effect on compiled java classes, we would like to continue having predictable and repeatable output from javac.

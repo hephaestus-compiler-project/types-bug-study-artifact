@@ -1,0 +1,45 @@
+## Minimized code
+
+```Scala
+class Test {
+  val tup: Char #: Int #: String #: TupleK = ???
+  val x: String #: TupleK = (tup.tail: Int #: String #: TupleK).tail
+  val y: String #: TupleK = tup.tail.tail
+  val z: Unit = tup.tail.tail
+}
+
+trait TupleK
+
+object TupleK {
+  type Tail[X <: NonEmptyTupleK] <: TupleK = X match {
+    case _ #: xs => xs
+  }
+}
+
+trait NonEmptyTupleK extends TupleK {
+  /*inline*/ def tail[This >: this.type <: NonEmptyTupleK]: TupleK.Tail[This] = ???
+}
+
+abstract class #:[+H, +T <: TupleK] extends NonEmptyTupleK
+```
+
+## Output
+
+```scala
+-- [E008] Not Found Error: tests/run/tuples1c.scala:5:37 -----------------------
+5 |  val y: String #: TupleK = tup.tail.tail
+  |                            ^^^^^^^^^^^^^
+  |value tail is not a member of TupleK.Tail[This] - did you mean TupleK.Tail[This].wait?
+  |
+  |where:    This is a type variable with constraint >: (Test.this.tup : Char #: Int #: String #: TupleK) and <: NonEmptyTupleK
+-- [E008] Not Found Error: tests/run/tuples1c.scala:6:25 -----------------------
+6 |  val z: Unit = tup.tail.tail
+  |                ^^^^^^^^^^^^^
+  |value tail is not a member of TupleK.Tail[This] - did you mean TupleK.Tail[This].wait?
+  |
+  |where:    This is a type variable with constraint >: (Test.this.tup : Char #: Int #: String #: TupleK) and <: NonEmptyTupleK
+2 errors found
+```
+
+## Expectation
+They compile with the inline, the should also compile without it.

@@ -1,0 +1,90 @@
+Compiler (both `dotc` and REPL) crashes on this code;
+```scala
+trait App(init: implicit Array[String] => Unit) {
+  inline def main(args: Array[String]): Unit = init(args)
+}
+```
+```none
+$ cat <<EOF > test2.scala
+> trait App(init: implicit Array[String] => Unit) { inline def main(args: Array[String]): Unit = init(args) }
+> EOF
+$ ../dotc test2.scala    
+exception while transforming def main$_inlineAccessor_$1: implicit Array[String] => Unit = this.init of class class dotty.tools.dotc.ast.Trees$DefDef # 112
+exception while transforming (init: implicit Array[String] => Unit) extends Object { 
+  private val init: implicit Array[String] => Unit
+  @this.main$_inlineAccessor_$1.apply(args) inline def main(args: Array[String])
+    : 
+  Unit = this.main$_inlineAccessor_$1.apply(args)
+  def main$_inlineAccessor_$1: implicit Array[String] => Unit = this.init
+} of class class dotty.tools.dotc.ast.Trees$Template # 208
+exception while transforming @scala.annotation.internal.SourceFile("test2.scala") <trait> trait App(
+  init: implicit Array[String] => Unit
+) extends Object { 
+  private val init: implicit Array[String] => Unit
+  @this.main$_inlineAccessor_$1.apply(args) inline def main(args: Array[String])
+    : 
+  Unit = this.main$_inlineAccessor_$1.apply(args)
+  def main$_inlineAccessor_$1: implicit Array[String] => Unit = this.init
+} of class class dotty.tools.dotc.ast.Trees$TypeDef # 209
+exception while transforming package <empty> {
+  @scala.annotation.internal.SourceFile("test2.scala") <trait> trait App(
+    init: implicit Array[String] => Unit
+  ) extends Object { 
+    private val init: implicit Array[String] => Unit
+    @this.main$_inlineAccessor_$1.apply(args) inline def main(
+      args: Array[String]
+    ): Unit = this.main$_inlineAccessor_$1.apply(args)
+    def main$_inlineAccessor_$1: implicit Array[String] => Unit = this.init
+  }
+} of class class dotty.tools.dotc.ast.Trees$PackageDef # 210
+
+exception occurred while compiling test2.scala
+Exception in thread "main" scala.MatchError: Select(This(Ident(App)),init) (of class dotty.tools.dotc.ast.Trees$Select)
+        at dotty.tools.dotc.transform.ShortcutImplicits$Transform.splitClosure$1(ShortcutImplicits.scala:157)
+        at dotty.tools.dotc.transform.ShortcutImplicits$Transform.transformDefDef(ShortcutImplicits.scala:161)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.goDefDef(TreeTransform.scala:817)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformNamed(TreeTransform.scala:979)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.op$55(TreeTransform.scala:1184)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transform(TreeTransform.scala:1176)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformStat$2(TreeTransform.scala:1210)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.$anonfun$731(TreeTransform.scala:1214)
+        at dotty.tools.dotc.core.Decorators$ListDecorator$.loop$6(Decorators.scala:62)
+        at dotty.tools.dotc.core.Decorators$ListDecorator$.mapconserve$extension(Decorators.scala:78)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformStats(TreeTransform.scala:1214)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformUnnamed(TreeTransform.scala:1155)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.op$55(TreeTransform.scala:1185)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transform(TreeTransform.scala:1176)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformNamed(TreeTransform.scala:985)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.op$55(TreeTransform.scala:1184)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transform(TreeTransform.scala:1176)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformStat$2(TreeTransform.scala:1210)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.$anonfun$731(TreeTransform.scala:1214)
+        at dotty.tools.dotc.core.Decorators$ListDecorator$.loop$6(Decorators.scala:62)
+        at dotty.tools.dotc.core.Decorators$ListDecorator$.mapconserve$extension(Decorators.scala:78)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformStats(TreeTransform.scala:1214)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transformUnnamed(TreeTransform.scala:1164)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.op$55(TreeTransform.scala:1185)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.transform(TreeTransform.scala:1176)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.macroTransform(TreeTransform.scala:557)
+        at dotty.tools.dotc.transform.TreeTransforms$TreeTransformer.run(TreeTransform.scala:475)
+        at dotty.tools.dotc.core.Phases$Phase.runOn$$anonfun$2(Phases.scala:283)
+        at scala.collection.immutable.List.map(List.scala:284)
+        at dotty.tools.dotc.core.Phases$Phase.runOn(Phases.scala:285)
+        at dotty.tools.dotc.Run.compileUnits$$anonfun$1$$anonfun$1(Run.scala:82)
+        at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+        at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+        at scala.collection.IndexedSeqOptimized$class.foreach(IndexedSeqOptimized.scala:33)
+        at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:186)
+        at dotty.tools.dotc.Run.compileUnits$$anonfun$1(Run.scala:90)
+        at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+        at dotty.tools.dotc.util.Stats$.monitorHeartBeat(Stats.scala:76)
+        at dotty.tools.dotc.Run.compileUnits(Run.scala:95)
+        at dotty.tools.dotc.Run.compileSources(Run.scala:64)
+        at dotty.tools.dotc.Run.compile(Run.scala:48)
+        at dotty.tools.dotc.Driver.doCompile(Driver.scala:26)
+        at dotty.tools.dotc.Driver.process(Driver.scala:124)
+        at dotty.tools.dotc.Driver.process(Driver.scala:93)
+        at dotty.tools.dotc.Driver.process(Driver.scala:105)
+        at dotty.tools.dotc.Driver.main(Driver.scala:132)
+        at dotty.tools.dotc.Main.main(Main.scala)
+```

@@ -1,0 +1,18 @@
+Example:
+{code}
+@groovy.transform.TypeChecked
+class Foo {
+    def bar() { 2 }
+
+    static class Baz {
+        def doBar() {
+            bar()
+        }
+    }
+}
+new Foo.Baz().doBar()
+{code}
+
+The {{doBar()}} call in the method above results in a MissingMethodException. If the code is statically compiled rather than just type checked, a VerifyError occurs instead.  
+
+The usage of {{ClassNode#isStaticClass()}} within {{StaticTypeCheckingVisitor#findMethod(ClassNode, String, ClassNode...)}} seems to be responsible, as the former does not return true when the receiver is a static class.

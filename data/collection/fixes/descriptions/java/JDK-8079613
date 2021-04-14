@@ -1,0 +1,159 @@
+On JDK9 tip, I see that javac takes seemingly forever to compile this program:
+
+// -------- 8< -------------------
+class JSONObject {
+	
+	JSONObject put(java.lang.String x , Object y) {
+		return null;
+	}
+	
+	JSONObject put(java.lang.String x , java.util.Collection y) {
+		return null;
+	}
+	
+	JSONObject put(java.lang.String x , int y) {
+		return null;
+	}
+	
+	JSONObject put(java.lang.String x , long y) {
+		return null;
+	}
+	
+	JSONObject put(java.lang.String x , double y) {
+		return null;
+	}
+	
+	JSONObject put(java.lang.String x , java.util.Map y) {
+		return null;
+	}
+	
+	JSONObject put(java.lang.String x , boolean y) {
+		return null;
+	}
+}
+
+class JSONArray  {
+	
+	JSONArray put(Object x) {
+		return null;
+	}
+	
+	JSONArray put(int i, Object x) {
+		return null;
+	}
+	
+	JSONArray put(boolean x) {
+		return null;
+	}
+	
+	JSONArray put(int x) {
+		return null;
+	}
+	
+	JSONArray put(int i, int x) {
+		return null;
+	}
+	
+	JSONArray put(int x, boolean y) {
+		return null;
+	}
+	
+	JSONArray put(int i, long x) {
+		return null;
+	}
+	
+	JSONArray put(long x) {
+		return null;
+	}
+	
+	JSONArray put(java.util.Collection x) {
+		return null;
+	}
+	
+	JSONArray put(int i, java.util.Collection x) {
+		return null;
+	}
+	
+	JSONArray put(int i, java.util.Map x) {
+		return null;
+	}
+	
+	JSONArray put(java.util.Map x) {
+		return null;
+	}
+	
+	JSONArray put(int i, double x) {
+		return null;
+	}
+	
+	JSONArray put(double x) {
+		return null;
+	}
+	
+}
+
+/**
+ * @author Copyright (c) 2004,2014, Oracle and/or its affiliates. All rights reserved. 
+ */
+public class X {
+
+  private void test() throws Exception {
+      final JSONObject query = new JSONObject()
+      .put("fields", new JSONArray())
+      .put("links", new JSONArray())
+      .put("children", new JSONObject()
+        .put("serverRuntimes", new JSONObject()
+          .put("fields", new JSONArray().put("name"))
+          .put("links", new JSONArray())
+          .put("children", new JSONObject()
+            .put("applicationRuntimes", new JSONObject()
+              .put("fields", new JSONArray().put("name").put("internal"))
+              .put("links", new JSONArray())
+              .put("children", new JSONObject()
+                .put("componentRuntimes", new JSONObject()
+                  .put("fields", new JSONArray().put("name").put("deploymentState").put("type")
+                  		.put("contextRoot").put("sourceInfo").put("openSessionsHighCount")
+                  		.put("openSessionsCurrentCount").put("sessionsOpenedTotalCount"))
+                  .put("links", new JSONArray())
+                  .put("children", new JSONObject()
+                    .put("servlets", new JSONObject()
+                      .put("fields", new JSONArray().put("invocationTotalCount"))
+                      .put("links", new JSONArray())
+                    )
+                  )
+                )
+              )
+            ) 
+            .put("partitionRuntimes", new JSONObject()
+              .put("fields", new JSONArray().put("name"))
+              .put("links", new JSONArray())   
+              .put("children", new JSONObject()
+              .put("applicationRuntimes", new JSONObject()
+                .put("fields", new JSONArray().put("name").put("internal"))
+                .put("links", new JSONArray())
+                .put("children", new JSONObject()
+                  .put("componentRuntimes", new JSONObject()
+                    .put("fields", new JSONArray().put("name").put("deploymentState").put("type")
+                    		.put("contextRoot").put("sourceInfo").put("openSessionsHighCount")
+                    		.put("openSessionsCurrentCount").put("sessionsOpenedTotalCount"))
+                    .put("links", new JSONArray())
+                    .put("children", new JSONObject()
+                      .put("servlets", new JSONObject()
+                        .put("fields", new JSONArray().put("invocationTotalCount"))
+                        .put("links", new JSONArray()))
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      );
+  }
+}
+
+The number of overloads have a direct bearing on the time taken to compile the program, As I eliminate the patently incompatible candidates, compilation speeds picks up progressively.
+
+(I didn't personally verify inference has a finger in the pie somewhere, but Jan Lahoda's cursory
+investigation pointed to that)

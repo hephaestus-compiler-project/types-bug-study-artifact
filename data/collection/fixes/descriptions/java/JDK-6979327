@@ -1,0 +1,143 @@
+The current specification for method handle invocation derives the invocation type signature by examining the the types of the arguments to determine the signature argument types and by examining a type argument to determine the signature return type.  This signature is stored in the class file as part of the linkage information for each method handle call, as part of a CONSTANT_NameAndType constant pool entry.
+
+We will change this notation to use contextual target typing to determine a return type.
+
+The determination of argument types in the signature will remain the same:  They are the erased types of the actual arguments, with the null type being replaced by the type java.lang.Void.
+
+In terms of the Java source language specification of these methods, the return type of invokeExact and invokeGeneric is Object.  (See below for sample API declaration.)  The argument type of both is a varargs array of Object, which allows them to accept sequence of actual arguments.  The linkage information stored for a method handle call will mention the actual argument types, before boxing or varargs conversion.  The linkage information will, in general, mention Object as the return type, except in two cases where target typing logic will apply.
+
+In the first case, if the method call expression is in fact an expression statement, the linkage information emitted will specify a void return.  If the programmer intends to receive and discard a value, the value must be stored into a dummy variable.
+
+In the second case, if a reference cast is applied immediately to the method call expression, then the cast type supplies the return type in the linkage information, unless the reference cast type is a wrapper type for a primitive, and the reference cast is the immediate subject of a primitive cast for the corresponding primitive.  If there is a such a primitive cast, then the primitive type (not the wrapper type) supplies the return type in the linkage information.
+
+(Note: If the language is amended so that a primitive cast can be applied directly to a value of type Object, then such a direct primitive cast on a method handle invocation should also supply the return type.  For compatibility reasons, we are stuck forever with the double cast notation, although we can limit it to the specific pattern of a primitive type casting its corresponding wrapper type.)
+
+Examples: Here are examples of method handle return types specified with the old syntax:
+
+  MethodHandle mh = ...;
+  Object x = mh.invokeExact('x');  // (C)Ljava/lang/Object;
+  String y = mh.<String>invokeExact();  // ()Ljava/lang/String;
+  int z = mh.<int>invokeExact(false,0L);  // (ZJ)I
+  {mh.<void>invokeExact(0);}  // (I)V
+  mh.invokeExact(0);  // (I)Ljava/lang/Object;
+
+Here are the corresponding examples using the new syntax:
+
+  MethodHandle mh = ...;
+  Object x = mh.invokeExact('x');  // (C)Ljava/lang/Object;
+  String y = (String) mh.invokeExact();  // ()Ljava/lang/String;
+  int z = (int)(Integer) mh.invokeExact(false,0L);  // (ZJ)I
+  mh.invokeExact(0);  // (I)V
+  Object junk = mh.invokeExact(0);  // (I)Ljava/lang/Object;
+
+Rationale:  Type arguments cannot be primitives or void, so this was a highly irregular use of the syntax.  Also, such a treatment of type arguments is irregular, because it does not correspond to a true type parameter.
+
+Transition:  The type argument syntax for method handle invocation will no longer be correct.  A compatibility switch will allow the old syntax to coexist briefly with the new, until it is removed in a release candidate for JDK 7.  JDK 7 sources will be converted as soon as these language changes are generally available.
+
+Coding response required:  In general, the following changes must be made to source code:
+
+  mh.invokeExact(args)
+  =>
+  (Object) mh.invokeExact(args)
+
+  mh.<RefType>invokeExact(args)
+  =>
+  (RefType) mh.invokeExact(args)
+
+  mh.<primType>invokeExact(args)
+  =>
+  (primType)(WrapperType) mh.invokeExact(args)
+
+The preceding changes only work when the method invocation expression is not itself an expression statement.  In other words, the return value must be "used" somehow.  A cast to Object is as always semantically void, and can be omitted (without affecting linkage information) if there is no other cast immediately enclosing the casted invocation expression.
+
+If the method invocation expression is also an expression statement, the rules for rewriting must be different:
+
+  {mh.<void>invokeExact(args);}  // expression statement
+  =>
+  mh.invokeExact(args);  // linkage information will be void
+
+  {mh.<RefType>invokeExact(args);}  // expression statement
+  =>
+  {RefType junk = (RefType) mh.invokeExact(args);}
+
+  mh.<primType>invokeExact(args);  // expression statement
+  =>
+  {primType junk = (primType)(WrapperType) mh.invokeExact(args);}
+
+These changes apply to MethodHandle.invokeGeneric as well as MethodHandle.invokeExact.
+
+As before, the non-public annotation @java.dyn.MethodHandle.PolymorphicSignature must be present on the two methods invokeExact and invokeGeneric, as an aid to tools.  Other details (throws, finality, etc.)
+
+Sample API:  The declarations for these two methods are of the following form:
+
+  public native @MethodHandle.PolymorphicSignature Object invokeExact(Object... args) throws Throwable;
+  public native @MethodHandle.PolymorphicSignature Object invokeGeneric(Object... args) throws Throwable;
+
+
+Impact on InvokeDynamic:  These syntax changes apply also to calls to static methods of java.dyn.InvokeDynamic, which is the source-level notation for an invokdynamic instruction.  For example:
+
+  {InvokeDynamic.<void>name(args);}  // expression statement
+  =>
+  {InvokeDynamic.name(args);}
+
+  InvokeDynamic.<RefType>name(args)
+  =>
+  (RefType) InvokeDynamic.name(args)
+
+  InvokeDynamic.<primType>name(args);
+  =>
+  (primType)(WrapperType) InvokeDynamic.name(args)
+
+The declaration of InvokeDynamic is of this form:
+
+  @MethodHandle.PolymorphicSignature
+  public final class InvokeDynamic {
+    private InvokeDynamic() { throw new InternalError(); }  // do not instantiate
+    public static native @MethodHandle.PolymorphicSignature Object name1(Object... args) throws Throwable;
+    public static native @MethodHandle.PolymorphicSignature Object name2(Object... args) throws Throwable;
+    ...
+  }
+
+Note that the actual source code does not specify any static methods.  For any name, the corresponding signature-polymorphic static method is imputed to the class InvokeDynamic.  The name becomes part of the linkage information of the invokedynamic instruction, as part of a CONSTANT_NameAndType constant pool entry.
+For a specification, see part (1) of the current version (v11) of:
+  http://wikis.sun.com/display/mlvm/InterfaceDynamic
+
+The relevant part is (1) method handle invocation, not (2) invokedynamic or (3) exotic identifiers.  Here is the text:
+
+SPECIFICATION:
+1.1 A signature-polymorphic method is a method which is declared with the annotation @java.dyn.MethodHandle.PolymorphicSignature.
+
+1.2 Every signature-polymorphic method must be declared with the following properties:
+
+It must be native.
+It must take a single varargs parameter of the form Object....
+It must produce a return value of type Object.
+It must be contained within the java.dyn package.
+Direct primitive casts are specifically allowed on the result of a signature-polymorphic method invocation, even if the result is a reference type such as Object. (This last point may have been unclear in some versions of the JLS; see Sun bug 6979683.)
+
+(Note: Because of these requirements, a signature-polymorphic method is able to accept any number and type of actual arguments, and can, with a cast, produce a value of any type.)
+
+Here is an example:
+
+package java.dyn;
+public class MethodHandle {
+    ...
+    @interface PolymorphicSignature { }  // non-public, used only as directed in this proposal
+    public native @PolymorphicSignature Object invokeExact(Object... args) throws Throwable;  // example
+    public native @PolymorphicSignature Object invokeGeneric(Object... args) throws Throwable;  // example
+    ...
+}
+1.3 When a call to a signature-polymorphic method is compiled, the associated linkage information for its arguments is not array of Object (as for other similar varargs methods) but rather the erasure of the static types of all the arguments.
+
+1.4 In an argument position of a method invocation on a signature-polymorphic method, a null literal has type java.lang.Void, unless cast to a reference type.
+
+(Note: This typing rule allows the null type to have its own encoding in linkage information distinct from other types. The ambiguity with the type Void is harmless, since there are no references of type Void except the null reference.)
+
+1.5 The linkage information for the return type is derived from a context-dependent target typing convention. The return type for a signature-polymorphic method invocation is determined as follows:
+
+If the method invocation expression is an expression statement, the method is void.
+Otherwise, if the method invocation expression is the immediate operand of a cast, the return type is the erasure of the cast type.
+Otherwise, the return type is the method's nominal return type, Object.
+(Programmers are encouraged to use explicit casts unless it is clear that a signature-polymorphic call will be used as a plain Object expression.)
+
+1.6 The linkage information for argument and return types is stored in the descriptor for the compiled (bytecode) call site. As for any invocation instruction, the arguments and return value will be passed directly on the JVM stack, in accordance with the descriptor, and without implicit boxing or unboxing.

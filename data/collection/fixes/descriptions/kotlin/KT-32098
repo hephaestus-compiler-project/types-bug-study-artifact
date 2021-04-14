@@ -1,0 +1,20 @@
+```kotlin
+    suspend fun getSoundTypes(items: Iterable<Item>): Map<Long, SoundType> = withContext(Dispatchers.IO) {
+        try {
+            val ids = items.map { it.id }.filterNotNull().toList()
+            repository.getSoundTypes(ids)
+        } catch (err: Exception) {
+            logError("getSoundTypes()", err)
+            emptyMap<Long, SoundType>()
+        }
+    }
+```
+
+The IDE suggests `Remove explicit type arguments` for `<Long, SoundType>` of `emptyMap<Long, SoundType>()` in the `catch` block. (line 7)
+
+But removing it causes a compile error:
+
+```
+Error:(233, 13) Kotlin: Type inference failed: Not enough information to infer parameter K in fun <K, V> emptyMap(): Map<K, V>
+Please specify it explicitly.
+```

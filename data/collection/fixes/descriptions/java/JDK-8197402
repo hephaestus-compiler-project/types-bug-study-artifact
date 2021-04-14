@@ -1,0 +1,21 @@
+From Maurizio:
+
+Seems like all tests are too dependent on the javac output and they strictly verify that the (synthetic) inner class corresponding to a private constructor token is emitted; with nestmates such token classes are not needed, so they are not in the output. The tests need to change.
+
+Basically when a class has a private constructor:
+
+class Foo {
+   private Foo() { }
+}
+
+it gets translated as this:
+
+class Foo {
+    /* package */ Foo(Foo$1 tag) { }
+
+    static private class Foo$1 { }
+}
+
+Then clients just call the constructor with a null extra argument.
+
+Since Foo$1 is private, from a language perspective it's not possible for programmers to name that to create instances using the private constructor. Nestmates eliminate the need for this weird workaround, allowing members of the nest to call directly into the constructor. 

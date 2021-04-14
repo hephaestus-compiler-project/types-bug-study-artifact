@@ -1,0 +1,22 @@
+This code works for Scala 2.10.0-M2, causes warning for 2.10.0-M3, and does not work for 2.10.0-M4, 2.10.0-M5, 2.10.0-M6, and 2.10.0-M7
+```scala
+  private val ParentPackagePattern = """^(?:(.*)\.|)\w+$"""r
+
+  @annotation.tailrec
+  final def searchClass(packageName: String,
+                        className: String): Class[_] = {
+    packageName match {
+      case null | "" =>
+        Class.forName(className)
+      case ParentPackagePattern(parentPackageName) =>
+        try {
+          return Class.forName(packageName + "." + className)
+        } catch {
+          case e: ClassNotFoundException =>
+        }
+        searchClass(parentPackageName, className)
+      case _ =>
+        throw new IllegalArgumentException("Bad package name: " + packageName)
+    }
+  }
+```

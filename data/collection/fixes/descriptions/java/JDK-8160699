@@ -1,0 +1,147 @@
+FULL PRODUCT VERSION :
+java version "1.8.0_92"
+Java(TM) SE Runtime Environment (build 1.8.0_92-b14)
+Java HotSpot(TM) 64-Bit Server VM (build 25.92-b14, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+3.13.0-24-generic #47-Ubuntu SMP Fri May 2 23:30:00 UTC 2014 x86_64 x86_64 x86_64 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+Class compiles but fails to load:
+Error: A JNI error has occurred, please check your installation and try again
+Exception in thread "main" java.lang.VerifyError: Inconsistent stackmap frames at branch target 82
+Exception Details:
+  Location:
+    SwitchCompilerErr.switchTo()V @82: new
+  Reason:
+    Type top (current frame, locals[3]) is not assignable to 'java/lang/String' (stack map, locals[3])
+  Current Frame:
+    bci: @57
+    flags: { }
+    locals: { 'SwitchCompilerErr', integer, integer }
+    stack: { integer }
+  Stackmap Frame:
+    bci: @82
+    flags: { }
+    locals: { 'SwitchCompilerErr', integer, integer, 'java/lang/String' }
+    stack: { }
+  Bytecode:
+    0x0000000: bb00 0259 b700 03b6 0004 3cbb 0002 59b7
+    0x0000010: 0003 b600 043d 1bab 0000 0017 0000 0001
+    0x0000020: 0000 0000 0000 0011 1205 4ea7 000d bb00
+    0x0000030: 0659 1207 b700 08bf 1cab 0000 0000 0019
+    0x0000040: 0000 0001 0000 0000 0000 0013 1205 4ea7
+    0x0000050: 000d bb00 0659 1207 b700 08bf b1       
+  Stackmap Table:
+    append_frame(@40,Integer,Integer)
+    same_frame(@46)
+    same_frame(@56)
+    same_frame(@76)
+    append_frame(@82,Object[#19])
+    chop_frame(@92,1)
+
+        at java.lang.Class.getDeclaredMethods0(Native Method)
+        at java.lang.Class.privateGetDeclaredMethods(Class.java:2701)
+        at java.lang.Class.privateGetMethodRecursive(Class.java:3048)
+        at java.lang.Class.getMethod0(Class.java:3018)
+        at java.lang.Class.getMethod(Class.java:1784)
+        at sun.launcher.LauncherHelper.validateMainClass(LauncherHelper.java:544)
+        at sun.launcher.LauncherHelper.checkAndLoadMain(LauncherHelper.java:526)
+
+
+REGRESSION.  Last worked in version 7u76
+
+ADDITIONAL REGRESSION INFORMATION: 
+java version "1.7.0_76"
+Java(TM) SE Runtime Environment (build 1.7.0_76-b13)
+Java HotSpot(TM) 64-Bit Server VM (build 24.76-b04, mixed mode)
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+compile and run supplied code
+
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+expected to load and execute
+ACTUAL -
+Error: A JNI error has occurred, please check your installation and try again
+Exception in thread "main" java.lang.VerifyError: Inconsistent stackmap frames at branch target 82
+Exception Details:
+  Location:
+    SwitchCompilerErr.switchTo()V @82: new
+  Reason:
+    Type top (current frame, locals[3]) is not assignable to 'java/lang/String' (stack map, locals[3])
+  Current Frame:
+    bci: @57
+    flags: { }
+    locals: { 'SwitchCompilerErr', integer, integer }
+    stack: { integer }
+  Stackmap Frame:
+    bci: @82
+    flags: { }
+    locals: { 'SwitchCompilerErr', integer, integer, 'java/lang/String' }
+    stack: { }
+  Bytecode:
+    0x0000000: bb00 0259 b700 03b6 0004 3cbb 0002 59b7
+    0x0000010: 0003 b600 043d 1bab 0000 0017 0000 0001
+    0x0000020: 0000 0000 0000 0011 1205 4ea7 000d bb00
+    0x0000030: 0659 1207 b700 08bf 1cab 0000 0000 0019
+    0x0000040: 0000 0001 0000 0000 0000 0013 1205 4ea7
+    0x0000050: 000d bb00 0659 1207 b700 08bf b1       
+  Stackmap Table:
+    append_frame(@40,Integer,Integer)
+    same_frame(@46)
+    same_frame(@56)
+    same_frame(@76)
+    append_frame(@82,Object[#19])
+    chop_frame(@92,1)
+
+        at java.lang.Class.getDeclaredMethods0(Native Method)
+        at java.lang.Class.privateGetDeclaredMethods(Class.java:2701)
+        at java.lang.Class.privateGetMethodRecursive(Class.java:3048)
+        at java.lang.Class.getMethod0(Class.java:3018)
+        at java.lang.Class.getMethod(Class.java:1784)
+        at sun.launcher.LauncherHelper.validateMainClass(LauncherHelper.java:544)
+        at sun.launcher.LauncherHelper.checkAndLoadMain(LauncherHelper.java:526)
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import java.util.Random;
+
+public class SwitchCompilerErr {
+
+	private void switchTo() throws Exception {
+		int e = new Random().nextInt();
+		int m = new Random().nextInt();
+		switch (e) {
+		case 0:
+			String a = "";
+			break;
+		default:
+			throw new Exception("Unknown ");
+		}
+//		String z = "";
+		switch (m) {
+		case 0:
+			String b = "";
+			break;
+		default:
+			throw new Exception("Unknown ");
+		}
+	}
+	
+	public static void main(String[] args) throws Exception {
+		new SwitchCompilerErr().switchTo();
+	}
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+inserting variable definition in between switch statements prevents this issue
+

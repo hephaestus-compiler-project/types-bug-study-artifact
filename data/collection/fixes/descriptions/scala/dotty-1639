@@ -1,0 +1,46 @@
+Dotty encounters a stack overflow when compiling this invalid code:
+`class Foo(implicit val bar: String) { def this() = this("baz") }`
+
+Here's the [full trace](http://pastebin.com/raw/dZV1aFSf), and a snippet below from using `dotc`.
+
+```
+Exception in thread "main" java.lang.StackOverflowError
+    at dotty.tools.dotc.core.OrderingConstraint$ConstraintLens.update(OrderingConstraint.scala:51)
+    at dotty.tools.dotc.core.OrderingConstraint$ConstraintLens.update(OrderingConstraint.scala:72)
+    at dotty.tools.dotc.core.OrderingConstraint.updateEntry(OrderingConstraint.scala:337)
+    at dotty.tools.dotc.core.OrderingConstraint.init(OrderingConstraint.scala:305)
+    at dotty.tools.dotc.core.OrderingConstraint.add(OrderingConstraint.scala:289)
+    at dotty.tools.dotc.core.OrderingConstraint.add(OrderingConstraint.scala:128)
+    at dotty.tools.dotc.core.ConstraintHandling$class.addToConstraint(ConstraintHandling.scala:297)
+    at dotty.tools.dotc.core.TypeComparer.addToConstraint(TypeComparer.scala:18)
+    at dotty.tools.dotc.typer.ProtoTypes$.constrained(ProtoTypes.scala:369)
+    at dotty.tools.dotc.typer.ProtoTypes$.constrained(ProtoTypes.scala:374)
+    at dotty.tools.dotc.typer.ProtoTypes$$anonfun$normalize$1.apply(ProtoTypes.scala:393)
+    at dotty.tools.dotc.typer.ProtoTypes$$anonfun$normalize$1.apply(ProtoTypes.scala:392)
+    at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+    at dotty.tools.dotc.typer.ProtoTypes$.normalize(ProtoTypes.scala:391)
+    at dotty.tools.dotc.typer.Implicits$ImplicitRefs$$anonfun$filterMatching$1.dotty$tools$dotc$typer$Implicits$ImplicitRefs$$anonfun$$refMatches$1(Implicits.scala:95)
+    at dotty.tools.dotc.typer.Implicits$ImplicitRefs$$anonfun$filterMatching$1$$anonfun$apply$1.apply(Implicits.scala:100)
+    at dotty.tools.dotc.typer.Implicits$ImplicitRefs$$anonfun$filterMatching$1$$anonfun$apply$1.apply(Implicits.scala:100)
+    at scala.collection.TraversableLike$$anonfun$filterImpl$1.apply(TraversableLike.scala:259)
+    at scala.collection.immutable.List.foreach(List.scala:381)
+    at scala.collection.TraversableLike$class.filterImpl(TraversableLike.scala:258)
+    at scala.collection.TraversableLike$class.filter(TraversableLike.scala:270)
+    at scala.collection.AbstractTraversable.filter(Traversable.scala:104)
+    at dotty.tools.dotc.typer.Implicits$ImplicitRefs$$anonfun$filterMatching$1.apply(Implicits.scala:100)
+    at dotty.tools.dotc.typer.Implicits$ImplicitRefs$$anonfun$filterMatching$1.apply(Implicits.scala:48)
+    at dotty.tools.dotc.util.Stats$.track(Stats.scala:35)
+...
+```
+
+And compiling with scalac:
+
+```
+./tests/neg/mytest.scala:3: error: overloaded method constructor Foo with alternatives:
+  ()Foo <and>
+  ()(implicit bar: String)Foo
+ cannot be applied to (String)
+class Foo(implicit val bar: String) { def this() = this("baz") }
+                                                   ^
+one error found
+```

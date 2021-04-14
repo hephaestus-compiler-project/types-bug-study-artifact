@@ -1,0 +1,59 @@
+[Major is the default priority, sorry if I'm supposed to assign to another]
+This code fails during static type checking:
+{noformat}
+interface A {
+    String getName();
+}
+
+interface B extends A {
+    void foo();
+}
+
+@groovy.transform.CompileStatic
+class C {
+    String name
+    void bar(B b)
+    {
+        b.foo()
+        name = b.name
+    }
+}
+new C()
+{noformat}
+
+With this error:
+{noformat}
+[Static type checking] - No such property: name for class: B
+{noformat}
+
+Changing the code to use getName() works, as does casting b to A.
+
+I also encountered a related issue, in which the getName() workaround fails:
+{noformat}
+interface A {
+    String getName();
+}
+
+interface A2 {
+    String getName();
+}
+
+interface B extends A,A2 {
+    void foo();
+}
+
+@groovy.transform.CompileStatic
+class C {
+    String name
+    void bar(B c)
+    {
+        c.foo()
+        name = c.getName()
+    }
+}
+new C()
+{noformat}
+The casting workaround still works, but otherwise the error given is:
+{noformat}
+[Static type checking] - Reference to method is ambiguous. Cannot choose between [MethodNode@1813166140[java.lang.String getName()], MethodNode@877270685[java.lang.String getName()]]
+{noformat}

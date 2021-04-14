@@ -1,0 +1,12 @@
+[This line of code|https://github.com/fluidsonic/fluid-json/blob/3480a520cd99f6218bce2301eac44c885dd98b7f/Sources/Implementations/StandardDecoder.kt#L12] throws a {{NullPointerException}} in some cases for no reason (see [Travis CI|https://travis-ci.org/fluidsonic/fluid-json/builds/290235563#L636] for example).
+
+[This test|https://github.com/fluidsonic/fluid-json/blob/3480a520cd99f6218bce2301eac44c885dd98b7f/Tests/Sources/StandardDecoderSpec.kt#L20] causes the method mentioned above to throw a {{NullPointerException}} even though there isn't a {{null}} anywhere.
+
+These are the relevant variables and return values:
+* {{valueClass}} is {{LocalDate::class.java}}, i.e. non-null
+* {{codecResolver.decoderCodecForClass(valueClass)}} returned [LocalDateCodec|https://github.com/fluidsonic/fluid-json/blob/3480a520cd99f6218bce2301eac44c885dd98b7f/Tests/Sources/Coding/LocalDateCodec.kt#L11], i.e. non-null
+* {{this}} is obviously non-null
+* {{.decode(decoder = this)}} calls into the {{LocalDateCodec}} which definitively returns a non-null {{LocalDate}} instance
+
+Yet when {{LocalDateCodec.decode(…)}} returns, a {{NullPointerException}} is thrown.
+I think that this is likely a bug in the compiler.

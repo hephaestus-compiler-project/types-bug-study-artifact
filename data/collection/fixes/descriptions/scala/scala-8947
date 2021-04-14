@@ -1,0 +1,34 @@
+  If you compile a.scala, then b.scala with 2.11.4, then you get the ambiguous implicits error shown beneath. For the problem to be apparent, a.scala must be compiled with 2.11.4, but b.scala can be compiled with either 2.11.2 or 2.11.4 (i.e. I'd infer that the problem is with the binaries produced by 2.11.4).
+
+The most interesting thing about it is that the method `foo` and the macro seem to be completely unrelated. The error still occurs if `foo` gets moved to a separate object.
+
+You can also see the problem in the REPL.
+
+a.scala:
+```scala
+import language.experimental.macros
+import scala.reflect.macros._
+object X {
+  def foo[D] = new Array[Any](0).map(_.asInstanceOf[D])
+  def extractor: Any = macro extractorMacro
+  def extractorMacro(c: blackbox.Context): c.Expr[Any] =
+    c.universe.reify(new { def something(data: Any) = ??? })
+}
+```
+
+b.scala:
+```scala
+object Test { X.extractor }
+```
+
+output:
+```scala
+> scalac a.scala && scalac b.scala
+b.scala:1: error: ambiguous implicit values:
+ both value StringCanBuildFrom in object Predef of type => scala.collection.generic.CanBuildFrom[String,Char,String]
+ and method $conforms in object Predef of type [A]=> <:<[A,A]
+ match expected type T
+object Test { X.extractor }
+                ^
+one error found
+```

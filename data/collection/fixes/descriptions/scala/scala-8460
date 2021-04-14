@@ -1,0 +1,38 @@
+Spotted this one while building `scalanlp/breeze` is a final round of regression hunting ahead of the 2.11 release.
+
+```scala
+object tan extends UFunc {
+  implicit def ImplDouble: Impl[Double, Double] = ???
+}
+
+trait UFunc {
+  trait TC[+A]
+  type Impl[V, VR] = UFunc.UImpl[this.type, V, VR]
+}
+
+object UFunc {
+  class UImpl[A, B, C]
+  implicit def implicitDoubleUTag[Tag, V, VR](implicit conv: V => Double, impl: UImpl[Tag, Double, VR]): UImpl[Tag, V, VR] = ???
+}
+
+object Test {
+  implicitly[tan.Impl[Double, Double]]
+  // we should discard the one and only divergent implicit (`implicitDoubleUTag`)
+  // This is done under `scalac-hash v2.10.4 test.scala`, but not under
+  // `scalac-hash v2.10.4 -Xdivergence211 test.scala`
+  //
+  // This seems to be because the companion implicits contain redundant entries
+  //
+  //  companionImplicitMap tan.Impl[Double,Double] {
+  //    object UFunc  implicitDoubleUTag: [Tag, V, VR](implicit conv: V => Double, implicit impl: UFunc.UImpl[Tag,Double,VR])UFunc.UImpl[Tag,V,VR]
+  //    object tan    ImplDouble: => tan.Impl[Double,Double]
+  //    trait UFunc   implicitDoubleUTag: [Tag, V, VR](implicit conv: V => Double, implicit impl: UFunc.UImpl[Tag,Double,VR])UFunc.UImpl[Tag,V,VR]
+  //  }
+  //
+}
+
+```
+
+See #7291 / https://github.com/scala/scala/commit/accaa314
+
+As best as I can tell, that uncovered a latent bug with `companionImplicitMap`, which ends up with redundant entries if the parts of the type we're dealing with contains both a class symbol and its companion module symbol.

@@ -1,0 +1,72 @@
+Using `@alpha` on a constructor doesn't make sense (at least for the jvm backend), so should be either forbidden or ignored.
+
+## minimized code
+
+```Scala
+class A(i:Int){
+  @scala.annotation.alpha("E") def this() = this(3)
+}
+object O{
+  def main(args: Array[String]) = {
+    new A()
+  }
+}
+```
+
+<details>
+<summary>Stack trace</summary>
+
+```scala
+Unexpected New(A/TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),class A)) reached GenBCode.
+  Call was genLoad(New(TypeTree[TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),class A)]),LA;)
+Error while emitting alpha-init.scala
+exception occurred while compiling alpha-init.scala
+java.lang.RuntimeException: Unexpected New(A/TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),class A)) reached GenBCode.
+  Call was genLoad(New(TypeTree[TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),class A)]),LA;) while compiling alpha-init.scala
+Exception in thread "main" java.lang.RuntimeException: Unexpected New(A/TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),class A)) reached GenBCode.
+  Call was genLoad(New(TypeTree[TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),class A)]),LA;)
+	at dotty.tools.backend.jvm.DottyBackendInterface.abort(DottyBackendInterface.scala:394)
+	at dotty.tools.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genLoad(BCodeBodyBuilder.scala:315)
+	at dotty.tools.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genLoad(BCodeBodyBuilder.scala:264)
+	at dotty.tools.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genLoadQualifier(BCodeBodyBuilder.scala:1010)
+	at dotty.tools.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genNormalMethodCall$1(BCodeBodyBuilder.scala:782)
+	at dotty.tools.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genApply(BCodeBodyBuilder.scala:814)
+	at dotty.tools.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genLoad(BCodeBodyBuilder.scala:339)
+	at dotty.tools.backend.jvm.BCodeBodyBuilder$PlainBodyBuilder.genLoad(BCodeBodyBuilder.scala:409)
+	at dotty.tools.backend.jvm.BCodeSkelBuilder$PlainSkelBuilder.emitNormalMethodBody$1(BCodeSkelBuilder.scala:597)
+	at dotty.tools.backend.jvm.BCodeSkelBuilder$PlainSkelBuilder.genDefDef(BCodeSkelBuilder.scala:630)
+	at dotty.tools.backend.jvm.BCodeSkelBuilder$PlainSkelBuilder.gen(BCodeSkelBuilder.scala:501)
+	at dotty.tools.backend.jvm.BCodeSkelBuilder$PlainSkelBuilder.gen$$anonfun$1(BCodeSkelBuilder.scala:503)
+	at dotty.runtime.function.JProcedure1.apply(JProcedure1.java:15)
+	at dotty.runtime.function.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.immutable.List.foreach(List.scala:305)
+	at dotty.tools.backend.jvm.BCodeSkelBuilder$PlainSkelBuilder.gen(BCodeSkelBuilder.scala:503)
+	at dotty.tools.backend.jvm.BCodeSkelBuilder$PlainSkelBuilder.genPlainClass(BCodeSkelBuilder.scala:109)
+	at dotty.tools.backend.jvm.GenBCodePipeline$Worker1.visit(GenBCode.scala:217)
+	at dotty.tools.backend.jvm.GenBCodePipeline$Worker1.run(GenBCode.scala:184)
+	at dotty.tools.backend.jvm.GenBCodePipeline.buildAndSendToDisk(GenBCode.scala:514)
+	at dotty.tools.backend.jvm.GenBCodePipeline.run(GenBCode.scala:480)
+	at dotty.tools.backend.jvm.GenBCode.run(GenBCode.scala:51)
+	at dotty.tools.dotc.core.Phases$Phase.runOn$$anonfun$1(Phases.scala:315)
+	at scala.collection.immutable.List.map(List.scala:219)
+	at dotty.tools.dotc.core.Phases$Phase.runOn(Phases.scala:316)
+	at dotty.tools.backend.jvm.GenBCode.runOn(GenBCode.scala:55)
+	at dotty.tools.dotc.Run.runPhases$4$$anonfun$4(Run.scala:161)
+	at dotty.runtime.function.JProcedure1.apply(JProcedure1.java:15)
+	at dotty.runtime.function.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.ArrayOps$.foreach$extension(ArrayOps.scala:1323)
+	at dotty.tools.dotc.Run.runPhases$5(Run.scala:171)
+	at dotty.tools.dotc.Run.compileUnits$$anonfun$1(Run.scala:179)
+	at dotty.runtime.function.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.util.Stats$.maybeMonitored(Stats.scala:65)
+	at dotty.tools.dotc.Run.compileUnits(Run.scala:186)
+	at dotty.tools.dotc.Run.compileSources(Run.scala:123)
+	at dotty.tools.dotc.Run.compile(Run.scala:106)
+	at dotty.tools.dotc.Driver.doCompile(Driver.scala:36)
+	at dotty.tools.dotc.Driver.process(Driver.scala:189)
+	at dotty.tools.dotc.Driver.process(Driver.scala:158)
+	at dotty.tools.dotc.Driver.process(Driver.scala:170)
+	at dotty.tools.dotc.Driver.main(Driver.scala:197)
+	at dotty.tools.dotc.Main.main(Main.scala)
+```
+</details>

@@ -1,0 +1,63 @@
+This issue shows up when calling abstract dependent method types declared within generic classes. The class generic parameter must appear somewhere in the method signature. For instance:
+
+```scala
+> class A{ class V }; val a1 = new A; val v1 = new a1.V
+...
+> abstract class B[S]{ def f(t: S, a: A)(v: a.V) }
+...
+> val b1 = new B[String]{ def f(t: String, a: A)(v: a.V) = println("ok!") }
+...
+> b1.f("",a1)(v1)
+java.lang.AbstractMethodError: B.f(Ljava/lang/Object;LA;LA$V;)V
+	at .<init>(<console>:13)
+	at .<clinit>(<console>)
+        ...
+```
+
+I found similar problems when the parameter S appears in other locations of the method signature, i.e. the compiler also complains when f is declared either as f1 or f2 (see bellow). However, there is no problem whatsoever when the parameter is not part of the declaration, as in f3:
+
+```scala
+def f1(a: A)(t: S, v: a.V)
+def f2(a: A)(v: a.V): S
+def f3(a: A)(v: a.V)
+```
+
+Still, we can get f be called successfully if object b1 is created through an object declaration:
+
+```scala
+> object b1 extends B[String]{ def f(t: String, a: A)(v: a.V) = println("ok!") }
+...
+> b1.f("",a1)(v1)
+ok!
+```
+
+but the problem persists when f is called through a generic function or other generic class (including B[S] itself). For instance:
+
+```scala
+scala> def f[S](b: B[S], t: S, a: A)(v: a.V) = b.f(t,a)(v)
+...
+scala> f(b1,"",a1)(v1)
+java.lang.AbstractMethodError: B.f(Ljava/lang/Object;LA;LA$V;)V
+	at .f(<console>:9)
+	at .<init>(<console>:14)
+        ...
+```
+
+I couldn't find a proper workaround. Tried these but don't work either:
+
+```scala
+def f(t: S, a: At)(e: T[a.type]) // given another definition of T 
+def f(t: S, a: At): a.T => Unit
+```
+
+The last one doesn't even compile when B[String] is instantiated, showing an strange message: 
+```scala
+> object b1 extends B[String]{ def f(a: A) = (v: a.V) => println("ok!") }
+<console>:9: error: type mismatch;
+ found   : a.V => Unit
+ required: a.V => Unit
+ possible cause: missing arguments for method or constructor
+       object b1 extends B[String]{ def f(a: A) = (v: a.V) => println("ok!") }
+```
+
+

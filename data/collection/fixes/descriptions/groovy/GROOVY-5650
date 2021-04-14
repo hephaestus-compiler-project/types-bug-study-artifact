@@ -1,0 +1,53 @@
+The following Groovy code compiles with @TypeChecked in 2.0.0, but not in 2.0.1:
+
+JavaClass.java
+{code}import java.util.List;
+import java.util.ArrayList;
+import java.util.Collection;
+
+public class JavaClass {
+
+    public static class Container<T> {
+    }
+
+    public static class StringContainer extends Container<String> {
+    }
+
+    public static <T> List<T> unwrap(Collection<? extends Container<T>> list) {
+        return null;
+    }
+
+    public static void main(String[] args) {
+        final List<StringContainer> containers = new ArrayList<>();
+        final List<String> strings = unwrap(containers);
+    }
+}{code}
+
+GroovyClass.groovy
+{code}import groovy.transform.TypeChecked;
+
+@TypeChecked
+class GroovyClass {
+
+    public static void javaCall() {
+        final List<JavaClass.StringContainer> containers = new ArrayList<>();
+        containers.add(new JavaClass.StringContainer()); 
+        final List<String> strings = JavaClass.unwrap(containers);
+    }
+
+    public static void main(String[] args) { 
+        javaCall();
+    }
+}{code}
+
+
+Groovy 2.0.0 compiles the code without errors or warnings, but 2.0.1 gives the following error message:
+
+{noformat}/home/.../GroovyClass.groovy: 8: [Static type checking] - Incompatible generic argument types. Cannot assign java.util.List <JavaClass> to: java.util.List <String>
+ @ line 8, column 38.
+           final List<String> strings = JavaClass.unwrap(containers);
+                                        ^
+
+1 error{noformat}
+
+Somehow Groovy infers the type to the static method's class, instead of the container's type argument.

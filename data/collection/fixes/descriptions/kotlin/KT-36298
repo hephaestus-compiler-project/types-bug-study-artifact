@@ -1,0 +1,15 @@
+Tested in Kotlin 1.3.61
+
+The compiler sometimes doesn't deduce correct type in below example:
+```kotlin
+val <A> (()->A).toNullVal: (()->A?) get() = { null }
+fun <A> (()->A).toNullFun(): (()->A?) = { null }
+
+fun main() {
+  val result1 = "42"::toDouble.toNullFun()() // deduced as Double?
+  val result2 = "42"::toDouble.toNullVal() // deduced as A?
+  val result3 = { 0.42 }.toNullVal() // deduced as A?
+  val result4: Double? = { 0.42 }.toNullVal() // error: Type mismatch. Required: Double? Found: A?
+}
+```
+As above. It's also impossible to specify the type explicitly (`result4`)

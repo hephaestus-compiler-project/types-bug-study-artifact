@@ -1,0 +1,67 @@
+## reproduction steps
+
+Using java 8,
+
+```java
+// ExampleEnum.java
+
+public enum ExampleEnum {
+    FIRST,
+    @Deprecated
+    SECOND,
+    THIRD
+}
+```
+
+using Scala 2.12,
+
+```scala
+package example
+
+object EnumConsumer extends App {
+  def consume(e: ExampleEnum): String =
+    e match {
+      case ExampleEnum.FIRST => "first"
+      case ExampleEnum.SECOND => "second"
+      case ExampleEnum.THIRD => "third"
+    }
+
+  for (e <- ExampleEnum.values()) {
+    println(consume(e))
+  }
+}
+```
+
+## problem
+Compile with fatal warnings, and the compiler rejects the code above:
+
+```
+EnumConsumer.scala:7: Java enum SECOND in Java enum ExampleEnum is deprecated: see corresponding Javadoc for more information.
+one error found
+```
+
+If you comment out the line it complains about, then the compiler rejects the code with:
+
+```
+EnumConsumer.scala:5: match may not be exhaustive.
+It would fail on the following input: SECOND
+one error found
+```
+
+Switching to if/else doesn't help either:
+
+```scala
+  def consume(e: ExampleEnum): String =
+    if (e == ExampleEnum.FIRST) "first"
+    else if (e == ExampleEnum.SECOND) "second"
+    else "third"
+```
+
+```
+EnumConsumer.scala:6: Java enum SECOND in Java enum ExampleEnum is deprecated: see corresponding Javadoc for more information.
+one error found
+```
+
+It would be reasonable for the scala compiler to warn about producing the enum value, since the deprecation annotation discourages creating the value.  It's still necessary to handle the value passed in by others though, and it's still necessary to include it in the match for it to be exhaustive.
+
+The compiler shouldn't warn about matching deprecated enum values.

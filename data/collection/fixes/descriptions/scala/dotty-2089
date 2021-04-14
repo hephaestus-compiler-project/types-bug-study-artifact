@@ -1,0 +1,37 @@
+The following fails:
+```shell
+dotc -language:Scala2 scala-scala/src/library/scala/collection/parallel/mutable/ParSetLike.scala scala-scala/src/library/scala/collection/parallel/mutable/ParSet.scala scala-scala/src/library/scala/collection/mutable/SetLike.scala
+```
+```scala
+-- Error: scala-scala/src/library/scala/collection/parallel/mutable/ParSetLike.scala 
+34 |   with scala.collection.parallel.ParIterableLike[T, Repr, Sequential]
+   |                                                           ^
+   |Type argument Sequential does not conform to upper bound scala.collection.Iterable[T] & 
+   |  scala.collection.IterableLike[T, LazyRef(Sequential)] 
+-- Error: scala-scala/src/library/scala/collection/parallel/mutable/ParSetLike.scala 
+35 |   with scala.collection.parallel.ParSetLike[T, Repr, Sequential]
+   |                                                      ^
+   |Type argument Sequential does not conform to upper bound scala.collection.Set[T] & scala.collection.SetLike[T, LazyRef(Sequential)] 
+```
+I've tried to trace what's going on and it looks a bit like this:
+1. we first set the info of `type Sequential` to empty bounds in `typeDefSig`
+2. Then we try to type its rhs
+3. This forces a bunch of things, eventually we are again in `typeDefSig` and we try to type the rhs of `type scala$collection$parallel$mutable$ParSetLike$$Sequential`
+4. `type scala$collection$parallel$mutable$ParSetLike$$Sequential` rhs is a derived type tree watching `type Sequential`, whose info is still set to empty bounds, so we get empty bounds here too, boom!
+
+More precisely:
+```scala
+==> typing Sequential?
+  ==> typing  <: mutable.Set[T] & mutable.SetLike[T, Sequential]?
+    ==> typing mutable.Set[T] & mutable.SetLike[T, Sequential]?
+       ==> typing mutable.Set[T]?
+        ==> typing mutable.Set?
+          ==> typing mutable?
+             ==> adapting scala.collection.mutable of type scala.collection.mutable.type to ?{ Set: ? }?
+               ==> typing Parallelizable[A, ParSet[A]]?
+                 ==> typing ParSet[A]?
+                   ==> typing ParSet?
+                     ==> typing <derived typetree watching Sequential <: ...>?
+```
+
+I've come up with a slightly more minimal testcase, see https://gist.github.com/smarter/01643647f860df77b007b7c19dd013dd

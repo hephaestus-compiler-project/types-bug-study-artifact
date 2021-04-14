@@ -1,0 +1,17 @@
+The processing of invokeExact and invokeGeneric methods in MethodHandle is special-cased by javac, because these are signature polymorphic methods.
+
+The specification for this relies (currently) on the private @PolymorphicSignature annotation.
+
+This state of affairs will be disturbed when we move the 292 API from java.dyn to java.lang.invoke.  (The move is bug 7012648.)
+
+In particular, the name of the marker annotation will change from this:
+  java.dyn.MethodHandle$PolymorphicSignature
+
+to this:
+  java.lang.invoke.MethodHandle$PolymorphicSignature
+
+In order to build the JDK with the API in the new package, the javac compiler will have to recognize the new name.  For compatibility during a transitional period, it will have to recognize *both* names.
+
+This bug is urgent because we cannot check new JDK code into the repositories until an upgraded javac has gone all the way through release engineering and been propagated to the tool set used by JPRT (and customers, etc.).
+
+We will need a separate cleanup bug to remove the transitional support for "java.dyn".

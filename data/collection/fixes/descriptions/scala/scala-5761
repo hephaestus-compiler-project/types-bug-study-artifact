@@ -1,0 +1,33 @@
+```scala
+class D[-A](x: A) { }
+
+object Test {
+  // new D[Int]              // no crash
+  // new D[Int]()            // no crash
+  // new D[Int]{}            // no crash
+  // println(new D[Int])     // no crash
+  // println(new D[Int]())   // no crash
+  println(new D[Int]{})   // crash
+}
+/**
+mismatch anonymous class $anon List(Int) List()
+	at scala.Predef$.assert(Predef.scala:182)
+	at scala.tools.nsc.Global.assert(Global.scala:187)
+	at scala.tools.nsc.typechecker.Typers$Typer.decompose$1(Typers.scala:1803)
+	at scala.tools.nsc.typechecker.Typers$Typer.computeParamAliases(Typers.scala:1810)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedDefDef(Typers.scala:1980)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:4655)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5004)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStat$1(Typers.scala:2558)
+**/
+```
+Horrifyingly, this does NOT crash:
+```scala
+class D[-A](x: A) { }
+
+object Test {
+  println(new D[Int]())   // no crash
+  println(new D[Int]{})   // crash
+}
+```
+In other words, attempting to instantiate it with empty parens induces it to give the correct error message for empty braces.

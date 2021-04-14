@@ -1,0 +1,28 @@
+Code snippet minimised from collection strawman:
+```scala
+trait Iterable[A] {
+  def concat[B >: A](that: Iterable[B]): Iterable[B] = ???
+  @`inline` final def ++ [B >: A](that: Iterable[B]): Iterable[B] = concat(that)
+}
+
+class BitSet extends Iterable[Int] {
+  def concat(that: Iterable[Int]): BitSet = ???
+  @`inline` final def ++ (that: Iterable[Int]): BitSet = concat(that)
+}
+
+class Test {
+  def test(x: BitSet, y: Iterable[Int]): Unit = {
+    val foo = x ++ y
+  }
+}
+```
+```scala
+-- Error: tests/allan/Test.scala:68:16 -----------------------------------------
+68 |    val foo = x ++ y
+   |              ^^^^^^
+   |    overloaded alternatives of method concat in class BitSet with types
+   |     (that: Iterable[Int]): BitSet
+   |     [B >: Int](that: Iterable[B]): Iterable[B] does not take parameters
+   | This location is in code that was inlined at tests/allan/Test.scala:68
+```
+scalac can compile. Dotty can compile without the `inline` annotations.

@@ -1,0 +1,39 @@
+These two overloads are considered valid by Dotty, because their signatures are different:
+```scala
+class A {
+  def foo[T <: Serializable](x: T): Unit = {}
+  def foo[T <: Cloneable](x: T): Unit = {}
+}
+```
+... but trying to override one of them fails, because refchecks uses `Types#matches` to find overrides which does not take signatures into account (it calls `TypeComparer#matchesType` which in turns does `matchesType(tp1.resultType, tp2.resultType.subst(tp2, tp1))`, therefore comparing `(x: T): Unit` to `(x: T): Unit`):
+```scala
+class B extends A {
+  override def foo[T <: Serializable](x: T): Unit = {}
+}
+```
+```scala
+-- Error: try/B.scala:21:15 ----------------------------------------------------
+21 |  override def foo[T <: Serializable](x: T): Unit = {}
+   |               ^
+   |  error overriding method foo in class A of type [T <: Cloneable](x: T): Unit;
+   |    method foo of type [T <: Serializable](x: T): Unit has incompatible type
+```
+
+So the question is: should we disallow these overloads, or should we strive to support them? The answer is not clear cut to me because Scala 2 never supported them:
+```scala
+try/B.scala:16: error: method foo is defined twice;
+  the conflicting method foo was defined at line 15:7
+  def foo[S <: Cloneable](x: S): Unit = {}
+      ^
+```
+... but Java does support them, so if we don't support them we're still in trouble when trying to override them (and in fact scala 2 cannot override them):
+```java
+public class A {
+  public <T extends java.io.Serializable> void foo(T x) {}
+  public <T extends Cloneable> void foo(T x) {}
+}
+```
+
+I would be in favor of supporting them for better interoperability and because it doesn't seem too hard (require matching param signatures for Types#matches to bring it in line with Denotation#matches)
+
+WDYT @odersky ?

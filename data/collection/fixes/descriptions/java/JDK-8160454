@@ -1,0 +1,36 @@
+javax.lang.model.element.ModuleElement.getDirectives() causes NPE if corresponding ModuleElement instance represents unnamed module.
+
+The minimized testcase is attached. In order to reproduce it, please:
+1. Unzip attached archive on some Unix/Linux machine to a directory, say A.
+2. Modify A/Test21/test.sh by setting JDK_HOME environment variable to your JDK installation.
+3. Run A/Test21/test.sh.
+
+On JDK9b125 this causes following output:
+
+Root elements number: 1
+
+Root class: Test21
+Package:    unnamed package
+Module:     unnamed module
+Invoking getDirectives():
+
+
+An annotation processor threw an uncaught exception.
+Consult the following stack trace for details.
+java.lang.NullPointerException
+        at java.util.Collections$UnmodifiableCollection.<init>(java.base@9-ea/Collections.java:1027)
+        at java.util.Collections$UnmodifiableList.<init>(java.base@9-ea/Collections.java:1303)
+        at java.util.Collections.unmodifiableList(java.base@9-ea/Collections.java:1290)
+        at com.sun.tools.javac.code.Symbol$ModuleSymbol.getDirectives(jdk.compiler@9-ea/Symbol.java:937)
+        at Test21Proc.process(Test21Proc.java:22)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.callProcessor(jdk.compiler@9-ea/JavacProcessingEnvironment.java:961)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.discoverAndRunProcs(jdk.compiler@9-ea/JavacProcessingEnvironment.java:877)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.access$2100(jdk.compiler@9-ea/JavacProcessingEnvironment.java:107)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment$Round.run(jdk.compiler@9-ea/JavacProcessingEnvironment.java:1184)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.doProcessing(jdk.compiler@9-ea/JavacProcessingEnvironment.java:1292)
+        at com.sun.tools.javac.main.JavaCompiler.processAnnotations(jdk.compiler@9-ea/JavaCompiler.java:1229)
+        at com.sun.tools.javac.main.JavaCompiler.compile(jdk.compiler@9-ea/JavaCompiler.java:903)
+        at com.sun.tools.javac.main.Main.compile(jdk.compiler@9-ea/Main.java:280)
+        at com.sun.tools.javac.main.Main.compile(jdk.compiler@9-ea/Main.java:144)
+        at com.sun.tools.javac.Main.compile(jdk.compiler@9-ea/Main.java:55)
+        at com.sun.tools.javac.Main.main(jdk.compiler@9-ea/Main.java:41)

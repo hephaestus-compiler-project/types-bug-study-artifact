@@ -1,0 +1,35 @@
+Take the following example:
+
+```scala
+{
+  sealed trait V
+  sealed trait T
+
+  case object VA extends T with V
+  case object VB extends T with V
+
+  case object TA extends T
+
+  def f(t: T) = t match {
+    case v : V => v
+    case TA => TA
+  }
+
+}
+```
+
+Here we have a sealed trait T with three concrete subtypes (VA, VB, and TA). VA and VB are both also subtypes of V. Thus, the pattern match on an instance of T where we match V should not issue a "missing combination" warning, since V will cover the cases of VA and VB.
+
+**Expected**:
+The compiler should not issue a warning.
+
+**Actual**:
+The compiler issues the following warning:
+```scala
+missing combination             VA
+missing combination             VB
+
+  def f(t: T) = t match {
+                ^
+one warning found
+```

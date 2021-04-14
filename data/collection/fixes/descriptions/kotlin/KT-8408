@@ -1,0 +1,8 @@
+Currently the left hand side of the class reference expression should be either a class name (`List::class`) or the full type in case of an '''array''': `Array<String>::class`. This is so because the left hand side of the literal must represent a type fully retained at runtime to work correctly, and Array is the only class with a ''reified'' type parameter, which doesn't make sense without the actual argument.
+
+However, the performed checking is incomplete, see examples:
+```
+fun f1<T>() = Array<T>::class // should be an error
+fun f2<T>() = Array<Array<T>>::class // should be an error
+inline fun f3<reified T>() = Array<T>::class // should be ok
+```

@@ -1,0 +1,17 @@
+The following code causes compiler crash with an NPE.
+
+```scala
+package foo {
+  trait Abstract1[C <: Abstract2[C]]
+  trait Abstract2[C <: Abstract2[C]] extends Abstract1[C]
+  class Parametrized1[T] extends Abstract1[Parametrized2[T]] {
+    def bar(a: AnyRef) { a match { case d: Parametrized1[_] => println("ok") } }
+  }
+  class Parametrized2[T] extends Parametrized1[T] with Abstract2[Parametrized2[T]] 
+}
+```
+
+
+Additional notes:
+
+The bug depends on where the bar() method is located. If the bar method inside an object in the foo package, then the crash will not occur. If the bar method is in an object outside foo, then the crash will occur. If the bar is in Parametrized2 then the crash does not occur. Have not tested other configurations.

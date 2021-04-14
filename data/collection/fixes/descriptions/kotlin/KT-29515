@@ -1,0 +1,40 @@
+Consider the following:
+```
+fun <T: Any> foo(f: KFunction0<T>) {}
+fun test() {
+    val a: KFunction0<Byte> = "a"::toByte
+    foo(a) // compiles fine
+    foo("a"::toByte) // Type inference failed: fun <T : Any> foo(f: KFunction0<T>): Unit cannot be applied to (KFunction0<Byte>)
+    foo<Byte>("a"::toByte) // compiles but tells me the type parameter is not needed and could be removed :D
+
+    foo("a"::toShort)  // fails
+    foo("a"::toInt)    // fails
+    foo("a"::toLong)   // fails
+    foo("a"::single)   // KFunction0<Char> fails
+
+    foo("a"::toFloat)   // compiles fine
+    foo("a"::toDouble)  // compiles fine
+    foo("a"::toBoolean) // compiles fine
+
+    foo("a"::toCharArray)  // fails
+    foo("a"::toBigInteger) // fails
+    foo("a"::toBigDecimal) // fails
+    foo("a"::toLowerCase)  // fails
+
+    //...
+}
+```
+I guess the problem is related to functions which have the `inline` modifier and are `actual` implementations. 
+For instance, `foo(1::toByte)` works (no inline, no actual) and `foo(""::intern)` works as well (inline but no actual)
+
+Some additional information, if add the following overload:
+```
+@JvmName("fooByte")
+fun foo(f: KFunction0<Byte>) {}
+```
+then `foo("a"::toByte)` compiles, however, `foo("a"::toInt)` then gives the following error
+```
+None of the following functions can be called with the arguments supplied: 
+@InlineOnly public inline fun String.toInt(): Int defined in kotlin.text
+@SinceKotlin @InlineOnly public inline fun String.toInt(radix: Int): Int defined in kotlin.text
+```

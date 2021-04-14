@@ -1,0 +1,46 @@
+after 3.0.0-beta-1 was released, my project will no longer compile (it would compile against alpha-4)
+
+Most of the classes are annotated with
+{code:java}
+@TypeChecked
+@CompileStatic{code}
+the error produced takes the form
+{code:java}
+Compiling with JDK Java compiler API.
+startup failed:
+.../kvdn/src/main/groovy/net/iowntheinter/kvdn/storage/kv/impl/KvOp.groovy: 123: Access to java.lang.Object#D is forbidden @ line 123, column 17.
+                   D.getMap(this.strAddr, { AsyncResult<AsyncMap> res ->
+{code}
+I believe the relevant code sections are:
+
+ 
+{code:java}
+@TypeChecked
+@CompileStatic
+class KvOp extends KvdnOperation implements KVOperation {
+    public KVData D
+
+
+...................
+
+
+
+    @Override
+    @TypeChecked
+    void submit(..........) {
+.................
+
+        startOperation(this.valueType, TXTYPE.KV_SUBMIT, key, content, {
+/*(ln123)*/    D.getMap(this.strAddr, { AsyncResult<AsyncMap> res ->
+   .....................
+            })
+        })
+    }
+
+
+{code}
+ 
+
+ 
+
+ 

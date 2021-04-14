@@ -1,0 +1,69 @@
+STC/CS: constructor call with Map argument fails when javabean property has a setter but no getter for a property
+
+code example:
+https://gist.github.com/lhotari/acd561743c157139d7ee
+
+{code}
+import groovy.transform.*
+ 
+@CompileStatic
+class ForwardUrlMappingInfo {
+    String id
+    Map parameters = new HashMap()
+ 
+    void setParams(Map params) {
+       parameters = params
+    }
+ 
+// succeeds when there is a getter
+//    Map getParams() {
+//       parameters
+//    }
+}
+ 
+@CompileStatic
+def applyParams(Map params) {
+    new ForwardUrlMappingInfo(id: params.id, params: (Map)params.params)
+}
+ 
+applyParams([id: 'test', params: [hello: 'world']])
+{code}
+
+
+{code}
+Caused by: java.lang.NullPointerException
+	at org.codehaus.groovy.transform.stc.StaticTypeCheckingSupport.isAssignableTo(StaticTypeCheckingSupport.java:313)
+	at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.checkGroovyConstructorMap(StaticTypeCheckingVisitor.java:823)
+	at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.typeCheckMapConstructor(StaticTypeCheckingVisitor.java:1589)
+	at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitConstructorCallExpression(StaticTypeCheckingVisitor.java:1563)
+	at org.codehaus.groovy.transform.sc.StaticCompilationVisitor.visitConstructorCallExpression(StaticCompilationVisitor.java:261)
+	at org.codehaus.groovy.ast.expr.ConstructorCallExpression.visit(ConstructorCallExpression.java:44)
+	at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitBinaryExpression(StaticTypeCheckingVisitor.java:415)
+	at org.codehaus.groovy.ast.CodeVisitorSupport.visitDeclarationExpression(CodeVisitorSupport.java:245)
+	at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitDeclarationExpression(ClassCodeVisitorSupport.java:107)
+	at org.codehaus.groovy.ast.expr.DeclarationExpression.visit(DeclarationExpression.java:86)
+	at org.codehaus.groovy.ast.CodeVisitorSupport.visitExpressionStatement(CodeVisitorSupport.java:69)
+	at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitExpressionStatement(ClassCodeVisitorSupport.java:193)
+	at org.codehaus.groovy.ast.stmt.ExpressionStatement.visit(ExpressionStatement.java:40)
+	at org.codehaus.groovy.ast.CodeVisitorSupport.visitBlockStatement(CodeVisitorSupport.java:35)
+	at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitBlockStatement(ClassCodeVisitorSupport.java:163)
+	at org.codehaus.groovy.ast.stmt.BlockStatement.visit(BlockStatement.java:69)
+	at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitIfElse(StaticTypeCheckingVisitor.java:2478)
+	at org.codehaus.groovy.ast.stmt.IfStatement.visit(IfStatement.java:41)
+	at org.codehaus.groovy.ast.CodeVisitorSupport.visitBlockStatement(CodeVisitorSupport.java:35)
+	at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitBlockStatement(ClassCodeVisitorSupport.java:163)
+	at org.codehaus.groovy.ast.stmt.BlockStatement.visit(BlockStatement.java:69)
+	at org.codehaus.groovy.ast.CodeVisitorSupport.visitClosureExpression(CodeVisitorSupport.java:174)
+	at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitClosureExpression(StaticTypeCheckingVisitor.java:1658)
+	at org.codehaus.groovy.ast.expr.ClosureExpression.visit(ClosureExpression.java:43)
+	at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitProperty(ClassCodeVisitorSupport.java:141)
+	at org.codehaus.groovy.ast.ClassNode.visitContents(ClassNode.java:1043)
+	at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitClass(ClassCodeVisitorSupport.java:50)
+	at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitClass(StaticTypeCheckingVisitor.java:162)
+	at org.codehaus.groovy.transform.sc.StaticCompilationVisitor.visitClass(StaticCompilationVisitor.java:110)
+	at org.codehaus.groovy.transform.sc.StaticCompileTransformation.visit(StaticCompileTransformation.java:60)
+	at org.codehaus.groovy.transform.ASTTransformationVisitor.visitClass(ASTTransformationVisitor.java:132)
+	at org.codehaus.groovy.transform.ASTTransformationVisitor$2.call(ASTTransformationVisitor.java:176)
+	at org.codehaus.groovy.control.CompilationUnit.applyToPrimaryClassNodes(CompilationUnit.java:1036)
+	at org.codehaus.groovy.control.CompilationUnit.doPhaseOperation(CompilationUnit.java:572)
+{code}

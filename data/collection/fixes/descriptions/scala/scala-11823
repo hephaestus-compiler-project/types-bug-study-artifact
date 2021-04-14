@@ -1,0 +1,31 @@
+Apologies if it's a duplicate. There are many issues about confusing error messages, but I couldn't find this one.
+
+Minization:
+```scala
+scala> :paste
+// Entering paste mode (ctrl-D to finish)
+
+trait Foo[A]
+trait Bar[A]
+implicit val fooInt: Foo[Int] = ???
+implicit val fooLong: Foo[Long] = ???
+def bar[A](implicit foo: Foo[A]): Bar[A] = ???
+val barString: Bar[String] = bar
+
+// Exiting paste mode, now interpreting.
+
+
+val barString: Bar[String] = bar
+                             ^
+<pastie>:6: error: ambiguous implicit values:
+ both value fooInt of type => Foo[Int]
+ and value fooLong of type => Foo[Long]
+ match expected type Foo[A]
+```
+
+This often comes up when deriving typeclasses because then we tend to write:
+`implicit val instance: Tc[Foo] = deriveTc`
+In practice we also get diverging implicit expansion errors as well (for bigger examples).
+
+We could of course annotate with `deriveTc[Foo]`, but this is not satisfactory.
+Why don't we get the implicit not found message when clearly from the expected pattern we are searching for `Foo[String]` (both `Foo` and `Bar` are invariant)?

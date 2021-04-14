@@ -1,0 +1,36 @@
+```scala
+scala> class Bippy[T : Manifest](x: T) { def f = "abc" }
+defined class Bippy
+
+scala> implicit def mkBippy[T: Manifest](x: T): Bippy[T] = new Bippy[T](x)
+mkBippy: [T](x: T)(implicit evidence$$1: Manifest[T])Bippy[T]
+
+scala> List(1).f
+res0: java.lang.String = abc
+
+scala> Map(1 -> 1).f
+res1: java.lang.String = abc
+
+scala> List().f
+res2: java.lang.String = abc
+
+scala> Map().f
+<console>:10: error: could not find implicit value for evidence parameter of type Manifest[scala.collection.immutable.Map[A,Nothing]]
+       Map().f
+          ^
+```
+But:
+```scala
+scala> Map()
+res4: scala.collection.immutable.Map[Nothing,Nothing] = Map()
+
+scala> Map[Nothing,Nothing]().f
+res5: java.lang.String = abc
+
+scala> Map[Int,Int]().f
+res6: java.lang.String = abc
+
+scala> Map[Bippy[String],List[Set[Int]]]().f
+res7: java.lang.String = abc
+```
+There's no wrong answer, scalac! Infer anything you like, just infer something. (And no you can't infer [A, Nothing] scalac, that is a category error.)

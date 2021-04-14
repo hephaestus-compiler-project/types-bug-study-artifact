@@ -1,0 +1,31 @@
+The following code compiles without any warning:
+```scala
+package test
+
+final class Foo(val value: Int)
+object Foo {
+  def unapplySeq(foo: Foo): Some[Seq[Int]] = Some(List(foo.value))
+  /*def unapply(foo: Foo): Some[Int] = Some(foo.value)*/
+}
+
+sealed trait Tree
+case class Node1(foo: Foo) extends Tree
+case class Node2() extends Tree
+
+object Test {
+  def transformTree(tree: Tree): Any = tree match {
+    case Node1(Foo(1)) => ???
+  }
+}
+```
+
+But if you uncomment `unapply`, you get:
+```scala
+test2.scala:14: warning: match may not be exhaustive.
+It would fail on the following inputs: Node1(_), Node2()
+  def transformTree(tree: Tree): Any = tree match {
+                                       ^
+one warning found
+```
+
+It'd be nice to give the same warnings when only `unapplySeq` is used, for example with `List`.

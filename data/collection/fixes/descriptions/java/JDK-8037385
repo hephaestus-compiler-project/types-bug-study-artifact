@@ -1,0 +1,86 @@
+FULL PRODUCT VERSION :
+java version "1.8.0"
+Java(TM) SE Runtime Environment (build 1.8.0-b132)
+Java HotSpot(TM) 64-Bit Server VM (build 25.0-b70, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Microsoft Windows [Version 6.1.7601]
+
+EXTRA RELEVANT SYSTEM CONFIGURATION :
+We are using JDK 8 including the new classes. The IDE doesn't support Java 8 syntax, so we are currently compiling with -source 1.7 and -target 1.7
+
+A DESCRIPTION OF THE PROBLEM :
+Compiling with -source 1.7 and -target 1.7 seems to works fine, but execution breaks with a VerifyError if static default methods are used (Funtion.identity(), Comparator.reverseOrder(), etc.).
+It states an "Illegal type at constant pool entry 7 in class Dummy". The entry changes depending on the class.
+
+When compiling with -target 1.8 or when using the Eclipse compiler (for java 7) with the java 8 classes, everything works fine.
+
+Solooks like a compiler issue.
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile the class with
+> javac -source 1.7 -target 1.7 Dummy.java
+Execute
+> java Dummy
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+3
+2
+1
+
+ACTUAL -
+Exception in thread "main" java.lang.VerifyError: Illegal type at constant pool entry 7 in class Dummy
+Exception Details:
+  Location:
+    Dummy.main([Ljava/lang/String;)V @24: invokestatic
+  Reason:
+    Constant pool index 7 is invalid
+  Bytecode:
+    0000000: 06bd 0002 5903 1203 5359 0412 0453 5905
+    0000010: 1205 53b8 0006 4c2b b800 07b8 0008 2bbb
+    0000020: 0009 59b7 000a b900 0b02 00b1
+
+        at java.lang.Class.getDeclaredMethods0(Native Method)
+        at java.lang.Class.privateGetDeclaredMethods(Class.java:2688)
+        at java.lang.Class.getMethod0(Class.java:2937)
+        at java.lang.Class.getMethod(Class.java:1771)
+        at sun.launcher.LauncherHelper.validateMainClass(LauncherHelper.java:544)
+        at sun.launcher.LauncherHelper.checkAndLoadMain(LauncherHelper.java:526)
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.function.Consumer;
+
+
+public class Dummy {
+	
+	public static void main(String[] args) {
+		List<String> strings = Arrays.asList("1", "3", "2");
+		Collections.sort(strings, Comparator.<String>reverseOrder());
+
+		strings.forEach(new Consumer<String>() {
+			@Override
+			public void accept(String t) {
+				System.out.println(t);
+			}
+		});
+		
+	}
+	
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+use Eclipse compiler
+use -target 1.8
+Bypass any static default methods, like Function.identity().
+

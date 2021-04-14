@@ -1,0 +1,83 @@
+The code is:
+```
+import A.bar
+
+object A {
+    inline fun <T> bar(x: T) = 42
+}
+
+fun <T> T.foo(): Int = bar(this)
+```
+JS front-end throws exception on such code:
+~~~
+e: org.jetbrains.kotlin.js.facade.exceptions.TranslationRuntimeException: Unexpected error occurred compiling the following fragment: 'bar(this)' at (3,24) in /Users/<...>/IdeaProjects/kotlin-js-sandbox/src/main/kotlin/main.kt
+	at org.jetbrains.kotlin.js.translate.general.Translation.doTranslateExpression(Translation.java:229)
+	at org.jetbrains.kotlin.js.translate.general.Translation.translateExpression(Translation.java:130)
+	at org.jetbrains.kotlin.js.translate.utils.FunctionBodyTranslator.translate(FunctionBodyTranslator.java:140)
+	at org.jetbrains.kotlin.js.translate.utils.FunctionBodyTranslator.translateFunctionBody(FunctionBodyTranslator.java:74)
+	at org.jetbrains.kotlin.js.translate.expression.FunctionTranslatorKt.translateFunction(FunctionTranslator.kt:93)
+	at org.jetbrains.kotlin.js.translate.declaration.AbstractDeclarationVisitor.translateFunction(AbstractDeclarationVisitor.kt:121)
+	at org.jetbrains.kotlin.js.translate.declaration.AbstractDeclarationVisitor.visitNamedFunction(AbstractDeclarationVisitor.kt:93)
+	at org.jetbrains.kotlin.js.translate.declaration.AbstractDeclarationVisitor.visitNamedFunction(AbstractDeclarationVisitor.kt:35)
+	at org.jetbrains.kotlin.psi.KtNamedFunction.accept(KtNamedFunction.java:50)
+	at org.jetbrains.kotlin.js.translate.general.Translation.translateFile(Translation.java:377)
+	at org.jetbrains.kotlin.js.translate.general.Translation.doGenerateAst(Translation.java:336)
+	at org.jetbrains.kotlin.js.translate.general.Translation.generateAst(Translation.java:305)
+	at org.jetbrains.kotlin.js.facade.K2JSTranslator.translate(K2JSTranslator.kt:162)
+	at org.jetbrains.kotlin.js.facade.K2JSTranslator.translateUnits(K2JSTranslator.kt:107)
+	at org.jetbrains.kotlin.cli.js.K2JSCompiler.translate(K2JSCompiler.java:172)
+	at org.jetbrains.kotlin.cli.js.K2JSCompiler.doExecute(K2JSCompiler.java:318)
+	at org.jetbrains.kotlin.cli.js.K2JSCompiler.doExecute(K2JSCompiler.java:85)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:85)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:43)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:104)
+	at org.jetbrains.kotlin.incremental.IncrementalJsCompilerRunner.runCompiler(IncrementalJsCompilerRunner.kt:168)
+	at org.jetbrains.kotlin.incremental.IncrementalJsCompilerRunner.runCompiler(IncrementalJsCompilerRunner.kt:68)
+	at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileIncrementally(IncrementalCompilerRunner.kt:237)
+	at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:88)
+	at org.jetbrains.kotlin.daemon.CompileServiceImplBase.execJsIncrementalCompiler(CompileServiceImpl.kt:551)
+	at org.jetbrains.kotlin.daemon.CompileServiceImplBase.access$execJsIncrementalCompiler(CompileServiceImpl.kt:99)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:1739)
+	at sun.reflect.GeneratedMethodAccessor29.invoke(Unknown Source)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:357)
+	at sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:573)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:834)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:688)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:687)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+Caused by: kotlin.KotlinNullPointerException
+	at org.jetbrains.kotlin.js.naming.EncodeSignatureKt.encodeForSignature(encodeSignature.kt:80)
+	at org.jetbrains.kotlin.js.naming.EncodeSignatureKt.encodeSignature(encodeSignature.kt:52)
+	at org.jetbrains.kotlin.js.naming.NameSuggestion$Companion$mangleRegularNameIfNecessary$2.invoke(NameSuggestion.kt:276)
+	at org.jetbrains.kotlin.js.naming.NameSuggestion$Companion.mangleRegularNameIfNecessary(NameSuggestion.kt:296)
+	at org.jetbrains.kotlin.js.naming.NameSuggestion$Companion.mangleNameIfNecessary(NameSuggestion.kt:256)
+	at org.jetbrains.kotlin.js.naming.NameSuggestion$Companion.access$mangleNameIfNecessary(NameSuggestion.kt:219)
+	at org.jetbrains.kotlin.js.naming.NameSuggestion.generateDefault(NameSuggestion.kt:198)
+	at org.jetbrains.kotlin.js.naming.NameSuggestion.generate(NameSuggestion.kt:141)
+	at org.jetbrains.kotlin.js.naming.NameSuggestion.suggest(NameSuggestion.kt:65)
+	at org.jetbrains.kotlin.js.translate.context.StaticContext.getNameForDescriptor(StaticContext.java:370)
+	at org.jetbrains.kotlin.js.translate.context.TranslationContext.getNameForDescriptor(TranslationContext.java:278)
+	at org.jetbrains.kotlin.js.translate.utils.InlineUtils.aliasedName(inlineUtils.kt:96)
+	at org.jetbrains.kotlin.js.translate.utils.InlineUtils.setInlineCallMetadata(inlineUtils.kt:52)
+	at org.jetbrains.kotlin.js.translate.callTranslator.CallTranslatorKt.translateFunctionCall(CallTranslator.kt:151)
+	at org.jetbrains.kotlin.js.translate.callTranslator.CallTranslatorKt.translateCall(CallTranslator.kt:135)
+	at org.jetbrains.kotlin.js.translate.callTranslator.CallTranslatorKt.access$translateCall(CallTranslator.kt:1)
+	at org.jetbrains.kotlin.js.translate.callTranslator.CallTranslator.translate(CallTranslator.kt:53)
+	at org.jetbrains.kotlin.js.translate.reference.CallExpressionTranslator.translate(CallExpressionTranslator.java:102)
+	at org.jetbrains.kotlin.js.translate.reference.CallExpressionTranslator.translate(CallExpressionTranslator.java:66)
+	at org.jetbrains.kotlin.js.translate.expression.ExpressionVisitor.visitCallExpression(ExpressionVisitor.java:373)
+	at org.jetbrains.kotlin.js.translate.expression.ExpressionVisitor.visitCallExpression(ExpressionVisitor.java:83)
+	at org.jetbrains.kotlin.psi.KtCallExpression.accept(KtCallExpression.java:35)
+	at org.jetbrains.kotlin.js.translate.general.Translation.doTranslateExpression(Translation.java:223)
+	... 42 more
+~~~
+It's OK without import (using object name explicitly) or without type parameter.

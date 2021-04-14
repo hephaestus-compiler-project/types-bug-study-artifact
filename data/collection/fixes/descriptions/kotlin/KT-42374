@@ -1,0 +1,47 @@
+The following code
+```kotlin
+fun f(p: (Int) -> (String) -> Unit) {}
+
+fun g(cond: Boolean) {
+  f(if (cond) { i -> { } } else { i -> { } })
+}
+```
+fails with
+```stacktrace
+Caused by: java.lang.IllegalStateException: Type variable TypeVariable(_RP1) should not be fixed!
+Base constraint: TypeVariable(_RP1) <: String from position: Incorporate TypeVariable(_RP1) <: String from Argument { } from position Argument { }
+	at org.jetbrains.kotlin.resolve.calls.inference.components.ConstraintInjector$TypeCheckerContext.fixedTypeVariable(ConstraintInjector.kt:341)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.ConstraintInjector.addSubTypeConstraintAndIncorporateIt(ConstraintInjector.kt:80)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.ConstraintInjector.addInitialSubtypeConstraint(ConstraintInjector.kt:46)
+	at org.jetbrains.kotlin.resolve.calls.inference.model.NewConstraintSystemImpl.addSubtypeConstraint(NewConstraintSystemImpl.kt:135)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.PostponedArgumentInputTypesResolver.createTypeVariablesForParameters(PostponedArgumentInputTypesResolver.kt:230)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.PostponedArgumentInputTypesResolver.buildNewFunctionalExpectedType(PostponedArgumentInputTypesResolver.kt:305)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.PostponedArgumentInputTypesResolver.collectParameterTypesAndBuildNewExpectedTypes(PostponedArgumentInputTypesResolver.kt:386)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.KotlinConstraintSystemCompleter.runCompletion(KotlinConstraintSystemCompleter.kt:91)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.KotlinConstraintSystemCompleter.runCompletion(KotlinConstraintSystemCompleter.kt:33)
+	at org.jetbrains.kotlin.resolve.calls.components.KotlinCallCompleter.runCompletion(KotlinCallCompleter.kt:219)
+	at org.jetbrains.kotlin.resolve.calls.components.KotlinCallCompleter.runCompletion$default(KotlinCallCompleter.kt:216)
+	at org.jetbrains.kotlin.resolve.calls.components.KotlinCallCompleter.runCompletion(KotlinCallCompleter.kt:207)
+	at org.jetbrains.kotlin.resolve.calls.components.KotlinCallCompleter.runCompletion(KotlinCallCompleter.kt:60)
+	at org.jetbrains.kotlin.resolve.calls.KotlinCallResolver.choseMostSpecific(KotlinCallResolver.kt:165)
+	at org.jetbrains.kotlin.resolve.calls.KotlinCallResolver.resolveCall(KotlinCallResolver.kt:85)
+	at org.jetbrains.kotlin.resolve.calls.tower.PSICallResolver.runResolutionAndInference(PSICallResolver.kt:102)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.doResolveCallOrGetCachedResults(CallResolver.java:593)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.lambda$computeTasksAndResolveCall$0(CallResolver.java:213)
+	at org.jetbrains.kotlin.util.PerformanceCounter.time(PerformanceCounter.kt:101)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:211)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:199)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.resolveFunctionCall(CallResolver.java:327)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getResolvedCallForFunction(CallExpressionResolver.kt:98)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfoWithoutFinalTypeCheck(CallExpressionResolver.kt:220)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfo(CallExpressionResolver.kt:197)
+	at org.jetbrains.kotlin.types.expressions.BasicExpressionTypingVisitor.visitCallExpression(BasicExpressionTypingVisitor.java:700)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.visitCallExpression(ExpressionTypingVisitorDispatcher.java:388)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher$ForBlock.visitCallExpression(ExpressionTypingVisitorDispatcher.java:59)
+	at org.jetbrains.kotlin.psi.KtCallExpression.accept(KtCallExpression.java:35)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.lambda$getTypeInfo$0(ExpressionTypingVisitorDispatcher.java:175)
+	... 58 more
+```
+when compiled with new inference, but compiles without error when compiled with `-XXLanguage:-NewInference`.
+
+This problem is still present on master and in particular in 1.4.20-M1.

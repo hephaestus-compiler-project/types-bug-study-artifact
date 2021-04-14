@@ -1,0 +1,51 @@
+Hello,
+
+I suspect it can be a duplicate of KT-11265, maybe KT-22961...
+But I'm really not sure, because I only see 1 mapTo() function...
+
+= How to reproduce=
+```
+package problem.over.here
+
+// innocent functions :)
+fun foo(a: List<String>) {}
+fun foo(a: Int) {}
+
+fun main() {
+    // doesn't work with error: overload resolution ambiguity
+    foo(listOf("a").mapTo(mutableListOf()) { it })
+
+    // works
+    val x = listOf("a").mapTo(mutableListOf()) { it }
+    foo(x)
+    foo({listOf("a").mapTo(mutableListOf()) { it }}())
+
+    // The type parameters below are show as useless in IDEA, but removing them leads to the above issue
+    foo(listOf("a").mapTo(mutableListOf()) { it } as MutableList<String>)
+    foo(listOf("a").mapTo(mutableListOf<String>()) { it })
+}
+```
+
+`sample.kt:11:5: error: overload resolution ambiguity:
+public fun foo(a: Int): Unit defined in serious.problem.over.here in file sample.kt
+public fun foo(a: List<String>): Unit defined in serious.problem.over.here in file sample.kt
+    foo(listOf("a").mapTo(mutableListOf()) { it })
+`
+
+After removing the problematic line, kotlinC compiles the file.
+`sample.kt:17:51: warning: no cast needed
+    foo(listOf("a").mapTo(mutableListOf()) { it } as MutableList<String>)
+`
+
+Noticed on kotlin 1.2.71, reproduced on kotlin 1.3.31
+
+= What is the expected result=
+Find the right data type to know which function to call.
+
+= What happens instead?=
+Overload ambiguity error, only in 1 case.
+IDEA knows the correct type, the compiler knows the correct type, but with that specific case, it fails.
+The problem also happens in constructors.
+
+= Additional question =
+Can I safely use the cast as a workaround?

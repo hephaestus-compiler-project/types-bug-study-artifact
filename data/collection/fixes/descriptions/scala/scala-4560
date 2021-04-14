@@ -1,0 +1,67 @@
+=== What steps will reproduce the problem? ===
+```scala
+object Pimper {
+ implicit def pimp(i: Int) = new {
+    def test: String = i.toString
+  }
+}
+
+class A
+
+trait B {
+  self: A =>
+
+  def test {
+    import Pimper.pimp
+
+    println(5.test)
+  }
+}
+
+object Test extends A with B {
+  def main(args: Array[String]) {
+    test
+  }
+}
+```
+
+
+
+=== What is the expected behavior? ===
+5
+
+
+=== What do you see instead? ===
+
+A runtime error:
+```scala
+java.lang.NoSuchFieldError: reflPoly$$Cache1
+	at T1$$class.reflMethod$$Method1(Test.scala:16)
+	at T1$$class.test(Test.scala:16)
+	at Test$$.test(Test.scala:20)
+	at Test$$.main(Test.scala:22)
+	at Test.main(Test.scala)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+	at java.lang.reflect.Method.invoke(Method.java:597)
+	at sbt.Run.invokeMain(Run.scala:69)
+	at sbt.Run.run0(Run.scala:60)
+	at sbt.Run.execute$$1(Run.scala:48)
+	at sbt.Run$$$$anonfun$$run$$2.apply(Run.scala:51)
+	at sbt.Run$$$$anonfun$$run$$2.apply(Run.scala:51)
+	at sbt.TrapExit$$.executeMain$$1(TrapExit.scala:33)
+	at sbt.TrapExit$$$$anon$$1.run(TrapExit.scala:42)
+```
+=== Additional information ===
+
+This happens since 2.9.0.RC2 (RC1 was fine) and happens only with the self-type in place. The problem seems to be that the reflection cache inside of `B$$class` looks for the cache field inside of class `B`:
+
+```scala
+public static java.lang.reflect.Method reflMethod$$Method1(java.lang.Class);
+  Code:
+   Stack=5, Locals=2, Args_size=1
+   0:   getstatic       SI-33; //Field B.reflPoly$$Cache1:Ljava/lang/ref/SoftReference;
+```
+
+In another [http://groups.google.com/group/spray-user/msg/59eb57b6cb2ce512 case] for some reason the cache was looked for in a class declared as the self-type.

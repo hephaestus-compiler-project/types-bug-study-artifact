@@ -1,0 +1,35 @@
+Value/variable definitions with patterns expand into unsafe matches in cases where a safe alternative is feasible.  For example, all of the following definitions compile without even a warning, but inevitably fail with MatchErrors at runtime:
+
+```scala
+val (a,b) = 1: Any
+val (a,b) = Person("f", "l"): Product // with Person defined as `case class Person(first: String, last: String)`
+val Person(f, l) = ("f", "l"): Product 
+```
+
+**Desired behavior:**
+The definitions above should not compile.  In cases where unsafe pattern matching cannot be avoided (e.g. `val x :: xs = list`), the compiler should issue a warning.  Additional syntax could be used to eliminate the warning (e.g. `val case x :: xs = list`) or to indicate the desire for an unsafe pattern match (e.g. `val case (a,b) = x: Any`).  The existing behavior is per spec, but given the violation of type safety it seems appropriate to consider this issue a "Bug" rather than an "Improvement".
+
+**Proposed solution:**
+To facilitate the desired behavior, unapply methods should declare Some as their return type whenever possible.  In particular, the generated unapply methods for case classes should guarantee a Some return value. For example, Tuple2.unapply could be written
+
+```scala
+def unapply[T1, T2](x: Tuple2[T1, T2]): Some[Tuple2[T1,T2]] = Some(x)
+```
+
+Then, when an appropriate unapply method is available (i.e. one that is guaranteed to return a Some), the expansions of value/variable definitions would call these methods directly rather than resorting to pattern matching.  Thus
+
+```scala
+val (a,b) = expr
+val Person(n) = expr2
+```
+
+would expand to
+
+```scala
+val $ab = Tuple2.unapply(expr).x
+val a = $ab._1
+val b = $ab._2
+val n = Person.unapply(expr2).x
+```
+
+When an appropriate unapply method is *not* available (i.e. unapply returns an Option), the compiler would expand the definition into a pattern match but issue a warning.

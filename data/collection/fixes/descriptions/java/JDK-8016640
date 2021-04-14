@@ -1,0 +1,50 @@
+FULL PRODUCT VERSION :
+javac 1.7.0_09
+
+java version  " 1.7.0_09 " 
+Java(TM) SE Runtime Environment (build 1.7.0_09-b05)
+Java HotSpot(TM) 64-Bit Server VM (build 23.5-b02, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Microsoft Windows [Version 6.1.7601]
+Microsoft Windows [Version 5.2.3790]
+
+A DESCRIPTION OF THE PROBLEM :
+If a base class (that is, a class that is itself extended), when extending a genericized class, incorrectly specifies the generics arity of the super class, javac will hang when compiling a class that extends the incorrect base class.
+
+  To demonstrate this, create a class that extends HashMap, but only specifies a single generic parameter for HashMap (which should have two): public class BadHashMap<T> extends HashMap<T> { }.  The compiler will correctly flag this as an error.  However, if another class extends BadHashMap -- e.g., public class ExtendedBadHashMap<T> extends BadHashMap<T> { } -- javac will flag the error in BadHashMap but then go into an infinite loop, pegging the CPU.
+
+REGRESSION.  Last worked in version 6u31
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Create two classes in a directory X:
+
+public class BadHashMap<T> extends java.util.HashMap<T> { }
+public class ExtendedBadHashMap<T> extends BadHashMap<T> { }
+
+Using javac v. 1.7, at a shell/command prompt in directory X type:
+
+javac *.java
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+The compiler should print an error about the wrong number of generic arguments to HashMap and exit.
+ACTUAL -
+The compiler does print an error about wrong number of arguments for HashMap, but rather than exiting the javac process hangs and pegs the CPU.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+None -- the process just hangs.
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+In file BadHashMap.java:
+public class BadHashMap<T> extends java.util.HashMap<T> { }
+
+In file ExtendedBadHashMap.java:
+public class ExtendedBadHashMap<T> extends BadHashMap<T> { }
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+  Fix the problem in the source code.

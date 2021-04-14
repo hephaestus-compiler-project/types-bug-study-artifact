@@ -1,0 +1,66 @@
+The trait `VanillaMatcher` in the code below "re-implements"
+Scala's native pattern matcher using pattern matching
+virtualization and the `Option[_]` monad.  It seems that there
+is a problem with extractor handling in virtualized matchers
+since the first two test cases (native pattern matcher and
+explicit call-chain of the `__match` methods) compile and give
+the expected result, while the last case (where the overloaded
+matcher is actually used) produces the following error:
+
+```
+Test.scala:37: error: Could not typecheck extractor call: Test.this.Dummy.unapply: (s: String)Option[String] (symbol= method unapply).
+      case Dummy(sf) => sf
+                ^
+```
+
+The output after the typer (`-Xprint:typer`) for the second and
+third case are identical up to a missing/error type for the
+variables `x2` and `sf`, so it seems reasonable to assume
+that the problem is in the compiler rather than the test case.
+
+```scala
+trait VanillaMatcher {
+  object __match {
+    def zero = None
+    def one[T](x: T) = Some(x)
+    def guard[T](cond: Boolean, thenBranch: => T): Option[T] =
+      if(cond) Some(thenBranch) else None
+    def runOrElse[T, U](x: T)(matcher: T => Option[U]): U =
+      matcher(x) getOrElse (throw new MatchError(x))
+  }
+}
+
+object Dummy {
+  def unapply(s: String) = if (s.isEmpty) None else Some(s)
+}
+
+object Test extends App {
+
+  // f1, f2 and f3 should all behave in the same way
+
+  def f1(s: String) = s match {
+    case Dummy(sf) => sf
+  }
+
+  val f2 = new VanillaMatcher {
+    def apply(s: String) = __match.runOrElse(s) {
+      x1 => Dummy.unapply(x1).flatMap {
+        x2 => {
+          val sf = x2;
+          __match.one(sf)
+        }
+      }
+    }
+  }
+
+  val f3 = new VanillaMatcher {
+    def apply(s: String) = s match {
+      case Dummy(sf) => sf
+    }
+  }
+
+  println(f1("abcd"))  // Result: "abcd"
+  println(f2("abcd"))  // Result: "abcd"
+  println(f3("abcd"))  // Result: "abcd"
+}
+```

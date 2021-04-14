@@ -1,0 +1,33 @@
+The name-based pattern matcher doesn't like a Product1 extractor.
+
+The extracted value is taken as `v` instead of `v._1`.
+
+Here is the test added to `test/files/run/name-based-patmat.scala`:
+```scala
+package p0 { 
+  class Single(val x: Any) extends AnyRef with Product1[String] {
+    private def s = "" + x
+    override def canEqual(x: Any) = this eq x.asInstanceOf[AnyRef]
+    def isEmpty = false
+    def get = this
+    def _1 = s + " only"
+
+    override def toString = s"Single(${_1})"
+  }
+
+  object Single {
+    def unapply(x: Any): Single = new Single(x)
+  }
+}
+```
+This throws CCE:
+```scala
+    "catdog" match {
+      case p0.Single(x) => println(s"`$x` has ${x.length} chars")
+      case x            => println("fail: " + x)
+    }
+```
+
+FWIW, I was working from this spec (i.e. commit comment):
+"If it does not contain _1, then it is a single value
+extractor analogous like Option[T]."

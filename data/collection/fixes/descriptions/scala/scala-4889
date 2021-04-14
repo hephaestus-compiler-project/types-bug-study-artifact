@@ -1,0 +1,42 @@
+The following will crash the compiler with a stack overflow,
+
+```scala
+
+trait Matrix[S, +Repr[s] <: Matrix[s, Repr]] {
+  def foo[R[S] >: Repr[S]](implicit ma1: MatrixAdder[S, R]) {}
+}
+
+trait SparseMatrix[S] extends Matrix[S, SparseMatrix]
+
+trait MatrixAdder[S, -R[_]] {
+  def addTo(m: R[S])
+}
+
+implicit def adderImplicit[S, R[s] <: Matrix[s, R]] = new MatrixAdder[S, R] {
+  def addTo(m: R[S]) = { }
+}
+
+val m1 = new SparseMatrix[Int] { }
+m1.foo // crasher
+
+```
+
+The top of the stack trace is,
+
+```scala
+java.lang.StackOverflowError
+	at scala.tools.nsc.symtab.Symbols$ClassSymbol.typeOfThis(Symbols.scala:2074)
+	at scala.tools.nsc.symtab.Types$ThisType.underlying(Types.scala:1122)
+	at scala.tools.nsc.symtab.Types$SimpleTypeProxy$class.boundSyms(Types.scala:189)
+	at scala.tools.nsc.symtab.Types$SingletonType.boundSyms(Types.scala:1040)
+	at scala.tools.nsc.symtab.Types$SubstMap.apply(Types.scala:3557)
+	at scala.tools.nsc.symtab.Types$SubstSymMap.apply(Types.scala:3603)
+	at scala.tools.nsc.symtab.Types$SubstSymMap.apply(Types.scala:3584)
+...
+```
+
+The crash goes away, and the the program compiles, when the contravariance is removed from the R type parameter in trait MatrixAdder.
+
+If the type parameter S is removed throughout, the crash goes away, but the program **fails** to compile due to `adderImplicit` not being found. Is this correct behavior?
+
+Thanks.

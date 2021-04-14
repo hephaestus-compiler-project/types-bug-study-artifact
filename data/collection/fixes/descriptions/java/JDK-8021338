@@ -1,0 +1,36 @@
+Consider this code:
+-----
+import java.util.*;
+class Test<T> {
+    static void test() {
+        Number s = new Test<Number>().first(Arrays.asList(0));
+    }
+
+    T first(List<T> t) {
+        return t.get(0);
+    }
+}
+-----
+
+Running tl/langtools javac, tip 558fe98d1ac0 with -XDfindDiamond produces:
+-----
+$ javac -XDfindDiamond Test.java 
+Test.java:4: warning: redundant type arguments in new expression (use diamond operator instead).
+        Number s = new Test<Number>().first(Arrays.asList(0));
+                           ^
+  explicit: Test<Number>
+  inferred: Test<Object>
+1 warning
+-----
+
+But removing the type argument leads to a compile-time error:
+-----
+$ javac -XDfindDiamond Test.java 
+Test.java:4: error: incompatible types: Object cannot be converted to Number
+        Number s = new Test<>().first(Arrays.asList(0));
+                                     ^
+1 error
+-----
+
+Was originally reported as a NetBeans bug:
+https://netbeans.org/bugzilla/show_bug.cgi?id=233129

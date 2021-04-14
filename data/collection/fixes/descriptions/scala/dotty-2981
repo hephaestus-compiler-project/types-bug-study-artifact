@@ -1,0 +1,111 @@
+This error originally occurred using typeclasses from Shapeless, but can be can be reproduced without dependencies (as minimally as I could make it) as follows (tested on latest nightly build, 0.2.0-RC1, and 0.1.2-RC1):
+```scala
+trait HList
+trait HNil extends HList
+
+trait FromTraversable[Out <: HList]
+object FromTraversable {
+  implicit def hnilFromTraversable[T]: FromTraversable[HNil] =
+    new FromTraversable[HNil]{}
+}
+
+object Filter {
+  def apply[A <: HList, O <: HList]()(implicit ftA: FromTraversable[A],
+                                      ftO: FromTraversable[O]): Unit = ()
+}
+object Main {
+  def main = Filter[HNil, HNil]()
+}
+```
+Compiling this results in an AssertionError with the following stack trace:
+
+<details><pre>
+java.lang.AssertionError: assertion failed
+        at scala.Predef$.assert(Predef.scala:156)
+        at dotty.tools.dotc.core.OrderingConstraint.add(OrderingConstraint.scala:284)
+        at dotty.tools.dotc.core.OrderingConstraint.add(OrderingConstraint.scala:283)
+        at dotty.tools.dotc.core.ConstraintHandling.addToConstraint(ConstraintHandling.scala:319)
+        at dotty.tools.dotc.typer.ProtoTypes$.constrained(ProtoTypes.scala:397)
+        at dotty.tools.dotc.typer.Typer.adaptInterpolated(Typer.scala:2226)
+        at dotty.tools.dotc.typer.Typer.op$125(Typer.scala:1833)
+        at dotty.tools.dotc.typer.Typer.op$124(Typer.scala:1829)
+        at dotty.tools.dotc.typer.Typer.adapt(Typer.scala:1828)
+        at dotty.tools.dotc.typer.Implicits$ImplicitSearch.op$72(Implicits.scala:781)
+        at dotty.tools.dotc.typer.Implicits$ImplicitSearch.op$71(Implicits.scala:773)
+        at dotty.tools.dotc.typer.Implicits$ImplicitSearch.typedImplicit$1(Implicits.scala:773)
+        at dotty.tools.dotc.typer.Implicits$ImplicitSearch.rankImplicits$1(Implicits.scala:816)
+        at dotty.tools.dotc.typer.Implicits$ImplicitSearch.searchImplicits(Implicits.scala:886)
+        at dotty.tools.dotc.typer.Implicits$ImplicitSearch.bestImplicit(Implicits.scala:894)
+        at dotty.tools.dotc.typer.Implicits$ImplicitSearch.bestImplicit(Implicits.scala:898)
+        at dotty.tools.dotc.typer.Implicits.op$70(Implicits.scala:707)
+        at dotty.tools.dotc.typer.Implicits.op$69(Implicits.scala:702)
+        at dotty.tools.dotc.typer.Implicits.inferImplicit(Implicits.scala:697)
+        at dotty.tools.dotc.typer.Implicits.inferImplicitArg(Implicits.scala:617)
+        at dotty.tools.dotc.typer.Typer.$anonfun$1036(Typer.scala:1985)
+        at scala.runtime.Tuple2Zipped$$anonfun$map$extension$1.apply(Tuple2Zipped.scala:46)
+        at scala.runtime.Tuple2Zipped$$anonfun$map$extension$1.apply(Tuple2Zipped.scala:44)
+        at scala.collection.immutable.List.foreach(List.scala:392)
+        at scala.runtime.Tuple2Zipped$.map$extension(Tuple2Zipped.scala:44)
+        at dotty.tools.dotc.typer.Typer.addImplicitArgs$1(Typer.scala:1986)
+        at dotty.tools.dotc.typer.Typer.adaptNoArgs$1(Typer.scala:2011)
+        at dotty.tools.dotc.typer.Typer.adaptInterpolated(Typer.scala:2239)
+        at dotty.tools.dotc.typer.Typer.op$125(Typer.scala:1833)
+        at dotty.tools.dotc.typer.Typer.op$124(Typer.scala:1829)
+        at dotty.tools.dotc.typer.Typer.adapt(Typer.scala:1828)
+        at dotty.tools.dotc.typer.Typer.op$122(Typer.scala:1680)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1678)
+        at dotty.tools.dotc.typer.Namer.typedAheadExpr$$anonfun$1(Namer.scala:934)
+        at dotty.tools.dotc.typer.Namer.typedAheadImpl(Namer.scala:924)
+        at dotty.tools.dotc.typer.Namer.typedAheadExpr(Namer.scala:934)
+        at dotty.tools.dotc.typer.Namer.rhsType$1(Namer.scala:1052)
+        at dotty.tools.dotc.typer.Namer.cookedRhsType$1(Namer.scala:1053)
+        at dotty.tools.dotc.typer.Namer.lhsType$lzyINIT1$1(Namer.scala:1054)
+        at dotty.tools.dotc.typer.Namer.lhsType$1(Namer.scala:1054)
+        at dotty.tools.dotc.typer.Namer.inferredType$1(Namer.scala:1071)
+        at dotty.tools.dotc.typer.Namer.valOrDefDefSig(Namer.scala:1079)
+        at dotty.tools.dotc.typer.Namer.defDefSig(Namer.scala:1145)
+        at dotty.tools.dotc.typer.Namer$Completer.typeSig(Namer.scala:733)
+        at dotty.tools.dotc.typer.Namer$Completer.completeInCreationContext(Namer.scala:777)
+        at dotty.tools.dotc.typer.Namer$Completer.complete(Namer.scala:755)
+        at dotty.tools.dotc.core.SymDenotations$SymDenotation.completeFrom(SymDenotations.scala:228)
+        at dotty.tools.dotc.core.SymDenotations$SymDenotation.info(SymDenotations.scala:206)
+        at dotty.tools.dotc.core.SymDenotations$SymDenotation.ensureCompleted(SymDenotations.scala:345)
+        at dotty.tools.dotc.typer.Typer.retrieveSym(Typer.scala:1571)
+        at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1596)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1664)
+        at dotty.tools.dotc.typer.Typer.op$122(Typer.scala:1680)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1678)
+        at dotty.tools.dotc.typer.Typer.traverse$4(Typer.scala:1702)
+        at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1725)
+        at dotty.tools.dotc.typer.Typer.op$118(Typer.scala:1391)
+        at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1321)
+        at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1609)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1664)
+        at dotty.tools.dotc.typer.Typer.op$122(Typer.scala:1680)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1678)
+        at dotty.tools.dotc.typer.Typer.traverse$4(Typer.scala:1702)
+        at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:1725)
+        at dotty.tools.dotc.typer.Typer.op$120(Typer.scala:1508)
+        at dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:1495)
+        at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1648)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1665)
+        at dotty.tools.dotc.typer.Typer.op$122(Typer.scala:1680)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1678)
+        at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:1737)
+        at dotty.tools.dotc.typer.FrontEnd.typeCheck$$anonfun$1(FrontEnd.scala:64)
+        at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+        at dotty.tools.dotc.typer.FrontEnd.monitor(FrontEnd.scala:32)
+        at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+        at dotty.tools.dotc.util.Stats$.monitorHeartBeat(Stats.scala:76)
+        at dotty.tools.dotc.Run.compileUnits(Run.scala:95)
+        at dotty.tools.dotc.Run.compileSources(Run.scala:64)
+        at dotty.tools.dotc.Run.compile(Run.scala:48)
+        at dotty.tools.dotc.Driver.doCompile(Driver.scala:26)
+        at dotty.tools.dotc.Driver.process(Driver.scala:124)
+...
+</pre></details>
+</br>
+
+A minimal reproduction is also available in the `fromtraversable-assertion-error` branch of [vlthr/dotty-test](https://github.com/vlthr/dotty-test/tree/fromtraversable-assertion-error)
+
+The error disappears if one of the `FromTraversable` implicit parameters is removed. Also, in the original code that produced the error it only seems to occur when both of the type parameters passed to `Filter.apply` are the same type. Either both `HNil` or both the same subtype of `HList` seems to cause the error, but as long as the types are different it works. However, I haven't been able to reproduce that in the minimized example.

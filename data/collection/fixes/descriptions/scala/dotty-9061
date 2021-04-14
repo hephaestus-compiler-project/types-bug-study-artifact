@@ -1,0 +1,40 @@
+## Minimized code
+
+```Scala
+case class Contra[-A](f: A => Int)
+
+case class Covarify[+F <: ([A] =>> Any), +A](fa: F[A])
+
+@main def main = {
+  val x = Covarify[Contra, Int](Contra[Int](_ + 5))
+  val y: Covarify[Contra, Any] = x
+  println(y.fa.f("abc"))
+}
+```
+
+https://scastie.scala-lang.org/ZfaseMB6QnyGTFsihR9FUQ
+
+## Output
+
+```scala
+java.lang.ClassCastException: java.lang.String cannot be cast to java.lang.Integer
+	at scala.runtime.BoxesRunTime.unboxToInt(BoxesRunTime.java:99)
+	at dotty.runtime.function.JFunction1$mcII$sp.apply(JFunction1$mcII$sp.java:12)
+	at main$package$.main(main.scala:8)
+	at main.main(main.scala:5)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at sbt.Run.invokeMain(Run.scala:115)
+	at sbt.Run.execute$1(Run.scala:79)
+	at sbt.Run.$anonfun$runWithLoader$4(Run.scala:92)
+	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+	at sbt.util.InterfaceUtil$$anon$1.get(InterfaceUtil.scala:10)
+	at sbt.TrapExit$App.run(TrapExit.scala:257)
+	at java.lang.Thread.run(Thread.java:748)
+```
+
+## Expectation
+
+Either `case class Covarify[+F <: ([A] =>> Any), +A](fa: F[A])` or `Covarify[Contra, Int]` should be rejected. Rejecting the former might require reintroducing type lambda variance, to be able to express the desired kind `F[+_]` as the bound `_ <: ([+A] =>> Any)`.

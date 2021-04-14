@@ -1,0 +1,58 @@
+The following code compiles fine on 2.9.3-RC1, but fails with a `type mismatch` error on 2.10.0.
+
+```scala
+package tree
+
+abstract class Tree {
+
+  type FinalBranch <: Branch
+
+  trait Branch {
+    this: FinalBranch =>
+    def myself: FinalBranch = this
+  }
+
+}
+
+object Matcher {
+  def unapply[T <: Tree](branch: T#Branch) = Some(branch.myself)
+}
+
+object Helper {
+  def itself[T <: Tree](branch: T#Branch) = branch.myself
+  def optionItself[T <: Tree](branch: T#Branch) = Some(branch.myself)
+}
+
+object Oak extends Tree {
+  type FinalBranch = Branch
+  class Branch extends super.Branch {
+    this: FinalBranch =>
+  }
+}
+
+object Caller extends App {
+  val oakBranch = new Oak.Branch
+  println(oakBranch.getClass()) // <-- class tree.Oak$Branch
+  val naked = Helper.itself(oakBranch)
+  println(naked.getClass()) // <-- class tree.Oak$Branch
+  val unwrapped = Helper.optionItself(oakBranch).get
+  println(unwrapped.getClass()) // <-- class tree.Oak$Branch
+  val matched = oakBranch match {
+    case Matcher(branch) => branch // <-- type mismatch; found: T#Branch; required: Oak.Branch
+  }
+}
+```
+
+The error:
+
+```scala
+$ scalac tree/Tree.scala 
+tree/Tree.scala:38: error: type mismatch;
+ found   : T#Branch
+ required: tree.Oak.Branch
+    case Matcher(branch) => branch // <-- type mismatch; found: T#Branch; required: Oak.Branch
+                ^
+one error found
+```
+
+This error was first reported to Scala IDE in ticket [#1001404](https://scala-ide-portfolio.assembla.com/spaces/scala-ide/tickets/1001404).

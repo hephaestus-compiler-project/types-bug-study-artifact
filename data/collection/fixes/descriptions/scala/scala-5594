@@ -1,0 +1,47 @@
+**Reproduce Code:**
+
+```
+//  src/A.scala
+sealed trait Sealed
+```
+
+```scala
+// src/B.scala
+class X extends Sealed // causes NPE
+object TestQueryable extends App{
+  val coffeesTableUnpack = new Sealed {} // causes NPE in different place, covered by first NPE
+}
+```
+
+From the parent folder of src first compile A.scala, then compile B.scala . The problem goes away if you compile both files together. Interestingly, the problem also goes away, when you copy A.scala into the current working directory. The problem goes away means no NPE, but a proper error message instead.
+
+**Expected result:**
+```
+src\B.scala:1: error: illegal inheritance from sealed trait Sealed: src\B.scala != src\A.scala
+class X extends Sealed
+                ^
+src\B.scala:3: error: illegal inheritance from sealed trait Sealed: src\B.scala != src\A.scala
+  val coffeesTableUnpack = new Sealed {}
+                               ^
+two errors found
+```
+
+**Actual result**:
+```
+error:
+     while compiling:  src\B.scala
+       current phase:  typer
+     library version:  version v2.10.0-M2-116-g70d43cd3ef
+    compiler version:  version v2.10.0-M2-119-g448eba9ff6
+  reconstructed args:
+
+uncaught exception during compilation: java.lang.NullPointerException
+error: java.lang.NullPointerException
+        at scala.tools.nsc.typechecker.ContextErrors$TyperContextErrors$TyperErrorGen$.ParentSealedInheritanceError(Cont
+extErrors.scala:545)
+        at scala.tools.nsc.typechecker.Typers$Typer.validateParentClass$1(Typers.scala:1370)
+        at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$validateParentClasses$2.apply(Typers.scala:1390)
+        at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$validateParentClasses$2.apply(Typers.scala:1390)
+        at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+        ...
+```

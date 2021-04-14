@@ -1,0 +1,35 @@
+This example compiles:
+
+```scala
+trait Request[F[_]]
+
+final case class AuthedRequest[F[_], A](authInfo: A, req: Request[F])
+
+trait Context { type F[_] }
+
+final class HttpRequestContext[C <: Context, Ctx](request: AuthedRequest[C#F, Ctx], context: Ctx)
+```
+
+this one doesn't:
+
+```scala
+trait Request[F[_]]
+
+final case class AuthedRequest[F[_], A](authInfo: A, req: Request[F])
+
+trait Context { type F[_] }
+
+final case class HttpRequestContext[C <: Context, Ctx](request: AuthedRequest[C#F, Ctx], context: Ctx)
+//    ^^^^
+```
+
+The difference is `case class` modifier. The error message is very unhelpful:
+
+```
+Error:(7, 64) type mismatch;
+found   : AuthedRequest[C#F,Ctx]
+required: AuthedRequest[?#F,?]
+final case class HttpRequestContext[C <: Context, Ctx](request: AuthedRequest[C#F, Ctx], context: Ctx)
+```
+
+Related discussion: https://gitter.im/scala/scala?at=5bdc5ef325b9875faec1b5a5

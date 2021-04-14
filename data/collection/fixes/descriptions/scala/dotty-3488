@@ -1,0 +1,24 @@
+The following code snippet does not compile with Dotty:
+```scala
+class Set[A] {
+
+  def incl(elem: A): Set[A] = ???
+
+  inline final def + (elem: A): Set[A] = incl(elem)
+}
+
+object Set {
+  def apply[A](elems: A*): Set[A] = ???
+}
+
+class Test {
+  Set(1) + 1
+}
+```
+```scala
+-- Error: tests/allan/Test.scala:13:9 ------------------------------------------
+13 |  Set(1) + 1
+   |  ^^^^^^^^^^
+   |undefined: Set_this.incl # 191: TermRef(TermRef(NoPrefix,val Set_this),incl[with sig Signature(List(java.lang.Object),Set)])
+```
+It compiles without the `inline` keyword.

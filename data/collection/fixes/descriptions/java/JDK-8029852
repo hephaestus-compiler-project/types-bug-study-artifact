@@ -1,0 +1,81 @@
+The compiler generates bad code that raises a verification error at class load time.
+
+public class SingleLocalTest {
+    interface F {void f();}
+    
+    static F f;
+
+    public static void main(String[] args) {
+        StringBuffer sb = new StringBuffer();
+        class Local1 {
+            public Local1() {
+                f = () -> new Local1();
+                sb.append("1");
+            }
+        }
+        new Local1();
+        f.f();
+        System.err.printf("Result: %s\n", sb);
+    }
+}
+
+The above code currently crashes the compiler (JDK-8029725).  But if JDK-8029725 is fixed, then the code generated for the program above throws a VerifyError at run-time:
+
+Exception in thread "main" java.lang.VerifyError: Bad type on operand stack
+Exception Details:
+  Location:
+    SingleLocalTest$1Local1.lambda$new$0(Ljava/lang/StringBuffer;)V @5: getfield
+  Reason:
+    Type 'java/lang/StringBuffer' (current frame, stack[2]) is not assignable to 'SingleLocalTest$1Local1'
+  Current Frame:
+    bci: @5
+    flags: { }
+    locals: { 'java/lang/StringBuffer' }
+    stack: { uninitialized 0, uninitialized 0, 'java/lang/StringBuffer' }
+  Bytecode:
+    0000000: bb00 0759 2ab4 0001 b700 0857 b1       
+
+        at SingleLocalTest.main(SingleLocalTest.java:14)
+
+This bad code will be generated in cases where a local variable is referenced within the local class.  In the generated code, we see that two different mechanisms of capturing the local variable (sb) are both at play and both incomplete:
+
+  final java.lang.StringBuffer val$sb;
+
+  private static void lambda$new$0(java.lang.StringBuffer);
+         0: new           #7                  // class SingleLocalTest$1Local1
+         3: dup           
+         4: aload_0       
+         5: getfield      #1                  // Field val$sb:Ljava/lang/StringBuffer;
+         8: invokespecial #8                  // Method "<init>":(Ljava/lang/StringBuffer;)V
+        11: pop           
+        12: return        
+
+-----
+
+Fix should also address nested locals:
+
+public class OuterLocalTest {
+    interface F {void f();}
+    
+    static F f;
+
+    public static void main(String[] args) {
+        StringBuffer sb = new StringBuffer();
+        class Local1 {
+            public Local1() {
+                class Local2 {
+                    public Local2() {
+                        f = () -> new Local1();
+                        sb.append("2");
+                    }
+                }
+                sb.append("1");
+                new Local2();
+            }
+        }
+        new Local1();
+        f.f();
+        System.err.printf("Result: %s\n", sb);
+    }
+}
+

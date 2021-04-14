@@ -1,0 +1,140 @@
+Let's consider following code:
+
+public class Test53<T> {
+    void test() {
+        class Inn1 {
+            class Inn2 {
+                void m(Test53<T> i) { } 
+                class Inn3 { }
+            }
+        }
+    }
+}
+
+when this code is compiled by javac from JDK build 137 with annotation processor invoking getEnclosedElements() on the Element instance representing unnamed package, following exception is thrown:
+
+com.sun.tools.javac.code.ClassFinder$BadClassFile: bad class file: ./out/Test53$1Inn1$Inn2.class
+  undeclared type variable: T
+  Please remove or make sure it appears in the correct subdirectory of the classpath.
+
+This happens only if Test53$1Inn1$Inn2$Inn3.class is on the class path passed to the compiler via -classpath option.
+
+The minimized test case is attached, in order to reproduce the bug please:
+1. Unzip attached archive to some dir, say A, on Unix/Linux machine.
+2. Modify A/Test53/test.sh by setting JDK_HOME variable to your JDK installation dir.
+3. Run A/Test53/test.sh. 
+
+It produces following output:
+
+First compilation
+Root elemnts count: 1
+pack: unnamed package
+Root elemnts count: 0
+Second compilation
+Root elemnts count: 1
+pack: unnamed package
+com.sun.tools.javac.code.ClassFinder$BadClassFile: bad class file: ./out/Test53$1Inn1$Inn2.class
+  undeclared type variable: T
+  Please remove or make sure it appears in the correct subdirectory of the classpath.
+        at com.sun.tools.javac.jvm.ClassReader.badClassFile(jdk.compiler@9-ea/ClassReader.java:274)
+        at com.sun.tools.javac.jvm.ClassReader.findTypeVar(jdk.compiler@9-ea/ClassReader.java:922)
+        at com.sun.tools.javac.jvm.ClassReader.sigToType(jdk.compiler@9-ea/ClassReader.java:629)
+        at com.sun.tools.javac.jvm.ClassReader.sigToTypes(jdk.compiler@9-ea/ClassReader.java:836)
+        at com.sun.tools.javac.jvm.ClassReader.classSigToType(jdk.compiler@9-ea/ClassReader.java:752)
+        at com.sun.tools.javac.jvm.ClassReader.sigToType(jdk.compiler@9-ea/ClassReader.java:665)
+        at com.sun.tools.javac.jvm.ClassReader.sigToTypes(jdk.compiler@9-ea/ClassReader.java:836)
+        at com.sun.tools.javac.jvm.ClassReader.sigToType(jdk.compiler@9-ea/ClassReader.java:690)
+        at com.sun.tools.javac.jvm.ClassReader.sigToType(jdk.compiler@9-ea/ClassReader.java:615)
+        at com.sun.tools.javac.jvm.ClassReader.readType(jdk.compiler@9-ea/ClassReader.java:488)
+        at com.sun.tools.javac.jvm.ClassReader$11.read(jdk.compiler@9-ea/ClassReader.java:1113)
+        at com.sun.tools.javac.jvm.ClassReader.readAttrs(jdk.compiler@9-ea/ClassReader.java:1421)
+        at com.sun.tools.javac.jvm.ClassReader.readMemberAttrs(jdk.compiler@9-ea/ClassReader.java:1411)
+        at com.sun.tools.javac.jvm.ClassReader.readMethod(jdk.compiler@9-ea/ClassReader.java:2195)
+        at com.sun.tools.javac.jvm.ClassReader.readClass(jdk.compiler@9-ea/ClassReader.java:2446)
+        at com.sun.tools.javac.jvm.ClassReader.readClassBuffer(jdk.compiler@9-ea/ClassReader.java:2511)
+        at com.sun.tools.javac.jvm.ClassReader.readClassFile(jdk.compiler@9-ea/ClassReader.java:2524)
+        at com.sun.tools.javac.code.ClassFinder.fillIn(jdk.compiler@9-ea/ClassFinder.java:350)
+        at com.sun.tools.javac.code.ClassFinder.complete(jdk.compiler@9-ea/ClassFinder.java:287)
+        at com.sun.tools.javac.code.ClassFinder.access$000(jdk.compiler@9-ea/ClassFinder.java:74)
+        at com.sun.tools.javac.code.ClassFinder$1.complete(jdk.compiler@9-ea/ClassFinder.java:166)
+        at com.sun.tools.javac.code.Symbol.complete(jdk.compiler@9-ea/Symbol.java:623)
+        at com.sun.tools.javac.code.Symbol$ClassSymbol.complete(jdk.compiler@9-ea/Symbol.java:1235)
+        at com.sun.tools.javac.code.ClassFinder.completeEnclosing(jdk.compiler@9-ea/ClassFinder.java:324)
+        at com.sun.tools.javac.code.ClassFinder.complete(jdk.compiler@9-ea/ClassFinder.java:286)
+        at com.sun.tools.javac.code.ClassFinder.access$000(jdk.compiler@9-ea/ClassFinder.java:74)
+        at com.sun.tools.javac.code.ClassFinder$1.complete(jdk.compiler@9-ea/ClassFinder.java:166)
+        at com.sun.tools.javac.code.Symbol.complete(jdk.compiler@9-ea/Symbol.java:623)
+        at com.sun.tools.javac.code.Symbol$ClassSymbol.complete(jdk.compiler@9-ea/Symbol.java:1235)
+        at com.sun.tools.javac.code.Symbol$ClassSymbol.flags(jdk.compiler@9-ea/Symbol.java:1169)
+        at com.sun.tools.javac.code.Symbol$TypeSymbol.getEnclosedElements(jdk.compiler@9-ea/Symbol.java:790)
+        at Test53Proc.process(Test53Proc.java:19)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.callProcessor(jdk.compiler@9-ea/JavacProcessingEnvironment.java:959)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.discoverAndRunProcs(jdk.compiler@9-ea/JavacProcessingEnvironment.java:875)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.access$2100(jdk.compiler@9-ea/JavacProcessingEnvironment.java:106)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment$Round.run(jdk.compiler@9-ea/JavacProcessingEnvironment.java:1182)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.doProcessing(jdk.compiler@9-ea/JavacProcessingEnvironment.java:1290)
+        at com.sun.tools.javac.main.JavaCompiler.processAnnotations(jdk.compiler@9-ea/JavaCompiler.java:1232)
+        at com.sun.tools.javac.main.JavaCompiler.compile(jdk.compiler@9-ea/JavaCompiler.java:911)
+        at com.sun.tools.javac.main.Main.compile(jdk.compiler@9-ea/Main.java:292)
+        at com.sun.tools.javac.main.Main.compile(jdk.compiler@9-ea/Main.java:148)
+        at com.sun.tools.javac.Main.compile(jdk.compiler@9-ea/Main.java:55)
+        at com.sun.tools.javac.Main.main(jdk.compiler@9-ea/Main.java:41)
+Root elemnts count: 0
+An exception has occurred in the compiler (9-ea). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.NullPointerException
+        at com.sun.tools.javac.jvm.ClassReader.readEnclosingMethodAttr(jdk.compiler@9-ea/ClassReader.java:1305)
+        at com.sun.tools.javac.jvm.ClassReader$10.read(jdk.compiler@9-ea/ClassReader.java:1090)
+        at com.sun.tools.javac.jvm.ClassReader.readAttrs(jdk.compiler@9-ea/ClassReader.java:1421)
+        at com.sun.tools.javac.jvm.ClassReader.readClassAttrs(jdk.compiler@9-ea/ClassReader.java:1435)
+        at com.sun.tools.javac.jvm.ClassReader.readClass(jdk.compiler@9-ea/ClassReader.java:2417)
+        at com.sun.tools.javac.jvm.ClassReader.readClassBuffer(jdk.compiler@9-ea/ClassReader.java:2511)
+        at com.sun.tools.javac.jvm.ClassReader.readClassFile(jdk.compiler@9-ea/ClassReader.java:2524)
+        at com.sun.tools.javac.code.ClassFinder.fillIn(jdk.compiler@9-ea/ClassFinder.java:350)
+        at com.sun.tools.javac.code.ClassFinder.complete(jdk.compiler@9-ea/ClassFinder.java:287)
+        at com.sun.tools.javac.code.ClassFinder.access$000(jdk.compiler@9-ea/ClassFinder.java:74)
+        at com.sun.tools.javac.code.ClassFinder$1.complete(jdk.compiler@9-ea/ClassFinder.java:166)
+        at com.sun.tools.javac.code.Symbol.complete(jdk.compiler@9-ea/Symbol.java:623)
+        at com.sun.tools.javac.code.Symbol$ClassSymbol.complete(jdk.compiler@9-ea/Symbol.java:1235)
+        at com.sun.tools.javac.comp.TypeEnter$ImportsPhase.runPhase(jdk.compiler@9-ea/TypeEnter.java:317)
+        at com.sun.tools.javac.comp.TypeEnter$Phase.doCompleteEnvs(jdk.compiler@9-ea/TypeEnter.java:273)
+        at com.sun.tools.javac.comp.TypeEnter$Phase.completeEnvs(jdk.compiler@9-ea/TypeEnter.java:248)
+        at com.sun.tools.javac.comp.TypeEnter.complete(jdk.compiler@9-ea/TypeEnter.java:198)
+        at com.sun.tools.javac.code.Symbol.complete(jdk.compiler@9-ea/Symbol.java:623)
+        at com.sun.tools.javac.code.Symbol$ClassSymbol.complete(jdk.compiler@9-ea/Symbol.java:1235)
+        at com.sun.tools.javac.comp.Attr.visitClassDef(jdk.compiler@9-ea/Attr.java:921)
+        at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(jdk.compiler@9-ea/JCTree.java:760)
+        at com.sun.tools.javac.comp.Attr$ResultInfo.attr(jdk.compiler@9-ea/Attr.java:501)
+        at com.sun.tools.javac.comp.Attr.attribTree(jdk.compiler@9-ea/Attr.java:639)
+        at com.sun.tools.javac.comp.Attr.attribStat(jdk.compiler@9-ea/Attr.java:708)
+        at com.sun.tools.javac.comp.Attr.attribClassBody(jdk.compiler@9-ea/Attr.java:4508)
+        at com.sun.tools.javac.comp.Attr.attribClass(jdk.compiler@9-ea/Attr.java:4412)
+        at com.sun.tools.javac.comp.Attr.attribClass(jdk.compiler@9-ea/Attr.java:4341)
+        at com.sun.tools.javac.comp.Attr.visitClassDef(jdk.compiler@9-ea/Attr.java:933)
+        at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(jdk.compiler@9-ea/JCTree.java:760)
+        at com.sun.tools.javac.comp.Attr$ResultInfo.attr(jdk.compiler@9-ea/Attr.java:501)
+        at com.sun.tools.javac.comp.Attr.attribTree(jdk.compiler@9-ea/Attr.java:639)
+        at com.sun.tools.javac.comp.Attr.attribStat(jdk.compiler@9-ea/Attr.java:708)
+        at com.sun.tools.javac.comp.Attr.attribStats(jdk.compiler@9-ea/Attr.java:727)
+        at com.sun.tools.javac.comp.Attr.visitBlock(jdk.compiler@9-ea/Attr.java:1187)
+        at com.sun.tools.javac.tree.JCTree$JCBlock.accept(jdk.compiler@9-ea/JCTree.java:1000)
+        at com.sun.tools.javac.comp.Attr$ResultInfo.attr(jdk.compiler@9-ea/Attr.java:501)
+        at com.sun.tools.javac.comp.Attr.attribTree(jdk.compiler@9-ea/Attr.java:639)
+        at com.sun.tools.javac.comp.Attr.attribStat(jdk.compiler@9-ea/Attr.java:708)
+        at com.sun.tools.javac.comp.Attr.visitMethodDef(jdk.compiler@9-ea/Attr.java:1078)
+        at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(jdk.compiler@9-ea/JCTree.java:852)
+        at com.sun.tools.javac.comp.Attr$ResultInfo.attr(jdk.compiler@9-ea/Attr.java:501)
+        at com.sun.tools.javac.comp.Attr.attribTree(jdk.compiler@9-ea/Attr.java:639)
+        at com.sun.tools.javac.comp.Attr.attribStat(jdk.compiler@9-ea/Attr.java:708)
+        at com.sun.tools.javac.comp.Attr.attribClassBody(jdk.compiler@9-ea/Attr.java:4508)
+        at com.sun.tools.javac.comp.Attr.attribClass(jdk.compiler@9-ea/Attr.java:4412)
+        at com.sun.tools.javac.comp.Attr.attribClass(jdk.compiler@9-ea/Attr.java:4341)
+        at com.sun.tools.javac.comp.Attr.attrib(jdk.compiler@9-ea/Attr.java:4286)
+        at com.sun.tools.javac.main.JavaCompiler.attribute(jdk.compiler@9-ea/JavaCompiler.java:1315)
+        at com.sun.tools.javac.main.JavaCompiler.compile(jdk.compiler@9-ea/JavaCompiler.java:948)
+        at com.sun.tools.javac.main.Main.compile(jdk.compiler@9-ea/Main.java:292)
+        at com.sun.tools.javac.main.Main.compile(jdk.compiler@9-ea/Main.java:148)
+        at com.sun.tools.javac.Main.compile(jdk.compiler@9-ea/Main.java:55)
+        at com.sun.tools.javac.Main.main(jdk.compiler@9-ea/Main.java:41)
+
+BadClassFile stacktrace is printed by the annotation processor which catches it.
+The NPE is thrown because the processor catches BadClassFile thrown by getEnclosedElements(); if it didn't NPE wouldn't be thrown.

@@ -1,0 +1,23 @@
+Trying to reproduce a (backend) failure from https://youtrack.jetbrains.com/issue/KT-43831  with 1.4.30-RC 
+I've encountered strange compilation errors full of Nothing type.
+
+`$ ./gradlew -i  :testmodels:compileKotlinMacos`
+
+fails quite early in the build with 
+
+```
+e: /Users/jetbrains/kotlin-native/maryk/core/src/commonMain/kotlin/maryk/core/models/RootDataModel.kt: (187, 51): Type mismatch: inferred type is MultiTypeDefinitionWrapper<IndexKeyPartType<*>, IsIndexable, IsIndexable, Nothing, RootDataModel<*, *>> but IsDefinitionWrapper<*, *, DefinitionsConversionContext, *> was expected
+e: /Users/jetbrains/kotlin-native/maryk/core/src/commonMain/kotlin/maryk/core/properties/definitions/InternalMultiTypeDefinition.kt: (101, 5): Type mismatch: inferred type is ObjectDefinitionWrapperDelegateLoader<out MultiTypeDefinitionWrapper<E, T, TO, Nothing, DO>, DO> but ObjectDefinitionWrapperDelegateLoader<MultiTypeDefinitionWrapper<E, T, TO, CX, DO>, DO> was expected
+e: /Users/jetbrains/kotlin-native/maryk/core/src/commonMain/kotlin/maryk/core/properties/definitions/MultiTypeDefinition.kt: (118, 13): Not enough information to infer type variable E
+e: /Users/jetbrains/kotlin-native/maryk/core/src/commonMain/kotlin/maryk/core/properties/definitions/MultiTypeDefinition.kt: (157, 5): Type mismatch: inferred type is ObjectDefinitionWrapperDelegateLoader<out MultiTypeDefinitionWrapper<E, T, TO, Nothing, DO>, DO> but ObjectDefinitionWrapperDelegateLoader<MultiTypeDefinitionWrapper<E, T, TO, ContainsDefinitionsContext, DO>, DO> was expected
+e: /Users/jetbrains/kotlin-native/maryk/core/src/commonMain/kotlin/maryk/core/query/changes/DataObjectChange.kt: (74, 86): Not enough information to infer type variable DM
+e: /Users/jetbrains/kotlin-native/maryk/core/src/commonMain/kotlin/maryk/core/query/changes/DataObjectVersionedChange.kt: (56, 95): Not enough information to infer type variable DM
+e: /Users/jetbrains/kotlin-native/maryk/core/src/commonMain/kotlin/maryk/core/query/pairs/ReferenceValueSetPair.kt: (45, 91): Not enough information to infer type variable T
+e: /Users/jetbrains/kotlin-native/maryk/core/src/commonMain/kotlin/maryk/core/query/requests/CollectRequest.kt: (60, 93): Type mismatch: inferred type is RequestContext? but Nothing? was expected
+e: /Users/jetbrains/kotlin-native/maryk/core/src/commonMain/kotlin/maryk/core/query/requests/CollectRequest.kt: (61, 80): Type mismatch: inferred type is RequestContext? but Nothing? was expected
+e: /Users/jetbrains/kotlin-native/maryk/core/src/commonMain/kotlin/maryk/core/query/requests/CollectRequest.kt: (84, 63): Type mismatch: inferred type is RequestContext? but Nothing? was expected
+```
+
+While with `1.4.20/21` the same build fails somewhat later and in the backend.
+
+Is it some type inference bug?

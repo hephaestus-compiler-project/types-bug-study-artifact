@@ -1,0 +1,42 @@
+Spotted in the CI job set jdk11-jdk-919:
+
+tools/javac/modules/AnnotationProcessing.java	
+
+failed due to:
+
+16 tests, 1 errors
+java.lang.Exception: 1 errors found
+	at toolbox.TestRunner.runTests(TestRunner.java:116)
+	at ModuleTestBase.runTests(ModuleTestBase.java:49)
+	at AnnotationProcessing.main(AnnotationProcessing.java:98)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at com.sun.javatest.regtest.agent.MainActionHelper$SameVMRunnable.run(MainActionHelper.java:229)
+	at java.base/java.lang.Thread.run(Thread.java:834)
+
+JavaTest Message: Test threw exception: java.lang.Exception
+JavaTest Message: shutting down test
+
+result: Failed. Execution failed: `main' threw exception: java.lang.Exception: 1 errors found
+
+
+test result: Failed. Execution failed: `main' threw exception: java.lang.Exception: 1 errors found
+
+Root cause is indicated in this stack trace:
+
+Exception running test testGenerateInMultiModeAPI: java.nio.file.DirectoryNotEmptyException: testGenerateInMultiModeAPI\\classes\\m1x 
+java.nio.file.DirectoryNotEmptyException: testGenerateInMultiModeAPI\\classes\\m1x 
+at java.base/sun.nio.fs.WindowsFileSystemProvider.implDelete(WindowsFileSystemProvider.java:267) 
+at java.base/sun.nio.fs.AbstractFileSystemProvider.delete(AbstractFileSystemProvider.java:105) 
+at java.base/java.nio.file.Files.delete(Files.java:1140) 
+at toolbox.ToolBox$1.postVisitDirectory(ToolBox.java:276) 
+at toolbox.ToolBox$1.postVisitDirectory(ToolBox.java:263) 
+at java.base/java.nio.file.Files.walkFileTree(Files.java:2741) 
+at java.base/java.nio.file.Files.walkFileTree(Files.java:2795) 
+at toolbox.ToolBox.cleanDirectory(ToolBox.java:263) 
+at AnnotationProcessing.runCompiler(AnnotationProcessing.java:998) 
+at AnnotationProcessing.runCompiler(AnnotationProcessing.java:984) 
+
+This means we really need to fix ToolBox.cleanDirectory to work on Windows.

@@ -1,0 +1,40 @@
+```scala
+import reflect.ClassTag
+
+object Demo {
+  def the[T](implicit ev: T): ev.type = ev // More precise implicitly, needed to crash
+
+  {
+    case class B(i: Int)
+    the[ClassTag[B]] // Has to be the last statement of the block
+  }
+}
+```
+
+Crashes with the following:
+
+```scala
+Exception in thread "main" java.lang.AssertionError: assertion failed: leak: B in {
+  case class B(i: Int) extends Object() with _root_.scala.Product {
+    val i: Int
+    def copy(i: Int): B = new B(i)
+    def copy$default$1: Int @uncheckedVariance =
+      B.this.i: Int @uncheckedVariance
+    def _1: Int = this.i
+  }
+  final lazy module val B: B = new B()
+  final module class B() extends Object() with Function1[Int, B] {
+    this: B.type =>
+
+    def apply(i: Int): B = new B(i)
+    def unapply(x$1: B): B = x$1
+  }
+  Demo.the[reflect.ClassTag[B]](
+    scala.reflect.ClassTag.apply[B](classOf[class B])
+  ): ClassTag[B](?1)
+}
+        at scala.Predef$.assert(Predef.scala:219)
+        at dotty.tools.dotc.typer.Typer.ensureNoLocalRefs(Typer.scala:671)
+        at dotty.tools.dotc.typer.Typer.$anonfun$typedBlock$1(Typer.scala:634)
+        ...
+```

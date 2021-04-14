@@ -1,0 +1,45 @@
+```
+trait Bug1[@specialized +A] extends TraversableOnce[A] {  
+  def ++[B >: A](that: TraversableOnce[B]): Iterator[B] = new Iterator[B] {
+    lazy val it = that.toIterator
+    def hasNext = it.hasNext
+    def next = it.next
+  }
+}
+```
+
+[running phase cleanup on bug1.scala]
+[running phase icode on bug1.scala]
+error: java.lang.Error: Unknown type: [<deferred> <param> T0 >: ? <: ?]()T0, [<deferred> <param> T0 >: ? <: ?]()T0 [class scala.reflect.internal.Types$PolyType, class scala.reflect.internal.Types$PolyType] TypeRef? false
+	at scala.reflect.internal.SymbolTable.abort(SymbolTable.scala:31)
+	at scala.tools.nsc.backend.icode.TypeKinds$class.toTypeKind(TypeKinds.scala:390)
+
+
+Analysis points the finger at mixin. 
+
+```
+// before mixin - asInstanceOf[Iterator]
+private <stable> <accessor> lazy def it(): Iterator = {
+  Bug1$mcD$sp$$anon$10.this.it _=(Bug1$mcD$sp$$anon$10.this.that$10.toIterator());
+  Bug1$mcD$sp$$anon$10.this.it .$asInstanceOf[Iterator]()
+};
+
+// after mixin - asInstanceOf is unapplied, polytype reaches back end
+private lazy var it : Iterator = _;
+private <stable> <accessor> lazy def it(): Iterator = {
+  if (Bug1$mcD$sp$$anon$10.this.bitmap$priv$0.&(4).==(0))
+    {
+      Bug1$mcD$sp$$anon$10.this.synchronized({
+        if (Bug1$mcD$sp$$anon$10.this.bitmap$priv$0.&(4).==(0))
+          {
+            Bug1$mcD$sp$$anon$10.this.it _=(Bug1$mcD$sp$$anon$10.this.that$10.toIterator());
+            Bug1$mcD$sp$$anon$10.this.bitmap$priv$0 = Bug1$mcD$sp$$anon$10.this.bitmap$priv$0.|(4);
+            ()
+          };
+        scala.runtime.BoxedUnit.UNIT
+      });
+      Bug1$mcD$sp$$anon$10.this.that$10 = null
+    };
+  Bug1$mcD$sp$$anon$10.this.$asInstanceOf
+};
+```

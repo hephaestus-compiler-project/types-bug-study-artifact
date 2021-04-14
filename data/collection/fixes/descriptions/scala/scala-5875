@@ -1,0 +1,57 @@
+```scala
+import scala.reflect.runtime.universe._
+import scala.reflect.runtime.{universe => ru}
+import scala.reflect.runtime.{currentMirror => cm}
+import scala.tools.reflect.ToolBox
+
+object Test extends App {
+  def fun() = {
+    def z() = 2
+    reify{z}
+  }
+
+  val toolbox = cm.mkToolBox()
+  val dyn = toolbox.runExpr(fun().tree)
+  val foo = dyn.asInstanceOf[Int]
+  println(foo)
+}
+```
+
+```scala
+scala.tools.reflect.ToolBoxError: reflective compilation has failed: 
+
+Int does not take parameters
+  at scala.tools.reflect.ToolBoxFactory$ToolBoxImpl$ToolBoxGlobal.throwIfErrors(ToolBoxFactory.scala:276)
+  at scala.tools.reflect.ToolBoxFactory$ToolBoxImpl$ToolBoxGlobal.compileExpr(ToolBoxFactory.scala:205)
+  at scala.tools.reflect.ToolBoxFactory$ToolBoxImpl$ToolBoxGlobal.runExpr(ToolBoxFactory.scala:233)
+  at scala.tools.reflect.ToolBoxFactory$ToolBoxImpl.runExpr(ToolBoxFactory.scala:370)
+  at Test$delayedInit$body.apply(reify_closures11.scala:13)
+  at scala.Function0$class.apply$mcV$sp(Function0.scala:40)
+  at scala.runtime.AbstractFunction0.apply$mcV$sp(AbstractFunction0.scala:12)
+  at scala.App$$anonfun$main$1.apply(App.scala:61)
+  at scala.App$$anonfun$main$1.apply(App.scala:61)
+  at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+  at scala.collection.immutable.List.foreach(List.scala:77)
+  at scala.collection.generic.TraversableForwarder$class.foreach(TraversableForwarder.scala:32)
+  at scala.collection.mutable.ListBuffer.foreach(ListBuffer.scala:45)
+  at scala.App$class.main(App.scala:61)
+  at Test$.main(reify_closures11.scala:6)
+  at Test.main(reify_closures11.scala)
+  at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+  at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+  at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+  at java.lang.reflect.Method.invoke(Method.java:597)
+  at scala.tools.nsc.util.ScalaClassLoader$$anonfun$run$1.apply(ScalaClassLoader.scala:93)
+  at scala.tools.nsc.util.ScalaClassLoader$class.asContext(ScalaClassLoader.scala:41)
+  at scala.tools.nsc.util.ScalaClassLoader$URLClassLoader.asContext(ScalaClassLoader.scala:162)
+  at scala.tools.nsc.util.ScalaClassLoader$class.run(ScalaClassLoader.scala:93)
+  at scala.tools.nsc.util.ScalaClassLoader$URLClassLoader.run(ScalaClassLoader.scala:162)
+  at scala.tools.nsc.CommonRunner$class.run(ObjectRunner.scala:28)
+  at scala.tools.nsc.ObjectRunner$.run(ObjectRunner.scala:45)
+  at scala.tools.nsc.CommonRunner$class.runAndCatch(ObjectRunner.scala:35)
+  at scala.tools.nsc.ObjectRunner$.runAndCatch(ObjectRunner.scala:45)
+  at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:70)
+  at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:92)
+  at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:101)
+  at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+```

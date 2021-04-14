@@ -1,0 +1,144 @@
+While this correctly compiles:
+
+``` scala
+object Main extends App {
+  val MAX = 10
+  val s1, s2, target = new Array[Long](MAX)
+
+  var i = 0
+
+  while (i < MAX) {
+    target(i) = s1(i) + s2(i)
+    i+= 1
+  }
+}
+```
+
+simply adding another unused `var` crashes the compiler
+
+``` scala
+object Main extends App {
+  val MAX = 10
+  val s1, s2, target = new Array[Long](MAX)
+
+  var i, j = 0
+
+  while (i < MAX) {
+    target(i) = s1(i) + s2(i)
+    i+= 1
+  }
+}
+```
+
+the output log is this:
+
+```
+exception while transforming Main.i = Main.i.+(1) of class class dotty.tools.dotc.ast.Trees$Assign # 8267
+exception while transforming {
+  Main.target.update(Main.i, Main.s1.apply(Main.i).+(Main.s2.apply(Main.i)))
+  Main.i = Main.i.+(1)
+} of class class dotty.tools.dotc.ast.Trees$Block # 8268
+exception while transforming {
+  {
+    Main.target.update(Main.i, Main.s1.apply(Main.i).+(Main.s2.apply(Main.i)))
+    Main.i = Main.i.+(1)
+  }
+  while$()
+} of class class dotty.tools.dotc.ast.Trees$Block # 8270
+exception while transforming if Main.i.<(Main.MAX) then {
+  {
+    Main.target.update(Main.i, Main.s1.apply(Main.i).+(Main.s2.apply(Main.i)))
+    Main.i = Main.i.+(1)
+  }
+  while$()
+} else () of class class dotty.tools.dotc.ast.Trees$If # 8271
+exception while transforming def while$(): Unit = 
+  if Main.i.<(Main.MAX) then {
+    {
+      Main.target.update(Main.i, Main.s1.apply(Main.i).+(Main.s2.apply(Main.i)))
+      Main.i = Main.i.+(1)
+    }
+    while$()
+  } else () of class class dotty.tools.dotc.ast.Trees$DefDef # 8272
+exception while transforming {
+  def while$(): Unit = 
+    if Main.i.<(Main.MAX) then {
+      {
+        Main.target.update(Main.i, 
+          Main.s1.apply(Main.i).+(Main.s2.apply(Main.i))
+        )
+        Main.i = Main.i.+(1)
+      }
+      while$()
+    } else ()
+  while$()
+} of class class dotty.tools.dotc.ast.Trees$Block # 8274
+exception while transforming () extends Object() with App { this: Main.type => 
+  val MAX: Int = 10
+  val s1: Array[Long] = dotty.runtime.Arrays.newLongArray(Main.MAX)
+  val s2: Array[Long] = dotty.runtime.Arrays.newLongArray(Main.MAX)
+  val target: Array[Long] = dotty.runtime.Arrays.newLongArray(Main.MAX)
+  var i: Int = 0
+  var j: Int = 0
+  {
+    def while$(): Unit = 
+      if Main.i.<(Main.MAX) then {
+        {
+          Main.target.update(Main.i, 
+            Main.s1.apply(Main.i).+(Main.s2.apply(Main.i))
+          )
+          Main.i = Main.i.+(1)
+        }
+        while$()
+      } else ()
+    while$()
+  }
+} of class class dotty.tools.dotc.ast.Trees$Template # 8275
+exception while transforming final module class Main$() extends Object() with App { this: Main.type => 
+  val MAX: Int = 10
+  val s1: Array[Long] = dotty.runtime.Arrays.newLongArray(Main.MAX)
+  val s2: Array[Long] = dotty.runtime.Arrays.newLongArray(Main.MAX)
+  val target: Array[Long] = dotty.runtime.Arrays.newLongArray(Main.MAX)
+  var i: Int = 0
+  var j: Int = 0
+  {
+    def while$(): Unit = 
+      if Main.i.<(Main.MAX) then {
+        {
+          Main.target.update(Main.i, 
+            Main.s1.apply(Main.i).+(Main.s2.apply(Main.i))
+          )
+          Main.i = Main.i.+(1)
+        }
+        while$()
+      } else ()
+    while$()
+  }
+} of class class dotty.tools.dotc.ast.Trees$TypeDef # 8276
+exception while transforming package <empty> {
+  final lazy module val Main: Main$ = new Main$()
+  final module class Main$() extends Object() with App { this: Main.type => 
+    val MAX: Int = 10
+    val s1: Array[Long] = dotty.runtime.Arrays.newLongArray(Main.MAX)
+    val s2: Array[Long] = dotty.runtime.Arrays.newLongArray(Main.MAX)
+    val target: Array[Long] = dotty.runtime.Arrays.newLongArray(Main.MAX)
+    var i: Int = 0
+    var j: Int = 0
+    {
+      def while$(): Unit = 
+        if Main.i.<(Main.MAX) then {
+          {
+            Main.target.update(Main.i, 
+              Main.s1.apply(Main.i).+(Main.s2.apply(Main.i))
+            )
+            Main.i = Main.i.+(1)
+          }
+          while$()
+        } else ()
+      while$()
+    }
+  }
+} of class class dotty.tools.dotc.ast.Trees$PackageDef # 8277
+```
+
+Hope this tracking is useful!

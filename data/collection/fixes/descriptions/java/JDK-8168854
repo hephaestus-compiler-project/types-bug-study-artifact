@@ -1,0 +1,29 @@
+Now compiler (b138) rejects inner class as service interface if service implementation is nested static class with error: 
+the service definition is an inner class: Outer.Inter
+
+Although there is no spec restriction on service interface to be inner class.
+
+-----------------------------
+Minimal test case:
+module-info.java:
+module mod {
+    exports pack1;
+    provides lpack1.Outer.Inter with pack1.Outer1.Implem;
+}
+
+pack1/Outer.java:
+public class Outer {
+    public class Inter { 
+    }
+}
+
+pack1/Outer1.java:
+public class Outer1{
+    public static class Implem extends Outer.Inter {
+        public Implem () {
+            new Outer().super();
+        }
+    }
+}
+
+This bug cause failure of tests lang/MOD/mod074

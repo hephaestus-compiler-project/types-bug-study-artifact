@@ -1,0 +1,64 @@
+JLS 7.5.3 Single Static Import Declaration says:
+
+Note that it is permissable for one single-static-import declaration to import several fields or types with the same name, or several methods with the same name and signature.
+------
+According to 8.3.3.3 and the first clause in 15.11.1 several fields with the same name can be imported by static-import-on-demand declaration but a compile-time error should  occur on any attempt to refer to any ambiguously imported field by its simple name. 
+
+The following test shows that compile time error isn't given on attempt to refer to ambiguously imported field by its simple name. One is given on attempt to refer to the field by its fully qualified name.
+
+Example:
+
+--------------------Helper.java------------
+package testPackage.p;
+
+interface HI {
+    public static int field = 1;
+    public static class Type {
+        public static int v = 1;
+        public static int method(){return 1;}
+    }
+}
+class HC {
+    public static int field = 3;
+    public static class Type {
+        public static int v = 3;
+        public static int method(){return 3;}
+    }
+}
+public class Helper extends HC implements HI{  /*Helper inherits two fields named field, one from its superclass HC and one from its superinterface  HI. The same with class Type.*/                                                                                        
+}
+-----------------------Test.java--------------
+package testPackage;
+
+import static testPackage.p.Helper.field;
+import static testPackage.p.Helper.Type;
+//import static testPackage.p.Helper.Type.method;   // LINE1
+
+public class Test {
+    public static void main(String[] args) {
+        System.out.println(field);
+        System.out.println(Type.v);
+//        System.out.println(testPackage.p.Helper.field);  //LINE2
+    }
+}
+
+------------------OutPut1 (LINE1 commented, LINE2 commented)--------------------
+1
+3
+------------------OutPut2 (LINE1 uncommented, LINE2 commented)--------------------
+Information:Compilation completed with 2 errors and 0 warnings
+Information:2 errors
+Information:0 warnings
+C:\JLS\JLS3\lang\tests\lang\PKGS\pkgs079_Q\Test\Test.java
+    Error:Error:line (5)reference to Type is ambiguous, both class testPackage.Test.p.HC.Type in testPackage.Test.p.HC and class testPackage.Test.p.HI1.Type in testPackage.Test.p.HI1 match
+    Error:Error:line (5)static import only from classes and interfaces
+
+------------------OutPut2 (LINE1 commented, LINE2 uncommented)--------------------
+Information:Compilation completed with 1 error and 0 warnings
+Information:1 error
+Information:0 warnings
+C:\JLS\JLS3\lang\tests\lang\PKGS\pkgs079_Q\Test\Test.java
+    Error:Error:line (11)reference to field is ambiguous, both variable field in testPackage.p.HC and variable field in testPackage.p.HI match
+-------------------------------------------------------------------------------
+
+A compile-time error should be given in the first case.

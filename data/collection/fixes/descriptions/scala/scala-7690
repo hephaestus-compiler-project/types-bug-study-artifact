@@ -1,0 +1,31 @@
+This compiles in 2.10.2 and 2.11.0-M3, but not 2.11.0-M4 or later:
+
+```scala
+object A
+trait B[T]
+
+object C {
+  implicit def notUsed[L[x]](in: L[Int]): B[L[Int]] = ???
+
+  class E(val ls: Int) {
+    def x(f: Int => Boolean): Boolean = f(ls)
+  }
+  implicit def isUsed(ls: Int): E = new E(ls)
+
+  def amethod(in: Int): Boolean =
+    in.x { i =>
+      import A._
+      "asdf" == i.toString
+    }
+}
+```
+
+The error message is:
+```scala
+/*
+error: the result type of an implicit conversion must be more specific than AnyRef
+one error found
+*/
+```
+
+I didn't remove the position from the error message; there isn't one printed.

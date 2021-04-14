@@ -1,0 +1,21 @@
+Putting the following snippet in scala repl or compiling it will crash the compiler with an AssertionError: assertion failed: mkAttributedQualifier
+
+```scala
+    case class Outer(i: Int) { class Inner }
+    object Test {
+      val o1 = Outer(5)
+      o1 match {
+        case o @ Outer(_) => val i = new o.Inner
+      }
+    }
+```
+
+Changing the pattern to any of the following will allow it to compile
+
+```scala
+    case o @ Outer(5) => val i = new o.Inner
+    case o: Outer => val i = new o.Inner
+```
+
+In some cases (could not reduce to short snippet) the code will compile but give "Outer is not a legal prefix for a constructor" instead of crashing the compiler.
+The full stacktrace of the exception was added as an attachment.

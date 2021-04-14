@@ -1,0 +1,18 @@
+After trying to compile the code below the compiler crashed with the exception in GenICode$$ICodePhase.genLoadArguments. Tried both on 2.7.3final and 2.8.0.r17382 - same results. See the call stack below.
+```scala
+// Edit by paulp: reduced.
+trait Cloning {
+  trait Foo
+  def fn(g: Any => Unit): Foo
+  
+  implicit def mkStar(i: Int) = new { def *(a: Foo): Foo = null }
+
+  val pool = 4 * fn { case iii: Int => iii * 2 }
+}
+```
+```scala
+# scalac Swarm.scala
+Exception in thread "main" java.lang.Error: symbol value iii$$1 does not exist in playground.Swarm.main
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.scala$$tools$$nsc$$backend$$icode$$GenICode$$ICodePhase$$$$genLoad(GenICode.scala:912)
+	at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.genLoadArguments(GenICode.scala:1103)
+```

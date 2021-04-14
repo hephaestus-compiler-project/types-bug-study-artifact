@@ -1,0 +1,18 @@
+This was brought up on the jigsaw-dev list here:
+http://mail.openjdk.java.net/pipermail/jigsaw-dev/2018-July/013858.html
+
+mod.two does not read mod.one. There is also code in mod.two with a reference to a public type in one of mod.one's non-exported packages.
+
+To compile these modules individually needs the following:
+
+$ javac -d mods/mod.one $(find src/mod.one -name "*.java")
+$ javac -p mods --add-modules mod.one --add-reads mod.two=mod.one --add-exports mod.one/p=mod.two -d mods/mod.two $(find src/mod.two -name "*.java") 
+
+but if you drop the `--add-reads` it will still incorrectly succeed.
+
+The equivalent multi-module compilation should be:
+
+$ javac --module-source-path src --add-reads mod.two=mod.one --add-exports mod.one/p=mod.two -d mods $(find src -name "*.java")
+
+but it's possible to drop the --add-reads without the compilation failing.
+ 

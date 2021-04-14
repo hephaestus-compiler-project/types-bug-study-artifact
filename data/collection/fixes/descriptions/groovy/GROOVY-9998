@@ -1,0 +1,37 @@
+The following code fails to compile when using {{@CompileStatic}}:
+{code}
+class A {
+	public final int order;
+	
+	public A(int order) {
+		this.order = order;
+	}
+}
+
+class B extends A {
+	public B(int order) {
+		super(order);
+	}
+}
+
+class Test {
+	public void test() {
+		Comparator<? super A> comparator = (a1, a2) -> Integer.compare(a1.order, a2.order);
+		List<B> list = [new B(2), new B(3), new B(1), new B(0)];
+		list.stream().sorted(comparator);
+	}
+}
+{code}
+
+The error is:
+{noformat}
+Exception in thread "main" org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
+Script_49a5c0348548765c6a0257437aa3b031.groovy: 19: [Static type checking] - Cannot call java.util.stream.Stream <B>#sorted(java.util.Comparator <? super B>) with arguments [java.util.Comparator <A>] 
+ @ line 19, column 3.
+   		list.stream().sorted(comparator);
+     ^
+{noformat}
+
+For some reason the type checker is confused when we have a method with a generic parameter that has a wildcard with a lower bound. The same code compiles with javac if I move the A and B classes to separate files and create the list java-style.
+
+Curiously, if I change the comparator's type from {{Comparator<? super A>}} to {{Comparator<? extends A>}}, the code compiles successfully in Groovy (and it shouldn't!), but causes compilation failure in Java.

@@ -1,0 +1,151 @@
+```scala
+import scala.reflect.runtime.{universe => ru}
+
+class C[T: ru.TypeTag] {
+  def typeArguments: List[ru.Type] = {
+    import ru._ // otherwise the pattern match will be unchecked
+                // because TypeRef is an abstract type
+    ru.typeOf[T] match { case ru.TypeRef(_, _, args) => args; case _ => Nil }
+  }
+}
+```
+
+```scala
+15:07 ~/Projects/Kepler_snippet01/sandbox (topic/snippet01)$ scalac Test.scala 
+15:07 ~/Projects/Kepler_snippet01/sandbox (topic/snippet01)$ scalac -Yrangepos Test.scala 
+======= Position error
+Unpositioned tree #483
+   unpositioned [L  -1 P#  484] #483    [NoPosition]    UnApply    // UnApply
+      enclosing [L   7        ] #484    [261:291]       CaseDef    // ru.TypeRef(_, _, args) => args;
+        sibling [L  -1 P#  484] #483    [NoPosition]    UnApply    // UnApply
+        sibling [L   7 P#  484] #79     [287:291]       Ident      // args;
+
+While validating #510
+[L   1        ] #510    [0:314]         PackageDef // import scala.reflect.runtime.{universe => ru}
+
+Children:
+  [L   1 P#  510] #107    [0:0]           Ident      // i
+  [L   1 P#  510] #45     [0:45]          Import     // scala.reflect.runtime.{universe => ru}
+  [L   3 P#  510] #509    [47:314]        ClassDef   // C[T: ru.TypeTag] {
+=======
+error: 
+     while compiling: Test.scala
+        during phase: typer
+     library version: version 2.10.1-20121125-133849-2a8291a356
+    compiler version: version 2.10.1-20121125-133849-2a8291a356
+  reconstructed args: -Yrangepos
+
+  last tree to typer: Ident(Nil)
+              symbol: <none> (flags: )
+   symbol definition: <none>
+       symbol owners: 
+      context owners: method typeArguments -> class C -> package <empty>
+
+== Enclosing template or block ==
+
+CaseDef(
+  "_" // tree.tpe=reflect.runtime.universe.Type
+  "Nil"
+)
+
+uncaught exception during compilation: scala.tools.nsc.interactive.RangePositions$ValidateException
+error: scala.tools.nsc.interactive.RangePositions$ValidateException: Unpositioned tree #483
+	at scala.tools.nsc.interactive.RangePositions$class.positionError$1(RangePositions.scala:201)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:211)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$class.validatePositions(RangePositions.scala:246)
+	at scala.tools.nsc.Main$$anon$1.validatePositions(Main.scala:73)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.apply(Analyzer.scala:99)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:461)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:90)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:90)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:727)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1156)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.run(Analyzer.scala:90)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1574)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1548)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1544)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1654)
+	at scala.tools.nsc.Driver.doCompile(Driver.scala:33)
+	at scala.tools.nsc.Main$.doCompile(Main.scala:79)
+	at scala.tools.nsc.Driver.process(Driver.scala:54)
+	at scala.tools.nsc.Driver.main(Driver.scala:67)
+	at scala.tools.nsc.Main.main(Main.scala)
+
+Exception in thread "main" scala.tools.nsc.interactive.RangePositions$ValidateException: Unpositioned tree #483
+	at scala.tools.nsc.interactive.RangePositions$class.positionError$1(RangePositions.scala:201)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:211)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$$anonfun$validate$1$7.apply(RangePositions.scala:241)
+	at scala.collection.immutable.List.foreach(List.scala:309)
+	at scala.tools.nsc.interactive.RangePositions$class.validate$1(RangePositions.scala:241)
+	at scala.tools.nsc.interactive.RangePositions$class.validatePositions(RangePositions.scala:246)
+	at scala.tools.nsc.Main$$anon$1.validatePositions(Main.scala:73)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.apply(Analyzer.scala:99)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:461)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:90)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:90)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:727)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1156)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.run(Analyzer.scala:90)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1574)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1548)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1544)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1654)
+	at scala.tools.nsc.Driver.doCompile(Driver.scala:33)
+	at scala.tools.nsc.Main$.doCompile(Main.scala:79)
+	at scala.tools.nsc.Driver.process(Driver.scala:54)
+	at scala.tools.nsc.Driver.main(Driver.scala:67)
+	at scala.tools.nsc.Main.main(Main.scala)
+```

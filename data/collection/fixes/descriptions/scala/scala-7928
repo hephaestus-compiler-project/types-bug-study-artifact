@@ -1,0 +1,245 @@
+```scala
+trait OuterTrait {
+  trait InnerTrait {
+    type Element
+    type Collection <: Iterable[Inner.Element]
+  }
+
+  val Inner: InnerTrait
+
+}
+
+object OuterObject extends OuterTrait {
+  object Inner extends InnerTrait {
+    type Element = String
+    override type Collection = Seq[Inner.Element]
+  }
+}
+```
+Note: If OuterObject is converted to a class, it compiles fine, but if OuterObject.Inner is converted to an anonymous class, the compiler returns an error:
+```
+illegal cyclic reference involving type Collection
+[error]       override type Collection = Seq[Inner.Element]
+```
+
+Console error:
+```
+[info] Compiling 1 Scala source to /media/Data/src/projects/repro/scala/target/scala-2.10/test-classes...
+[error] 
+[error]      while compiling: /media/Data/src/projects/repro/scala/src/test/scala/CompilerException.scala
+[error]         during phase: refchecks
+[error]      library version: version 2.10.3
+[error]     compiler version: version 2.10.3
+[error]   reconstructed args: -classpath /media/Data/src/projects/repro/scala/target/scala-2.10/test-classes:/media/Data/src/projects/repro/scala/target/scala-2.10/classes:/home/richard/.ivy2/cache/com.chuusai/shapeless_2.10.2/bundles/shapeless_2.10.2-2.0.0-M1.jar:/home/richard/.sbt/boot/scala-2.10.3/lib/scala-compiler.jar:/home/richard/.ivy2/cache/org.scala-lang/scala-reflect/jars/scala-reflect-2.10.3.jar:/home/richard/.ivy2/cache/org.mockito/mockito-core/jars/mockito-core-1.9.0.jar:/home/richard/.ivy2/cache/org.hamcrest/hamcrest-core/jars/hamcrest-core-1.1.jar:/home/richard/.ivy2/cache/org.objenesis/objenesis/jars/objenesis-1.0.jar:/home/richard/.ivy2/cache/org.scalatest/scalatest_2.10/jars/scalatest_2.10-1.9.1.jar:/home/richard/.ivy2/cache/org.scala-lang/scala-actors/jars/scala-actors-2.10.0.jar:/home/richard/.ivy2/cache/com.novocode/junit-interface/jars/junit-interface-0.8.jar:/home/richard/.ivy2/cache/junit/junit/jars/junit-4.8.2.jar:/home/richard/.ivy2/cache/org.scala-tools.testing/test-interface/jars/test-interface-0.5.jar:/home/richard/.ivy2/cache/com.typesafe.akka/akka-actor/jars/akka-actor-2.0.5.jar:/home/richard/.ivy2/cache/com.typesafe/config/bundles/config-0.3.1.jar -bootclasspath /usr/lib/jvm/jdk1.7.0_21/jre/lib/resources.jar:/usr/lib/jvm/jdk1.7.0_21/jre/lib/rt.jar:/usr/lib/jvm/jdk1.7.0_21/jre/lib/sunrsasign.jar:/usr/lib/jvm/jdk1.7.0_21/jre/lib/jsse.jar:/usr/lib/jvm/jdk1.7.0_21/jre/lib/jce.jar:/usr/lib/jvm/jdk1.7.0_21/jre/lib/charsets.jar:/usr/lib/jvm/jdk1.7.0_21/jre/lib/jfr.jar:/usr/lib/jvm/jdk1.7.0_21/jre/classes:/home/richard/.sbt/boot/scala-2.10.3/lib/scala-library.jar -d /media/Data/src/projects/repro/scala/target/scala-2.10/test-classes
+[error] 
+[error]   last tree to typer: This(object OuterObject)
+[error]               symbol: object OuterObject (flags: <module>)
+[error]    symbol definition: class OuterObject extends OuterTrait
+[error]                  tpe: OuterObject.type
+[error]        symbol owners: object OuterObject -> package <empty>
+[error]       context owners: object Inner -> object OuterObject -> package <empty>
+[error] 
+[error] == Enclosing template or block ==
+[error] 
+[error] Template( // val <local Inner>: <notype> in object Inner, tree.tpe=OuterObject.Inner.type
+[error]   "java.lang.Object", "OuterTrait.InnerTrait" // parents
+[error]   ValDef(
+[error]     private
+[error]     "_"
+[error]     <tpt>
+[error]     <empty>
+[error]   )
+[error]   // 3 statements
+[error]   DefDef( // def <init>(): OuterObject.Inner.type in object Inner
+[error]     <method>
+[error]     "<init>"
+[error]     []
+[error]     List(Nil)
+[error]     <tpt> // tree.tpe=OuterObject.Inner.type
+[error]     Block( // tree.tpe=Unit
+[error]       Apply( // def <init>(): Object in class Object, tree.tpe=Object
+[error]         Inner.super."<init>" // def <init>(): Object in class Object, tree.tpe=()Object
+[error]         Nil
+[error]       )
+[error]       ()
+[error]     )
+[error]   )
+[error]   TypeDef( // type Element = String in object Inner
+[error]     0
+[error]     "Element"
+[error]     []
+[error]     <tpt> // tree.tpe=String
+[error]   )
+[error]   TypeDef( // override type Collection = Seq[OuterObject.Inner.Element] in object Inner
+[error]     override
+[error]     "Collection"
+[error]     []
+[error]     <tpt> // tree.tpe=Seq[OuterObject.Inner.Element]
+[error]   )
+[error] )
+[error] 
+[error] == Expanded type of tree ==
+[error] 
+[error] ThisType(object OuterObject)
+[error] 
+[error] uncaught exception during compilation: java.lang.AssertionError
+[trace] Stack trace suppressed: run last test:compile for the full output.
+[error] (test:compile) java.lang.AssertionError: assertion failed: List(value Inner, object Inner)
+```
+
+Stack trace:
+```
+java.lang.AssertionError: assertion failed: List(value Inner, object Inner)
+	at scala.reflect.internal.Symbols$Symbol.suchThat(Symbols.scala:1669)
+	at scala.reflect.internal.Types$class.rebind(Types.scala:3537)
+	at scala.reflect.internal.Types$class.singleType(Types.scala:3556)
+	at scala.reflect.internal.SymbolTable.singleType(SymbolTable.scala:13)
+	at scala.reflect.internal.Types$AsSeenFromMap.apply(Types.scala:4562)
+	at scala.reflect.internal.Types$TypeMap.mapOver(Types.scala:4183)
+	at scala.reflect.internal.Types$AsSeenFromMap.apply(Types.scala:4638)
+	at scala.reflect.internal.Types$AsSeenFromMap.apply(Types.scala:4500)
+	at scala.collection.immutable.List.loop$1(List.scala:170)
+	at scala.collection.immutable.List.mapConserve(List.scala:186)
+	at scala.reflect.internal.Types$TypeMap.mapOver(Types.scala:4184)
+	at scala.reflect.internal.Types$AsSeenFromMap.apply(Types.scala:4638)
+	at scala.reflect.internal.Types$TypeMap.mapOver(Types.scala:4217)
+	at scala.reflect.internal.Types$AsSeenFromMap.apply(Types.scala:4638)
+	at scala.reflect.internal.Types$Type.asSeenFrom(Types.scala:754)
+	at scala.reflect.internal.Types$Type.memberInfo(Types.scala:773)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.checkOverrideTypes$1(RefChecks.scala:449)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.checkOverride$1(RefChecks.scala:425)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.checkAllOverrides(RefChecks.scala:518)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transform(RefChecks.scala:1741)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transform(RefChecks.scala:96)
+	at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2904)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1280)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1279)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2936)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1278)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2897)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transform(RefChecks.scala:1835)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transform(RefChecks.scala:96)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2900)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2900)
+	at scala.collection.immutable.List.loop$1(List.scala:170)
+	at scala.collection.immutable.List.mapConserve(List.scala:186)
+	at scala.reflect.api.Trees$Transformer.transformTrees(Trees.scala:2900)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.eliminateModuleDefs(RefChecks.scala:1314)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transformStat(RefChecks.scala:1333)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer$$anonfun$transformStats$1.apply(RefChecks.scala:1266)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer$$anonfun$transformStats$1.apply(RefChecks.scala:1266)
+	at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:251)
+	at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:251)
+	at scala.collection.immutable.List.foreach(List.scala:318)
+	at scala.collection.TraversableLike$class.flatMap(TraversableLike.scala:251)
+	at scala.collection.AbstractTraversable.flatMap(Traversable.scala:105)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transformStats(RefChecks.scala:1266)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transformStats(RefChecks.scala:96)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1276)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2897)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transform(RefChecks.scala:1835)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transform(RefChecks.scala:96)
+	at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:2904)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1280)
+	at scala.reflect.internal.Trees$$anonfun$itransform$4.apply(Trees.scala:1279)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2936)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1278)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2897)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transform(RefChecks.scala:1835)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transform(RefChecks.scala:96)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2900)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2900)
+	at scala.collection.immutable.List.loop$1(List.scala:170)
+	at scala.collection.immutable.List.mapConserve(List.scala:186)
+	at scala.reflect.api.Trees$Transformer.transformTrees(Trees.scala:2900)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.eliminateModuleDefs(RefChecks.scala:1314)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transformStat(RefChecks.scala:1333)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer$$anonfun$transformStats$1.apply(RefChecks.scala:1266)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer$$anonfun$transformStats$1.apply(RefChecks.scala:1266)
+	at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:251)
+	at scala.collection.TraversableLike$$anonfun$flatMap$1.apply(TraversableLike.scala:251)
+	at scala.collection.immutable.List.foreach(List.scala:318)
+	at scala.collection.TraversableLike$class.flatMap(TraversableLike.scala:251)
+	at scala.collection.AbstractTraversable.flatMap(Traversable.scala:105)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transformStats(RefChecks.scala:1266)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transformStats(RefChecks.scala:96)
+	at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1298)
+	at scala.reflect.internal.Trees$$anonfun$itransform$7.apply(Trees.scala:1298)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2936)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1297)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2897)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transform(RefChecks.scala:1835)
+	at scala.tools.nsc.typechecker.RefChecks$RefCheckTransformer.transform(RefChecks.scala:96)
+	at scala.tools.nsc.ast.Trees$Transformer.transformUnit(Trees.scala:227)
+	at scala.tools.nsc.transform.Transform$Phase.apply(Transform.scala:30)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:464)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:431)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:431)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:727)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1157)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:431)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1583)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1557)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1553)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1662)
+	at xsbt.CachedCompiler0.run(CompilerInterface.scala:90)
+	at xsbt.CachedCompiler0.run(CompilerInterface.scala:72)
+	at xsbt.CompilerInterface.run(CompilerInterface.scala:26)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:601)
+	at sbt.compiler.AnalyzingCompiler.call(AnalyzingCompiler.scala:73)
+	at sbt.compiler.AnalyzingCompiler.compile(AnalyzingCompiler.scala:35)
+	at sbt.compiler.AnalyzingCompiler.compile(AnalyzingCompiler.scala:29)
+	at sbt.compiler.AggressiveCompile$$anonfun$4$$anonfun$compileScala$1$1.apply$mcV$sp(AggressiveCompile.scala:71)
+	at sbt.compiler.AggressiveCompile$$anonfun$4$$anonfun$compileScala$1$1.apply(AggressiveCompile.scala:71)
+	at sbt.compiler.AggressiveCompile$$anonfun$4$$anonfun$compileScala$1$1.apply(AggressiveCompile.scala:71)
+	at sbt.compiler.AggressiveCompile.sbt$compiler$AggressiveCompile$$timed(AggressiveCompile.scala:101)
+	at sbt.compiler.AggressiveCompile$$anonfun$4.compileScala$1(AggressiveCompile.scala:70)
+	at sbt.compiler.AggressiveCompile$$anonfun$4.apply(AggressiveCompile.scala:88)
+	at sbt.compiler.AggressiveCompile$$anonfun$4.apply(AggressiveCompile.scala:60)
+	at sbt.inc.IncrementalCompile$$anonfun$doCompile$1.apply(Compile.scala:24)
+	at sbt.inc.IncrementalCompile$$anonfun$doCompile$1.apply(Compile.scala:22)
+	at sbt.inc.Incremental$.cycle(Incremental.scala:39)
+	at sbt.inc.Incremental$.compile(Incremental.scala:26)
+	at sbt.inc.IncrementalCompile$.apply(Compile.scala:20)
+	at sbt.compiler.AggressiveCompile.compile2(AggressiveCompile.scala:96)
+	at sbt.compiler.AggressiveCompile.compile1(AggressiveCompile.scala:44)
+	at sbt.compiler.AggressiveCompile.apply(AggressiveCompile.scala:31)
+	at sbt.Compiler$.apply(Compiler.scala:79)
+	at sbt.Defaults$$anonfun$compileTask$1.apply(Defaults.scala:571)
+	at sbt.Defaults$$anonfun$compileTask$1.apply(Defaults.scala:571)
+	at sbt.Scoped$$anonfun$hf2$1.apply(Structure.scala:578)
+	at sbt.Scoped$$anonfun$hf2$1.apply(Structure.scala:578)
+	at scala.Function1$$anonfun$compose$1.apply(Function1.scala:49)
+	at sbt.Scoped$Reduced$$anonfun$combine$1$$anonfun$apply$12.apply(Structure.scala:311)
+	at sbt.Scoped$Reduced$$anonfun$combine$1$$anonfun$apply$12.apply(Structure.scala:311)
+	at sbt.$tilde$greater$$anonfun$$u2219$1.apply(TypeFunctions.scala:40)
+	at sbt.std.Transform$$anon$5.work(System.scala:71)
+	at sbt.Execute$$anonfun$submit$1$$anonfun$apply$1.apply(Execute.scala:232)
+	at sbt.Execute$$anonfun$submit$1$$anonfun$apply$1.apply(Execute.scala:232)
+	at sbt.ErrorHandling$.wideConvert(ErrorHandling.scala:18)
+	at sbt.Execute.work(Execute.scala:238)
+	at sbt.Execute$$anonfun$submit$1.apply(Execute.scala:232)
+	at sbt.Execute$$anonfun$submit$1.apply(Execute.scala:232)
+	at sbt.ConcurrentRestrictions$$anon$4$$anonfun$1.apply(ConcurrentRestrictions.scala:159)
+	at sbt.CompletionService$$anon$2.call(CompletionService.scala:30)
+	at java.util.concurrent.FutureTask$Sync.innerRun(FutureTask.java:334)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:166)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:471)
+	at java.util.concurrent.FutureTask$Sync.innerRun(FutureTask.java:334)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:166)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:615)
+	at java.lang.Thread.run(Thread.java:722)
+[error] (test:compile) java.lang.AssertionError: assertion failed: List(value Inner, object Inner)
+```

@@ -1,0 +1,58 @@
+The private modifier of a public property set function is being ignored at compile time for classes with generic arguments. This issue also occurs with interfaces with generic arguments. If the property is declared private (i.e. before the val/var keyword) we get the proper behavior. Also interestingly, if the set the access modifier to protected, the compiler does pick up that the variable has limited scope.
+
+{code:lang=kotlin|title=Example One}
+package com.example
+
+public class MyThing<A> {
+    var name: String = "Joe"
+        private set
+
+}
+
+fun main(args: Array<String>) {
+    val myJoe = MyThing<Any>()
+
+    myJoe.name = "Jane"
+
+    println(myJoe.name)
+}
+{code}
+
+The above code will compile but throw the following at runtime:
+{code}{color:red}
+Exception in thread "main" java.lang.VerifyError: Bad invokespecial instruction: current class isn't assignable to reference class.
+Exception Details:
+  Location:
+    com/example/ExamplePackage$PropertyTest$257c6994.main([Ljava/lang/String;)V @17: invokespecial
+  Reason:
+    Error exists in the bytecode
+  Bytecode:
+    0000000: 2a12 0bb8 0011 bb00 1359 b700 174c 2b12
+    0000010: 19b7 001d 2bb6 0021 b800 27b1          
+
+	at com.example.ExamplePackage.main(PropertyTest.kt:1)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:606)
+	at com.intellij.rt.execution.application.AppMain.main(AppMain.java:140)
+{color}{code}
+
+However, if we remove the generic parameter, the issue arises at compile time. The ``myJoe.name = "Jane"`` line will be underlined and throw error:
+{code:lang=kotlin|title=Example Two}
+package com.example
+
+public class MyThing {
+    var name: String = "Joe"
+        private set
+
+}
+
+fun main(args: Array<String>) {
+    val myJoe = MyThing()
+
+    myJoe.name = "Jane"
+
+    println(myJoe.name)
+}
+{code}

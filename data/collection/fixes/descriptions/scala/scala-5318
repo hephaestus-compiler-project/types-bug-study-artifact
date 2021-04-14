@@ -1,0 +1,49 @@
+```scala
+class CompilerHang {
+  trait TC[M[_]]
+  trait S[A]
+
+  implicit def tc[M[_]](implicit M0: TC[M]): TC[S] = null
+  def breakage[F[_] : TC] = 0
+  breakage  // type checker doesn't terminate, should report inference failure
+}
+```
+
+This gives SOE with the repeated section:
+
+```scala
+	at scala.tools.nsc.Global$$anon$1.inferImplicit(Global.scala:401)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$applyImplicitArgs$1.apply(Typers.scala:120)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$applyImplicitArgs$1.apply(Typers.scala:115)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:77)
+	at scala.tools.nsc.typechecker.Typers$Typer.applyImplicitArgs(Typers.scala:115)
+	at scala.tools.nsc.typechecker.Typers$Typer.adaptToImplicitMethod$1(Typers.scala:747)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:895)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:893)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.typedImplicit1(Implicits.scala:524)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.typedImplicit0(Implicits.scala:486)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.scala$tools$nsc$typechecker$Implicits$ImplicitSearch$$typedImplicit(Implicits.scala:398)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch$ImplicitComputation.tryImplicitInfo$1(Implicits.scala:740)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch$ImplicitComputation.rankImplicits(Implicits.scala:743)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch$ImplicitComputation.findBest(Implicits.scala:767)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.searchImplicit(Implicits.scala:825)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.bestImplicit(Implicits.scala:1157)
+	at scala.tools.nsc.typechecker.Implicits$class.inferImplicit(Implicits.scala:67)
+	at scala.tools.nsc.Global$$anon$1.inferImplicit(Global.scala:401)
+```
+
+Similar code without a type constructor as a type parmaeter reports the divergent implicit failure correctly:
+
+```scala
+class DivergingImplicitReported {
+  trait TC[M]
+  trait S
+
+  implicit def tc[M](implicit M0: TC[M]): TC[S] = null
+  def breakage[F: TC] = 0
+  breakage // correct: diverging implicit expansion
+}
+```
+
+It looks like a pathological case, but it's based on some real life implicits from Scalaz. Possibly the underlying problem of: https://scala-ide-portfolio.assembla.com/spaces/scala-ide/tickets/1000674

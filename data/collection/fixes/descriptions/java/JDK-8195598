@@ -1,0 +1,71 @@
+FULL PRODUCT VERSION :
+java version "9.0.1"
+Java(TM) SE Runtime Environment (build 9.0.1+11)
+Java HotSpot(TM) 64-Bit Server VM (build 9.0.1+11, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux fede-peralta 4.13.0-25-generic #29-Ubuntu SMP Mon Jan 8 21:14:41 UTC 2018 x86_64 x86_64 x86_64 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+Consider the following code:
+
+public class Ambiguous3 {
+    public CompletableFuture<?> test() {
+        return ok(() -> System.out.append("aaa"));
+    }
+    public <T> CompletableFuture<T> ok(Supplier<T> action) {
+        return CompletableFuture.supplyAsync(action);
+    }
+    public <T> CompletableFuture<T> ok(T body) {
+        return CompletableFuture.completedFuture(body);
+    }
+    public CompletableFuture<Void> ok(Runnable action) {
+        return CompletableFuture.runAsync(action);
+    }
+}
+
+This fails in the release version of Java 9 with “reference to ok is ambiguous”, stating “both method <T>ok(Supplier<T>) in Ambiguous3 and method ok(Runnable) in Ambiguous3 match”.
+
+But just changing the order of the methods:
+
+public class Ambiguous3 {
+    public CompletableFuture<?> test() {
+        return ok(() -> System.out.append("aaa"));
+    }
+    public <T> CompletableFuture<T> ok(T body) {
+        return CompletableFuture.completedFuture(body);
+    }
+    public <T> CompletableFuture<T> ok(Supplier<T> action) {
+        return CompletableFuture.supplyAsync(action);
+    }
+    public CompletableFuture<Void> ok(Runnable action) {
+        return CompletableFuture.runAsync(action);
+    }
+}
+
+causes the compiler to accept the code without any errors.
+
+Also, removing the ok(T) method makes the code accepted.
+
+Note that whenever the compiler accepts the code, it considers ok(Supplier) to be more specific than ok(Runnable), which is the expected behavior for a function parameter that matches both.
+
+See the issue in Stackoverflow here:
+https://stackoverflow.com/a/48260046/1876620
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Just try to compile the first version of the class.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Code should compile irrespective of methods' declaration order.
+ACTUAL -
+Code doesn't compile in some cases, depending on the order of declaration of methods.
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+CUSTOMER SUBMITTED WORKAROUND :
+Arrange the methods in a different order within the class, use casts to hint the compiler about which method should be chosen, turn lambda expression to statement instead of expression and the like...
+

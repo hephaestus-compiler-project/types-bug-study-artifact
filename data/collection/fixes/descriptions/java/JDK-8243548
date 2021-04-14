@@ -1,0 +1,32 @@
+A DESCRIPTION OF THE PROBLEM :
+Since enum nested classes in enum classes are also counted as constants, switch expressions containing outer enum classes can never be compiled.
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+javac SwitchEnumBug.java
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+SwitchEnumBug.java:8: error: the switch expression does not cover all possible input values
+                var result = switch (A) {
+                             ^
+1 error
+
+---------- BEGIN SOURCE ----------
+public enum SwitchEnumBug {
+	A;
+	public enum InnerEnum { }
+	static {
+		var result = switch (A) {
+			case A -> A;
+		};
+	}
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+https://github.com/AdoptOpenJDK/openjdk-jdk/blob/master/src/jdk.compiler/share/classes/com/sun/tools/javac/comp/Flow.java#L702
+Attach the filter to condition (&& s.kind == VAR)
+
+FREQUENCY : always
+
+

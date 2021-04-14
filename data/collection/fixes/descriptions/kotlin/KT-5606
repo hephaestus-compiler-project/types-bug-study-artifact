@@ -1,0 +1,45 @@
+Can not properly use closure in place of SAM interface in constructor parameter.
+Java class is {monospace}javafx.animation.KeyFrame{monospace}
+
+Constructor java signature is
+{code}
+KeyFrame(Duration time, EventHandler<ActionEvent> onFinished, KeyValue... values)
+{code}
+
+Following code fails 
+{code lang=kt}
+    val keyFrame = KeyFrame(Duration.seconds(1.0), {
+        throw UnsupportedOperationException();
+    })
+{code}
+
+with messages:
+{code}
+Error:(20, 54) Kotlin: Type mismatch: inferred type is () -> kotlin.Nothing but kotlin.String? was expected
+Error:(22, 6) Kotlin: No value passed for parameter p2
+Error:(22, 6) Kotlin: No value passed for parameter p3
+{code}
+
+possibly referring to another constructor with signature
+{code}
+KeyFrame(Duration time, java.lang.String name, EventHandler<ActionEvent> onFinished, java.util.Collection<KeyValue> values)
+{code}
+
+
+But this works fine
+{code lang=kt}
+    val keyFrame = KeyFrame(Duration.seconds(1.0), {
+        throw UnsupportedOperationException();
+    }, array())
+{code}
+
+also this works fine
+{code lang=kt}
+    val keyFrame = KeyFrame(Duration.seconds(1.0), object : EventHandler<ActionEvent> {
+        override fun handle(p0: ActionEvent?) {
+            throw UnsupportedOperationException()
+        }
+    })
+{code}
+
+

@@ -1,0 +1,66 @@
+=== What steps will reproduce the problem? ===
+```scala
+scala> String.valueOf(null)
+java.lang.NullPointerException
+	at java.lang.String.<init>(String.java:193)
+	at java.lang.String.valueOf(String.java:2852)
+	at .<init>(<console>:6)
+	at .<clinit>(<console>)
+	at RequestResult$$.<init>(<console>:9)
+	at RequestResult$$.<clinit>(<console>)
+	at RequestResult$$scala_repl_result(<console>)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:616)
+	at scala.tools.nsc.Interpreter$$Request$$$$anonfun$$12.apply(Interpreter.scala:1064)
+	at scala.tools.nsc.interpreter.Line$$$$anonfun$$1.apply$$mcV$$sp(Line.scala:43)
+	at scala.tools.nsc.io.package$$$$anon$$2.run(package.scala:12)
+	at java.lang.Thread.run(Thread.java:636)
+
+scala> String.valueOf(null: Object)
+res10: java.lang.String = null
+
+scala> String.valueOf(null: Any)
+res11: java.lang.String = null
+
+scala> String.valueOf(null: AnyRef)
+res12: java.lang.String = null
+```
+
+The first one should *never* happen, because: 
+
+```scala
+    /**
+     * Returns the string representation of the <code>Object</code> argument.
+     *
+     * @param   obj   an <code>Object</code>.
+     * @return  if the argument is <code>null</code>, then a string equal to
+     *          <code>"null"</code>; otherwise, the value of
+     *          <code>obj.toString()</code> is returned.
+     * @see     java.lang.Object#toString()
+     */
+    public static String valueOf(Object obj) {
+        return (obj == null) ? "null" : obj.toString();
+    }
+```
+
+=== What is the expected behavior? ===
+It should print "null" in all 4 cases and not throw an exception.
+
+
+=== What do you see instead? ===
+It throws an exception.
+
+
+=== Additional information ===
+Either this has to do with the overloading (that the compiler generates code which doesn't invoke valueOf(Object), but valueOf(Int), valueOf(Long), ... (valueOf is overloaded with all primitive types).
+
+Or it tries to invoke it and boxes it before that which results in throwing the NPE.
+
+Or the code somehow manages to sneak around the null check.
+
+=== What versions of the following are you using? ===
+  - Scala:
+  - Java:
+  - Operating system: 

@@ -1,0 +1,50 @@
+This compiles
+
+public class Tmp
+{
+    final Runnable r1 = ()->System.out.println(r1);
+}
+
+This does NOT . . . . . . . . . . . . . . . . . . . . . . . . .
+
+public class Tmp
+{
+    final Runnable r1;
+
+    final Runnable r2 = ()-> System.out.println(r1); // Error: r1 not
+initialized
+
+    Tmp()
+    {
+        r1 = ()->System.out.println(r1);  // Error: r1 not initialized
+    }
+} 
+
+This compiles . . . . . . . . . . . . . . . . . . . . . . . . .
+
+public class Tmp
+{
+    final Object lock = new Object();
+
+    final Runnable r2 = ()->{
+        System.out.println(r2);
+        synchronized (lock){
+        }
+    };
+}
+
+This does NOT . . . . . . . . . . . . . . . . . . . . . . . . .
+
+public class Tmp
+{
+    final Object lock = new Object();
+
+    final Runnable r2 = ()->{
+        synchronized (lock){
+            System.out.println(r2);  // Error: self-reference in initializer
+        }
+    };
+}
+
+
+reported by Zhong Yu in lambda-dev list.

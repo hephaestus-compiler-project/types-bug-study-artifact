@@ -1,0 +1,43 @@
+Compile the first file and then compile the second file against the output of the first compilation:
+
+`A.kt`:
+```
+@Target(AnnotationTarget.TYPE)
+annotation class Anno(val value: String)
+
+class Foo
+
+typealias MyFoo = Foo
+
+class C<T>(val t: T)
+
+typealias MyC = C<@Anno("OK") MyFoo?>
+```
+
+`B.kt`:
+```
+fun test(myc: MyC) {}
+
+fun box(): String {
+    test(C(null))
+
+    val mycType = ::test.parameters.single().type
+    val argumentType = mycType.arguments.single().type!!
+    if (!argumentType.isMarkedNullable)
+        return "Fail: argument type should be seen as nullable"
+
+    val annotations = argumentType.annotations
+    if (annotations.toString() != "[@Anno(value=OK)]")
+        return "Fail: $annotations"
+
+    return "OK"
+}
+```
+
+### Expected behavior
+
+The call to `test(C(null))` is type-checked correctly. Annotations on the type use of `MyFoo` in `C<@Anno("OK") MyFoo?>` are read correctly.
+
+### Actual behavior
+
+Nullability is lost on the type use of the typealias `MyFoo`, the compiler rejects the call to `test(C(null))`. The annotations are missing in runtime.

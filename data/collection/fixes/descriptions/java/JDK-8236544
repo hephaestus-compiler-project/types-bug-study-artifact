@@ -1,0 +1,31 @@
+Consider the following code sample:
+
+public record R(Number number) {
+   public Integer number() {
+       return 42;
+   }
+}
+
+When compiling it with jdk14b28
+
+javac --enable-preview --release 14 R.java
+
+the following error occurs:
+
+R.java:2: error: invalid accessor method in record R
+   public Integer number() {
+                  ^
+  (return type of accessor method number() is not compatible with type of record component number)
+Note: R.java uses preview language features.
+Note: Recompile with -Xlint:preview for details.
+1 error
+============================================
+
+However JLS update (http://cr.openjdk.java.net/~gbierman/jep359/jep359-20191125/specs/records-jls.html) says:
+"If an accessor method is declared explicitly, then it must additionally satisfy the following rules; otherwise a compile-time error occurs:
+    The return type of the accessor method must be identical to the declared type of the corresponding record component"
+
+Compiler error message could be improved by replacing:
+"is not compatible with type of record component number"
+with
+"is not identical to the declared type of the corresponding record component"

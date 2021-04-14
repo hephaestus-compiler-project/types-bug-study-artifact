@@ -1,0 +1,25 @@
+At the moment, I can reproduce this only inside the Scala IDE for Eclipse.
+
+In an empty project, create a source and paste the following:
+
+```scala
+object Test {
+  import scala.reflect.runtime.{ universe => ru }
+  val ac = List(1, 2, 3) 
+  def getTypeTag[T: ru.TypeTag](obj: T) = ru.typeTag[T]
+  val theType = getTypeTag(ac).tpe
+}
+```
+
+1) hold command and with the mouse hover the `ru.TypeTag` type on the 4th line (no need to navigate, it's enough to wait for the hyperlinking coloration to happen in the editor). Also, for the bug to manifest, it seems to be relevant that you ask hyperlinking on `ru.TypeTag`.
+
+2) type a space after `List(1,2,3)` and wait for the presentation compiler to re-typecheck your source.
+
+Now you should see the following error reported on `getTypeTag`
+
+```
+Multiple markers at this line
+	- No TypeTag available for List[Int]
+	- not enough arguments for method getTypeTag: (implicit evidence$1: reflect.runtime.universe.TypeTag[List[Int]])reflect.runtime.universe.TypeTag[List[Int]]. Unspecified value parameter 
+	 evidence$1.
+```

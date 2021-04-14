@@ -1,0 +1,88 @@
+## Synopsis
+
+Type of change
+* Report error on the code that used to compile fine
+
+Motivation
+* User code fails with exception(s)
+* Type safety guarantees are not met (including fail-fast behavior for non-null types)
+
+Impact
+* Some code that used to compile won't compile anymore:
+    * erroneous cases will be reported as errors
+    * potentially correct cases will be conservatively reported as errors too, because distinguishing them requires too complex analysis
+* There were cases when such code worked with no exceptions and compiled without warnings:
+    * the code with a smart cast could have never been executed
+
+Migration
+* It is possible to precisely determine and report all code pieces that soon will be deprecated
+* It is not possible to provide users with proper quick-fix (inserting not-null assertion `!!` can be not correct, because delegate could actually return `null`)
+
+## Existing behavior
+
+Currently, smartcasts are allowed on local delegated property (be it `val` or `var`), while delegate can return anything on each read of property. Therefore it is possible to get `NullPointerException` (after unsound smartcast to not-null type) or `ClassCastException` (after unsound smartcast to different type)
+
+```
+import kotlin.reflect.KProperty
+
+// Always returns null
+class NullReturningDelegate {
+    operator fun getValue(thisRef: Any?, property: KProperty<*>): Any? = null
+    operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Any?) {}
+}
+
+// Alternates Int and String as return types
+class AlternatingDelegate {
+    var counter: Int = 0
+    operator fun getValue(thisRef: Any?, property: KProperty<*>): Any? = 
+        if (counter++ % 2 == 0) 42 else ""
+}
+
+fun failsWithNullPointerException() {
+    var alwaysNull: Any? by NullReturningDelegate()
+
+    alwaysNull = "" // Provoke unsound smartcast
+
+    alwaysNull.hashCode() // Smartcasted to not-null
+}
+
+fun failsWithClassCastException() {
+    val sometimesNotInt: Any? by AlternatingDelegate()
+
+    if (sometimesNotInt is Int) {
+        sometimesNotInt.inc() // Smartcasted to Int
+    }
+}
+```
+
+## Proposed behavior
+
+- Do not allow any smartcasts on local property if it is delegated
+
+## Impact of change
+
+- Some code that used to compile and work fine won't compile anymore
+
+- Also note, that smartcasts will be forbidden even for delegates that *potentially* could allow smartcasts, as we can't reliably distinguish those in compile time:
+```
+class PureDelegate {
+    var backingField: Any? = null
+    
+    operator fun getValue(thisRef: Any?, property: KProperty<*>): Any? = backingField
+    operator fun setValue(thisRef: Any?, property: KProperty<*>, value: Any?) { 
+        backingField = value 
+    }
+}
+
+fun wontBeAllowed() {
+    var stableValue: Any? by PureDelegate()
+    stableValue = ""
+    // This smartcast is, actually, safe, but will be forbidden
+    stableValue.length
+}
+```
+
+## Affected versions
+
+- 1.2.x: report deprecation warnings
+- 1.3: report errors

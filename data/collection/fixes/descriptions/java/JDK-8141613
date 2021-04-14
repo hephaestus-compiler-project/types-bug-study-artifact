@@ -1,0 +1,72 @@
+FULL PRODUCT VERSION :
+java version "1.9.0-ea"
+Java(TM) SE Runtime Environment (build 1.9.0-ea-b90)
+Java HotSpot(TM) Client VM (build 1.9.0-ea-b90, mixed mode)
+
+FULL OS VERSION :
+Windows 10, 64bit
+RHEL 7.1, 64bit
+
+A DESCRIPTION OF THE PROBLEM :
+Compiler fails to infer generic type when using combination of wildcard and inherited generic types.
+
+
+
+REGRESSION.  Last worked in version 8u66
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Try to compile the attached sources and compile will fail.
+Or grab reproducer from https://github.com/ctomc/jdk9-compiler
+and run mvn clean install.
+it fails on jdk9u90
+but works just fine on jdk8
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+Compile should work as it does on JDK8.
+But fails with:
+
+/C:/development/java/jdk9-compiler/src/main/java/InfinispanSessionManagerFactory.java:[27,44] incompatible types: cannot infer type arguments for InfinispanSessionFactory<>
+    reason: inference variable V has incompatible equality constraints capture#1 of ?,capture#2 of ?
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+
+public class InfinispanSessionFactory<V, L> implements SessionFactory<List<L>, V, L> {
+
+    public InfinispanSessionFactory(SessionAttributesFactory<V> attributesFactory) {
+
+    }
+}
+
+public interface SessionAttributesFactory<V> {
+
+}
+
+public interface SessionAttributesFactory<V> {
+
+}
+
+public interface SessionFactory<MV, AV, L> {
+
+}
+
+public class InfinispanSessionManagerFactory {
+
+    private <L> SessionFactory<?, ?, L> createSessionFactory() {
+        return new InfinispanSessionFactory<>(this.createSessionAttributesFactory());
+    }
+
+    private <L> SessionAttributesFactory<?> createSessionAttributesFactory() {
+        return null;
+    }
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Problem can be workaround by explicitly casting result of createSessionAttributesFactory()
+
+so that method call looks like: 
+return new InfinispanSessionFactory<>((SessionAttributesFactory<Object>) this.createSessionAttributesFactory());
+
+

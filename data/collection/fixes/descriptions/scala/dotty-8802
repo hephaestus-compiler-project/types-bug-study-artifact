@@ -1,0 +1,61 @@
+(Sorry for the very vague name… I couldn’t figure out what is really specific to this issue)
+
+## Minimized code
+
+```Scala
+trait Foo[A, B] {
+  type Out
+}
+
+object Test {
+
+  type Bar[A]
+
+  def unit: Bar[Unit] = ???
+  def product[A, B](fst: Bar[A], snd: Bar[B])(implicit foo: Foo[A, B]): Bar[foo.Out] = ???
+
+  implicit def foo[A]: Foo[A, Unit] { type Out = A } = ???
+
+  def check[A](bar: Bar[A])(a: A): Unit = {}
+
+  check(product(unit, unit))(()) // error
+}
+```
+
+## Output
+
+```scala
+-- [E007] Type Mismatch Error: try/i8802.scala:16:8 ----------------------------
+16 |  check(product(unit, unit))(()) // error
+   |        ^^^^^^^^^^^^^^^^^^^
+   |        Found:    Test.Bar[Unit]
+   |        Required: Test.Bar[(Foo[Unit, Unit] & Singleton)#Out]
+-- [E007] Type Mismatch Error: try/i8802.scala:16:29 ---------------------------
+16 |  check(product(unit, unit))(()) // error
+   |                             ^^
+   |                             Found:    Unit
+   |                             Required: (Foo[Unit, Unit] & Singleton)#Out
+2 errors found
+```
+
+It seems that the compiler doesn’t completely compute the type resulting from calling `product(unit, unit)`. It shows `Foo[Unit, Unit]#Out` instead of taking into account the fact that the actual implicit parameter `foo` had fixed the type `Out` to `Unit`.
+
+## Expectation
+
+The same code compiles with Scala 2. Is it possible to make it compile with Scala 3 as well?
+
+## Workarounds
+
+- Add explicit type instantiations:
+
+~~~ diff
+- check(product(unit, unit))(()) // error
++ check[Unit](product(unit, unit))(())
+~~~
+
+- Change the signature of `product` to use an additional type parameter instead of using a path-dependent type:
+
+~~~ diff
+- def product[A, B](fst: Bar[A], snd: Bar[B])(implicit foo: Foo[A, B]): Bar[foo.Out]
++ def product[A, B, O](fst: Bar[A], snd: Bar[B])(implicit foo: Foo[A, B] { type Out = O }): Bar[O]
+~~~

@@ -1,0 +1,35 @@
+It breaks binary compatibility under separate compilation.
+
+{code}
+// FILE: Base.java
+
+public interface Base {
+    String getValue();
+
+    default String test() {
+        return getValue();
+    }
+}
+
+// FILE: main.kt
+class Fail : Base {
+    override fun getValue() = "Fail"
+}
+
+fun box(): String {
+    val z = object : Base by Fail() {
+        override fun getValue() = "OK"
+    }
+    return z.test()
+}
+
+{code}
+
+Consider next scenario:
+1. 'Base' interface is part of externral library ('Base' has no default methods)
+2. Some new default methods are added to it
+3.a Library is updated without recompilation of program
+3.b Library is updated with program recompilation 
+4. This results in different behavior in 3a and 3b
+
+Original post: https://discuss.kotlinlang.org/t/collision-between-kotlin-class-delegation-and-java-8-default-methods/1994

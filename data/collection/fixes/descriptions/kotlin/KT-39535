@@ -1,0 +1,28 @@
+Consider the following Java api (reduced from [com.google.android.material.slider.Slider](https://github.com/material-components/material-components-android/blob/master/lib/java/com/google/android/material/slider/Slider.java))
+```java
+public interface Listener<T> {
+  void on(T self);
+}
+
+public class Base<S, T extends Listener<S>> {
+  public void addListener(T listener) {}
+}
+
+public class Derived extends Base<Derived, Listener<Derived>> {}
+```
+When used in Kotlin, new inference fails to infer the parameter types of SAM converted lambda arguments to `addListener`:
+```kotlin
+fun test(w: Derived) {
+  w.addListener { _ -> println("test") }
+}
+```
+Fails with
+```
+test.kt:2:17: error: type mismatch: inferred type is ([ERROR : <Unknown lambda parameter type>]) -> Unit but Listener<Derived!>! was expected
+  w.addListener { _ -> println("test") }
+                ^
+test.kt:2:19: error: cannot infer a type for this parameter. Please specify it explicitly.
+  w.addListener { _ -> println("test") }
+                  ^
+```
+With the old type inference, the argument type is inferred correctly.

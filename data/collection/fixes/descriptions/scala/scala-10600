@@ -1,0 +1,34 @@
+Scala versions tried: `2.12.3`, `2.12.4`
+
+Code snippet: 
+```scala
+case class A(value: Int) extends AnyVal
+
+case class B(value: Int) extends AnyVal
+
+trait TypeClass[T] {
+  def v(r: T): A
+}
+
+object TypeClass {
+  val doesNotWork: TypeClass[B] = b => A(b.value)
+  val works: TypeClass[B] =
+    new TypeClass[B] {
+      override def v(r: B) = A(r.value)
+    }
+}
+```
+
+Error:
+```
+[warn] an unexpected type representation reached the compiler backend while compiling Test.scala: ErasedValueType(class A, Int). If possible, please file a bug on https://github.com/scala/bug/issues.
+scala.MatchError: ErasedValueType(class A, Int) (of class scala.reflect.internal.Types$UniqueErasedValueType)
+	at scala.tools.nsc.backend.jvm.BTypesFromSymbols.typeToBType(BTypesFromSymbols.scala:195)
+	at scala.tools.nsc.backend.jvm.BTypesFromSymbols.methodBTypeFromMethodType(BTypesFromSymbols.scala:129)
+	at scala.tools.nsc.backend.jvm.BTypesFromSymbols.methodBTypeFromSymbol(BTypesFromSymbols.scala:120)
+	at scala.tools.nsc.backend.jvm.BTypesFromSymbols.$anonfun$buildInlineInfoFromClassSymbol$6(BTypesFromSymbols.scala:577)
+	at scala.collection.Iterator$$anon$11.nextCur(Iterator.scala:473)
+	at scala.collection.Iterator$$anon$11.hasNext(Iterator.scala:479)
+	at scala.collection.Iterator.foreach(Iterator.scala:929)
+	at scala.collection.Iterator.foreach$(Iterator.scala:929)
+```

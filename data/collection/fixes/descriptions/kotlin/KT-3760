@@ -1,0 +1,198 @@
+There is a problem interoperating with the ElasticSearch Java API (0.90.2 from maven repo) from Kotlin.  Here is a class (I removed annotations to make it more directly reproducible at the cost of many !!).  This code, produces an error in method waitForClusterYellow() 
+
+{quote}
+Kotlin: [Internal Error] java.lang.IllegalStateException: Type parameter descriptor in not initialized: T declared in org.elasticsearch.action.support.master.MasterNodeOperationRequest
+	at org.jetbrains.jet.lang.descriptors.impl.TypeParameterDescriptorImpl.checkInitialized(TypeParameterDescriptorImpl.java:101)
+	at org.jetbrains.jet.lang.descriptors.impl.TypeParameterDescriptorImpl.getUpperBoundsAsType(TypeParameterDescriptorImpl.java:158)
+	at org.jetbrains.jet.lang.types.SubstitutionUtils.makeStarProjection(SubstitutionUtils.java:120)
+	at org.jetbrains.jet.lang.resolve.java.JavaTypeTransformer$3.visitClassType(JavaTypeTransformer.java:168)
+	at org.jetbrains.jet.lang.resolve.java.JavaTypeTransformer$3.visitClassType(JavaTypeTransformer.java:113)
+	at com.intellij.psi.PsiClassType.accept(PsiClassType.java:218)
+	at org.jetbrains.jet.lang.resolve.java.JavaTypeTransformer.transformToType(JavaTypeTransformer.java:113)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaSignatureResolver.initializeTypeParameter(JavaSignatureResolver.java:296)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaSignatureResolver.initializeTypeParameters(JavaSignatureResolver.java:321)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.doCreateClassDescriptor(JavaClassResolver.java:262)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.createJavaClassDescriptor(JavaClassResolver.java:227)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.doResolveClass(JavaClassResolver.java:194)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.resolveClass(JavaClassResolver.java:178)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.resolveClass(JavaClassResolver.java:141)
+	at org.jetbrains.jet.lang.resolve.java.JavaDescriptorResolver.resolveClass(JavaDescriptorResolver.java:185)
+	at org.jetbrains.jet.lang.resolve.java.JavaTypeTransformer$3.visitClassType(JavaTypeTransformer.java:158)
+	at org.jetbrains.jet.lang.resolve.java.JavaTypeTransformer$3.visitClassType(JavaTypeTransformer.java:113)
+	at com.intellij.psi.PsiClassType.accept(PsiClassType.java:218)
+	at org.jetbrains.jet.lang.resolve.java.JavaTypeTransformer.transformToType(JavaTypeTransformer.java:113)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaSignatureResolver.initializeTypeParameter(JavaSignatureResolver.java:296)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaSignatureResolver.initializeTypeParameters(JavaSignatureResolver.java:321)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.doCreateClassDescriptor(JavaClassResolver.java:262)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.createJavaClassDescriptor(JavaClassResolver.java:227)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.doResolveClass(JavaClassResolver.java:194)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.resolveClass(JavaClassResolver.java:178)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.resolveClass(JavaClassResolver.java:141)
+	at org.jetbrains.jet.lang.resolve.java.JavaDescriptorResolver.resolveClass(JavaDescriptorResolver.java:185)
+	at org.jetbrains.jet.lang.resolve.java.JavaTypeTransformer$3.visitClassType(JavaTypeTransformer.java:158)
+	at org.jetbrains.jet.lang.resolve.java.JavaTypeTransformer$3.visitClassType(JavaTypeTransformer.java:113)
+	at com.intellij.psi.PsiClassType.accept(PsiClassType.java:218)
+	at org.jetbrains.jet.lang.resolve.java.JavaTypeTransformer.transformToType(JavaTypeTransformer.java:113)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaSupertypeResolver.transformSupertypeList(JavaSupertypeResolver.java:189)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaSupertypeResolver.getSupertypes(JavaSupertypeResolver.java:92)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.doCreateClassDescriptor(JavaClassResolver.java:266)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.createJavaClassDescriptor(JavaClassResolver.java:227)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.doResolveClass(JavaClassResolver.java:194)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.resolveClass(JavaClassResolver.java:178)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaClassResolver.resolveClass(JavaClassResolver.java:141)
+	at org.jetbrains.jet.lang.resolve.java.JavaDescriptorResolver.resolveClass(JavaDescriptorResolver.java:185)
+	at org.jetbrains.jet.lang.resolve.java.JavaTypeTransformer$3.visitClassType(JavaTypeTransformer.java:158)
+	at org.jetbrains.jet.lang.resolve.java.JavaTypeTransformer$3.visitClassType(JavaTypeTransformer.java:113)
+	at com.intellij.psi.PsiClassType.accept(PsiClassType.java:218)
+	at org.jetbrains.jet.lang.resolve.java.JavaTypeTransformer.transformToType(JavaTypeTransformer.java:113)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaFunctionResolver.makeReturnType(JavaFunctionResolver.java:437)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaFunctionResolver.resolveMethodToFunctionDescriptor(JavaFunctionResolver.java:157)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaFunctionResolver.resolveNamedGroupFunctions(JavaFunctionResolver.java:279)
+	at org.jetbrains.jet.lang.resolve.java.resolver.JavaFunctionResolver.resolveFunctionGroup(JavaFunctionResolver.java:404)
+	at org.jetbrains.jet.lang.resolve.java.JavaDescriptorResolver.resolveFunctionGroup(JavaDescriptorResolver.java:255)
+	at org.jetbrains.jet.lang.resolve.java.scope.JavaClassMembersScope.computeFunctionDescriptor(JavaClassMembersScope.java:56)
+	at org.jetbrains.jet.lang.resolve.java.scope.JavaBaseScope.getFunctions(JavaBaseScope.java:106)
+	at org.jetbrains.jet.lang.resolve.calls.tasks.CallableDescriptorCollectors$FunctionCollector.getMembersByName(CallableDescriptorCollectors.java:58)
+	at org.jetbrains.jet.lang.resolve.calls.tasks.TaskPrioritizer.addCandidatesForExplicitReceiver(TaskPrioritizer.java:133)
+	at org.jetbrains.jet.lang.resolve.calls.tasks.TaskPrioritizer.doComputeTasks(TaskPrioritizer.java:114)
+	at org.jetbrains.jet.lang.resolve.calls.tasks.TaskPrioritizer.computePrioritizedTasks(TaskPrioritizer.java:97)
+	at org.jetbrains.jet.lang.resolve.calls.CallResolver.resolveFunctionCall(CallResolver.java:162)
+	at org.jetbrains.jet.lang.resolve.calls.CallExpressionResolver.getResolvedCallForFunction(CallExpressionResolver.java:192)
+	at org.jetbrains.jet.lang.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfoWithoutFinalTypeCheck(CallExpressionResolver.java:304)
+	at org.jetbrains.jet.lang.resolve.calls.CallExpressionResolver.getSelectorReturnTypeInfo(CallExpressionResolver.java:363)
+	at org.jetbrains.jet.lang.resolve.calls.CallExpressionResolver.getQualifiedExpressionTypeInfo(CallExpressionResolver.java:410)
+	at org.jetbrains.jet.lang.types.expressions.BasicExpressionTypingVisitor.visitQualifiedExpression(BasicExpressionTypingVisitor.java:719)
+	at org.jetbrains.jet.lang.types.expressions.BasicExpressionTypingVisitor.visitQualifiedExpression(BasicExpressionTypingVisitor.java:74)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitDotQualifiedExpression(JetVisitor.java:257)
+	at org.jetbrains.jet.lang.psi.JetDotQualifiedExpression.accept(JetDotQualifiedExpression.java:34)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.visitJetElement(ExpressionTypingVisitorDispatcher.java:220)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.visitJetElement(ExpressionTypingVisitorDispatcher.java:33)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitExpression(JetVisitor.java:149)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitQualifiedExpression(JetVisitor.java:249)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitDotQualifiedExpression(JetVisitor.java:257)
+	at org.jetbrains.jet.lang.psi.JetDotQualifiedExpression.accept(JetDotQualifiedExpression.java:34)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:115)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:85)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorForStatements.visitExpression(ExpressionTypingVisitorForStatements.java:317)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorForStatements.visitExpression(ExpressionTypingVisitorForStatements.java:51)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitQualifiedExpression(JetVisitor.java:249)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitDotQualifiedExpression(JetVisitor.java:257)
+	at org.jetbrains.jet.lang.psi.JetDotQualifiedExpression.accept(JetDotQualifiedExpression.java:34)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:115)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:93)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingServices.getBlockReturnedTypeWithWritableScope(ExpressionTypingServices.java:331)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingServices.getBlockReturnedType(ExpressionTypingServices.java:215)
+	at org.jetbrains.jet.lang.types.expressions.BasicExpressionTypingVisitor.visitBlockExpression(BasicExpressionTypingVisitor.java:570)
+	at org.jetbrains.jet.lang.types.expressions.BasicExpressionTypingVisitor.visitBlockExpression(BasicExpressionTypingVisitor.java:566)
+	at org.jetbrains.jet.lang.types.expressions.BasicExpressionTypingVisitor.visitBlockExpression(BasicExpressionTypingVisitor.java:74)
+	at org.jetbrains.jet.lang.psi.JetBlockExpression.accept(JetBlockExpression.java:47)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.visitJetElement(ExpressionTypingVisitorDispatcher.java:220)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.visitJetElement(ExpressionTypingVisitorDispatcher.java:33)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitExpression(JetVisitor.java:149)
+	at org.jetbrains.jet.lang.psi.JetVisitor.visitBlockExpression(JetVisitor.java:273)
+	at org.jetbrains.jet.lang.psi.JetBlockExpression.accept(JetBlockExpression.java:47)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:115)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:85)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:91)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingServices.checkFunctionReturnType(ExpressionTypingServices.java:190)
+	at org.jetbrains.jet.lang.types.expressions.ExpressionTypingServices.checkFunctionReturnType(ExpressionTypingServices.java:168)
+	at org.jetbrains.jet.lang.resolve.BodyResolver.resolveFunctionBody(BodyResolver.java:664)
+	at org.jetbrains.jet.lang.resolve.BodyResolver.resolveFunctionBodies(BodyResolver.java:648)
+	at org.jetbrains.jet.lang.resolve.BodyResolver.resolveBehaviorDeclarationBodies(BodyResolver.java:141)
+	at org.jetbrains.jet.lang.resolve.BodyResolver.resolveBodies(BodyResolver.java:151)
+	at org.jetbrains.jet.lang.resolve.TopDownAnalyzer.doProcess(TopDownAnalyzer.java:133)
+	at org.jetbrains.jet.lang.resolve.TopDownAnalyzer.analyzeFiles(TopDownAnalyzer.java:260)
+	at org.jetbrains.jet.lang.resolve.java.AnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(AnalyzerFacadeForJVM.java:198)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$1.invoke(KotlinToJVMBytecodeCompiler.java:318)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$1.invoke(KotlinToJVMBytecodeCompiler.java:313)
+	at org.jetbrains.jet.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.java:236)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.java:312)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyzeAndGenerate(KotlinToJVMBytecodeCompiler.java:292)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyzeAndGenerate(KotlinToJVMBytecodeCompiler.java:273)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModule(KotlinToJVMBytecodeCompiler.java:107)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules(KotlinToJVMBytecodeCompiler.java:128)
+	at org.jetbrains.jet.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.java:141)
+	at org.jetbrains.jet.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.java:52)
+	at org.jetbrains.jet.cli.common.CLICompiler.exec(CLICompiler.java:128)
+...
+{quote}
+
+and the error
+
+{code:lang=kotlin}
+package org.nothing.test
+
+import org.elasticsearch.node.NodeBuilder.*
+import org.elasticsearch.client.Client
+import java.io.File
+import org.elasticsearch.common.settings.ImmutableSettings
+import org.elasticsearch.client.transport.TransportClient
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.client.ClusterAdminClient
+
+data class AwsAccess(val access_key : String, val secret_key : String, val region : String = "us-east-1")
+
+class ElasticSearchRepository(val client : Client) {
+
+    class object {
+        fun createForEmbeddedInstance(final dataDirPath: File): ElasticSearchRepository {
+            val settings: ImmutableSettings.Builder = ImmutableSettings.settingsBuilder()!!
+                    .put("cluster.name", "embedded")!!
+                    .put("http.enabled", "false")!!
+                    .put("path.data", dataDirPath.getAbsolutePath())!!
+
+            val node = nodeBuilder()!!
+                    .local(true)!!
+                    .settings(settings.build())!!
+                    .node()
+
+            return ElasticSearchRepository(node!!.client()!!)
+        }
+
+        fun createForClusterTransport(final clusterName: String, final useAwsDiscovery : AwsAccess? = null): ElasticSearchRepository {
+            val settings: ImmutableSettings.Builder = ImmutableSettings.settingsBuilder()!!
+                    .put("cluster.name", clusterName)!!
+
+            if (useAwsDiscovery != null) {
+                settings.put("cloud.aws.access_key", useAwsDiscovery.access_key)!!
+                        .put("cloud.aws.secret_key", useAwsDiscovery.secret_key)!!
+                        .put("cloud.aws.region", useAwsDiscovery.region)!!
+                        .put("discovery.type", "ec2");
+            }
+
+            val node = nodeBuilder()!!.settings(settings.build())!!.data(false)!!.client(true)!!.node()
+            return ElasticSearchRepository(node!!.client()!!)
+        }
+
+        fun createForRemoteTransport(final clusterName: String, final vararg hostAddresses: String, final sniffAddresses : Boolean = false): ElasticSearchRepository {
+            val settings: ImmutableSettings.Builder = ImmutableSettings.settingsBuilder()!!
+                    .put("cluster.name", clusterName)!!
+                    .put("client.transport.sniff", sniffAddresses)!!
+
+            val client = TransportClient(settings.build())
+            for (oneAddress in hostAddresses) {
+                    client.addTransportAddress(InetSocketTransportAddress(oneAddress, 9300))
+            }
+            return ElasticSearchRepository(client)
+        }
+    }
+
+    public fun waitForClusterYellow() {
+       adminClient.prepareHealth()
+
+       // adminClient.prepareHealth().setWaitForYellowStatus().execute().actionGet()
+    }
+
+    public fun waitForClusterGreen() {
+
+    }
+
+    public fun shutdown() {
+        client.close()
+    }
+
+    val adminClient : ClusterAdminClient
+        get() = client.admin()!!.cluster()!!
+
+}
+{code}

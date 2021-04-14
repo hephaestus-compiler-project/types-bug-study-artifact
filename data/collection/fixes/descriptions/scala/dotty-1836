@@ -1,0 +1,26 @@
+When compiling `scala-scala/src/library/scala/util/control/TailCalls.scala` we get a Ycheck failure after tailrec. The relevant code is in the `resume` method. Before the tailrec transform, we had this:
+
+                      b.flatMap[A^](
+                        {
+                          def $anonfun(x: Any): 
+                            scala.util.control.TailCalls.TailRec[A^]
+                           = g.apply(x).flatMap[A^](f)
+                          closure($anonfun)
+                        }
+                      ).resume
+
+After the tailrec transform we have this:
+
+                          tailLabel11[A](
+                            b.flatMap[A](
+                              {
+                                def $anonfun(x: A): 
+                                  scala.util.control.TailCalls.TailRec[A]
+                                 = g.apply(x).flatMap[A](f)
+                                closure($anonfun)
+                              }
+                            )
+                          )
+                      }
+
+The weird thing is that the parameter type of the closure went from `Any` to `A`. @DarkDimius, any idea what could have caused this?

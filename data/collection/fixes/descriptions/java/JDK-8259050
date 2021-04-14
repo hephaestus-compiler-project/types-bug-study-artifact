@@ -1,0 +1,36 @@
+There are two scenarios in lexer where the error recovery could be improved:
+---
+public class BrokenUnicodeEscape {
+     private String s = "\uaaa";
+}
+---
+
+Will produce:
+---
+/tmp/BrokenUnicodeEscape.java:2: error: illegal unicode escape
+     private String s = "\uaaa";
+                         ^
+/tmp/BrokenUnicodeEscape.java:2: error: unclosed string literal
+     private String s = "\uaaa";
+                        ^
+2 errors
+---
+
+But used to produce:
+---
+/tmp/BrokenUnicodeEscape.java:2: error: illegal unicode escape
+     private String s = "\uaaa";
+                              ^
+1 error
+---
+
+Second case:
+---
+public class UnsupportedTextBlock {
+     private String s = """
+                        """;
+}
+---
+
+When compiled with -source 14, the text block is replaced with (ERROR) in the AST, but before it used to contain the text block content (after reporting a proper error).
+

@@ -1,0 +1,161 @@
+Under -Ydelambdafy:method, an anonymous function returning a value class will erroneously be translated to an anonymous function returning the underlying type of that value class, instead of its boxed representation, resulting in ClassCastException at runtime.
+
+```scala
+// DelambdafyBug.scala
+object DelambdafyBug {
+  def main(args: Array[String]): Unit = {
+    val f = (s: String) => new scala.collection.immutable.StringOps(s)
+    f("Hello") foreach println
+  }
+}
+```
+
+```scala
+// build.sbt
+scalaVersion := "2.11.0-M7"
+
+scalacOptions += "-Ydelambdafy:method"
+```
+
+During `posterasure`, the knowledge that the result type was a value class, here StringOps (and not a String) is lost. I think `posterasure` should perform a boxing operation, here (or `erasure` itself).
+
+After erasure:
+```scala
+package <empty>{type} {
+  object DelambdafyBug extends Object {
+    def <init>(): DelambdafyBug.type = {
+      DelambdafyBug.super{Object}.<init>{()Object}(){Object};
+      (){Unit}
+    }{Unit};
+    def main(args: Array[String]): Unit = {
+      val f: Function1 = {
+        final <artifact> def $anonfun(s: String): ErasedValueType(class StringOps, String) = s{ErasedValueType(class StringOps, String)};
+        ((s: String) => $anonfun{(s: String)ErasedValueType(class StringOps, String)}(s{String}){ErasedValueType(class StringOps, String)}){String => ErasedValu
+eType(class StringOps, String)}.$asInstanceOf{[T0]()T0}[Function1]{()Function1}(){Function1}
+      }{Function1};
+      f.apply{(v1: Object)Object}("Hello"{String("Hello")}){Object}.$asInstanceOf{[T0]()T0}[collection.IndexedSeqOptimized]{()collection.IndexedSeqOptimized}(){
+collection.IndexedSeqOptimized}.foreach{(f: Function1)Unit}({
+        {
+          final <artifact> def $anonfun(x: Object): Unit = scala.this{type}.Predef.println{(x: Object)Unit}(x{Object}){Unit};
+          ((x: Object) => $anonfun{(x: Object)Unit}(x{Object}){Unit}){Object => Unit}.$asInstanceOf{[T0]()T0}[Function1]{()Function1}(){Function1}
+        }{Function1}
+      }{Function1}){Unit}
+    }{Unit}
+  }
+}
+```
+
+After posterasure:
+```scala
+package <empty>{type} {
+  object DelambdafyBug extends Object {
+    def <init>(): DelambdafyBug.type = {
+      DelambdafyBug.super{Object}.<init>{()Object}(){Object};
+      (){Unit}
+    }{Unit};
+    def main(args: Array[String]): Unit = {
+      val f: Function1 = {
+        final <artifact> def $anonfun(s: String): String = s{String};
+        ((s: String) => $anonfun{(s: String)String}(s{String}){String}){String => String}.$asInstanceOf{[T0]()T0}[Function1]{()Function1}(){Function1}
+      }{Function1};
+      f.apply{(v1: Object)Object}("Hello"{String("Hello")}){Object}.$asInstanceOf{[T0]()T0}[collection.IndexedSeqOptimized]{()collection.IndexedSeqOptimized}(){
+collection.IndexedSeqOptimized}.foreach{(f: Function1)Unit}({
+        {
+          final <artifact> def $anonfun(x: Object): Unit = scala.this{type}.Predef.println{(x: Object)Unit}(x{Object}){Unit};
+          ((x: Object) => $anonfun{(x: Object)Unit}(x{Object}){Unit}){Object => Unit}.$asInstanceOf{[T0]()T0}[Function1]{()Function1}(){Function1}
+        }{Function1}
+      }{Function1}){Unit}
+    }{Unit}
+  }
+}
+```
+
+If the lambda **takes** a value class instead instead, then the compiler crashes during `icode` because some ErasedValueType(class StringOps, String) survive until then.
+```scala
+DelambdafyBug.scala
+object DelambdafyBug {
+  def main(args: Array[String]): Unit = {
+    val g = (s: scala.collection.immutable.StringOps) => s foreach println
+    g("Hello")
+  }
+}
+```
+After erasure:
+```scala
+package <empty>{type} {
+  object DelambdafyBug extends Object {
+    def <init>(): DelambdafyBug.type = {
+      DelambdafyBug.super{Object}.<init>{()Object}(){Object};
+      (){Unit}
+    }{Unit};
+    def main(args: Array[String]): Unit = {
+      val g: Function1 = {
+        final <artifact> def $anonfun(s: ErasedValueType(class StringOps, String)): Unit = new collection.immutable.StringOps{collection.immutable.StringOps}{(r
+epr: String)scala.collection.immutable.StringOps}(s.$asInstanceOf{[T0]()T0}[String]{()String}(){String}){scala.collection.immutable.StringOps}.foreach{(f: Funct
+ion1)Unit}({
+          {
+            final <artifact> def $anonfun(x: Object): Unit = scala.this{type}.Predef.println{(x: Object)Unit}(x{Object}){Unit};
+            ((x: Object) => $anonfun{(x: Object)Unit}(x{Object}){Unit}){Object => Unit}.$asInstanceOf{[T0]()T0}[Function1]{()Function1}(){Function1}
+          }{Function1}
+        }{Function1}){Unit};
+        ((s: ErasedValueType(class StringOps, String)) => $anonfun{(s: ErasedValueType(class StringOps, String))Unit}(s{ErasedValueType(class StringOps, String)
+}){Unit}){ErasedValueType(class StringOps, String) => Unit}.$asInstanceOf{[T0]()T0}[Function1]{()Function1}(){Function1}
+      }{Function1};
+      g.apply{(v1: Object)Object}(new collection.immutable.StringOps{collection.immutable.StringOps}{(repr: String)scala.collection.immutable.StringOps}(scala.t
+his{type}.Predef.augmentString{(x: String)ErasedValueType(class StringOps, String)}("Hello"{String("Hello")}){ErasedValueType(class StringOps, String)}.$asInsta
+nceOf{[T0]()T0}[String]{()String}(){String}){scala.collection.immutable.StringOps}){Object};
+      val f: Function1 = {
+        final <artifact> def $anonfun(s: String): ErasedValueType(class StringOps, String) = s{ErasedValueType(class StringOps, String)};
+        ((s: String) => $anonfun{(s: String)ErasedValueType(class StringOps, String)}(s{String}){ErasedValueType(class StringOps, String)}){String => ErasedValu
+eType(class StringOps, String)}.$asInstanceOf{[T0]()T0}[Function1]{()Function1}(){Function1}
+      }{Function1};
+      f.apply{(v1: Object)Object}("Hello"{String("Hello")}){Object}.$asInstanceOf{[T0]()T0}[collection.IndexedSeqOptimized]{()collection.IndexedSeqOptimized}(){
+collection.IndexedSeqOptimized}.foreach{(f: Function1)Unit}({
+        {
+          final <artifact> def $anonfun(x: Object): Unit = scala.this{type}.Predef.println{(x: Object)Unit}(x{Object}){Unit};
+          ((x: Object) => $anonfun{(x: Object)Unit}(x{Object}){Unit}){Object => Unit}.$asInstanceOf{[T0]()T0}[Function1]{()Function1}(){Function1}
+        }{Function1}
+      }{Function1}){Unit}
+    }{Unit}
+  }
+}
+```
+After posterasure:
+```scala
+package <empty>{type} {
+  object DelambdafyBug extends Object {
+    def <init>(): DelambdafyBug.type = {
+      DelambdafyBug.super{Object}.<init>{()Object}(){Object};
+      (){Unit}
+    }{Unit};
+    def main(args: Array[String]): Unit = {
+      val g: Function1 = {
+        final <artifact> def $anonfun(s: String): Unit = new collection.immutable.StringOps{collection.immutable.StringOps}{(repr: String)scala.collection.immut
+able.StringOps}(s{String}){scala.collection.immutable.StringOps}.foreach{(f: Function1)Unit}({
+          {
+            final <artifact> def $anonfun(x: Object): Unit = scala.this{type}.Predef.println{(x: Object)Unit}(x{Object}){Unit};
+            ((x: Object) => $anonfun{(x: Object)Unit}(x{Object}){Unit}){Object => Unit}.$asInstanceOf{[T0]()T0}[Function1]{()Function1}(){Function1}
+          }{Function1}
+        }{Function1}){Unit};
+        ((s: String) => $anonfun{(s: String)Unit}(s{String}){Unit}){String => Unit}.$asInstanceOf{[T0]()T0}[Function1]{()Function1}(){Function1}
+      }{Function1};
+      g.apply{(v1: Object)Object}(new collection.immutable.StringOps{collection.immutable.StringOps}{(repr: String)scala.collection.immutable.StringOps}(scala.t
+his{type}.Predef.augmentString{(x: String)String}("Hello"{String("Hello")}){String}){scala.collection.immutable.StringOps}){Object};
+      val f: Function1 = {
+        final <artifact> def $anonfun(s: String): String = s{String};
+        ((s: String) => $anonfun{(s: String)String}(s{String}){String}){String => String}.$asInstanceOf{[T0]()T0}[Function1]{()Function1}(){Function1}
+      }{Function1};
+      f.apply{(v1: Object)Object}("Hello"{String("Hello")}){Object}.$asInstanceOf{[T0]()T0}[collection.IndexedSeqOptimized]{()collection.IndexedSeqOptimized}(){
+collection.IndexedSeqOptimized}.foreach{(f: Function1)Unit}({
+        {
+          final <artifact> def $anonfun(x: Object): Unit = scala.this{type}.Predef.println{(x: Object)Unit}(x{Object}){Unit};
+          ((x: Object) => $anonfun{(x: Object)Unit}(x{Object}){Unit}){Object => Unit}.$asInstanceOf{[T0]()T0}[Function1]{()Function1}(){Function1}
+        }{Function1}
+      }{Function1}){Unit}
+    }{Unit}
+  }
+}
+```
+I suspect that both errors have the same cause, namely that posterasure fails to deal with value classes in Function nodes. Hence I report the two in only one issue.
+
+Note that both snippets work perfectly fine with -Ydelambdafy:inline (the default).

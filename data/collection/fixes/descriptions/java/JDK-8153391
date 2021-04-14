@@ -1,0 +1,68 @@
+FULL PRODUCT VERSION :
+java version "9-ea" 
+Java(TM) SE Runtime Environment (build 9-ea+111)
+Java HotSpot(TM) Client VM (build 9-ea+111, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Microsoft Windows [Version 6.1.7601] 
+64bit
+
+A DESCRIPTION OF THE PROBLEM :
+javac depends on module "jdk.zipfs".
+an image created for module "jdk.compiler" omits this dependency.
+executing javac.exe with this image fails.
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+in installation directory of jdk9:
+bin\jlink.exe  --modulepath jmods --addmods jdk.compiler --output test
+test\bin\javac.exe -help
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+javac.exe should show help. 
+ACTUAL -
+javac.exe  throws an exception (details below) after a few lines of help.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+Exception in thread "main" java.util.ServiceConfigurationError: com.sun.tools.javac.platform.PlatformProvider: Provider com.sun.tools.javac.platform.JDKPlatformProvider could not be instantiated
+        at java.util.ServiceLoader.fail(java.base@9-ea/ServiceLoader.java:381)
+        at java.util.ServiceLoader.access$800(java.base@9-ea/ServiceLoader.java:220)
+        at java.util.ServiceLoader$ModuleServicesIterator.nextService(java.base@9-ea/ServiceLoader.java:760)
+        at java.util.ServiceLoader$RestrictedIterator.next(java.base@9-ea/ServiceLoader.java:540)
+        at java.util.ServiceLoader$2.next(java.base@9-ea/ServiceLoader.java:938)
+        at java.util.Iterator.forEachRemaining(java.base@9-ea/Iterator.java:120)
+        at java.util.Spliterators$IteratorSpliterator.forEachRemaining(java.base@9-ea/Spliterators.java:1801)
+        at java.util.stream.AbstractPipeline.copyInto(java.base@9-ea/AbstractPipeline.java:484)
+        at java.util.stream.AbstractPipeline.wrapAndCopyInto(java.base@9-ea/AbstractPipeline.java:474)
+        at java.util.stream.ReduceOps$ReduceOp.evaluateSequential(java.base@9-ea/ReduceOps.java:913)
+        at java.util.stream.AbstractPipeline.evaluate(java.base@9-ea/AbstractPipeline.java:234)
+        at java.util.stream.ReferencePipeline.collect(java.base@9-ea/ReferencePipeline.java:511)
+        at com.sun.tools.javac.main.Option$15.help(jdk.compiler@9-ea/Option.java:300)
+        at com.sun.tools.javac.main.Option$20.process(jdk.compiler@9-ea/Option.java:371)
+        at com.sun.tools.javac.main.Main.compile(jdk.compiler@9-ea/Main.java:167)
+        at com.sun.tools.javac.main.Main.compile(jdk.compiler@9-ea/Main.java:143)
+        at com.sun.tools.javac.Main.compile(jdk.compiler@9-ea/Main.java:55)
+        at com.sun.tools.javac.Main.main(jdk.compiler@9-ea/Main.java:41)
+Caused by: java.lang.ExceptionInInitializerError
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance0(java.base@9-ea/Native Method)
+        at sun.reflect.NativeConstructorAccessorImpl.newInstance(java.base@9-ea/NativeConstructorAccessorImpl.java:62)
+        at sun.reflect.DelegatingConstructorAccessorImpl.newInstance(java.base@9-ea/DelegatingConstructorAccessorImpl.java:45)
+        at java.lang.reflect.Constructor.newInstance(java.base@9-ea/Constructor.java:453)
+        at java.util.ServiceLoader$ModuleServicesIterator.nextService(java.base@9-ea/ServiceLoader.java:756)
+        ... 15 more
+Caused by: java.nio.file.ProviderNotFoundException: Provider not found
+        at java.nio.file.FileSystems.newFileSystem(java.base@9-ea/FileSystems.java:428)
+        at com.sun.tools.javac.platform.JDKPlatformProvider.<clinit>(jdk.compiler@9-ea/JDKPlatformProvider.java:76)
+        ... 20 more
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+no source code needed.
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+create image with  --addmods jdk.compiler,jdk.zipfs
+

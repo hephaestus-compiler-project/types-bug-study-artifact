@@ -1,0 +1,109 @@
+## Reproduction steps
+
+### Flavor A
+
+using Scala 2.13.5,
+
+```scala
+implicit class RichDouble[Self <: Double](val self: Self) extends AnyVal {
+  def toIntRounded = math.round(self).toInt
+}
+```
+
+### Flavor B
+
+Same thing on [Scastie](https://scastie.scala-lang.org/AqgPYmtBSLCupKfHEaklZg).
+
+## Problem
+
+### Flavor A: Unexpected asInstanceOf from ref type to value type
+
+```
+Error while emitting Implicits.scala
+assertion failed:
+  Unexpected asInstanceOf from ref type to value type
+     while compiling: C:\Users\phdoerfler\github\FactorioGenerator\src\main\scala\Implicits.scala
+        during phase: jscode
+     library version: version 2.13.5
+    compiler version: version 2.13.5
+  reconstructed args: -bootclasspath C:\Users\phdoerfler\AppData\Local\Coursier\cache\v1\https\repo1.maven.org\maven2\org\scala-lang\scala-library\2.13.5\scala-library-2.13.5.jar -classpath C:\Users\phdoerfler\github\FactorioGenerator\target\scala-2.13\classes;C:\Users\phdoerfler\AppData\Local\Coursier\cache\v1\https\repo1.maven.org\maven2\org\scala-js\scalajs-library_2.13\1.5.0\scalajs-library_2.13-1.5.0.jar;C:\Users\phdoerfler\.ivy2\local\org.scalablytyped\papaparse_sjs1_2.13\5.2.5-4838a2\jars\papaparse_sjs1_2.13.jar;C:\Users\phdoerfler\.ivy2\local\org.scalablytyped\cytoscape_sjs1_2.13\3.14.12-6b2a13\jars\cytoscape_sjs1_2.13.jar;C:\Users\phdoerfler\AppData\Local\Coursier\cache\v1\https\repo1.maven.org\maven2\org\scala-js\scalajs-dom_sjs1_2.13\1.1.0\scalajs-dom_sjs1_2.13-1.1.0.jar;C:\Users\phdoerfler\.ivy2\local\org.scalablytyped\node_sjs1_2.13\14.14.32-3b7535\jars\node_sjs1_2.13.jar;C:\Users\phdoerfler\AppData\Local\Coursier\cache\v1\https\repo1.maven.org\maven2\com\olvind\scalablytyped-runtime_sjs1_2.13\2.4.0\scalablytyped-runtime_sjs1_2.13-2.4.0.jar;C:\Users\phdoerfler\.ivy2\local\org.scalablytyped\jensforstmann__factorio-blueprint-tools_sjs1_2.13\1.2.2-63dbad\jars\jensforstmann__factorio-blueprint-tools_sjs1_2.13.jar;C:\Users\phdoerfler\.ivy2\local\org.scalablytyped\std_sjs1_2.13\4.2-ca2c63\jars\std_sjs1_2.13.jar -Xplugin:C:\Users\phdoerfler\AppData\Local\Coursier\cache\v1\https\repo1.maven.org\maven2\org\scala-js\scalajs-compiler_2.13.5\1.5.0\scalajs-compiler_2.13.5-1.5.0.jar      
+[error]
+  last tree to typer: TypeTree(class Double)
+       tree position: line 69 of C:\Users\phdoerfler\github\FactorioGenerator\src\main\scala\Implicits.scala
+            tree tpe: Double
+              symbol: final class Double in package lang
+   symbol definition: final class Double extends Number with Comparable with Constable with ConstantDesc (a ClassSymbol)
+      symbol package: java.lang
+       symbol owners: class Double
+           call site: object Implicits$RichDouble in package doerfler in package doerfler
+[error]
+== Source file context for tree position ==
+[error]
+    66   }
+    67
+    68   @scala.inline
+    69   implicit class RichDouble[Self <: Double](val self: Self) extends AnyVal {
+    70     def toIntRounded = math.round(self).toInt
+    71   }
+
+one error found
+(Compile / compileIncremental) Compilation failed
+Total time: 2 s, completed 11.03.2021, 11:08:27
+```
+
+### Flavor B: Erasure should have added an unboxing operation to prevent this cast. Tree: $this.$asInstanceOf\[Double\]()
+
+```
+  Erasure should have added an unboxing operation to prevent this cast. Tree: $this.$asInstanceOf[Double]()
+     while compiling: /tmp/scastie5113028693779158489/src/main/scala/main.scala
+        during phase: jvm
+     library version: version 2.13.5
+    compiler version: version 2.13.5
+  reconstructed args: -bootclasspath /usr/lib/jvm/java-1.8-openjdk/jre/lib/resources.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/rt.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/sunrsasign.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/jsse.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/jce.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/charsets.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/jfr.jar:/usr/lib/jvm/java-1.8-openjdk/jre/classes:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.5/scala-library-2.13.5.jar -deprecation -feature -unchecked -Wconf:cat=unchecked:w -Wconf:cat=feature:w -Wconf:cat=deprecation:w -Wconf:cat=deprecation:ws -Wconf:cat=feature:ws -Wconf:cat=optimizer:ws -classpath /tmp/scastie5113028693779158489/target/scala-2.13/classes:/home/sbtRunnerContainer/.ivy2/local/org.scastie/runtime-scala_2.13/1.0.0-SNAPSHOT/jars/runtime-scala_2.13.jar:/home/sbtRunnerContainer/.ivy2/local/org.scastie/api_2.13/0.30.0+fd917f8b8bb0d4ec5e0afd8c82c46e518d18f8dc/jars/api_2.13.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/com/typesafe/play/play-json_2.13/2.9.0/play-json_2.13-2.9.0.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/com/typesafe/play/play-functional_2.13/2.9.0/play-functional_2.13-2.9.0.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.13.5/scala-reflect-2.13.5.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.10.4/jackson-core-2.10.4.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.10.4/jackson-annotations-2.10.4.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/com/fasterxml/jackson/datatype/jackson-datatype-jdk8/2.10.4/jackson-datatype-jdk8-2.10.4.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/com/fasterxml/jackson/datatype/jackson-datatype-jsr310/2.10.4/jackson-datatype-jsr310-2.10.4.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-databind/2.10.4/jackson-databind-2.10.4.jar -language:higherKinds -Xplugin:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/org/typelevel/kind-projector_2.13.5/0.11.3/kind-projector_2.13.5-0.11.3.jar -Ydelambdafy:inline
+
+  last tree to typer: Apply(method $asInstanceOf)
+       tree position: line 3 of /tmp/scastie5113028693779158489/src/main/scala/main.scala
+            tree tpe: Double
+              symbol: final method $asInstanceOf in class Object
+   symbol definition: final def $asInstanceOf[T0](): T0 (a MethodSymbol)
+      symbol package: java.lang
+       symbol owners: method $asInstanceOf -> class Object
+           call site: class Playground$delayedInit$body in package <empty>
+
+== Source file context for tree position ==
+
+     1 import _root_.com.olegych.scastie.api.runtime._
+     2 object Playground extends ScastieApp { private val instrumentationMap$ = _root_.scala.collection.mutable.Map.empty[_root_.com.olegych.scastie.api.Position, _root_.com.olegych.scastie.api.Render];def instrumentations$ = instrumentationMap$.toList.map{ case (pos, r) => _root_.com.olegych.scastie.api.Instrumentation(pos, r) };
+     3 implicit class RichDouble[Self <: Double](val self: Self) extends AnyVal {
+     4   def toIntRounded = math.round(self).toInt
+     5 }
+     6 }
+     7 object Main {
+Error while emitting main.scala
+
+  Erasure should have added an unboxing operation to prevent this cast. Tree: $this.$asInstanceOf[Double]()
+     while compiling: /tmp/scastie5113028693779158489/src/main/scala/main.scala
+        during phase: jvm
+     library version: version 2.13.5
+    compiler version: version 2.13.5
+  reconstructed args: -bootclasspath /usr/lib/jvm/java-1.8-openjdk/jre/lib/resources.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/rt.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/sunrsasign.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/jsse.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/jce.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/charsets.jar:/usr/lib/jvm/java-1.8-openjdk/jre/lib/jfr.jar:/usr/lib/jvm/java-1.8-openjdk/jre/classes:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.5/scala-library-2.13.5.jar -deprecation -feature -unchecked -Wconf:cat=unchecked:w -Wconf:cat=feature:w -Wconf:cat=deprecation:w -Wconf:cat=deprecation:ws -Wconf:cat=feature:ws -Wconf:cat=optimizer:ws -classpath /tmp/scastie5113028693779158489/target/scala-2.13/classes:/home/sbtRunnerContainer/.ivy2/local/org.scastie/runtime-scala_2.13/1.0.0-SNAPSHOT/jars/runtime-scala_2.13.jar:/home/sbtRunnerContainer/.ivy2/local/org.scastie/api_2.13/0.30.0+fd917f8b8bb0d4ec5e0afd8c82c46e518d18f8dc/jars/api_2.13.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/com/typesafe/play/play-json_2.13/2.9.0/play-json_2.13-2.9.0.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/com/typesafe/play/play-functional_2.13/2.9.0/play-functional_2.13-2.9.0.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-reflect/2.13.5/scala-reflect-2.13.5.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.10.4/jackson-core-2.10.4.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.10.4/jackson-annotations-2.10.4.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/com/fasterxml/jackson/datatype/jackson-datatype-jdk8/2.10.4/jackson-datatype-jdk8-2.10.4.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/com/fasterxml/jackson/datatype/jackson-datatype-jsr310/2.10.4/jackson-datatype-jsr310-2.10.4.jar:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-databind/2.10.4/jackson-databind-2.10.4.jar -language:higherKinds -Xplugin:/home/sbtRunnerContainer/.cache/coursier/v1/https/repo1.maven.org/maven2/org/typelevel/kind-projector_2.13.5/0.11.3/kind-projector_2.13.5-0.11.3.jar -Ydelambdafy:inline
+
+  last tree to typer: Apply(method $asInstanceOf)
+       tree position: line 3 of /tmp/scastie5113028693779158489/src/main/scala/main.scala
+            tree tpe: Double
+              symbol: final method $asInstanceOf in class Object
+   symbol definition: final def $asInstanceOf[T0](): T0 (a MethodSymbol)
+      symbol package: java.lang
+       symbol owners: method $asInstanceOf -> class Object
+           call site: class Playground$delayedInit$body in package <empty>
+
+== Source file context for tree position ==
+
+     1 import _root_.com.olegych.scastie.api.runtime._
+     2 object Playground extends ScastieApp { private val instrumentationMap$ = _root_.scala.collection.mutable.Map.empty[_root_.com.olegych.scastie.api.Position, _root_.com.olegych.scastie.api.Render];def instrumentations$ = instrumentationMap$.toList.map{ case (pos, r) => _root_.com.olegych.scastie.api.Instrumentation(pos, r) };
+     3 implicit class RichDouble[Self <: Double](val self: Self) extends AnyVal {
+     4   def toIntRounded = math.round(self).toInt
+     5 }
+     6 }
+     7 object Main {
+```

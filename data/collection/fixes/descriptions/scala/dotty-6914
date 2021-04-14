@@ -1,0 +1,33 @@
+## minimized code
+
+```Scala
+trait Expr[T]
+trait Liftable[T]
+
+given autoToExpr[T] as Conversion[T, Expr[T]] given Liftable[T] {
+  def apply(x: T): Expr[T] = ???
+}
+
+given as Liftable[Int] = ???
+given as Liftable[String] = ???
+
+def a: Expr[String] = "abc"
+```
+fails with
+```
+-- [E007] Type Mismatch Error: Foo.scala:12:22 ---------------------------------
+12 |def a: Expr[String] = "abc"
+   |                      ^^^^^
+   |Found:    String("abc")
+   |Required: Expr[String]
+   |Note that implicit conversions cannot be applied because they are ambiguous;
+   |both method Liftable_Int_given and method Liftable_String_given match type Liftable[Any]
+```
+
+## expectation
+The following implicit conversion should be inferred 
+```scala
+def a: Expr[String] = autoToExpr[String].apply("abc")
+```
+
+

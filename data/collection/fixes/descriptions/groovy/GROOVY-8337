@@ -1,0 +1,52 @@
+{code}
+@CompileStatic
+class Static {
+  private Number n
+  BigDecimal meth() {
+    return n == null || n instanceof BigDecimal ? n : new BigDecimal(n.toString())
+  }
+}
+{code}
+
+StaticTypeCheckingVisitor is missing the temporary type of the true expression part of the ternary expression because it pops before accessing the type.  One possible solution:
+
+{code}
+    @Override
+    public void visitTernaryExpression(final TernaryExpression expression) {
+        Map<VariableExpression, List<ClassNode>> oldTracker = pushAssignmentTracking();
+        // create a new temporary element in the if-then-else type info
+        typeCheckingContext.pushTemporaryTypeInfo();
+        expression.getBooleanExpression().visit(this);
+        Expression trueExpression = expression.getTrueExpression();
+        Expression falseExpression = expression.getFalseExpression();
+        trueExpression.visit(this);
+        // GRECLIPSE add
+        final ClassNode typeOfTrue = findCurrentInstanceOfClass(trueExpression, getType(trueExpression));
+        // GRECLIPSE end
+        // pop if-then-else temporary type info
+        typeCheckingContext.popTemporaryTypeInfo();
+        falseExpression.visit(this);
+        ClassNode resultType;
+        if (isNullConstant(trueExpression) || isNullConstant(falseExpression)) {
+            BinaryExpression enclosingBinaryExpression = typeCheckingContext.getEnclosingBinaryExpression();
+            if (enclosingBinaryExpression != null && enclosingBinaryExpression.getRightExpression()==expression) {
+                resultType = getType(enclosingBinaryExpression.getLeftExpression());
+            } else if (isNullConstant(trueExpression) && isNullConstant(falseExpression)) {
+                resultType = OBJECT_TYPE;
+            } else if (isNullConstant(trueExpression)) {
+                resultType = wrapTypeIfNecessary(getType(falseExpression));
+            } else {
+                resultType = wrapTypeIfNecessary(getType(trueExpression));
+            }
+        } else {
+            // store type information
+            // GRECLIPSE edit
+            //final ClassNode typeOfTrue = getType(trueExpression);
+            // GRECLIPSE end
+            final ClassNode typeOfFalse = getType(falseExpression);
+            resultType = lowestUpperBound(typeOfTrue, typeOfFalse);
+        }
+        storeType(expression, resultType);
+        popAssignmentTracking(oldTracker);
+    }
+{code}

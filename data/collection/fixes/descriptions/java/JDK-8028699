@@ -1,0 +1,93 @@
+javac crashes with the exception shown below on the following source code:
+-----
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Target;
+
+class CheckForDeclAnnoNPE {
+ void test(String s) {
+ test(new @TA String().toString());
+ }
+}
+
+@Target(ElementType.TYPE_USE)
+@interface TA {}
+-----
+
+Exception:
+-----
+An exception has occurred in the compiler (1.8.0-internal). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.NullPointerException
+        at com.sun.tools.javac.comp.Attr.checkForDeclarationAnnotations(Attr.java:2239)
+        at com.sun.tools.javac.comp.Attr.visitNewClass(Attr.java:2168)
+        at com.sun.tools.javac.tree.JCTree$JCNewClass.accept(JCTree.java:1510)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:597)
+        at com.sun.tools.javac.comp.Attr.visitSelect(Attr.java:3226)
+        at com.sun.tools.javac.tree.JCTree$JCFieldAccess.accept(JCTree.java:1891)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:597)
+        at com.sun.tools.javac.comp.Attr.visitApply(Attr.java:1828)
+        at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1459)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:597)
+        at com.sun.tools.javac.comp.DeferredAttr.attribSpeculative(DeferredAttr.java:372)
+        at com.sun.tools.javac.comp.DeferredAttr$2.complete(DeferredAttr.java:265)
+        at com.sun.tools.javac.comp.DeferredAttr$DeferredType.check(DeferredAttr.java:231)
+        at com.sun.tools.javac.comp.DeferredAttr$DeferredType.check(DeferredAttr.java:218)
+        at com.sun.tools.javac.comp.Resolve$MethodResultInfo.check(Resolve.java:965)
+        at com.sun.tools.javac.comp.Resolve$4.checkArg(Resolve.java:817)
+        at com.sun.tools.javac.comp.Resolve$AbstractMethodCheck.argumentsAcceptable(Resolve.java:728)
+        at com.sun.tools.javac.comp.Resolve$4.argumentsAcceptable(Resolve.java:826)
+        at com.sun.tools.javac.comp.Resolve.rawInstantiate(Resolve.java:573)
+        at com.sun.tools.javac.comp.Resolve.selectBest(Resolve.java:1407)
+        at com.sun.tools.javac.comp.Resolve.findMethodInScope(Resolve.java:1586)
+        at com.sun.tools.javac.comp.Resolve.findMethod(Resolve.java:1657)
+        at com.sun.tools.javac.comp.Resolve.findMethod(Resolve.java:1630)
+        at com.sun.tools.javac.comp.Resolve.findFun(Resolve.java:1793)
+        at com.sun.tools.javac.comp.Resolve$8.doLookup(Resolve.java:2354)
+        at com.sun.tools.javac.comp.Resolve$BasicLookupHelper.lookup(Resolve.java:2857)
+        at com.sun.tools.javac.comp.Resolve.lookupMethod(Resolve.java:3109)
+        at com.sun.tools.javac.comp.Resolve.lookupMethod(Resolve.java:3094)
+        at com.sun.tools.javac.comp.Resolve.resolveMethod(Resolve.java:2350)
+        at com.sun.tools.javac.comp.Attr.visitIdent(Attr.java:3147)
+        at com.sun.tools.javac.tree.JCTree$JCIdent.accept(JCTree.java:2005)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:597)
+        at com.sun.tools.javac.comp.Attr.visitApply(Attr.java:1828)
+        at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1459)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:597)
+        at com.sun.tools.javac.comp.Attr.attribExpr(Attr.java:646)
+        at com.sun.tools.javac.comp.Attr.visitExec(Attr.java:1596)
+        at com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1290)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:597)
+        at com.sun.tools.javac.comp.Attr.attribStat(Attr.java:666)
+        at com.sun.tools.javac.comp.Attr.attribStats(Attr.java:682)
+        at com.sun.tools.javac.comp.Attr.visitBlock(Attr.java:1127)
+        at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:903)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:597)
+        at com.sun.tools.javac.comp.Attr.attribStat(Attr.java:666)
+        at com.sun.tools.javac.comp.Attr.visitMethodDef(Attr.java:1020)
+        at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:772)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:597)
+        at com.sun.tools.javac.comp.Attr.attribStat(Attr.java:666)
+        at com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:4305)
+        at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4215)
+        at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4149)
+        at com.sun.tools.javac.comp.Attr.attrib(Attr.java:4124)
+        at com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1251)
+        at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:904)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:863)
+        at com.sun.tools.javac.main.Main.compile(Main.java:523)
+        at com.sun.tools.javac.main.Main.compile(Main.java:381)
+        at com.sun.tools.javac.main.Main.compile(Main.java:370)
+        at com.sun.tools.javac.main.Main.compile(Main.java:361)
+        at com.sun.tools.javac.Main.compile(Main.java:56)
+        at com.sun.tools.javac.Main.main(Main.java:42)
+-----
+
+This is with javac build from:
+langtools$ hg tip
+changeset:   2187:f90d88913c5f
+tag:         tip
+user:        sogoel
+date:        Wed Nov 13 16:36:08 2013 -0800
+summary:     8025113: Convert 7 tools TryWithResources tests to jtreg format
+
+Reported by Werner Dietl, fix in the type-annotations forest:
+http://hg.openjdk.java.net/type-annotations/type-annotations/langtools/rev/098327afad8d

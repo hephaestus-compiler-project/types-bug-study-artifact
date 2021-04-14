@@ -1,0 +1,35 @@
+There seems to be an issue when using a generic extractor and which could receive a tuple type. As soon as the generic type parameter in the result type is instantiated with a tuple type, the pattern matcher interprets it as multiple parameters in a match.
+
+```scala
+object Foo {
+  def unapply[S, T](scrutinee: S)(implicit witness: FooHasType[S, T]): Option[T] = scrutinee match {
+    case i: Int => Some((i, i).asInstanceOf[T])
+  }
+}
+
+class FooHasType[S, T]
+object FooHasType {
+  implicit object int extends FooHasType[Int, (Int, Int)]
+}
+
+object Test {
+  val x = 8
+  x match {
+    case Foo(p) => p // p should be a pair of Int
+  }
+}
+```
+
+This should compile. However, it instead results in the following error:
+```scala
+<console>:21: error: wrong number of arguments for object Foo
+           case Foo(p) => p // p should be a pair of Int
+                   ^
+<console>:21: error: not found: value p
+           case Foo(p) => p // p should be a pair of Int
+                          ^
+```
+
+The work-around to use the `FooHasType` implicit to force `T` to be `Any` in the case where it would otherwise be a tuple does not completely solve the issue because then the type info for the components of the tuple gets lost.
+
+So, the bottom line: it seems this bug makes it impossible to provide a representation-independent extractor for types such as `Try`.

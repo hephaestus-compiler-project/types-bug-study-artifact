@@ -1,0 +1,56 @@
+Take the following match type:
+```scala
+type Foo[A] = A match {
+  case List[List[_]] => Int
+  case _ => Boolean
+}
+```
+
+These work as (I, at least) expected:
+```scala
+scala> summon[Foo[List[List[String]]] =:= Int]
+val res8: Int =:= Int = generalized constraint
+
+scala> summon[Foo[Option[String]] =:= Boolean]
+val res9: Boolean =:= Boolean = generalized constraint
+```
+
+However when `A` is `List[SomethingElse]` the fallthrough case is not picked (neither is the first case):
+```scala
+scala> summon[Foo[List[Option[String]]] =:= Boolean]                            
+1 |summon[Foo[List[Option[String]]] =:= Boolean]
+  |                                             ^
+  |                  Cannot prove that Foo[List[Option[String]]] =:= Boolean.
+
+scala> summon[Foo[List[Option[String]]] =:= Int]                                
+1 |summon[Foo[List[Option[String]]] =:= Int]
+  |                                         ^
+  |                      Cannot prove that Foo[List[Option[String]]] =:= Int.
+```
+
+Same when `A` is `Nothing`:
+```scala
+scala> summon[Foo[Nothing] =:= Boolean]
+1 |summon[Foo[Nothing] =:= Boolean]
+  |                                ^
+  |                               Cannot prove that Foo[Nothing] =:= Boolean.
+
+scala> summon[Foo[Nothing] =:= Int]                                         
+1 |summon[Foo[Nothing] =:= Int]
+  |                            ^
+  |                            Cannot prove that Foo[Nothing] =:= Int.
+```
+
+As @deanwampler pointed out on gitter, `Nothing` doesn't even match with itself:
+```scala
+type Foo[A] = A match {
+  case Nothing => Int
+  case _ => Boolean
+}
+```
+```scala
+scala> summon[Foo[Nothing] =:= Int]                                         
+1 |summon[Foo[Nothing] =:= Int]
+  |                            ^
+  |                            Cannot prove that Foo[Nothing] =:= Int.
+```

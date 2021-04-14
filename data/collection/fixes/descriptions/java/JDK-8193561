@@ -1,0 +1,61 @@
+The following compilation is ill-formed: there is cyclic inheritance in T. When annotation processing is enabled javac fails to reject the compilation and instead crashes.
+
+=== P.java
+import java.util.Set;
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.TypeElement;
+
+@SupportedAnnotationTypes("*")
+public class P extends AbstractProcessor {
+  public SourceVersion getSupportedSourceVersion() {
+    return SourceVersion.latestSupported();
+  }
+
+  public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+    return false;
+  }
+}
+=== T.java
+package p;
+
+import p.T.I;
+
+abstract class T implements I {
+  interface I {
+    default boolean fieldTypeReplaced() {
+      return false;
+    }
+  }
+}
+===
+
+$ javac P.java
+$ javac -processor P T.java
+An exception has occurred in the compiler (9.0.1). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.NullPointerException
+        at jdk.compiler/com.sun.tools.javac.comp.MemberEnter.visitMethodDef(MemberEnter.java:184)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:866)
+        at jdk.compiler/com.sun.tools.javac.comp.MemberEnter.memberEnter(MemberEnter.java:161)
+        at jdk.compiler/com.sun.tools.javac.comp.MemberEnter.memberEnter(MemberEnter.java:173)
+        at jdk.compiler/com.sun.tools.javac.comp.TypeEnter$MembersPhase.finishClass(TypeEnter.java:947)
+        at jdk.compiler/com.sun.tools.javac.comp.TypeEnter$MembersPhase.runPhase(TypeEnter.java:931)
+        at jdk.compiler/com.sun.tools.javac.comp.TypeEnter$Phase.doCompleteEnvs(TypeEnter.java:270)
+        at jdk.compiler/com.sun.tools.javac.comp.TypeEnter$MembersPhase.doCompleteEnvs(TypeEnter.java:866)
+        at jdk.compiler/com.sun.tools.javac.comp.TypeEnter$Phase.completeEnvs(TypeEnter.java:245)
+        at jdk.compiler/com.sun.tools.javac.comp.TypeEnter$Phase.completeEnvs(TypeEnter.java:254)
+        at jdk.compiler/com.sun.tools.javac.comp.TypeEnter$Phase.completeEnvs(TypeEnter.java:254)
+        at jdk.compiler/com.sun.tools.javac.comp.TypeEnter$Phase.completeEnvs(TypeEnter.java:254)
+        at jdk.compiler/com.sun.tools.javac.comp.TypeEnter.complete(TypeEnter.java:195)
+        at jdk.compiler/com.sun.tools.javac.code.Symbol.complete(Symbol.java:633)
+        at jdk.compiler/com.sun.tools.javac.code.Symbol$ClassSymbol.complete(Symbol.java:1314)
+        at jdk.compiler/com.sun.tools.javac.comp.Enter.complete(Enter.java:577)
+        at jdk.compiler/com.sun.tools.javac.comp.Enter.main(Enter.java:554)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.enterTrees(JavaCompiler.java:1052)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:923)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:302)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:162)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:57)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:43)

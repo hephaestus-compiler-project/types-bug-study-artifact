@@ -1,0 +1,46 @@
+Scala version: 2.12.8
+To set things up, define two types `Fix1` and `Fix2` of the same shape:
+```scala
+// a class type
+case class Fix1[F[_]](unfix: F[Fix1[F]])
+
+// a type alias
+type Fix2[F[_]] = Fix2.FixT[F]
+trait T {
+  type FixT[F[_]]
+  def apply[F[_]](f: F[Fix2[F]]): FixT[F]
+}
+val Fix2: T = new T {
+  type FixT[F[_]] = F[Fix2[F]]
+  def apply[F[_]](f: F[Fix2[F]]): FixT[F] = f
+}
+```
+and trait `P[A]` together with its implicit definitions:
+```scala
+trait P[A]
+case class N[A]() extends P[A]
+object P {
+  // expected to be inferred by implicit resolutioner
+  implicit def x1(x: X1): Int = 100
+  // also expected to be inferred
+  implicit def x2(x: X2): Int = 200
+}
+
+type X1 = Fix1[P]
+type X2 = Fix2[P]
+```
+
+At the call-side, implicit resolution behaves differently:
+```scala
+val x1: X1 = Fix1(N())
+val x2: X2 = Fix2(N())
+
+x1: Int // res21: Int = 100
+x2: Int
+/* error: type mismatch;
+ found   : X2
+    (which expands to)  Fix2.FixT[P]
+ required: Int
+       x2: Int
+*/
+```

@@ -1,0 +1,25 @@
+From Jan Lahoda:
+Hi,
+    in Scope.ImportScope.ImportEntry.entry, there is:
+                Entry e = super.shadowed;
+         
+       while (isBogus())
+                    e = e.shadowed;
+                return e;
+
+As isBogus() does not depend on value of "e", this loop cannot complete normally. The condition probably should be "e.isBogus()". Unfortunatelly, I do not have a standalone test case, but the above change fixes the problem in cases where I have seen it.
+
+http://hg.netbeans.org/main/nb-javac/rev/8e89a1125150
+
+hl 
+
+-------------
+Yes, it lead to a NPE. The stack trace is:
+http://bugzilla-attachments-191963.netbeans.org/bugzilla/attachment.cgi?id=102981
+
+Was happening to me on com.sun.tools.javac.comp.Attr in a specific situation, probably dependent on particular classfiles in NB caches, which got lost, so I cannot perform more experiments. I think that it was related to:
+import com.sun.tools.javac.tree.JCTree.*
+
+Seems that to reproduce, it should be enough to have ImportScope that has two ImportEntry-s (+sentinel) in the given row: first that is not bogus (so that it can be returned from the lookup method) and the second one that is bogus (next() on the non-bogus entry will return it, and calling next() on the bogus entry will cause the problem). I do not know how to reliably construct such scope, however.
+
+Jan

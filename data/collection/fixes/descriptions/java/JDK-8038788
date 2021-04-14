@@ -1,0 +1,23 @@
+Consider these examples with the specified incorrect behavior of javac:
+---
+public class Foo {
+    <T> @DA Foo() { }      //should be rejected, is accepted
+    <T> @TA Foo(int i) { } //should be rejected, is accepted
+    public <T> @DA int foo1() { return 0;}
+    public <T> @DA void foo2() { } //should be accepted, is rejected
+    public <T> @TA int foo3() { return 0;}
+    public <T> @TA void foo4() { } //correctly rejected, but with suboptimal error message
+}
+@Target({ElementType.METHOD, ElementType.CONSTRUCTOR})
+@interface DA { }
+@Target(ElementType.TYPE_USE)
+@interface TA { }
+---
+
+This is with:
+$ javac -fullversion
+javac full version "1.8.0-b132"
+
+See:
+http://mail.openjdk.java.net/pipermail/type-annotations-dev/2014-March/001678.html
+for more details.

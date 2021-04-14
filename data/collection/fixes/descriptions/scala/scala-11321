@@ -1,0 +1,38 @@
+In the sample below javap says that method `b` returns a `scala.Option<java.lang.String>` but the implementation of those methods strongly suggest that the `Option` contains an instance of class `X`.
+
+```
+scala> class X(val x: String) extends AnyVal
+defined class X
+
+scala> class Foo { def b = Option(new X("minnow")); def get = b.get }
+defined class Foo
+
+scala> :javap -filter -cp Foo
+Compiled from "<console>"
+public class Foo {
+  public scala.Option<java.lang.String> b();
+    Code:
+       0: getstatic     #30                 // Field scala/Option$.MODULE$:Lscala/Option$;
+       3: new           #14                 // class X
+       6: dup
+       7: ldc           #32                 // String minnow
+       9: invokespecial #36                 // Method X."<init>":(Ljava/lang/String;)V
+      12: invokevirtual #40                 // Method scala/Option$.apply:(Ljava/lang/Object;)Lscala/Option;
+      15: areturn
+
+  public java.lang.String get();
+    Code:
+       0: aload_0
+       1: invokevirtual #46                 // Method b:()Lscala/Option;
+       4: invokevirtual #51                 // Method scala/Option.get:()Ljava/lang/Object;
+       7: checkcast     #14                 // class X
+      10: invokevirtual #54                 // Method X.x:()Ljava/lang/String;
+      13: areturn
+
+  public Foo();
+    Code:
+       0: aload_0
+       1: invokespecial #57                 // Method java/lang/Object."<init>":()V
+       4: return
+}
+```

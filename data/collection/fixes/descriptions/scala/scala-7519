@@ -1,0 +1,39 @@
+```scala
+class C /*#1*/{
+  implicit def conversion(m: Int)(implicit nada: Nothing): String = ???
+
+  class C /*#2*/ { // rename class to get correct error.
+    locally(0 : String) // "value conversion is not a member of C.this.C"
+  }
+}
+```
+
+The offending code:
+
+```scala
+// Typer#adapt
+case _ =>
+  debuglog("fallback on implicits: " + tree + "/" + resetAllAttrs(original))
+  val tree1 = typed(resetAllAttrs(original), mode, WildcardType)
+  // Q: `typed` already calls `pluginsTyped` and `adapt`. the only difference here is that
+  // we pass `EmptyTree` as the `original`. intended? added in 2009 (53d98e7d42) by martin.
+  tree1.tpe = pluginsTyped(tree1.tpe, this, tree1, mode, pt)
+  if (tree1.isEmpty) tree1 else adapt(tree1, mode, pt, EmptyTree)
+```
+
+The winning implicit conversion is inferred as a symful `Select(This(C#1), "conversion")`. The `resetAllAttrs` brutalizes this tree, and upon retypechecking we end up with `This(C#2)`.
+
+`resetLocalAttrs` seems like a better option here.
+
+The same problem arises with the two classes share the name "$anon".
+
+```scala
+trait T; trait U
+new T {
+  implicit def conversion(m: Int)(implicit nada: Nothing): String = ???
+
+  new U { // rename class to get correct error.
+    locally(0 : String) // "value conversion is not a member of U"
+  }
+}
+```

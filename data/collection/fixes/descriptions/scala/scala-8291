@@ -1,0 +1,19 @@
+Basically, you have an implicitNotFound on a trait with type params and a partially applied type alias. If you lookup the alias and fail, the error message doesn't take the partial application into account:
+
+```scala
+scala> @scala.annotation.implicitNotFound("Could not find implicit for ${T} or ${U}") trait X[T, U]
+defined trait X
+
+scala> type Z[U] = X[Int, U]
+defined type alias Z
+
+scala> implicitly[X[Int, String]]
+<console>:9: error: Could not find implicit for Int or String
+              implicitly[X[Int, String]]
+
+scala> implicitly[Z[String]]
+<console>:10: error: Could not find implicit for String or
+              implicitly[Z[String]]
+```
+
+That last line ought to be "Int or String".

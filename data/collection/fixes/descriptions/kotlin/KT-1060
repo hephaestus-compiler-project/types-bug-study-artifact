@@ -1,0 +1,32 @@
+The compiler is not properly resolving Java methods/constructors with varargs. 
+
+{code:lang=java|title=TestClass.java}
+package test;
+public class TestClass {
+    public TestClass() {}
+
+    public TestClass(String...  args) {}
+    
+    public void test() {}
+    
+    public void test(String... x) {}
+}
+{code}
+
+{code:lang=kotlin|title=Test.kt}
+package test
+fun main(args : Array<String>) {
+    val t = TestClass()
+    val t2 = TestClass("").test()
+}
+{code}
+
+Compiler Output:
+
+Overload resolution ambiguity: 
+ctor TestClass() defined in <java_root>.test.TestClass
+ctor TestClass(var args : Array<String?>?) defined in <java_root>.test.TestClass
+
+Overload resolution ambiguity: 
+open fun test() : Tuple0 defined in <java_root>.test.TestClass
+open fun test(var x : Array<String?>?) : Tuple0 defined in <java_root>.test.TestClass

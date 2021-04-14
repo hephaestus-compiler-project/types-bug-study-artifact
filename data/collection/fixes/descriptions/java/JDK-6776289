@@ -1,0 +1,35 @@
+The following used to compile on JDK 6 and no longer compiles on JDK 7 (b40).
+javac 1.7.0-ea
+java version "1.7.0-ea"
+Java(TM) SE Runtime Environment (build 1.7.0-ea-b40)
+Java HotSpot(TM) Server VM (build 14.0-b07, mixed mode)
+----------------------------------------------------------------------------
+
+public class Node { ... }
+
+public class AbstractNode extends Node {
+    private Image findIcon(int a,int b) { ... }
+    ...
+}
+public class DataNode extends AbstractNode { ... }
+
+public class DataFolder {
+   static Image findIcon(int a, String s, String s2) { ... }
+   public class FolderNode extends DataNode {
+        public Image getOpenedIcon (int type) {
+              ...
+              Image img = findIcon(someint, somestring, someotherstring);
+              ...
+        }
+   }
+}
+
+netbeans_platform/openide/loaders/src/org/openide/loaders/DataFolder.java:1123: method findIcon in class org.openide.nodes.AbstractNode cannot be applied to given types
+    [javac] required: int,int
+    [javac] found: int,java.lang.String,java.lang.String
+    [javac]                 img = findIcon(0, "Nb.Explorer.Folder.icon", "Tree.closedIcon"); // NOI18N
+    [javac]                       ^
+
+I have attached a smaller test cases which shows this behaviour:
+See Main.java and NewClass.java attached.
+It compiles with JDK 6 compiler, and fails with JDK 7.

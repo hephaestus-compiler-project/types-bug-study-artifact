@@ -1,0 +1,107 @@
+FULL PRODUCT VERSION :
+java 9.0.1
+Java(TM) SE Runtime Environment (build 9.0.1+11)
+Java HotSpot(TM) 64-Bit Server VM (build 9.0.1+11, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+masOS Sierra 10.12.6 (16G29)
+Darwin eclipse.local 16.7.0 Darwin Kernel Version 16.7.0: Wed Oct  4 00:17:00 PDT 2017; root:xnu-3789.71.6~1/RELEASE_X86_64 x86_64
+
+A DESCRIPTION OF THE PROBLEM :
+javac 9.0.1 (same goes for javac 9) in some cases requires virtually infinitely big Java heap (throws OutOfMemoryError with 6GB Java heap size available) to compile a tiny module and class if "-Xlint:exports" option is enabled.
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Step 0.
+It may be more convenient to get the description and the source code of the minimal working example here:
+https://github.com/stIncMale/javac9-Xlint-exports-OOM
+Otherwise, proceed with the following steps.
+
+Step 1.
+Download the required external dependencies (yes, it is essential for this minimal working example):
+https://repo1.maven.org/maven2/com/google/code/findbugs/jsr305/3.0.2/jsr305-3.0.2.jar
+https://repo1.maven.org/maven2/com/google/guava/guava/23.3-jre/guava-23.3-jre.jar
+https://repo1.maven.org/maven2/com/datadoghq/java-dogstatsd-client/2.3/java-dogstatsd-client-2.3.jar
+And put them in the current directory "."
+
+Step 2.
+Create files "./module-info.java" and "./mypackage/MyClass.java" by using source code from "Source code for an executable test case".
+
+Step 3.
+Try to compile the aforementioned module and class with the following command:
+"javac -J-Xmx6G -Xlint:exports,-requires-automatic,-requires-transitive-automatic --module-path ./guava-23.3-jre.jar:./java-dogstatsd-client-2.3.jar:./jsr305-3.0.2.jar ./module-info.java ./mypackage/MyClass.java"
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Successful compilation of "./module-info.java" and "./mypackage/MyClass.java".
+ACTUAL -
+Compilation ends with java.lang.OutOfMemoryError. See "Error Message(s)/ Crash Logs" for details.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+The system is out of resources.
+Consult the following stack trace for details.
+java.lang.OutOfMemoryError: Java heap space
+	at jdk.compiler/com.sun.tools.javac.util.List.prepend(List.java:230)
+	at jdk.compiler/com.sun.tools.javac.comp.Check.checkVisible(Check.java:3883)
+	at jdk.compiler/com.sun.tools.javac.comp.Check.access$1400(Check.java:74)
+	at jdk.compiler/com.sun.tools.javac.comp.Check$4.visitIdent(Check.java:3810)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCIdent.accept(JCTree.java:2237)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at jdk.compiler/com.sun.tools.javac.comp.Check$4.visitVarDef(Check.java:3762)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCVariableDecl.accept(JCTree.java:950)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.visitMethodDef(TreeScanner.java:126)
+	at jdk.compiler/com.sun.tools.javac.comp.Check$4.visitMethodDef(Check.java:3747)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:866)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:57)
+	at jdk.compiler/com.sun.tools.javac.comp.Check$4.visitClassDef(Check.java:3789)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:774)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+	at jdk.compiler/com.sun.tools.javac.comp.Check.checkLeaksNotAccessible(Check.java:3831)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4459)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attribClass(Attr.java:4383)
+	at jdk.compiler/com.sun.tools.javac.comp.Attr.attrib(Attr.java:4328)
+	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1329)
+	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:959)
+	at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:302)
+	at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:162)
+	at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:57)
+	at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:43)
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+/**
+ * This module is not exactly correct (or rather not optimal), it should be just
+ * <pre>{@code
+ *  requires transitive java.dogstatsd.client;
+ *  exports mypackage;
+ * }</pre>
+ * But that is the point, javac must tell us if it is still OK, or if something is not right. It however not only fails to tell us anything,
+ * but instead throws {@link OutOfMemoryError} even when it has 6GB Java heap size available.
+ */
+// "./module-info.java"
+module stinc.male.server {
+  requires transitive jsr305;
+  requires java.dogstatsd.client;
+  exports mypackage;
+}
+
+// "./mypackage/MyClass.java"
+package mypackage;
+import com.timgroup.statsd.StatsDClient;
+public class MyClass {
+  public MyClass(StatsDClient statsDClient) {
+  }
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+As a W/A we can:
+- replace all "requires transitive" with "requires" in modules and get a list of all "warning: [exports] ... is not indirectly exported using requires transitive" produced by "-Xlint:exports" option;
+- fix the warnings by adding only the optimally required "requires transitive" in modules.
+
+Option "-Xlint:exports" is very important because it tells us when we need to specify "requires transitive", which is virtually impossible to do by hand. I understand that not everything is exactly optimal in the source code of this example and the way javac is used, but that is the point, javac must tell us if it is still OK, or if something is not right. It however not only fails to tell us anything, but instead throws OutOfMemoryError even when it has 6GB Java heap size available.
+

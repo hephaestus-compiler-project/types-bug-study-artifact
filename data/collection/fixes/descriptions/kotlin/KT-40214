@@ -1,0 +1,135 @@
+We're running into a compiler error with Kotlin 1.4 M3 that is not happening with Kotlin 1.4 M2. I tried to reproduce the issue in an open source project but failed. The class that is compiled is tiny and the only class in the entire module:
+```
+package com.squareup.gson
+
+import com.google.gson.Gson
+import com.squareup.dagger.AppScope
+import com.squareup.hephaestus.annotations.ContributesTo
+import dagger.Module
+import dagger.Provides
+
+@Module
+@ContributesTo(AppScope::class)
+object GsonModule {
+  @Provides fun provideGson(): Gson = TODO()
+}
+```
+
+The error:
+```stacktrace
+> Task :common:gson:impl-wiring:compileDebugKotlin FAILED
+e: org.jetbrains.kotlin.util.KotlinFrontEndException: Exception while analyzing expression at (17,39) in /Users/ralf/Development/projects/square/as/common/gson/impl-wiring/src/main/java/com/squareup/gson/GsonModule.kt
+        at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.logOrThrowException(ExpressionTypingVisitorDispatcher.java:253)
+        at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.lambda$getTypeInfo$0(ExpressionTypingVisitorDispatcher.java:224)
+        at org.jetbrains.kotlin.util.PerformanceCounter.time(PerformanceCounter.kt:101)
+        at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:164)
+        at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:134)
+        at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.getTypeInfo(ExpressionTypingVisitorDispatcher.java:146)
+        at org.jetbrains.kotlin.types.expressions.ExpressionTypingServices.checkFunctionReturnType(ExpressionTypingServices.java:172)
+        at org.jetbrains.kotlin.types.expressions.ExpressionTypingServices.checkFunctionReturnType(ExpressionTypingServices.java:155)
+        at org.jetbrains.kotlin.resolve.BodyResolver.resolveFunctionBody(BodyResolver.java:985)
+        at org.jetbrains.kotlin.resolve.BodyResolver.resolveFunctionBody(BodyResolver.java:932)
+        at org.jetbrains.kotlin.resolve.BodyResolver.resolveFunctionBodies(BodyResolver.java:918)
+        at org.jetbrains.kotlin.resolve.BodyResolver.resolveBehaviorDeclarationBodies(BodyResolver.java:125)
+        at org.jetbrains.kotlin.resolve.BodyResolver.resolveBodies(BodyResolver.java:246)
+        at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations(LazyTopDownAnalyzer.kt:225)
+        at org.jetbrains.kotlin.resolve.LazyTopDownAnalyzer.analyzeDeclarations$default(LazyTopDownAnalyzer.kt:60)
+        at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(TopDownAnalyzerFacadeForJVM.kt:123)
+        at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration$default(TopDownAnalyzerFacadeForJVM.kt:93)
+        at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$analyze$1.invoke(KotlinToJVMBytecodeCompiler.kt:526)
+        at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler$analyze$1.invoke(KotlinToJVMBytecodeCompiler.kt:90)
+        at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.kt:115)
+        at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.kt:517)
+        at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.repeatAnalysisIfNeeded(KotlinToJVMBytecodeCompiler.kt:487)
+        at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt:185)
+        at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:164)
+        at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:51)
+        at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:86)
+        at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:44)
+        at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:98)
+        at org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunner.runCompiler(IncrementalJvmCompilerRunner.kt:346)
+        at org.jetbrains.kotlin.incremental.IncrementalJvmCompilerRunner.runCompiler(IncrementalJvmCompilerRunner.kt:102)
+        at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileIncrementally(IncrementalCompilerRunner.kt:240)
+        at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.access$compileIncrementally(IncrementalCompilerRunner.kt:39)
+        at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner$compile$2.invoke(IncrementalCompilerRunner.kt:81)
+        at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:93)
+        at org.jetbrains.kotlin.daemon.CompileServiceImplBase.execIncrementalCompiler(CompileServiceImpl.kt:601)
+        at org.jetbrains.kotlin.daemon.CompileServiceImplBase.access$execIncrementalCompiler(CompileServiceImpl.kt:93)
+        at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:1633)
+        at sun.reflect.GeneratedMethodAccessor98.invoke(Unknown Source)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:498)
+        at sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:357)
+        at sun.rmi.transport.Transport$1.run(Transport.java:200)
+        at sun.rmi.transport.Transport$1.run(Transport.java:197)
+        at java.security.AccessController.doPrivileged(Native Method)
+        at sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+        at sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:573)
+        at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:834)
+        at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:688)
+        at java.security.AccessController.doPrivileged(Native Method)
+        at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:687)
+        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+        at java.lang.Thread.run(Thread.java:748)
+Caused by: java.lang.AbstractMethodError
+        at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassMemberScope$_classifierNames$2.invoke(LazyClassMemberScope.kt:137)
+        at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassMemberScope$_classifierNames$2.invoke(LazyClassMemberScope.kt:50)
+        at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedLazyValue.invoke(LockBasedStorageManager.java:370)
+        at org.jetbrains.kotlin.storage.StorageKt.getValue(storage.kt:44)
+        at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassMemberScope.get_classifierNames(LazyClassMemberScope.kt)
+        at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassMemberScope.getClassifierNames(LazyClassMemberScope.kt:162)
+        at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassMemberScope$_allNames$2.invoke(LazyClassMemberScope.kt:145)
+        at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassMemberScope$_allNames$2.invoke(LazyClassMemberScope.kt:50)
+        at org.jetbrains.kotlin.storage.LockBasedStorageManager$LockBasedLazyValue.invoke(LockBasedStorageManager.java:370)
+        at org.jetbrains.kotlin.storage.StorageKt.getValue(storage.kt:44)
+        at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassMemberScope.get_allNames(LazyClassMemberScope.kt)
+        at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassMemberScope.definitelyDoesNotContainName(LazyClassMemberScope.kt:165)
+        at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.mayFitForName(TowerResolver.kt:265)
+        at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.mayFitForName(TowerResolver.kt:258)
+        at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.processImplicitReceiver(TowerResolver.kt:230)
+        at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.access$processImplicitReceiver(TowerResolver.kt:101)
+        at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task$run$5.invoke(TowerResolver.kt:198)
+        at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.run(TowerResolver.kt:209)
+        at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.run(TowerResolver.kt:99)
+        at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.runResolve(TowerResolver.kt:86)
+        at org.jetbrains.kotlin.resolve.calls.KotlinCallResolver.resolveCall(KotlinCallResolver.kt:78)
+        at org.jetbrains.kotlin.resolve.calls.tower.PSICallResolver.runResolutionAndInference(PSICallResolver.kt:101)
+        at org.jetbrains.kotlin.resolve.calls.CallResolver.doResolveCallOrGetCachedResults(CallResolver.java:581)
+        at org.jetbrains.kotlin.resolve.calls.CallResolver.lambda$computeTasksAndResolveCall$0(CallResolver.java:212)
+        at org.jetbrains.kotlin.util.PerformanceCounter.time(PerformanceCounter.kt:101)
+        at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:210)
+        at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:198)
+        at org.jetbrains.kotlin.resolve.calls.CallResolver.resolveSimpleProperty(CallResolver.java:139)
+        at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.resolveSimpleName(CallExpressionResolver.kt:333)
+        at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.access$resolveSimpleName(CallExpressionResolver.kt:73)
+        at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver$elementChain$1.invoke(CallExpressionResolver.kt:309)
+        at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver$elementChain$1.invoke(CallExpressionResolver.kt:73)
+        at org.jetbrains.kotlin.resolve.QualifiedExpressionResolver.resolveToPackageOrClassPrefix(QualifiedExpressionResolver.kt:483)
+        at org.jetbrains.kotlin.resolve.QualifiedExpressionResolver.resolveQualifierInExpressionAndUnroll(QualifiedExpressionResolver.kt:614)
+        at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.elementChain(CallExpressionResolver.kt:306)
+        at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getQualifiedExpressionTypeInfo(CallExpressionResolver.kt:441)
+        at org.jetbrains.kotlin.types.expressions.BasicExpressionTypingVisitor.visitQualifiedExpression(BasicExpressionTypingVisitor.java:721)
+        at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.visitQualifiedExpression(ExpressionTypingVisitorDispatcher.java:383)
+        at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher$ForDeclarations.visitQualifiedExpression(ExpressionTypingVisitorDispatcher.java:46)
+        at org.jetbrains.kotlin.psi.KtVisitor.visitDotQualifiedExpression(KtVisitor.java:302)
+        at org.jetbrains.kotlin.psi.KtDotQualifiedExpression.accept(KtDotQualifiedExpression.kt:32)
+        at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.lambda$getTypeInfo$0(ExpressionTypingVisitorDispatcher.java:175)
+        ... 51 more
+```
+We don't see this error with Kotlin 1.3.72 nor Kotlin 1.4 M2.
+
+The interesting piece is that we use a Kotlin compiler plugin: https://github.com/square/hephaestus After killing the Kotlin daemon and several attempts I saw a slightly different stacktrace: 
+```
+        at java.lang.Thread.run(Thread.java:748)
+Caused by: java.lang.AbstractMethodError: com.squareup.hephaestus.compiler.InterfaceMerger.getPossibleSyntheticNestedClassNames(Lorg/jetbrains/kotlin/descriptors/ClassDescriptor;)Ljava/util/List;
+        at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassMemberScope$_classifierNames$2.invoke(LazyClassMemberScope.kt:137)
+        at org.jetbrains.kotlin.resolve.lazy.descriptors.LazyClassMemberScope$_classifierNames$2.invoke(LazyClassMemberScope.kt:50)
+```
+(all other lines match with the previous stacktrace).
+
+The class that is mentioned extends `SyntheticResolveExtension`, but does NOT override the `getPossibleSyntheticNestedClassNames` method. https://github.com/square/hephaestus/blob/main/compiler/src/main/java/com/squareup/hephaestus/compiler/InterfaceMerger.kt
+
+It's unclear to me what triggers the behavior. Again, this is a new regression in M3 and I'm unable to reproduce this outside of our mono repository. 
+
+Please let me know if I can provide more details.

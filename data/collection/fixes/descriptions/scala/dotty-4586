@@ -1,0 +1,42 @@
+```scala
+class Foo {
+  inline def foo1(f: => Int => Int): Int = f(7)
+  def bar1 = foo1(x => x + 1)
+}
+```
+
+```scala
+package <empty> {
+  class Foo() extends Object() { 
+    inline def foo1(f: => Function1[Int, Int]): Int = f.apply(7)
+    def bar1: Int = 
+      /* inlined from 
+        this.foo1(
+          {
+            def $anonfun(x: Int): Int = x.+(1)
+            closure($anonfun)
+          }
+        )
+      */ 
+        {
+          $anonfun(7)
+        }
+  }
+}
+```
+
+which then crashes with
+
+```scala
+Exception in thread "main" java.lang.AssertionError: assertion failed: unresolved symbols: method $anonfun when pickling Foo.scala
+	at scala.Predef$.assert(Predef.scala:219)
+	at dotty.tools.dotc.core.tasty.TreePickler.pickle(TreePickler.scala:640)
+	at dotty.tools.dotc.transform.Pickler.$anonfun$run$3(Pickler.scala:56)
+	at dotty.tools.dotc.transform.Pickler.$anonfun$run$3$adapted(Pickler.scala:49)
+	at scala.collection.immutable.List.foreach(List.scala:389)
+	at dotty.tools.dotc.transform.Pickler.$anonfun$run$2(Pickler.scala:49)
+	at dotty.tools.dotc.transform.Pickler.$anonfun$run$2$adapted(Pickler.scala:48)
+	at scala.collection.immutable.List.foreach(List.scala:389)
+	at dotty.tools.dotc.transform.Pickler.run(Pickler.scala:48)
+	....
+```

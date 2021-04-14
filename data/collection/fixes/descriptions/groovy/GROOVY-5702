@@ -1,0 +1,30 @@
+{code}
+
+interface MyCloseable {
+    void close()
+}
+
+interface OtherCloseable extends MyCloseable {
+    void close()
+}
+
+class MyCloseableChannel implements OtherCloseable {}
+
+@groovy.transform.TypeChecked
+class Test {
+    static void test() {
+        def mc = new MyCloseableChannel()
+        mc.close()
+    }   
+}
+
+Test.test()
+{code}
+
+Here, {{OtherCloseable}} redefines {{close()}} from {{MyCloseable}}, and it seems to confuse the type checker, as it complains with:
+
+{code}
+[Static type checking] - Cannot find matching method MyCloseableChannel#close(). Please check if the declared type is right and if the method exists.
+{code}
+
+I found the case with {{java.nio.Channel}} which redefines the {{close()}} method from parent interface {{java.io.Closeable}}.

@@ -1,0 +1,37 @@
+**Example**
+There is a base abstract class 'A' where **value**/ **variable** is not abstract and initialized. Also there is a base interface  where **variable**/ **value** respectively  is not initialized.
+result is 'e: java.lang.IllegalStateException: Backend Internal error: Exception during file facade code generation'
+```
+fun box() {
+    val c = Case1()
+    c.boo = 1 //ok
+}
+
+interface I {
+    var boo: Int
+}
+
+abstract class A {
+    val boo: Int = 2
+}
+
+class Case1 : I, A()
+```
+```stacktrace
+Caused by: java.lang.IllegalStateException: Concrete fake override public final fun <set-boo>(<set-?>: kotlin.Int): kotlin.Unit defined in Case1[PropertySetterDescriptorImpl@76871d83] should have exactly one concrete super-declaration: []
+	at org.jetbrains.kotlin.backend.common.bridges.BridgesKt.findConcreteSuperDeclaration(bridges.kt:130)
+	at org.jetbrains.kotlin.backend.common.bridges.BridgesKt.generateBridges(bridges.kt:61)
+	at org.jetbrains.kotlin.codegen.JvmBridgesImplKt.generateBridgesForFunctionDescriptorForJvm(JvmBridgesImpl.kt:95)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateBridges(FunctionCodegen.java:1016)
+	at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateBridges(ClassBodyCodegen.java:140)
+	at org.jetbrains.kotlin.codegen.ClassBodyCodegen.generateBody(ClassBodyCodegen.java:118)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:128)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:301)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genClassOrObject(MemberCodegen.java:285)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateClassesAndObjectsInFile(PackageCodegenImpl.java:119)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generateFile(PackageCodegenImpl.java:138)
+	at org.jetbrains.kotlin.codegen.PackageCodegenImpl.generate(PackageCodegenImpl.java:70)
+	... 37 more
+```
+
+Note: in other cases a diagnostics error 'ABSTRACT_CLASS_MEMBER_NOT_IMPLEMENTED' is reported

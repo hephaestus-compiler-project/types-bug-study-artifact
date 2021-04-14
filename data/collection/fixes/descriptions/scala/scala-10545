@@ -1,0 +1,23 @@
+The following does not compile in Scala,
+```scala
+import scala.language.higherKinds
+
+class D[T]
+
+class C[F[_]](val i: Int)
+object C {
+  def apply[F[_]](implicit cf: C[F]): Int = cf.i
+
+  implicit def c0[F[_]]: C[F] = new C[F](0)
+  implicit def c1: C[D] = new C[D](1)
+}
+
+object Test extends App {
+  assert(C[D] == 1) // Works in Dotty ...
+}
+```
+because `c0` and `c1` are considered to be ambiguous. The spec and intuitions suggest that `c1` is more specific than the quantified `c0` and that the former should be selected over the latter. This is the behaviour in Dotty. 
+
+scalac gives the wrong result because in the specificity test the call `isStrictlyMoreSpecific` uses `existentialAbstraction` before comparing the result types of the two methods. The latter _ought_ to take `[F[_]]C[F]` on to `C[F] forSome { type F[_] }` however due to a bug in the implementation of `ContainsCollector` (which backs `Type#contains`) it fails to identify the occurrence of `F` in `C[F]` as a variable requiring existential quantification. Neither `C[D]` nor `C[F]` is then a subtype of the other so neither is preferred over the other, hence ambiguity.
+
+PR with a fix incoming ...

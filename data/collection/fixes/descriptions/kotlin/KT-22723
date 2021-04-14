@@ -1,0 +1,119 @@
+# Description
+
+See current definition of the floating-point number comparisons:
+http://kotlinlang.org/docs/reference/basic-types.html#floating-point-numbers-comparison
+
+This definition, and its current implementation in Kotlin/JVM, has some inconsistencies, causing equivalent pieces of code to behave differently. 
+
+# Incorrect Behavior
+## Introduction
+Floating-point number comparisons could be performed in two different ways:
+* IEEE 754 standard - this is how primitive floating-point numbers are compared in JVM;
+* Total order - this is how `java.lang.Float` and `java.lang.Double` are compared by corresponding `equals` and `compare` methods.
+This is required for collections, sorting, and so on to work consistently.
+
+Difference between these two orders manifests on "special" numbers, such as `NaN` and `-0.0`.
+
+Numeric comparison resolution is a part of operator convention resolution. Explicit `equals` and `compareTo` calls should always behave according to the total order.
+
+## 'x' is statically known to be of type 'T' and smart casts
+
+Problem with the original definition (*the type is declared or inferred or is a result of a smart cast*) is that operations such as `==` do not require smart casts, thus, it can't be used to justify current behavior is cases such as
+```kotlin
+fun test(x: Any, y: Double) = x is Double && x == y
+... println(test(0.0, -0.0)) // => true
+```
+Indeed, this code can be rewritten without smart casts in `==` operands as:
+```kotlin
+fun test(x: Any, y: Double): Boolean {
+    if (x !is Double) return false
+    val tmp: Double = x
+    return tmp == y
+}
+```
+
+**The following code behaves inconsistently:**
+```kotlin
+fun example1(x: Comparable<Double>, y: Double) =
+        x is Double && x < y
+```
+Here `<` is treated as desugared using `Comparable<Double>#compareTo(Double)` call: indeed, smart cast is not required for `x`.
+However, if this code is rewritten as:
+```kotlin
+fun example1a(x: Comparable<Double>, y: Double): Boolean {
+    if (x !is Double) return false
+    val tmp: Double = x
+    return tmp < y
+}
+```
+it uses IEEE 754 comparison for `tmp < y`.
+
+## Possible smart casts to different primitive numeric types
+
+This case is under-specified in the current definition, causing inconsistent behavior.
+```kotlin
+fun example2(x: Any, y: Any) =
+        x is Int && y is Double && x < y // total order comparison
+
+fun example2a(x: Int, y: Double) =
+        x < y // widening conversion for 'x' + IEEE 754 comparison
+```
+
+## Possible smart cast for 'when' subject
+```kotlin
+fun example3(x: Any) =
+    when (x) {
+        !is Double -> "!Double"
+        0.0 -> "0.0" // (*)
+        else -> "other"
+    }
+
+fun example3a(x: Any) =
+    if (x !is Double) "!Double"
+    else if (x == 0.0) "0.0"
+    else "other"
+
+// example3(-0.0) == "other"
+// example3a(-0.0) == "0.0"
+```
+
+Here smart cast to `Double` is possible for `x` as a `when` subject in the branch (*).
+It is not taken into account, though, thus `example3` and `example3a` behave differently.
+
+# Proposed Changes
+
+* Definition of "`x` is statically known to be of type `T`" should be *`x` is declared or inferred to be of type `T`, or a smart cast to `T` is possible in the current context*. 
+
+> Note that a given expression can be statically known two be of two different primitive numeric types, such as in the following example:
+> ```kotlin
+> fun test(x: Any) = x is Int && x is Double && x == 0.0
+> ```
+> However, since for every two different primitive numeric types `T1` and `T2` `T1 & T2 = Nothing`, corresponding expression (`x` in `x == 0.0`) effectively is dead code.
+
+This will fix `example1` above, as well as provide a clear semantics operations that do not *require* smart casts (such as `==` and `!=`).
+
+* Case of possible smart cast to different primitive numeric types for comparison operation arguments should use IEEE 754 comparison.
+
+This will fix `example2` above, as well as cover under-specified behavior.
+
+* Possible smart casts should be taken into account when generating implicit equality checks for `when` with subject
+
+This will fix `example3` above.
+
+* It should be explicitly specified somewhere that compiler-generated `equals` method for data classes use total order comparison for the properties of floating-point types.
+
+This is how this comparison is implemented in 1.2. Rationale is the same as total order for `java.lang.Float` and `java.lang.Double`: using data classes with collections (such as maps and sets) should result in consistent behavior. 
+> We don't want to repeat the problem with `std::set<double>` in C++.
+
+# Impact
+
+This issue covers a corner case of IEEE 754 standard implementation in Kotlin (behavior of comparison operators with "special numbers" as arguments). It might affect computational-intensive Kotlin code.
+
+# Deprecation Policy
+
+* Implement proper numeric comparison logic in 1.2 under an opt-in compiler flag;
+* Possibly emit a warning for the corner cases listed above (where behavior might change);
+* In 1.3, proper numeric comparisons are turned on by default.
+
+# Target Version
+1.3

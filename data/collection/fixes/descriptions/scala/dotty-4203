@@ -1,0 +1,28 @@
+Found by @LucDupAtGithub on Gitter:
+```scala
+case class Box[Z](unbox: Z)
+
+object Test {
+  def foo(b: Box[implicit Int => Int]): Int = b match {
+    case Box(i) => i(1) // error: not found: i
+  }
+}
+```
+
+In Typer, `Box(i)` gets expanded to some weird closure which doesn't make any sense when we're in a pattern:
+
+```scala
+    def foo(b: Box[ImplicitFunction1[Int, Int]]): Int = 
+      b match 
+        {
+          case 
+            Box.unapply[implicit Int => Int](
+              {
+                def $anonfun(implicit evidence$1: Int): Int = null
+                closure($anonfun)
+              }
+            )
+           => 
+            i(1)
+        }
+```

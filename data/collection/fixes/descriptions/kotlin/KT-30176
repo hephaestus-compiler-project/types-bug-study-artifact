@@ -1,0 +1,28 @@
+I'm not sure if this is a bug or my misunderstanding of type inference, but I observe strange behaviour. I have two functions:
+
+```kotlin
+public inline fun <reified T : Any> serializersModuleOf(serializer: KSerializer<T>): SerialModule
+
+public inline fun serializersModuleOf(map: Map<KClass<*>, KSerializer<*>>): SerialModule
+```
+
+They both accept one argument, but with different types. When I call `serializersModuleOf(mapOf(B::class to BSerializer))`, compiler start complaining (see attached screenshot). Probably because it tries to infer T for the first overload, but it shouldn't do it because the argument is obviously not a `KSerializer`. It should just pick second function, which is happening without problems if I comment out definition with a generic parameter.
+
+------
+
+Another example:
+
+```
+import kotlin.reflect.KClass
+
+infix fun<X:Any> X?.iz(_null_: Nothing?)   { /* implementation */ }
+infix fun<X:Any> X?.iz(klass: KClass<Any>) { /* implementation */ }
+infix fun<X:Any> X?.iz(marker: Marker)     { /* implementation */ }
+
+abstract class Marker
+
+fun main(args: Array<String>) {
+    val x: Any? = null
+    x iz null
+}
+```

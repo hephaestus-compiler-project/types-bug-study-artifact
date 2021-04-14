@@ -1,0 +1,61 @@
+Consider the following example:
+
+package foo;
+
+class Test {
+
+	String s;
+
+	static class Sup {
+        Sup(Runnable r) {  }
+    }
+
+    class Sub extends Sup {
+        Sub() {
+            super(() -> { s.startsWith("L"); });
+        }
+    }
+
+    public static void main(String[] args) {
+		new Test().new Sub();
+    }
+}
+
+Running Test with -Xverify:all leads to a verifier error:
+
+Exception in thread "main" java.lang.ClassFormatError: Illegal field name "foo.Test$this" in class foo/Test$Sub
+	at java.lang.ClassLoader.defineClass1(Native Method)
+	at java.lang.ClassLoader.defineClass(ClassLoader.java:759)
+	at java.lang.ClassLoader.defineClass(ClassLoader.java:835)
+	at java.security.SecureClassLoader.defineClass(SecureClassLoader.java:184)
+	at java.net.URLClassLoader.defineClass(URLClassLoader.java:547)
+	at java.net.URLClassLoader.access$100(URLClassLoader.java:87)
+	at java.net.URLClassLoader$1.run(URLClassLoader.java:413)
+	at java.net.URLClassLoader$1.run(URLClassLoader.java:397)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at java.net.URLClassLoader.findClass(URLClassLoader.java:396)
+	at java.lang.ClassLoader.loadClass(ClassLoader.java:423)
+	at sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:262)
+	at java.lang.ClassLoader.loadClass(ClassLoader.java:356)
+	at foo.Test.main(Main.java:28)
+
+
+The problem lies in the name of a synthetic lambda parameter being bogus, as shown on javap:
+
+private static void lambda$new$0(foo.Test);
+    descriptor: (Lfoo/Test;)V
+    flags: ACC_PRIVATE, ACC_STATIC, ACC_SYNTHETIC
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0
+         1: getfield      #4                  // Field foo/Test.s:Ljava/lang/String;
+         4: ldc           #5                  // String L
+         6: invokevirtual #6                  // Method java/lang/String.startsWith:(Ljava/lang/String;)Z
+         9: pop
+        10: return
+      LineNumberTable:
+        line 23: 0
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      11     0 foo.Test$this   Lfoo/Test; // <----------------------
+}

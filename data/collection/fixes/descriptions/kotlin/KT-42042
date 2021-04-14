@@ -1,0 +1,18 @@
+The following code compiles without error or warning:
+
+```kotlin
+sealed class Subtype<A, B> {
+    abstract fun cast(value: A): B
+
+    class Trivial<A : B, B> : Subtype<A, B>() {
+        override fun cast(value: A): B = value
+    }
+}
+
+fun <A, B> unsafeCast(value: A): B {
+    val proof: Subtype<A, B> = Subtype.Trivial()
+    return proof.cast(value)
+}
+```
+
+Providing explicit type arguments to `Subtype.Trivial()`, or not applying a type annotation to `proof` results in the compiler noticing the error. It seems to be something to do with the combination of inferred type arguments, and the bound being present on the child class but not the parent.

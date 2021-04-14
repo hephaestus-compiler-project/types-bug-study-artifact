@@ -1,0 +1,88 @@
+Kotlin plugin crashes in background, making the "Refactor" button unclickable in the IDEA:
+
+```
+package fragment is null for JetFile: ApplyThis.kts
+package puzzler10
+
+data class ApplyThis(var foo: String) {
+  fun hello() = foo.apply {
+    return this
+  }
+}
+
+println(ApplyThis("bar").hello())
+
+// What will it print?
+// a) ApplyThis
+// b) ApplyThis(foo=bar)
+// c) bar
+// d) Will not compile
+
+java.lang.AssertionError: package fragment is null for JetFile: ApplyThis.kts
+package puzzler10
+
+data class ApplyThis(var foo: String) {
+  fun hello() = foo.apply {
+    return this
+  }
+}
+
+println(ApplyThis("bar").hello())
+
+// What will it print?
+// a) ApplyThis
+// b) ApplyThis(foo=bar)
+// c) bar
+// d) Will not compile
+
+	at org.jetbrains.kotlin.codegen.PackageCodegen.getOnlyPackageFragment(PackageCodegen.java:125)
+	at org.jetbrains.kotlin.codegen.PackageCodegen.<init>(PackageCodegen.java:53)
+	at org.jetbrains.kotlin.codegen.ClassFileFactory.forPackage(ClassFileFactory.java:197)
+	at org.jetbrains.kotlin.asJava.builder.LightClassDataProviderForFileFacade.generate(LightClassDataProvider.kt:314)
+	at org.jetbrains.kotlin.asJava.builder.LightClassDataProvider.computeLightClassData(LightClassDataProvider.kt:112)
+	at org.jetbrains.kotlin.asJava.builder.LightClassDataProvider.compute(LightClassDataProvider.kt:72)
+	at com.intellij.psi.impl.PsiCachedValueImpl.doCompute(PsiCachedValueImpl.java:49)
+	at com.intellij.util.CachedValueBase.getValueWithLock(CachedValueBase.java:222)
+	at com.intellij.psi.impl.PsiCachedValue.getValueWithLock(PsiCachedValue.java:65)
+	at com.intellij.psi.impl.PsiCachedValueImpl.getValue(PsiCachedValueImpl.java:38)
+	at org.jetbrains.kotlin.asJava.classes.KtLightClassForFacade.getClsDelegate(KtLightClassForFacade.kt:200)
+	at org.jetbrains.kotlin.asJava.classes.KtLightClassForFacade.getClsDelegate(KtLightClassForFacade.kt:50)
+	at org.jetbrains.kotlin.asJava.classes.KtLightClassBase.getDelegate(KtLightClassBase.java:57)
+	at com.intellij.psi.impl.light.AbstractLightClass.getSupers(AbstractLightClass.java:166)
+	at com.intellij.codeInsight.AnnotationUtil.isAnnotated(AnnotationUtil.java:359)
+	at com.intellij.codeInsight.AnnotationUtil.isAnnotated(AnnotationUtil.java:323)
+	at com.intellij.cdi.jam.CdiSemContributor.calcNamedBeanMeta(CdiSemContributor.java:69)
+	at com.intellij.cdi.jam.CdiSemContributor.lambda$registerSemProviders$0(CdiSemContributor.java:44)
+	at com.intellij.semantic.SemServiceImpl$2.a(SemServiceImpl.java:92)
+	at com.intellij.semantic.SemServiceImpl.a(SemServiceImpl.java:177)
+	at com.intellij.semantic.SemServiceImpl.getSemElements(SemServiceImpl.java:148)
+	at com.intellij.psi.impl.rename.AliasingPomTargetRenameHandler.a(AliasingPomTargetRenameHandler.java:22)
+	at com.intellij.psi.impl.rename.AliasingPomTargetRenameHandler.canProcessElement(AliasingPomTargetRenameHandler.java:60)
+	at com.intellij.refactoring.rename.RenamePsiElementProcessor.forElement(RenamePsiElementProcessor.java:122)
+	at com.intellij.refactoring.rename.RenameUtil.findUsages(RenameUtil.java:70)
+	at com.intellij.refactoring.rename.RenameProcessor.findUsages(RenameProcessor.java:286)
+	at com.intellij.refactoring.BaseRefactoringProcessor$1$1.compute(BaseRefactoringProcessor.java:167)
+	at com.intellij.refactoring.BaseRefactoringProcessor$1$1.compute(BaseRefactoringProcessor.java:164)
+	at com.intellij.openapi.project.DumbService$1.run(DumbService.java:89)
+	at com.intellij.openapi.project.DumbService$2.compute(DumbService.java:125)
+	at com.intellij.openapi.project.DumbService$2.compute(DumbService.java:119)
+	at com.intellij.openapi.application.impl.ApplicationImpl.runReadAction(ApplicationImpl.java:863)
+	at com.intellij.openapi.project.DumbService.runReadActionInSmartMode(DumbService.java:119)
+	at com.intellij.openapi.project.DumbService.runReadActionInSmartMode(DumbService.java:86)
+	at com.intellij.refactoring.BaseRefactoringProcessor$1.run(BaseRefactoringProcessor.java:164)
+	at com.intellij.openapi.progress.impl.CoreProgressManager$6.run(CoreProgressManager.java:256)
+	at com.intellij.openapi.progress.impl.CoreProgressManager$TaskRunnable.run(CoreProgressManager.java:635)
+	at com.intellij.openapi.progress.impl.CoreProgressManager$9.run(CoreProgressManager.java:384)
+	at com.intellij.openapi.progress.impl.CoreProgressManager$3.run(CoreProgressManager.java:170)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.a(CoreProgressManager.java:494)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.executeProcessUnderProgress(CoreProgressManager.java:443)
+	at com.intellij.openapi.progress.impl.ProgressManagerImpl.executeProcessUnderProgress(ProgressManagerImpl.java:54)
+	at com.intellij.openapi.progress.impl.CoreProgressManager.runProcess(CoreProgressManager.java:155)
+	at com.intellij.openapi.application.impl.ApplicationImpl.a(ApplicationImpl.java:548)
+	at com.intellij.openapi.application.impl.ApplicationImpl$2.run(ApplicationImpl.java:307)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+```

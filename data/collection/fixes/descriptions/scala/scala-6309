@@ -1,0 +1,28 @@
+Sorry in advance if this is disallowed, but the following crashes when the field is object-private:
+
+```scala
+package eyeshadow
+
+trait A {
+  def a: Int
+}
+
+object Test {
+  def f(a: Int) = new {
+    //private val b = a
+    private[this] val b = a // crashes, sorry scalac
+  } with A {
+    def a = b
+  }
+
+  def main(args: Array[String]) {
+    println(f(7).a)
+  }
+}
+```
+
+There is a failed assert
+ at scala.tools.nsc.transform.Constructors$ConstructorTransformer$$anonfun$transformClassTemplate$1.apply(Constructors.scala:160)
+or
+`assert(fields.length == 1)`
+

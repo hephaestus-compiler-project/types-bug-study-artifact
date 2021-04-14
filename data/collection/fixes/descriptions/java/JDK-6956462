@@ -1,0 +1,66 @@
+There is a bug in the Compiler Tree API in JDK7 build 1.7.0-ea-b94. 
+It seems that when it parses the following line of code 
+it throws an AssertionError:
+
+final Map fileToURL = Collections.emptyMap();
+
+    To reproduce do the following:
+
+1) Download testcasee.zip file from http://javaweb.sfbay.sun.com/CAP/j2se/test
+2) Open and run in Netbeans
+3) The following exception will be thrown:
+
+Exception in thread "main" java.lang.AssertionError: com.sun.tools.javac.comp.Attr$BreakAttr
+        at com.sun.tools.javac.code.Symbol$VarSymbol.getConstValue(Symbol.java:1008)
+        at com.sun.tools.javac.comp.Attr.visitVarDef(Attr.java:766)
+        at com.sun.tools.javac.tree.JCTree$JCVariableDecl.accept(JCTree.java:716)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:400)
+        at com.sun.tools.javac.comp.Attr.attribStat(Attr.java:444)
+        at com.sun.tools.javac.comp.Attr.attribStats(Attr.java:460)
+        at com.sun.tools.javac.comp.Attr.visitBlock(Attr.java:808)
+        at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:772)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:400)
+        at com.sun.tools.javac.comp.Attr.attribStat(Attr.java:444)
+        at com.sun.tools.javac.comp.Attr.attribStatToTree(Attr.java:343)
+        at com.sun.tools.javac.api.JavacTrees.attribStatToTree(JavacTrees.java:296)
+        at com.sun.tools.javac.api.JavacTrees.getAttrContext(JavacTrees.java:277)
+        at com.sun.tools.javac.api.JavacTrees.getScope(JavacTrees.java:202)
+        at com.sun.tools.javac.api.JavacTrees.getScope(JavacTrees.java:81)
+        at testcase.Main$FileVisitor.visitIdentifier(Main.java:124)
+        at testcase.Main$FileVisitor.visitIdentifier(Main.java:67)
+        at com.sun.tools.javac.tree.JCTree$JCIdent.accept(JCTree.java:1697)
+        at testcase.Main$FileVisitor.visitMemberSelect(Main.java:136)
+        at testcase.Main$FileVisitor.visitMemberSelect(Main.java:67)
+        at com.sun.tools.javac.tree.JCTree$JCFieldAccess.accept(JCTree.java:1669)
+        at testcase.Main$FileVisitor.visitMethodInvocation(Main.java:102)
+        at testcase.Main$FileVisitor.visitMethodInvocation(Main.java:67)
+        at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1315)
+        at testcase.Main$FileVisitor.visitVariable(Main.java:142)
+        at testcase.Main$FileVisitor.visitVariable(Main.java:67)
+        at com.sun.tools.javac.tree.JCTree$JCVariableDecl.accept(JCTree.java:727)
+        at testcase.Main$FileVisitor.visitBlock(Main.java:109)
+        at testcase.Main$FileVisitor.visitBlock(Main.java:67)
+        at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:781)
+        at testcase.Main$FileVisitor.visitMethod(Main.java:130)
+        at testcase.Main$FileVisitor.visitMethod(Main.java:67)
+        at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:681)
+        at testcase.Main$FileVisitor.visitClass(Main.java:117)
+        at testcase.Main$FileVisitor.visitClass(Main.java:67)
+        at com.sun.tools.javac.tree.JCTree$JCClassDecl.accept(JCTree.java:605)
+        at testcase.Main$FileVisitor.visitCompilationUnit(Main.java:90)
+        at testcase.Main$FileVisitor.visitCompilationUnit(Main.java:67)
+        at com.sun.tools.javac.tree.JCTree$JCCompilationUnit.accept(JCTree.java:489)
+        at testcase.Main.main(Main.java:59)
+Caused by: com.sun.tools.javac.comp.Attr$BreakAttr
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:402)
+        at com.sun.tools.javac.comp.Attr.visitSelect(Attr.java:2070)
+        at com.sun.tools.javac.tree.JCTree$JCFieldAccess.accept(JCTree.java:1663)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:400)
+        at com.sun.tools.javac.comp.Attr.attribExpr(Attr.java:417)
+        at com.sun.tools.javac.comp.Attr.visitApply(Attr.java:1354)
+        at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1303)
+        at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:400)
+        at com.sun.tools.javac.comp.Attr.attribExpr(Attr.java:417)
+        at com.sun.tools.javac.code.Symbol$VarSymbol$1.call(Symbol.java:972)
+        at com.sun.tools.javac.code.Symbol$VarSymbol.getConstValue(Symbol.java:1006)
+        ... 39 more

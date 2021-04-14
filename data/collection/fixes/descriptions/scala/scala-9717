@@ -1,0 +1,28 @@
+There appears to be a problem when using implicit parameters and blocks in the super-class constructor of a class declaration. 
+
+An example of this bug is in the following source code: 
+
+```scala
+trait Foo[A]{ val foo: Int }
+
+class A(val s: String)
+class B[X: Foo](val x: X) extends A(s"Foo: ${implicitly[Foo[X]].foo}" )
+class C[X: Foo](val x: X) extends A({
+  val foo = implicitly[Foo[X]].foo
+  s"Foo: foo"
+})
+```
+
+Note that the class declarations for `B` and `C` only differ in that the latter uses a code block and extracts the expression `implicitly[Foo[X]].foo` in a local variable. However, the scala compiler gives no error for `B`, whereas for class C it shows the error `could not find implicit value for parameter e: Foo[X]`. 
+
+Note that the use of code blocks in constructor parameters, without implicit values or type-classes, causes no error. An example of this would be the following code: 
+```scala
+class A(val s: String)
+class B(val s: Int) extends A(s"Value: ${s+1}")
+class C(val s: Int) extends A({
+  val t = s+1
+  s"Value: $t"
+})
+```
+
+**Related tickets**: Another bug ticket that refers to superclass constructor parameters and implicits is #9471. 

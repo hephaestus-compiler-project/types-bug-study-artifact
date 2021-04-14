@@ -1,0 +1,51 @@
+Example:
+```
+fun funWithContract(value1: Any?, value2: Any?) {
+    contract {
+        returns() implies (value1 != null && value2 != null)
+    }
+    if (!(value1 != null && value2 != null)) throw Exception()
+}
+class case_4_class {
+    val prop_1: Int? = 1
+    val prop_2: Int? = 2
+    fun case_4() {
+        val o = case_4_class()
+        val o2 = case_4_class()
+        funWithContract(o.prop_2, o2.prop_2)
+        println(o.prop_2.plus(3))
+        println(o2.prop_2.plus(3)) // nullable receiver
+    }
+}
+```
+But it's OK:
+1.
+```
+class case_4_class {
+    val prop_1: Int? = 1
+    val prop_2: Int? = 2
+    fun case_4() {
+        val o = case_4_class()
+        val o2 = case_4_class()
+        funWithContract(o.prop_2, o2.prop_1)
+        println(o.prop_2.plus(3))
+        println(o2.prop_1.plus(3)) // OK
+    }
+}
+```
+2.
+```
+class case_3_class {
+    val prop_2: Int? = 10
+}
+class case_4_class {
+    val prop_2: Int? = 10
+    fun case_4() {
+        val o = case_4_class()
+        val o2 = case_3_class()
+        funWithContract(o.prop_2, o2.prop_2)
+        println(o.prop_2.plus(3))
+        println(o2.prop_2.plus(3)) // OK
+    }
+}
+```

@@ -1,0 +1,71 @@
+JDK 7 java compiler throws the java.lang.IllegalStateException exception when 
+the compiler's DiagnosticListener is set and the same source file is passed more than one time. The following minimized test case demonstrates that compilation fails for empty complation units with the same name:
+
+====
+import java.io.*;
+import java.util.*;
+import javax.tools.*;
+import javax.tools.JavaCompiler.CompilationTask;
+
+public class Main {
+
+    public static void main(String[] args) throws IOException {        
+        DiagnosticCollector<JavaFileObject> diagnostics
+                = new DiagnosticCollector<JavaFileObject>();
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        StandardJavaFileManager manager =
+                compiler.getStandardFileManager(null, null, null);
+        File f = File.createTempFile("Empty", ".java");
+        List<File> files = new ArrayList<File>();
+        /*PrintWriter fw = new PrintWriter(new FileWriter(f));
+        String className = f.getName().substring(0, f.getName().length() - 5);
+        fw.println("public class " + className + " {}");
+        fw.close();*/
+        files.add(f);
+        files.add(f);
+        System.out.println("Compiling files: "  + files.toString());
+        Iterable<? extends JavaFileObject> source =
+                manager.getJavaFileObjects(files.toArray(new File[0]));
+        CompilationTask task = compiler.getTask(null, manager, diagnostics, 
+                null, null, source);
+        System.out.println("Comilation status: " + task.call());
+        System.out.println("Diagnostics: " + diagnostics.getDiagnostics());
+    }
+
+}
+
+<ag153348@spb-sapphire> /set/java/re/jdk/7/promoted/ea/b75/binaries/solaris-sparc/bin/javac Main.java 
+<ag153348@spb-sapphire> /set/java/re/jdk/7/promoted/ea/b75/binaries/solaris-sparc/bin/java -showversion Main
+
+java version "1.7.0-ea"
+Java(TM) SE Runtime Environment (build 1.7.0-ea-b75)
+Java HotSpot(TM) Server VM (build 17.0-b04, mixed mode)
+
+Compiling files: [/var/tmp/Empty5474695659622027931.java, /var/tmp/Empty5474695659622027931.java]
+An exception has occurred in the compiler (1.7.0-ea). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.IllegalStateException: endPosTable already set
+	at com.sun.tools.javac.util.DiagnosticSource.setEndPosTable(DiagnosticSource.java:137)
+	at com.sun.tools.javac.util.Log.setEndPosTable(Log.java:204)
+	at com.sun.tools.javac.main.JavaCompiler.parse(JavaCompiler.java:630)
+	at com.sun.tools.javac.main.JavaCompiler.parseFiles(JavaCompiler.java:887)
+	at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:805)
+	at com.sun.tools.javac.main.Main.compile(Main.java:400)
+	at com.sun.tools.javac.api.JavacTaskImpl.call(JavacTaskImpl.java:139)
+	at Main.main(Main.java:33)
+Comilation status: false
+====
+
+This is not reproducible on the JDK 6 reference implementation so I marked this bug as regression. 
+
+====
+<ag153348@spb-sapphire> /set/java/re/jdk/6/archive/fcs/binaries/solaris-sparc/bin/javac Main.java 
+<ag153348@spb-sapphire> /set/java/re/jdk/6/archive/fcs/binaries/solaris-sparc/bin/java -showversion Main
+
+java version "1.6.0"
+Java(TM) SE Runtime Environment (build 1.6.0-b105)
+Java HotSpot(TM) Server VM (build 1.6.0-b105, mixed mode)
+
+Compiling files: [/var/tmp/Empty5418.java, /var/tmp/Empty5418.java]
+Comilation status: true
+Diagnostics: []
+====

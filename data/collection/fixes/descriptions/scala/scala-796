@@ -1,0 +1,65 @@
+The following code attempts to pattern match against symbols declared in the match expression itself. This causes an exception in scalac:
+
+```scala
+case class CaseClass( value: Int );
+
+object PatternMatchBug {
+    def matcher( a: AnyRef, b: Any ) {
+        (a, b) match {
+            case ( instance: CaseClass, instance.value ) =>
+                System.out.println( "Match succeeded!" );
+            case _ =>
+                System.out.println( "Match failed!" );
+        }
+    }
+
+    def main( args : Array[String] ) {
+        val caseClassInstance = CaseClass( 42 )
+
+        matcher( caseClassInstance, 13 )
+        matcher( caseClassInstance, 42 )
+    }
+}
+```
+
+stack trace:
+```scala
+$$ scalac PatternMatchBug.scala
+Exception in thread "main" java.lang.Error: symbol value instance does not exist in PatternMatchBug.matcher
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.scala$$tools$$nsc$$backend$$icode$$GenICode$$ICodePhase$$$$genLoad(GenICode.scala:914)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.genLoadQualifier(GenICode.scala:1059)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.scala$$tools$$nsc$$backend$$icode$$GenICode$$ICodePhase$$$$genLoad(GenICode.scala:826)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.scala$$tools$$nsc$$backend$$icode$$GenICode$$ICodePhase$$$$genLoad(GenICode.scala:684)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.genEqEqPrimitive(GenICode.scala:1467)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.genCond(GenICode.scala:1366)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.scala$$tools$$nsc$$backend$$icode$$GenICode$$ICodePhase$$$$genLoad(GenICode.scala:426)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.scala$$tools$$nsc$$backend$$icode$$GenICode$$ICodePhase$$$$genLoad(GenICode.scala:941)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.scala$$tools$$nsc$$backend$$icode$$GenICode$$ICodePhase$$$$genLoad(GenICode.scala:441)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.scala$$tools$$nsc$$backend$$icode$$GenICode$$ICodePhase$$$$genLoad(GenICode.scala:941)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.gen(GenICode.scala:112)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase$$$$anonfun$$gen$$1.apply(GenICode.scala:70)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase$$$$anonfun$$gen$$1.apply(GenICode.scala:70)
+        at scala.List.foreach(List.scala:763)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.gen(GenICode.scala:70)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.gen(GenICode.scala:134)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.gen(GenICode.scala:88)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase$$$$anonfun$$gen$$1.apply(GenICode.scala:70)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase$$$$anonfun$$gen$$1.apply(GenICode.scala:70)
+        at scala.List.foreach(List.scala:763)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.gen(GenICode.scala:70)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.gen(GenICode.scala:80)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.gen(GenICode.scala:66)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.apply(GenICode.scala:62)
+        at scala.tools.nsc.Global$$GlobalPhase.applyPhase(Global.scala:247)
+        at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$run$$1.apply(Global.scala:233)
+        at scala.tools.nsc.Global$$GlobalPhase$$$$anonfun$$run$$1.apply(Global.scala:233)
+        at scala.Iterator$$class.foreach(Iterator.scala:387)
+        at scala.collection.mutable.ListBuffer$$$$anon$$1.foreach(ListBuffer.scala:255)
+        at scala.tools.nsc.Global$$GlobalPhase.run(Global.scala:233)
+        at scala.tools.nsc.backend.icode.GenICode$$ICodePhase.run(GenICode.scala:55)
+        at scala.tools.nsc.Global$$Run.compileSources(Global.scala:545)
+        at scala.tools.nsc.Global$$Run.compile(Global.scala:629)
+        at scala.tools.nsc.Main$$.process(Main.scala:86)
+        at scala.tools.nsc.Main$$.main(Main.scala:107)
+        at scala.tools.nsc.Main.main(Main.scala)
+```

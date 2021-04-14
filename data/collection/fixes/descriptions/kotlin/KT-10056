@@ -1,0 +1,20 @@
+{code:lang=kotlin}class Foo(val bar: String)
+
+fun test() {
+	val foo: Foo? = null
+
+	foo?.bar.let {
+		print(it.length) // valid error
+		print(foo.bar.length) // invalid smart cast, NPE missed
+		print(foo?.bar?.length) // invalid warning
+	}
+
+	// workaround
+	(foo?.bar).let {
+		print(it.length) // valid error
+		print(foo.bar.length) // valid error
+		print(foo?.bar?.length) // OK
+	}
+}{code}
+
+Afaict this bug was introduced in Kotlin beta 2.

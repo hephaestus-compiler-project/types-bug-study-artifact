@@ -1,0 +1,29 @@
+{code}
+class Car {
+  private String _brand
+  String getBrand() { _brand }
+  void setBrand(String brand) { _brand = brand }
+}
+
+class Builder {
+  def <T> T configure(@DelegatesTo.Target Class<T> target, @DelegatesTo(genericTypeIndex=0) Closure cl) {
+    def obj = target.newInstance() 
+    cl.delegate = obj
+    cl.resolveStrategy = Closure.DELEGATE_FIRST
+    cl.call()
+    obj 
+  }
+}
+
+@groovy.transform.TypeChecked
+class Main {
+  void run() {
+    def builder = new Builder()
+    def car = builder.configure(Car) {
+      brand = brand // [Static type checking] - The variable [brand] is undeclared.
+    }
+  }
+}
+
+new Main().run()
+{code}

@@ -1,0 +1,48 @@
+Given
+
+```scala
+class X
+class Y extends X
+object Ambiguous {
+  def f(x: X) = 1
+  def f(ys: Y*) = 2
+}
+```
+
+```scala
+scala> Ambiguous.f(new X)
+res2: Int = 1
+
+scala> Ambiguous.f(new Y)
+<console>:8: error: ambiguous reference to overloaded definition,
+both method f in object Ambiguous of type (ys: Y*)Int
+and  method f in object Ambiguous of type (x: X)Int
+match argument types (Y)
+       Ambiguous.f(new Y)
+```
+
+But the corresponding Java program ~~works~~ compiles:
+
+**edit**: as pointed out by andrew (comment below), javac picks the first alternative in both cases.
+
+```java
+public class AmbiguousJ {
+    static int f(X x) { return 1; }
+    static int f(Y... y) { return 2; }
+    public static void main(String[] args) {
+        System.out.println(f(new X()));
+        System.out.println(f(new Y()));
+    }
+}
+```
+
+prints (when running):
+
+```
+1
+1
+```
+
+(Assuming that X.class and Y.class already exist from compiling the Scala example.)
+
+This is a PITA because X and Y, in my case, are JPA APIs, which I use a lot.

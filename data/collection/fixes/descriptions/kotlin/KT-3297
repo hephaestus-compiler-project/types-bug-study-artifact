@@ -1,0 +1,63 @@
+Kotlin 0.4.297
+
+{code:lang=kotlin}
+fun <R> Function0<R>.or(alt: () -> R): R {
+    try {
+        println("Trying first function")
+        return this()
+    } catch (e: Exception) {
+        println("Trying second function")
+        return alt()
+    }
+}
+
+fun main(args: Array<String>) {
+    val answer = {
+        println("She's gonna blow!")
+        throw RuntimeException("Blow up!")
+    } or {
+        println("Everything is okay :-)")
+        "Hello!"
+    }
+    println(answer)
+}
+{code}
+
+This gives the following output ...
+
+{monospace}
+Trying first function
+She's gonna blow!
+Trying second function
+She's gonna blow!
+Exception in thread "main" java.lang.RuntimeException: Blow up!
+	at namespace$main$answer$1.invoke(Test.kt:14)
+	at namespace$main$answer$1.invoke(Test.kt)
+	at namespace.or(Test.kt:7)
+{monospace}
+
+The problem is that the call to 'alt' is actually not calling alt, it's calling 'this' again. 
+
+Interestingly you can work round the problem by explicitly calling .invoke()
+
+{code:lang=kotlin}
+fun <R> Function0<R>.or(alt: () -> R): R {
+    try {
+        println("Trying first function")
+        return this()
+    } catch (e: Exception) {
+        println("Trying second function")
+        return alt.invoke()
+    }
+}
+{code}
+
+Gives the correct answer
+
+{monospace}
+Trying first function
+She's gonna blow!
+Trying second function
+Everything is okay :-)
+Hello!
+{monospace}

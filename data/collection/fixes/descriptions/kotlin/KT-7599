@@ -1,0 +1,39 @@
+In the following code we get SmartCastException at foo() return statement.
+
+{code lang=Kotlin}
+trait A {
+    fun ok(): Boolean
+}
+
+class B: A {
+    override fun ok(): Boolean { return true }
+}
+
+class C: A {
+    override fun ok(): Boolean { return false }
+}
+
+fun foo(): Boolean {
+    var v: A
+    v = B()
+    // No smart cast needed, but not a problem if ever
+    if (v.ok()) {
+        v = C()
+    }
+    // No smart cast needed, and no smart cast possible!
+    // We cannot choose here between B and C
+    return v.ok()
+}
+
+fun main(args: Array<String>) {
+    println(foo())
+}
+{code}
+
+Exception stack trace is below
+{code}
+Exception in thread "main" java.lang.ClassCastException: C cannot be cast to B
+	at _DefaultPackage$main$46094d4b.foo(main.kt:26)
+	at _DefaultPackage$main$46094d4b.main(main.kt:30)
+	at _DefaultPackage.main(main.kt:1)
+{code}

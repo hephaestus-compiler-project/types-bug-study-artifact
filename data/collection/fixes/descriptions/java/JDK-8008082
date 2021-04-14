@@ -1,0 +1,50 @@
+
+The type annotations on a cast are not reflected in the output of javap unless the cast
+is annotated with more the one annotation types. Repeating the same annotation is not
+enough, however, two annotations with different retention policy is enough.
+
+To reproduce, compile the following class and run javap, and observe the lack of
+CAST type annotation for the fiels "not_ok".
+
+Note: I'm filing the problem against javap, as it was uncovered in javap testing.
+It' is likely, however, that the problem is at the classfile level.
+
+
+import java.lang.annotation.*;
+class Test {
+
+    @Repeatable(As.class)
+    @Target({ElementType.TYPE_USE, ElementType.TYPE_PARAMETER})
+    @Retention(RetentionPolicy.CLASS)
+    @interface A {
+        Class f() default int.class;
+    }
+    @Target({ElementType.TYPE_USE, ElementType.TYPE_PARAMETER})
+    @Retention(RetentionPolicy.CLASS)
+    @interface As { A[] value(); }
+
+    @Repeatable(Bs.class)
+    @Target({ElementType.TYPE_USE, ElementType.TYPE_PARAMETER})
+    @Retention(RetentionPolicy.CLASS)
+    @interface B {
+        Class f() default int.class;
+    }
+    @Target({ElementType.TYPE_USE, ElementType.TYPE_PARAMETER})
+    @Retention(RetentionPolicy.CLASS)
+    @interface Bs { B[] value(); }
+
+    @Repeatable(Cs.class)
+    @Target({ElementType.TYPE_USE, ElementType.TYPE_PARAMETER})
+    @Retention(RetentionPolicy.RUNTIME)
+    @interface C {
+        Class f() default int.class;
+    }
+    @Target({ElementType.TYPE_USE, ElementType.TYPE_PARAMETER})
+    @Retention(RetentionPolicy.RUNTIME)
+    @interface Cs { C[] value(); }
+    static String so = "hello world";
+
+    public @A Object not_ok = (@A @A String) Test.so;
+    public @A Object ok = (@A @B String) Test.so;
+    public @A Object also_ok = (@A @C String) Test.so;
+}

@@ -1,0 +1,48 @@
+Code:
+```kt
+//Error:(2, 8) Kotlin: Subclass of 'Throwable' may not have type parameters
+//class E<T> : Exception()
+
+//fun <T : Throwable>foo() {
+//    try {
+//        throw A("123").E()
+//    } catch (e: T) { // Error:(7, 14) Kotlin: Type parameter is forbidden for catch parameter
+//
+//    }
+//}
+
+// But what if we make inner class inside generic?
+class A<T>(val t: T) {
+    inner class E : Exception() {
+        val a = this@A
+    }
+}
+
+fun bar() {
+
+    try {
+        throw A("123").E()
+    } catch (e: A<Int>.E) { // Compiles...
+        println(e.a.t) // But java.lang.ClassCastException: java.lang.String cannot be cast to java.lang.Number
+    }
+
+}
+
+fun main(args: Array<String>) {
+    bar()
+}
+```
+
+Type parameter should be forbidden in catch, so as expected commented class `E` and `fun foo` aren't compiled. But if exception is nested into generic class, parameter of outer class can be used in catch, but code fails in runtime with 
+
+Exception in thread "main" java.lang.ClassCastException: java.lang.String cannot be cast to java.lang.Number
+	at TestKt.bar(test.kt:24)
+	at TestKt.main(test.kt:30)
+
+Proposed solution: Forbid inner classes of generic classes to extend Throwable (Java forbids any generic exception classes)
+Technically, it's a breaking change:
+  - all such cases are very rare
+  - catching fails with an exception
+  - some code that does not throw/catch such exceptions, but simply instantiates them works now and will be forbidden after the change
+
+So: warn in 1.2, error in 1.3

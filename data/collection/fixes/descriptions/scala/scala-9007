@@ -1,0 +1,42 @@
+in case class which mix with a trait, there will be a runtime error(ClassFormatError: Duplicate field name&signature) if define the get/set method for a property. But if use abstract class to replace trait, then there is no such error.
+
+an example from scala pattern book. (written by John Hunt)
+
+```scala
+case class ObservableEvent(a: Any)
+  
+  /*abstract class*/ trait Observable {
+  	type OberserCallback = ObservableEvent => Unit
+  	import scala.collection.mutable.ListBuffer
+  	val observers = ListBuffer[OberserCallback]()
+  	
+  	def changed = {
+  		val event = ObservableEvent(this)
+  		observers foreach(_ (event))
+  	}
+  }
+  
+  trait Observer
+  
+  case class SharePriceWatch(share: String) extends Observable {
+  	private var v : Double = 0.0
+  	
+  	def value = v
+  	def value_=(vi: Double): Unit = {
+  		v = vi
+  		changed
+  	}
+  	
+  	override def toString() = "Current value: " + v
+  }
+  
+  case class Logger extends Observer {
+  	def printer(e: ObservableEvent) = println(e)
+  }
+  
+  val watch = SharePriceWatch("Google")    //runtime error      
+  val logger = Logger()
+  
+  watch.observers.append(logger printer)
+  watch.value = 32.0
+```

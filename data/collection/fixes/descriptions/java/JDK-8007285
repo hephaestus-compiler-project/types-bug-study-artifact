@@ -1,0 +1,62 @@
+There is no compile-time error when method reference with super and abstract is used.
+Testcase example with AbstractMethodError during runtime:
+
+interface SAM {
+    int m();
+}
+
+abstract class Tester {
+    abstract int foo() ;
+}
+
+abstract class MyTester extends Tester {
+    abstract int foo() ;
+    public int test() {
+        SAM s = super::foo;
+        s.m();
+        return 0;
+    }
+}
+
+public class lmbd04201m0  {
+    public static void main(String argv[]) {
+        System.out.println(new MyTester() {
+            int foo() { return 0; }
+        }.test());
+    }
+}
+
+Spec:
+It is a compile-time error if the method reference is of the form super :: NonWildTypeArgumentsopt Identifier and the compile-time declaration is abstract. 
+
+It is a compile-time error if the method reference is of the form TypeName . super :: NonWildTypeArgumentsopt Identifier, and either of the following are true:
+    * The compile-time declaration is abstract.
+
+In some cases java.lang.ClassFormatError is reported during compilation. Example:
+interface SAM {
+    Object m(int i);
+}
+
+interface Tester {
+    abstract int foo(int i) ;
+}
+
+interface MyTester extends Tester {
+    abstract int foo(int i) ;
+    default public int test() {
+        SAM s = Tester.super::foo;
+        s.m(3);
+        return 0;
+    }
+}
+
+The following JCK test will be integrated soon:
+lang/LMBD/lmbd042/lmbd04201m1/lmbd04201m1.html
+lang/LMBD/lmbd042/lmbd04201m0/lmbd04201m0.html
+lang/LMBD/lmbd042/lmbd04201m2/lmbd04201m2.html
+lang/LMBD/lmbd043/lmbd04301m0/lmbd04301m0.html
+lang/LMBD/lmbd043/lmbd04301m2/lmbd04301m2.html
+lang/LMBD/lmbd043/lmbd04301m3/lmbd04301m3.html
+lang/LMBD/lmbd043/lmbd04302m1/lmbd04302m1.html
+lang/LMBD/lmbd043/lmbd04302m2/lmbd04302m2.html
+lang/LMBD/lmbd043/lmbd04303m1/lmbd04303m1.html

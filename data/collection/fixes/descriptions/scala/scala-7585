@@ -1,0 +1,19 @@
+I run into this problem when refactoring the cake:
+```scala
+trait Outer { outer =>
+  val other: Other
+  // type checks
+  val f = (Outer.this.other: outer.other.type)
+  // fails to type check:
+  // type mismatch;
+  // found : Outer.this.other.type (with underlying type Other)
+  // required: Outer{val other: Outer.this.other.type}
+  val alias: Outer { val other: outer.other.type } = Outer.this 
+}
+
+abstract class Other
+```
+
+This looks like should be trivially true but it fails to type check. According to Adriaan it fails because narrowing of types is to shallow and is not being applied to members.
+
+This will be probably closed as Won't Fix but I filed it just for record.

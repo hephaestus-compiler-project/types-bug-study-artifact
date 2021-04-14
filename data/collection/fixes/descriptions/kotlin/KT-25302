@@ -1,0 +1,45 @@
+The following Kotlin code:
+```
+import java.util.Collections
+import java.util.stream.Collectors.toList
+import java.util.stream.Collectors.toSet
+import java.util.stream.Stream
+
+class KotlinCollectionUser {
+    fun use() {
+        Collections.unmodifiableSet(Stream.of("a", "b", "c").collect(toSet<String>()))
+        Collections.unmodifiableList(Stream.of("a", "b", "c").collect(toList<String>()))
+    }
+}
+```
+
+Is compiled with no problems with old inference, but failed to compile with new inference (`-XXLanguage:+NewInference`):
+```
+Error:(26, 70) Kotlin: Type mismatch: inferred type is Collector<String!, *, (Mutable)Set<String!>!>! but Collector<in String!, Any!, (Mutable)Set<String!>!>! was expected
+Error:(27, 71) Kotlin: Type mismatch: inferred type is Collector<String!, *, (Mutable)List<String!>!>! but Collector<in String!, Any!, (Mutable)List<String!>!>! was expected
+```
+
+I've managed to minimize the case to the following isolated Kotlin-only sample:
+```
+interface CollectorMock<A, R>
+
+interface StreamMock {
+    fun <R, A> collect(collector: CollectorMock<A, R>): R
+}
+
+fun <T> accept(s: T) {}
+fun ofK(t: String): StreamMock = TODO()
+fun <T> toSetK(): CollectorMock<*, T> = TODO()
+
+class KotlinCollectionUser {
+    fun use() {
+        accept(ofK("").collect(toSetK<String>()))
+    }
+}
+```
+Error:
+```
+Error:(28, 31) Kotlin: Type mismatch: inferred type is CollectorMock<*, String> but CollectorMock<Any?, String> was expected
+```
+
+IDEA 183.576 + Kotlin plugin 1.2.70-dev-151.

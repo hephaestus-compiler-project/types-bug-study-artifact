@@ -1,0 +1,19 @@
+Continued from #10536.
+This code throws a `ClassCastException: java.lang.String cannot be cast to java.lang.Boolean`:
+```
+class A { def ==(a: A) = "lol" }
+case class B(a: A)
+B(new A) == B(new A)
+```
+
+This code however doesn't compile, with the error `value && is not a member of String`:
+```
+case class B(a: A) { 
+  override def equals(any: Any) = this.eq(any.asInstanceOf[Object]) || ((any match { 
+    case _: B => true
+    case _ => false
+  }) && {val that = any.asInstanceOf[B]; (this.a == that.a) && that.canEqual(this)})
+}
+```
+
+Somehow the synthetic code passes typechecking but then wrongly receives an `unboxToBoolean` call.

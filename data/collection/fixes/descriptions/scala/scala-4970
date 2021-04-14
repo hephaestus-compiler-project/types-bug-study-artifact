@@ -1,0 +1,25 @@
+The following code causes the compiler to crash with AssertionError.
+
+```
+trait OuterClass[V <: OuterClass[V]#InnerClass] {
+  trait InnerClass {self: V =>
+    def method = ()
+  }
+}
+
+trait SubOuterClass[T <: SubOuterClass[T]#SubInnerClass] extends OuterClass[T] {
+  class SubInnerClass extends super.InnerClass {self: T =>  }
+}
+```
+
+```
+>scalac Crash.scala
+error: java.lang.AssertionError: assertion failed: jp.seraphr.scala.hello.HelloScala.generics.SubOuterClass[T]
+        at scala.tools.nsc.ast.TreeGen.mkAttributedQualifier(TreeGen.scala:66)
+        at scala.tools.nsc.ast.TreeGen.mkAttributedQualifier(TreeGen.scala:44)
+        at scala.tools.nsc.transform.ExplicitOuter$ExplicitOuterTransformer.mixinOuterAccessorDef(ExplicitOuter.scala:351)
+        at scala.tools.nsc.transform.ExplicitOuter$ExplicitOuterTransformer$$anonfun$transform$1$$anonfun$apply$mcV$sp$1.apply(ExplicitOuter.scala:457)
+        at scala.tools.nsc.transform.ExplicitOuter$ExplicitOuterTransformer$$anonfun$transform$1$$anonfun$apply$mcV$sp$1.apply(ExplicitOuter.scala:455)
+        at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+...
+```

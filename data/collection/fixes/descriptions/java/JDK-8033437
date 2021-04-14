@@ -1,0 +1,43 @@
+Create an empty directory and copy into it the following two sources:
+
+Ref.java:
+
+public class Ref<T> {
+    final RefQueue<? super T> queue = new RefQueue<>();
+
+    public static void main(String[] args) {
+        Ref<Object> r = new Ref<>();
+        RefQueue<Object> q = r.queue;
+    }
+}
+
+RefQueue.java:
+
+public class RefQueue<T> {}
+
+Then execute:
+
+    mkdir out
+    javac -d out Ref.java
+
+This compiles fine and produces two class files in out directory:
+
+    Ref.class
+    RefQueue.class
+
+Now do the following:
+
+    mkdir out2
+    rm RefQueue.java
+    javac -cp out -d out2 Ref.java
+
+Which produces compile-time error:
+
+Ref.java:6: error: incompatible types: RefQueue<CAP#1> cannot be converted to RefQueue<Object>
+        RefQueue<Object> q = r.queue;
+                              ^
+  where CAP#1 is a fresh type-variable:
+    CAP#1 extends Object super: Object from capture of ? super Object
+1 error
+
+reported by Peter Levart at compiler-dev: http://mail.openjdk.java.net/pipermail/compiler-dev/2014-January/008457.html

@@ -1,0 +1,31 @@
+The fix for GROOVY-6804 only works for primitive arguments because the [distance calc doesn't wrap and compare against reference param types|https://github.com/apache/groovy/blob/048b6586b741009f5497c6bfdb7fb1aad6c607be/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingSupport.java#L859].  I believe it should wrap before doing the compare (which would fix GROOVY-8055) and believe the current test is only passing because of this anomaly with primitives.
+
+The following test is the same from GROOVY-6804 but instead uses the wrapper type and fails to compile:
+
+{code}
+@groovy.transform.CompileStatic
+class Base<K extends Serializable, V> {
+    void delete(K key) {}
+    void delete(V value) {}
+}
+
+@groovy.transform.CompileStatic
+class Foo extends Base<String, Integer> {}
+
+@groovy.transform.CompileStatic
+public class Class1 {
+    Class1() {
+        Foo foo = new Foo()        
+        foo.delete(Integer.valueOf(1))
+    }
+}
+new Class1()
+{code}
+
+{code}
+[Static type checking] - Cannot call Foo#delete(K) with arguments [java.lang.Integer] 
+{code}
+
+In the case of a primitive both {{K-Serializable}} and {{V-Object}} (as seen by the {{getDistance()}}) method have the same distance so both are promoted as possible choices.  The [generic type information is not evaluated until later|https://github.com/apache/groovy/blob/048b6586b741009f5497c6bfdb7fb1aad6c607be/src/main/org/codehaus/groovy/transform/stc/StaticTypeCheckingVisitor.java#L3720] and when generics are applied the correct method is chosen.  However, in the case of the reference type {{K-Serializable}} is the only method because it has the lowest distance calc and generics are not evaluated.
+
+It seems that the fix would be to resolve the types prior to making the distance calculation.

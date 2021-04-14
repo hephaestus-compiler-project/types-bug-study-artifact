@@ -1,0 +1,30 @@
+After integrating Kotlin 1.4.30 into Android Lint, we noticed an issue with annotations on backing fields.
+
+Consider the following example:
+```kotlin
+@Target(AnnotationTarget.FIELD)
+annotation class MyFieldAnnotation(val value: String)
+
+@MyFieldAnnotation("SomeStringValue")
+var myProperty = 0
+```
+
+The annotation `@MyFieldAnnotation` correctly resolves to its declaration. However, the attribute value `"SomeStringValue"` is missing. The root cause is that the `BindingContext` is missing a `CALL` element for the annotation.
+
+I see that annotations for Kotlin properties are resolved in `BodyResolver.resolveProperty` with this line:
+```
+ForceResolveUtil.forceResolveAllContents(propertyDescriptor.getAnnotations());
+```
+My theory is that we also need to resolve annotations for the backing field, like this:
+```
+FieldDescriptor backingField = propertyDescriptor.getBackingField();
+if (backingField != null) {
+    ForceResolveUtil.forceResolveAllContents(backingField.getAnnotations());
+}
+```
+I already confirmed locally that this change fixes the issues we see in Android Lint.
+If it looks correct, see my pull request [here](https://github.com/JetBrains/kotlin/pull/4237).
+
+(By the way, the question still remains why this issue only started appearing in 1.4.30. From debugging, it appears that backing field annotations used to be resolved incidentally by a code path involving light class cls delegates / AnnotationCodegen. So I think the move to ultra light classes is what exposed this bug.)
+
+Note: this bug only applies when Android Lint is running on the command line, where we use `TopDownAnalyzerFacadeForJVM` to get resolve information for Kotlin sources. Everything works fine in the IDE.

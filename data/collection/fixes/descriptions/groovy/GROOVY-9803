@@ -1,0 +1,35 @@
+When using a nested generic type (for example, from Vavr {{Try<Option<T>}}), Groovy forgets the value of the nested type parameter, simply tagging {{Object}} instead of {{T}}.
+
+{code:java}
+import io.vavr.control.Option;
+import io.vavr.control.Try;
+
+public class GenericInJava {
+    public static void main(String[] args) {
+        Try.success(123)
+                .map(Option::of)
+                .map(o -> o.get().intValue()); // happy; correctly identifies o as Option<Integer>
+    }
+}
+{code}
+
+{code:groovy}
+import groovy.transform.CompileStatic
+import io.vavr.control.Option
+import io.vavr.control.Try
+
+@CompileStatic
+class GenericInGroovy {
+    static void main(String[] args) {
+        Try.success(123)
+            .map(Option::of)
+            .map(o -> o.get().intValue()) // produces error below
+    }
+}
+{code}
+
+{code}
+Groovy:[Static type checking] - Cannot find matching method java.lang.Object#intValue(). Please check if the declared type is correct and if the method exists.
+{code}
+
+Explicitly inserting a type witness {{.<Option<Integer>>map(Option::of)}} succeeds. Oddly enough, using {{.map({ Option.of(it) })}} also works (maybe it's an interaction glitch involving method references specifically?).

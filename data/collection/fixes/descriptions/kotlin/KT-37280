@@ -1,0 +1,183 @@
+# Classification
+
+* Type of change:
+    * New errors are introduced
+* Motivation types:
+    * Type safety guarantees are not met
+    * The implementation does not abide by a published spec or documentation
+* Impact types:
+    * Compilation. Some code that used to compile won't compile anymore
+        * There were cases when such code worked with no exceptions
+            * There was a warning reported on all such code
+* Detection and Migration modes:
+    * Migration can't be automated
+
+# Existing behavior
+
+## Code example
+
+The code is:
+
+```kotlin
+interface Out<out T>
+class Inv<T> : Out<T> {
+    fun replace(e: T) {}
+}
+
+fun <T> Out<T>.toInv(): Inv<T> = this as Inv<T>
+
+fun test(o: Out<Number>) {
+    o as Out<String> // unchecked cast
+
+    val inv = o.toInv()
+    inv.replace("f")
+}
+```
+
+This code compiles without errors but has a warning about unchecked cast `o as Out<String>`.
+
+## What's wrong with it
+
+The problem is that without compiler error it's quite easy to construct an example throwing an exception at runtime using this capability:
+```
+interface Out<out T>
+class Inv<T>(var x: T) : Out<T> {
+    fun replace(e: T) {
+        x = e
+    }
+}
+
+fun <T> Out<T>.toInv(): Inv<T> = this as Inv<T>
+
+fun test(o: Out<Number>) {
+    o as Out<String> // unchecked cast
+
+    val inv = o.toInv()
+    inv.replace("strg")
+}
+
+fun main() {
+    val invLong = Inv(42L)
+    test(invLong)
+    println(invLong.x)
+}
+```
+Exception:
+```
+Exception in thread "main" java.lang.ClassCastException: java.lang.String cannot be cast to java.lang.Number
+ at FileKt.main (File.kt:20) 
+ at FileKt.main (File.kt:-1) 
+ at sun.reflect.NativeMethodAccessorImpl.invoke0 (NativeMethodAccessorImpl.java:-2) 
+```
+
+## Why and how this happens
+
+The main problem is in an unchecked cast of covariant types. After the unchecked cast to `Out<String>`, type of `o` becomes `Out<String>` and not an intersection type `Out<Number> & Out<String>` as it's usually done for simple types. As a result, it's possible to pass values of `String` to the method `replace`.
+
+Example with simple types:
+```
+interface A {
+    fun fromA() {}
+}
+
+interface B {
+    fun fromB() {}
+}
+
+fun test(a: A) {
+    a as B // a now has type A & B
+
+    a.fromA() // OK
+    a.fromB() // OK
+}
+```
+
+Here variable `a` has intersection type `A & B`, so, the initial issue has also an inconsistency with this example.
+
+## Affected versions: when did the problem appear first?
+
+The problem exists since Kotlin 1.0
+
+# Proposed changes
+
+The proposal is to create an intersection type after cast and move this intersection type into type argument position:
+```
+fun test(o: Out<Number>) {
+    o as Out<String>
+    // ...
+}
+```
+
+Here type `o` will have type `Out<Number & String>` as type `Out<Number> & Out<String>` is equal by subtyping to `Out<Number & String>`.
+As a result, it will not be possible to pass a value of just `String` to the method `replace` because now it will accept values only of type `Number & String`.
+So, there will be a type mismatch error in the initial example:
+```kotlin
+interface Out<out T>
+class Inv<T> : Out<T> {
+    fun replace(e: T) {}
+}
+
+fun <T> Out<T>.toInv(): Inv<T> = this as Inv<T>
+
+fun test(o: Out<Number>) {
+    o as Out<String> // unchecked cast
+
+    val inv = o.toInv()
+    inv.replace("f") // Error: String is not subtype of Number & String
+}
+```
+
+# Impact
+
+Some code will not compile anymore, we found one usage during compiling our internal and user projects, so we believe this case is quite rare.
+
+## Workaround
+
+The workaround is to specify type argument explicitly during the transformation of covariant type into invariant:
+```
+val inv = o.toInv<String>()
+```
+
+The initial example will compile:
+```
+interface Out<out T>
+class Inv<T> : Out<T> {
+    fun replace(e: T) {}
+}
+
+fun <T> Out<T>.toInv(): Inv<T> = this as Inv<T>
+
+fun test(o: Out<Number>) {
+    o as Out<String> // unchecked cast
+
+    val inv = o.toInv<String>() // OK
+    inv.replace("f")
+}
+```
+
+# Migration plan
+
+- 1.4.0 Implement proposed changes
+
+This problem is fixed under the new type inference algorithm, so there will be a common compiler key for the old behavior.
+
+-----
+
+# Original issue
+
+The following code snipped could compile in 1.3.61 with `-XXLanguage:+NewInference`. When executing "Specify Type explicitly" on `mutableList`, it detects correctly `MutableList<String>` with the 1.3.61 IntelliJ plugin.
+
+But when running the following code snippet with the 1.3.70 compiler/plugin, the compiler errors: `Type mismatch: inferred type is String but Nothing was expected`. Also the `add("another string")` fails with a type mismatch (Required: {String & T}, Found: String) - but no compiler warning is given here, just the IDE errors this information on hover.
+Running a "Specify type explicitly" on `mutableList` detects it as `MutableList<*>`. When manually fixing it to `MutableList<String>`, the compiler will no longer error, so this is a working workaround.
+
+```
+fun <T: Any> test(list: List<T>, type: KClass<out T>) {
+  if (type == String::class) {
+    @Suppress("UNCHECKED_CAST")
+    list as List<String>
+
+    val mutableList = list.toMutableList()
+    mutableList.add("another string")
+  }
+}
+```

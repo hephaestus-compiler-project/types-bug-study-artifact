@@ -1,0 +1,368 @@
+compiler crashed with the following code:
+
+```java
+object NNN {
+  class Validate[A]
+  class Task[A]
+  class Fx2[M[_], N[_]]
+  class Fx1[M[_]]
+  class Eff[R, A]
+  class Reader[A]
+  final case class FxAppend[L, R](left: L, right: R)
+  trait Member[T[_], R]{
+    type Out
+  }
+  type Aux[T[_], R, U] = Member[T, R] { type Out = U }
+
+  implicit def Member3L[T[_], L[_],  R[_]]: Aux[T, FxAppend[Fx1[T], Fx2[L, R]], Fx2[L, R]] = new Member[T, FxAppend[Fx1[T], Fx2[L,  R]]] { outer =>
+    type Out = Fx2[L,  R]
+  }
+  
+  
+  object TheTest {
+    def runReader[R, U, B](r: Eff[R, B])(implicit m: Aux[Reader, R, U]): Eff[U, B] = ???
+
+
+    def helper(): Unit = {
+      val gggg: Eff[FxAppend[Fx1[Task], Fx2[Validate, Reader]], Unit] = ???
+      val hhhh: Eff[Fx2[Task, Validate], Unit] = runReader(gggg)
+
+    }
+  }
+}
+```
+
+stack trace:
+error: java.lang.AssertionError: assertion failed:
+  (NNN.Member[Object,NNN.FxAppend[NNN.Fx1[Object],NNN.Fx2[Object,Object]]]{type Out = NNN.Fx2[<error>,<error>]},NNN.Aux[NNN.Reader,NNN.FxAppend[NNN.Fx1[NNN.Task],NNN.Fx2[NNN.Validate,NNN.Reader]],NNN.Fx2[NNN.Task,NNN.Validate]])
+     while compiling: c:\Users\Shimi Bandiel\workspace_typelevel_scala\FFFFFFF\src\NNN2.scala
+        during phase: typer
+     library version: version 2.11.8
+    compiler version: version 2.11.8
+  reconstructed args: -d f:\todelete\cxz -bootclasspath c:\Users\Shimi Bandiel\git\scala\build\quick\classes\library
+
+  last tree to typer: TypeTree
+       tree position: line 30 of c:\Users\Shimi Bandiel\workspace_typelevel_scala\FFFFFFF\src\NNN2.scala
+            tree tpe: <error>
+              symbol: <none>
+   symbol definition: <none> (a NoSymbol)
+      symbol package: <none>
+       symbol owners:
+           call site: method helper in object TheTest in package <empty>
+
+== Source file context for tree position ==
+
+    27     def helper(): Unit = {
+    28       val gggg: Eff[FxAppend[Fx1[Task], Fx2[Validate, Reader]], Unit] = ???
+    29       val hhhh: Eff[Fx2[Task, Validate], Unit] = runReader(gggg)
+    30
+    31     }
+    32   }
+    33 }
+	at scala.tools.nsc.Global.assert(Global.scala:274)
+	at scala.tools.nsc.typechecker.ContextErrors$TyperContextErrors$TyperErrorGen$.AdaptTypeError(ContextErrors.scala:216)
+	at scala.tools.nsc.typechecker.Typers$Typer.adaptMismatchedSkolems$1(Typers.scala:1018)
+	at scala.tools.nsc.typechecker.Typers$Typer.fallbackAfterVanillaAdapt$1(Typers.scala:1086)
+	at scala.tools.nsc.typechecker.Typers$Typer.vanillaAdapt$1(Typers.scala:1123)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1166)
+	at scala.tools.nsc.typechecker.Typers$Typer.instantiate(Typers.scala:1178)
+	at scala.tools.nsc.typechecker.Typers$Typer.instantiatePossiblyExpectingUnit(Typers.scala:1197)
+	at scala.tools.nsc.typechecker.Typers$Typer.vanillaAdapt$1(Typers.scala:1118)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1166)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1139)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1159)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.typedImplicit1(Implicits.scala:647)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.typedImplicit0(Implicits.scala:584)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.scala$tools$nsc$typechecker$Implicits$ImplicitSearch$$typedImplicit(Implicits.scala:453)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch$ImplicitComputation.rankImplicits(Implicits.scala:903)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch$ImplicitComputation.findBest(Implicits.scala:931)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.searchImplicit(Implicits.scala:988)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.bestImplicit(Implicits.scala:1366)
+	at scala.tools.nsc.typechecker.Implicits$class.inferImplicit(Implicits.scala:73)
+	at scala.tools.nsc.Global$$anon$1.inferImplicit(Global.scala:475)
+	at scala.tools.nsc.typechecker.Implicits$class.inferImplicit(Implicits.scala:38)
+	at scala.tools.nsc.Global$$anon$1.inferImplicit(Global.scala:475)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$applyImplicitArgs$1.apply(Typers.scala:154)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$applyImplicitArgs$1.apply(Typers.scala:149)
+	at scala.collection.immutable.List.foreach(List.scala:381)
+	at scala.tools.nsc.typechecker.Typers$Typer.applyImplicitArgs(Typers.scala:149)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$adaptToImplicitMethod$1$1$$anonfun$apply$5.apply(Typers.scala:826)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$adaptToImplicitMethod$1$1$$anonfun$apply$5.apply(Typers.scala:825)
+	at scala.tools.nsc.typechecker.Typers$Typer.silent(Typers.scala:680)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$adaptToImplicitMethod$1$1.apply(Typers.scala:825)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$adaptToImplicitMethod$1$1.apply(Typers.scala:823)
+	at scala.tools.nsc.typechecker.Typers$Typer.withCondConstrTyper(Typers.scala:463)
+	at scala.tools.nsc.typechecker.Typers$Typer.adaptToImplicitMethod$1(Typers.scala:823)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1162)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5415)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5428)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5375)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.transformedOrTyped(Typers.scala:5612)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedValDefImpl(Typers.scala:1990)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedValDef(Typers.scala:1953)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedMemberDef$1(Typers.scala:5312)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5364)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5401)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5428)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5375)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedByValueExpr(Typers.scala:5459)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:3048)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.collection.immutable.List.loop$1(List.scala:173)
+	at scala.collection.immutable.List.mapConserve(List.scala:189)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedBlock(Typers.scala:2376)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$typedOutsidePatternMode$1$1.apply(Typers.scala:5323)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$typedOutsidePatternMode$1$1.apply(Typers.scala:5323)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$typerWithLocalContext$1.apply(Typers.scala:472)
+	at scala.tools.nsc.typechecker.Contexts$ContextReporter.propagatingErrorsTo(Contexts.scala:1283)
+	at scala.tools.nsc.typechecker.Typers$Typer.typerWithLocalContext(Typers.scala:472)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedOutsidePatternMode$1(Typers.scala:5323)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedInAnyMode$1(Typers.scala:5358)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5365)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5401)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5428)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5375)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.transformedOrTyped(Typers.scala:5612)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedDefDef(Typers.scala:2203)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedMemberDef$1(Typers.scala:5313)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5364)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5401)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5428)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5375)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedByValueExpr(Typers.scala:5459)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:3048)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.collection.immutable.List.loop$1(List.scala:173)
+	at scala.collection.immutable.List.mapConserve(List.scala:189)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1916)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1803)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedMemberDef$1(Typers.scala:5315)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5364)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5401)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5428)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5375)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedByValueExpr(Typers.scala:5459)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:3048)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.collection.immutable.List.loop$1(List.scala:173)
+	at scala.collection.immutable.List.mapConserve(List.scala:189)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1916)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1803)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedMemberDef$1(Typers.scala:5315)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5364)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5401)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5428)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5375)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedByValueExpr(Typers.scala:5459)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:3048)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.collection.immutable.List.loop$1(List.scala:173)
+	at scala.collection.immutable.List.mapConserve(List.scala:189)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedPackageDef$1(Typers.scala:5016)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedMemberDef$1(Typers.scala:5317)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5364)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5401)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5428)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5375)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5455)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.apply(Analyzer.scala:102)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$applyPhase$1.apply$mcV$sp(Global.scala:453)
+	at scala.tools.nsc.Global$GlobalPhase.withCurrentUnit(Global.scala:444)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:453)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:94)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:93)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:893)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1336)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.run(Analyzer.scala:93)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1514)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1499)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1494)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1595)
+	at scala.tools.nsc.Driver.doCompile(Driver.scala:32)
+	at scala.tools.nsc.MainClass.doCompile(Main.scala:23)
+	at scala.tools.nsc.Driver.process(Driver.scala:51)
+	at scala.tools.nsc.Driver.main(Driver.scala:64)
+	at scala.tools.nsc.Main.main(Main.scala)
+Exception in thread "main" java.lang.AssertionError: assertion failed: 
+  (NNN.Member[Object,NNN.FxAppend[NNN.Fx1[Object],NNN.Fx2[Object,Object]]]{type Out = NNN.Fx2[<error>,<error>]},NNN.Aux[NNN.Reader,NNN.FxAppend[NNN.Fx1[NNN.Task],NNN.Fx2[NNN.Validate,NNN.Reader]],NNN.Fx2[NNN.Task,NNN.Validate]])
+     while compiling: c:\Users\Shimi Bandiel\workspace_typelevel_scala\FFFFFFF\src\NNN2.scala
+        during phase: typer
+     library version: version 2.11.8
+    compiler version: version 2.11.8
+  reconstructed args: -d f:\todelete\cxz -bootclasspath c:\Users\Shimi Bandiel\git\scala\build\quick\classes\library
+
+  last tree to typer: TypeTree
+       tree position: line 30 of c:\Users\Shimi Bandiel\workspace_typelevel_scala\FFFFFFF\src\NNN2.scala
+            tree tpe: <error>
+              symbol: <none>
+   symbol definition: <none> (a NoSymbol)
+      symbol package: <none>
+       symbol owners: 
+           call site: method helper in object TheTest in package <empty>
+
+== Source file context for tree position ==
+
+    27     def helper(): Unit = {
+    28       val gggg: Eff[FxAppend[Fx1[Task], Fx2[Validate, Reader]], Unit] = ???
+    29       val hhhh: Eff[Fx2[Task, Validate], Unit] = runReader(gggg)
+    30 
+    31     }
+    32   }
+    33 }
+	at scala.tools.nsc.Global.assert(Global.scala:274)
+	at scala.tools.nsc.typechecker.ContextErrors$TyperContextErrors$TyperErrorGen$.AdaptTypeError(ContextErrors.scala:216)
+	at scala.tools.nsc.typechecker.Typers$Typer.adaptMismatchedSkolems$1(Typers.scala:1018)
+	at scala.tools.nsc.typechecker.Typers$Typer.fallbackAfterVanillaAdapt$1(Typers.scala:1086)
+	at scala.tools.nsc.typechecker.Typers$Typer.vanillaAdapt$1(Typers.scala:1123)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1166)
+	at scala.tools.nsc.typechecker.Typers$Typer.instantiate(Typers.scala:1178)
+	at scala.tools.nsc.typechecker.Typers$Typer.instantiatePossiblyExpectingUnit(Typers.scala:1197)
+	at scala.tools.nsc.typechecker.Typers$Typer.vanillaAdapt$1(Typers.scala:1118)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1166)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1139)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1159)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.typedImplicit1(Implicits.scala:647)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.typedImplicit0(Implicits.scala:584)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.scala$tools$nsc$typechecker$Implicits$ImplicitSearch$$typedImplicit(Implicits.scala:453)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch$ImplicitComputation.rankImplicits(Implicits.scala:903)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch$ImplicitComputation.findBest(Implicits.scala:931)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.searchImplicit(Implicits.scala:988)
+	at scala.tools.nsc.typechecker.Implicits$ImplicitSearch.bestImplicit(Implicits.scala:1366)
+	at scala.tools.nsc.typechecker.Implicits$class.inferImplicit(Implicits.scala:73)
+	at scala.tools.nsc.Global$$anon$1.inferImplicit(Global.scala:475)
+	at scala.tools.nsc.typechecker.Implicits$class.inferImplicit(Implicits.scala:38)
+	at scala.tools.nsc.Global$$anon$1.inferImplicit(Global.scala:475)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$applyImplicitArgs$1.apply(Typers.scala:154)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$applyImplicitArgs$1.apply(Typers.scala:149)
+	at scala.collection.immutable.List.foreach(List.scala:381)
+	at scala.tools.nsc.typechecker.Typers$Typer.applyImplicitArgs(Typers.scala:149)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$adaptToImplicitMethod$1$1$$anonfun$apply$5.apply(Typers.scala:826)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$adaptToImplicitMethod$1$1$$anonfun$apply$5.apply(Typers.scala:825)
+	at scala.tools.nsc.typechecker.Typers$Typer.silent(Typers.scala:680)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$adaptToImplicitMethod$1$1.apply(Typers.scala:825)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$adaptToImplicitMethod$1$1.apply(Typers.scala:823)
+	at scala.tools.nsc.typechecker.Typers$Typer.withCondConstrTyper(Typers.scala:463)
+	at scala.tools.nsc.typechecker.Typers$Typer.adaptToImplicitMethod$1(Typers.scala:823)
+	at scala.tools.nsc.typechecker.Typers$Typer.adapt(Typers.scala:1162)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5415)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5428)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5375)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.transformedOrTyped(Typers.scala:5612)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedValDefImpl(Typers.scala:1990)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedValDef(Typers.scala:1953)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedMemberDef$1(Typers.scala:5312)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5364)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5401)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5428)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5375)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedByValueExpr(Typers.scala:5459)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:3048)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.collection.immutable.List.loop$1(List.scala:173)
+	at scala.collection.immutable.List.mapConserve(List.scala:189)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedBlock(Typers.scala:2376)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$typedOutsidePatternMode$1$1.apply(Typers.scala:5323)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$typedOutsidePatternMode$1$1.apply(Typers.scala:5323)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$typerWithLocalContext$1.apply(Typers.scala:472)
+	at scala.tools.nsc.typechecker.Contexts$ContextReporter.propagatingErrorsTo(Contexts.scala:1283)
+	at scala.tools.nsc.typechecker.Typers$Typer.typerWithLocalContext(Typers.scala:472)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedOutsidePatternMode$1(Typers.scala:5323)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedInAnyMode$1(Typers.scala:5358)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5365)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5401)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5428)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5375)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.transformedOrTyped(Typers.scala:5612)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedDefDef(Typers.scala:2203)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedMemberDef$1(Typers.scala:5313)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5364)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5401)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5428)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5375)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedByValueExpr(Typers.scala:5459)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:3048)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.collection.immutable.List.loop$1(List.scala:173)
+	at scala.collection.immutable.List.mapConserve(List.scala:189)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1916)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1803)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedMemberDef$1(Typers.scala:5315)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5364)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5401)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5428)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5375)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedByValueExpr(Typers.scala:5459)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:3048)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.collection.immutable.List.loop$1(List.scala:173)
+	at scala.collection.immutable.List.mapConserve(List.scala:189)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedTemplate(Typers.scala:1916)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedModuleDef(Typers.scala:1803)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedMemberDef$1(Typers.scala:5315)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5364)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5401)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5428)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5375)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedByValueExpr(Typers.scala:5459)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedStat$1(Typers.scala:3048)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer$$anonfun$65.apply(Typers.scala:3152)
+	at scala.collection.immutable.List.loop$1(List.scala:173)
+	at scala.collection.immutable.List.mapConserve(List.scala:189)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedStats(Typers.scala:3152)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedPackageDef$1(Typers.scala:5016)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedMemberDef$1(Typers.scala:5317)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5364)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5401)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5428)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5375)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5379)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5455)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.apply(Analyzer.scala:102)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$applyPhase$1.apply$mcV$sp(Global.scala:453)
+	at scala.tools.nsc.Global$GlobalPhase.withCurrentUnit(Global.scala:444)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:453)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:94)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3$$anonfun$run$1.apply(Analyzer.scala:93)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:893)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1336)
+	at scala.tools.nsc.typechecker.Analyzer$typerFactory$$anon$3.run(Analyzer.scala:93)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1514)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1499)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1494)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1595)
+	at scala.tools.nsc.Driver.doCompile(Driver.scala:32)
+	at scala.tools.nsc.MainClass.doCompile(Main.scala:23)
+	at scala.tools.nsc.Driver.process(Driver.scala:51)
+	at scala.tools.nsc.Driver.main(Driver.scala:64)
+	at scala.tools.nsc.Main.main(Main.scala)
+
+
+

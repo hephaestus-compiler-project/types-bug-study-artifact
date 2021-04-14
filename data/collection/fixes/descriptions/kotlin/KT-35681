@@ -1,0 +1,116 @@
+# Classification
+
+* Type of change:
+    * New errors are introduced
+* Motivation types:
+    * The implementation does not abide by a published spec or documentation
+    * Type safety guarantees are not met
+* Impact types:
+    * Compilation. Some code that used to compile won't compile anymore
+* Detection and Migration modes:
+    * Migration can't be automated
+
+# Existing behaviour
+
+## Code example
+
+The code is:
+```java
+class Test {
+    public static Comparable getProperty() {
+        return "";
+    }
+}
+```
+
+```kotlin
+fun <T : Comparable<T>> consume(x: T) {}
+fun <T> select(x: T, y: T): T = TODO()
+
+fun test() {
+    consume(select(Test.getProperty(), 1))
+}
+```
+
+Here it's important that `Test.getProperty()` returns raw Java type `Comprable` and also we use an integer literal `1`.
+
+## What's wrong with it
+
+The code above compiles fine but has several problems. 
+First of all, if one replaces integer literal `1` with an expression of integer type, then there will be an error: 
+
+```kotlin
+fun test(i: Int) {
+    consume(select(Test.getProperty(), i)) // Error, type mismatch
+}
+```
+
+Secondly, it can lead to ClassCastException at runtime:
+```kotlin
+fun <T : Comparable<T>> consume(x: T, y: T) {
+    x.compareTo(y) // ClassCastException: java.lang.String cannot be cast to java.lang.Integer
+}
+
+fun <K> select(vararg x: K): K = x[1]
+
+fun main() {
+    consume(select(Test.getProperty(), 1), Test.getProperty())
+}
+```
+
+## Details
+
+The problem here is that expression `select(Test.getProperty(), 1)` erroneously has type `Comparable<Any?>..Comparable<Nothing>?` and as a result, it's possible to instantiate the type variable `T` with the upper bound of `Comparable<T>`. This is true because `Comparable<T>` is contravariant, so `Comparable<Any?>` is applicable here:
+```kotlin
+fun test(c: Comparable<Any?>) {
+    consume(c) // OK
+}
+```
+
+Type of expression `select(Test.getProperty(), 1)` should be a common supertype between raw type `Comparable` and `IntegerLiteralType`. 
+Raw `Comparable` type is represented as a flexible type `Comprable<Any?>..Comparable<Nothing>?` in Kotlins type system.
+Integer constants have type `IntegerLiteralType` that later ca be approximated to `Int`/`Byte`/`Short`/`Long`.
+
+Due to a bug, `IntegerLiteralType` is considered as a subtype of raw `Comparable` type. As a result, common supertype between raw type `Comparable` and `IntegerLiteralType` is `Comprable<Any?>..Comparable<Nothing>?`.
+
+Note that if one computes a common supertype between raw `Comparable` and `Int`, then the compiler infers type to `Comparable<Int>..Comparable<Nothing>?`
+
+## Affected versions: when did the problem appear first? 
+
+This issue exists since Kotlin 1.0
+
+# Proposed changes
+
+The proposal is to fix the computation of common supertype between raw types and integer literal types. More specific:
+```
+CST = Common Super Type operation
+Comparable is contravariant:
+
+CST(Comprable<Any?>..Comparable<Nothing>?, IntegerLiteralType) = 
+ = CST(Comprable<Any?>, Comparable<IntegerLiteralType>)..CST(Comparable<Nothing>?, Comparable<IntegerLiteralType>)
+ = Comparable<IntegerLiteralType>..Comparable<Nothing>?
+```
+
+## Impact
+
+New rules will make some types more specific, so code that works with raw types and integer types can become red:
+```kotlin
+fun test() {
+    consume(select(Test.getProperty(), 1))
+}
+```
+
+We found one occurrence of this issue during our testing, so we consider this issue as quite rare.
+
+## Workaround
+
+A workaround is to specify types explicitly:
+```
+fun test() {
+    consume<Comparable<Int>>(select(Test.getProperty(), 1)) // OK
+}
+```
+
+# Migration
+
+- Implement the proposed changes in 1.4 as a part of the new type inference algorithm

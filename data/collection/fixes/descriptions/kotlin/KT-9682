@@ -1,0 +1,39 @@
+Consider the following class hierarchy:
+
+```
+open class Foo {
+    fun bar(): Foo {
+        return this
+    }
+}
+
+class Foo2 : Foo(), IFoo
+
+interface IFoo {
+    fun bar(): Foo
+}
+```
+
+and the following Kotlin code:
+
+```
+val foo : Foo = Foo2()
+val ifoo = foo as IFoo
+foo.bar()
+```
+
+The compilation fails with 
+
+>Overload resolution ambiguity: 
+>public abstract fun bar(): package.Foo defined in package.IFoo
+>public final fun bar(): package.Foo defined in package.Foo
+
+The weird thing is, once you comment out the cast like so:
+
+```
+val foo : Foo = Foo2()
+//val ifoo = foo as IFoo
+foo.bar()
+```
+
+... the code now compiles.

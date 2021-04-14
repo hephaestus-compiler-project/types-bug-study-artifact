@@ -1,0 +1,43 @@
+The following code fails to compile:
+```scala
+// ContextProperty.scala
+package scalacbug
+
+import scala.language.implicitConversions
+import scala.language.reflectiveCalls
+import scala.math.ScalaNumericAnyConversions
+
+case class ContextProperty(value: Any, shell: Boolean = false) {
+  type HasToInt = { def toInt:Int }
+
+  override def toString: String = value.toString
+
+  def toInt: Int = value match {
+    case n: ScalaNumericAnyConversions => n.toInt // Call this out explicitly for efficiency.
+    case n: HasToInt => n.toInt                   // Fall back on reflection to find a toInt
+    case s: Any => s.toString.toInt               // Finally, try string conversion
+  }
+}
+```
+
+`scalac` gives the following error:
+
+```
+$ scalac ContextProperty.scala 
+ContextProperty.scala:12: error: error during expansion of this match (this is a scalac bug).
+The underlying error was: type mismatch;
+ found   : Boolean(true)
+ required: AnyRef
+  def toInt: Int = value match {
+                         ^
+one error found
+```
+
+If I comment line 14:
+```
+    case n: ScalaNumericAnyConversions => n.toInt // Call this out explicitly for efficiency.
+//  case n: HasToInt => n.toInt                   // Fall back on reflection to find a toInt
+    case s: Any => s.toString.toInt               // Finally, try string conversion
+```
+
+The class compiles without error or warning.

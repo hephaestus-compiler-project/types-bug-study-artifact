@@ -1,0 +1,39 @@
+Ran into a compiler crash today. Fails on 2.10.3 (and .4-RC2) as well. Not minimized, but easy to to reproduce. 
+
+```scala
+Check out  @91f434b from https://github.com/mighdoll/sparkle.
+cd sparkle
+sbt/sbt
+> test
+```
+Remove the line tagged 'COMPILER bug' and the problem goes away.
+Partial tack trace: 
+```scala
+java.lang.NullPointerException
+	at scala.tools.nsc.transform.patmat.MatchTranslation$MatchTranslator$class.translateMatch(MatchTranslation.scala:134)
+	at scala.tools.nsc.transform.patmat.PatternMatching$OptimizingMatchTranslator.translateMatch(PatternMatching.scala:87)
+	at scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:60)
+	at scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:55)
+	at scala.reflect.internal.Trees$$anonfun$itransform$3.apply(Trees.scala:1251)
+	at scala.reflect.internal.Trees$$anonfun$itransform$3.apply(Trees.scala:1251)
+	at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:2936)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:34)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:28)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.atOwner(TypingTransformers.scala:19)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1250)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2897)
+	at scala.tools.nsc.transform.TypingTransformers$TypingTransformer.transform(TypingTransformers.scala:48)
+	at scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:71)
+	at scala.tools.nsc.transform.patmat.PatternMatching$MatchTransformer.transform(PatternMatching.scala:55)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2900)
+	at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:2900)
+	at scala.collection.immutable.List.loop$1(List.scala:170)
+	at scala.collection.immutable.List.mapConserve(List.scala:186)
+	at scala.reflect.api.Trees$Transformer.transformTrees(Trees.scala:2900)
+	at scala.reflect.internal.Trees$class.itransform(Trees.scala:1219)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+	at scala.reflect.internal.SymbolTable.itransform(SymbolTable.scala:13)
+	at scala.reflect.api.Trees$Transformer.transform(Trees.scala:2897)
+```

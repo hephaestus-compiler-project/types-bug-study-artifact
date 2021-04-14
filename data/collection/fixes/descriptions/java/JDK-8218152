@@ -1,0 +1,23 @@
+There is an issue where javac fails and exits with no error if a bad annotation processor provided within a jar file is on the classpath.
+
+Background: an Annotation Processor class can be packaged in a jar file and is identified by a special text file inside the jar named: META-INF/services/javax.annotation.processing.Processor. This text file has only one line, specifying the class name of the annotation process class to run. When javac runs, it checks all jars on the classpath and if it finds the special text file in any jar file, then it attempts to run the class listed there.
+
+The issue here is that when the annotation processor class can't be executed, javac catches the exception and exits without reporting on the reason for the exit. Examples of reasons why the annotation processor can't be executed include:
+
+* the annotation processor class is compiled for a higher version of Java than the javac is running, giving UnsupportedClassVersionError.
+* the annotation processor class file is corrupt so can't be loaded.
+
+In either of the above cases javac will swallow the error and exit without telling the user why it failed to compile the java source code as expected.
+
+Testcase
+   put HelloWorld.java in current directory, edit <path_to_jar> and run:
+         javac -cp .:<path_to_jar>/bad.annotation.processor.jar HelloWorld.java
+
+Instead of producing HelloWorld.class as expected, javac exits silently.
+
+Here, bad.annotation.processor.jar is a file that was created to contain:
+      META-INF/services/javax.annotation.processing.Processor <<-- text file to list bad class
+     bad/notaclass.class <<-- dummy file, can't be loaded as a java class
+
+
+This fails on jdk8u as well as jdk11-jdk13

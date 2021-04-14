@@ -1,0 +1,39 @@
+According to SLS ch. 2 second para,
+
+"Bindings of different kinds have a precedence deﬁned on them: Deﬁnitions (local or inherited) have highest precedence, followed by explicit imports, followed by wildcard imports, followed by package members, which have lowest precedence."
+
+However, scalac (both 2.7.x and trunk) behave differently as illustrated,
+
+A.scala:
+```scala
+package p
+
+class BitSet
+```
+
+B.scala
+```scala
+package p
+
+import scala.collection.BitSet
+
+object Test {
+ val b : BitSet = new scala.collection.mutable.BitSet
+}
+```
+
+scalac produces the following output,
+
+```scala
+B.scala:3: warning: imported BitSet is permanently hidden by definition of class BitSet in package p
+import scala.collection.BitSet
+       ^
+B.scala:6: error: type mismatch;
+ found   : scala.collection.mutable.BitSet
+ required: p.BitSet
+ val b : BitSet = new scala.collection.mutable.BitSet
+```
+
+indicating that the package-local definition p.BitSet has taken precedence over the explicit import of scala.collection.BitSet in B.scala.
+
+The spec and the compiler should agree, and arguably the specified behaviour makes more intuitive sense than the current actual behaviour.

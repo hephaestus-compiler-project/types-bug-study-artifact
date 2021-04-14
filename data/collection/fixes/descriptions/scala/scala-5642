@@ -1,0 +1,77 @@
+This bug report focuses (mostly) on different problems with simplification of intersection types. I wanted to report one bug, but I just got too many errors by fiddling with the same code; my apologies. I still believe this bug report to be useful.
+
+I see an error message (about an actual error) mentioning `Coll with Traversable[T] with Traversable[T]` instead of `Coll with Traversable[T]`. Additionally, given that `Coll` is bound in a constraint `Coll <: Traversable[T]`, this should simplify further to `Coll`, even though this type appears in an invariant context. If this were the case, the problems below would not show up.
+
+The following is supposed to give an idea of what's happening, but it is not (yet) fully reduced.
+```scala
+trait Exp[+T] //Expression type, somewhat à la Lightweight Modular Staging but simpler.
+sealed trait Forceable[T, Coll] {...} //type-class
+
+def benchQuery[T, Coll <: Traversable[T]](msg: String,
+                                            v: Exp[Coll],
+                                            expectedResult: Traversable[T],
+                                            extraOptims: Seq[(String, Exp[Nothing] => Exp[Nothing])], timeScala: Double)(implicit f: Forceable[T, Coll]): Traversable[T]
+
+class UnconvertedExp[+T](val v: T)
+  //Removing the constraints causes type inference problems:
+  implicit def toQuery[T, Repr <: Traversable[T]](t: Exp[Repr with Traversable[T]]): UnconvertedExp[Exp[Repr with Traversable[T]]] = new UnconvertedExp(t)
+
+  //Ensure that the parameter was not implicitly converted to Exp.
+def Query[T, Repr <: Traversable[T]](t: UnconvertedExp[Exp[Repr with Traversable[T]]]): Exp[Repr with Traversable[T]] = t.v
+
+//Code triggering the error:
+def benchQueryComplete[T, Coll <: Traversable[T]](msg: String)
+                                                   (expected: => Traversable[T])
+                                                   (query: => Exp[Coll],
+                                                    extraOptims: Seq[(String, Exp[Nothing] => Exp[Nothing])] = Seq.empty) {
+
+val builtQuery = Query(query)
+benchQuery("", builtQuery, expectedRes, extraOptims, timeScala) //error line
+```
+Error:
+```scala
+could not find implicit value for parameter f: ivm.expressiontree.Lifting.Forceable[T,Coll with Traversable[T] with Traversable[T]]
+```
+
+Not having time to fully reduce this code, I tried annotating `builtQuery` to show the result of type inference, producing this code:
+
+```scala
+val builtQuery: Exp[Traversable[T]] = Query[T, Coll](query)
+benchQuery("%s Los" format msg, builtQuery, expectedRes, extraOptims, timeScala)
+```
+But then I got an even worse error:
+```scala
+type mismatch;
+[error]  found   : ivm.expressiontree.Exp[Coll]
+[error]  required: ivm.expressiontree.Lifting.UnconvertedExp[ivm.expressiontree.Exp[Coll with Traversable[T]]]
+[error]     val builtQuery: Exp[Traversable[T]] = Query[T, Coll](query)
+[error]                                                          ^
+ivm.expressiontree.Exp[Coll] <: ivm.expressiontree.Lifting.UnconvertedExp[ivm.expressiontree.Exp[Coll with Traversable[T]]]?
+  <notype> <: ivm.expressiontree.Lifting.UnconvertedExp[ivm.expressiontree.Exp[Coll with Traversable[T]]]?
+  false
+false
+[error] one error found
+```
+
+That's worse because it can be fixed by inserting an implicit conversion:
+
+```scala
+    val builtQuery: Exp[Traversable[T]] = Query[T, Coll](toQuery[T, Coll](query))
+    benchQuery("%s Los" format msg, builtQuery, expectedRes, extraOptims, timeScala)
+```
+However, I do need that type annotation on the implicit conversion. Otherwise, using just `toQuery(query)`, I get:
+```scala
+type mismatch;
+[error]  found   : ivm.expressiontree.Exp[Coll]
+[error]  required: ivm.expressiontree.Exp[Nothing with Traversable[?]]
+[error]     val builtQuery: Exp[Traversable[T]] = Query[T, Coll](toQuery(query))
+[error]                                                                  ^
+[error]                                                                  ^
+ivm.expressiontree.Exp[Coll] <: ivm.expressiontree.Exp[Nothing with Traversable[?]]?
+  Coll <: Nothing with Traversable[?]?
+    Coll <: Nothing?
+      <notype> <: Nothing?
+      false
+[...]
+```
+Here the compiler is deducing apparently `Repr = Nothing` in the call to `toQuery`, which is completely unexpected since `toQuery`'s declaration uses the somewhat-well-known workaround to SI-5298. The only difference I see and that should matter (if bugs make some sense) is that `query` is a call-by-name parameter: `query: => Exp[Coll]`.

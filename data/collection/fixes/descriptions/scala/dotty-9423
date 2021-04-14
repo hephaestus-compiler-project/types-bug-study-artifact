@@ -1,0 +1,47 @@
+## Minimized code
+
+Opaque type is lost and the original type leaks out. The code can be found in the scastie link
+https://scastie.scala-lang.org/BBy5wIhHRSG52SsEtjvGfg
+
+```scala
+package adt {
+  enum Error:
+    case INVALID_COMMAND, EMPTY_VALUE, INVALID_INPUT, DUPLICATE_LINE
+  opaque type NonEmptyString = String
+
+  object NonEmptyString:
+      def apply(s: String): NonEmptyString = 
+          if(s == null || s == "")
+              throw new IllegalStateException("NonEmptyString cannot be empty or null")
+          else
+              s
+      def safe(s: String): Either[Error.EMPTY_VALUE.type, NonEmptyString] = 
+          s match
+              case "" | null => Left(Error.EMPTY_VALUE)
+              case somethingElse => Right(somethingElse)
+
+  extension NonEmptyStringOps on (nes: NonEmptyString):
+      def equals(another: NonEmptyString): Boolean = nes == another
+      def hashCode: Int = nes.hashCode
+      def split(s: String): Array[NonEmptyString]
+          = nes.split(s)
+}
+
+import adt._
+import adt.NonEmptyStringOps
+
+@main def runner: Unit = 
+   val nes: NonEmptyString = NonEmptyString("foo\ngoo")
+   val lines: Set[NonEmptyString] = nes.split("\n").toSet // COMPILATION ERROR
+```
+
+## Output
+
+```
+Found:    Set[String]
+Required: Set[adt.NonEmptyString]
+```
+
+## Expectation
+
+Should have compiled successfully. 

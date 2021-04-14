@@ -1,0 +1,79 @@
+Code:
+
+$ cat Test.java
+
+public class Test  {
+
+    interface Constructor {
+        MyTest execute();
+    }
+
+    class MyTest {
+        MyTest() { System.out.println("Constructor executed"); }
+    }
+
+    public Constructor getConstructor() {
+        return getConstructor(() -> { return MyTest::new; });
+    }
+
+    public static void main(String argv[]) {
+        Test t = new Test();
+        MyTest mytest = t.getConstructor().execute();
+    }
+
+    Constructor getConstructor(Wrapper arg) {
+        return arg.unwrap();
+    }
+
+    interface Wrapper {
+        Constructor unwrap();
+    }
+}
+
+Generates NullPointerException on compilation:
+
+$ javac Test.java 
+An exception has occurred in the compiler (1.9.0-internal). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.NullPointerException
+	at com.sun.tools.javac.jvm.Code.emitop0(Code.java:563)
+	at com.sun.tools.javac.jvm.Items$SelfItem.load(Items.java:367)
+	at com.sun.tools.javac.jvm.Gen.genArgs(Gen.java:959)
+	at com.sun.tools.javac.jvm.Gen.visitApply(Gen.java:1898)
+	at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1459)
+	at com.sun.tools.javac.jvm.Gen.genExpr(Gen.java:940)
+	at com.sun.tools.javac.jvm.Gen.visitReturn(Gen.java:1856)
+	at com.sun.tools.javac.tree.JCTree$JCReturn.accept(JCTree.java:1378)
+	at com.sun.tools.javac.jvm.Gen.genDef(Gen.java:730)
+	at com.sun.tools.javac.jvm.Gen.genStat(Gen.java:765)
+	at com.sun.tools.javac.jvm.Gen.genStat(Gen.java:751)
+	at com.sun.tools.javac.jvm.Gen.genStats(Gen.java:802)
+	at com.sun.tools.javac.jvm.Gen.visitBlock(Gen.java:1151)
+	at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:903)
+	at com.sun.tools.javac.jvm.Gen.genDef(Gen.java:730)
+	at com.sun.tools.javac.jvm.Gen.genStat(Gen.java:765)
+	at com.sun.tools.javac.jvm.Gen.genMethod(Gen.java:1024)
+	at com.sun.tools.javac.jvm.Gen.visitMethodDef(Gen.java:987)
+	at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:772)
+	at com.sun.tools.javac.jvm.Gen.genDef(Gen.java:730)
+	at com.sun.tools.javac.jvm.Gen.genClass(Gen.java:2518)
+	at com.sun.tools.javac.main.JavaCompiler.genCode(JavaCompiler.java:744)
+	at com.sun.tools.javac.main.JavaCompiler.generate(JavaCompiler.java:1571)
+	at com.sun.tools.javac.main.JavaCompiler.generate(JavaCompiler.java:1535)
+	at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:906)
+	at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:865)
+	at com.sun.tools.javac.main.Main.compile(Main.java:521)
+	at com.sun.tools.javac.main.Main.compile(Main.java:381)
+	at com.sun.tools.javac.main.Main.compile(Main.java:370)
+	at com.sun.tools.javac.main.Main.compile(Main.java:361)
+	at com.sun.tools.javac.Main.compile(Main.java:56)
+	at com.sun.tools.javac.Main.main(Main.java:42)
+
+Changing 'getConstructor()' method to implementation without lambda wrapper works good:
+
+    public Constructor getConstructor() {
+        return MyTest::new;
+    }
+
+$ javac Test.java
+$ java Test 
+Constructor executed

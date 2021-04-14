@@ -1,0 +1,13 @@
+Javac reports the following warning:
+
+src/share/classes/jdk/codetools/apidiff/model/TypeMirrorComparator.java:77: warning: [overloads] compareAll(Function<Integer,Position>,IntTable<TypeMirror>) in TypeMirrorComparator is potentially ambiguous with compareAll(Function<ElementKey,Position>,KeyTable<TypeMirror>) in TypeMirrorComparator 
+
+The type of the second argument should prevent any ambiguity: it's either KeyTable<TypeMirror> or IntTable<TypeMirror> which are unrelated classes:
+
+grep 'class' src/share/classes/jdk/codetools/apidiff/model/*Table.java
+src/share/classes/jdk/codetools/apidiff/model/IntTable.java:public class IntTable<T> {
+src/share/classes/jdk/codetools/apidiff/model/KeyTable.java:public class KeyTable<T> {
+
+with no common supertype other than Object.
+
+Filed as a bug, because the code is as intended, with no trivial workaround, and the warning prevents use of -Xlint:all -Werror

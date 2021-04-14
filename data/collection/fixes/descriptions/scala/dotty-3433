@@ -1,0 +1,31 @@
+```scala
+scala> type Const[t] = { type L[x] = t }
+defined type alias Const
+
+scala> type Bar[a] = Const[Int]#L[a] 
+-- [E052] Reference Error: <console>:5:15 --------------------------------------
+5 | type Bar[a] = Const[Int]#L[a]
+  |               ^^^^^^^^^^^^^^^
+  |               Const[Int]#L does not take type parameters
+```
+
+Interestingly if we "partially apply" this `Const` the result is neither in `*` nor in `* → *`:
+
+```scala
+scala> type Foo = Const[Int]#L
+defined type alias Foo
+
+scala> val a: Foo[Int] = 1
+-- [E052] Reference Error: <console>:6:7 ---------------------------------------
+6 |val a: Foo[Int] = 1
+  |       ^^^^^^^^
+  |       Foo does not take type parameters
+
+scala> val a: Foo = 1
+-- [E055] Syntax Error: <console>:6:7 ------------------------------------------
+6 |val a: Foo = 1
+  |       ^^^
+  |       missing type parameter for Foo
+```
+
+(Note that in Dotty we would just define `Const` as `type Const[C] = [X] => C` which works as expected, the above is a way to encode a constant type function in scalac)

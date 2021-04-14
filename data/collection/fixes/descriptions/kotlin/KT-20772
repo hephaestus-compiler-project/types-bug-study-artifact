@@ -1,0 +1,70 @@
+# Synopsis 
+
+Type of change
+
+* Report error on the code that used to compile fine
+
+Motivation
+
+* User code fails with exception(s)
+* Type safety guarantees are not met (including fail-fast behavior for non-null types)
+
+Impact
+
+* Some code that used to compile won't compile anymore:
+  * erroneous cases will be reported as errors
+  * potentially correct cases will be conservatively reported as errors too, because distinguishing them requires too complex analysis
+* There were cases when such code worked with no exceptions and compiled without warnings:
+   * the code with a smart cast could have never been executed
+   * code could've been a corner case in which smart cast is actually safe
+
+Migration
+
+* Precisely determining and reporting all code pieces that soon will be deprecated is too complex from the implementation point of view
+* It is not possible to provide users with proper quick-fix (inserting not-null assertion !! can be not correct, because other enum members could actually return null)
+
+# Existing behavior
+
+Currently, due to compiler bug, smart casts on one enum member are leaked to other enum members:
+
+```
+enum class Message(val text: String?) {
+    HELLO("hello"),
+    WORLD("world"),
+    NOTHING(null)
+}
+
+fun printMessages() {
+    val helloText: String = Message.HELLO.text!!        // Smart cast  'HELLO.text' to 'String'
+    val nothingText: String = Message.NOTHING.text // incorrect smart cast to String, induced by smart cast of 'HELLO.text'
+}
+```
+
+# Proposed behavior
+
+Fix compiler bug and perform smart casts on each enum member separately.
+
+*NB*.
+
+# Impact of change
+
+* Some code that used to compile and work fine won't compile anymore
+   * E.g. in the example above user code coud've never exploited smartcast to `String` on `NOTHING.text`
+   * Alternatively, `NOTHING` could've been declared as `NOTHING("nothing")`, making smart cast of `NOTHING.text` to `String` safe in that specific case
+
+* It's very complex task to properly track and report all code pieces, which are going to be deprecated soon. We propose to **break the code without deprecation warnings**, arguing that it is very unlikely that some user code actually rely on the current behavior
+
+* Still, users will be provided with fallback flag to temporarily return old behavior
+
+# Affected versions
+
+`1.2.70`: 
+- provide opt-in flag
+- enable by default in `-Xprogressive`
+
+`1.3`: 
+- enable by default
+- provide opt-out flag: `-XXLanguage:-SoundSmartcastForEnumEntries`
+
+`1.4` (?)
+- drop opt-out flag

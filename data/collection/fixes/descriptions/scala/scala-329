@@ -1,0 +1,31 @@
+The following code:
+
+```scala
+case class Foo(price: Int)
+case class Bar(cost: Int)
+
+def moo(in: AnyRef): String = in match {
+	case p: {def price: Int} => "price "+p.price
+	case c: {def cost: Int} => "cost "+c.cost
+	case _ => "Unknown"
+}
+
+println(moo(Bar(33)))
+```
+
+results in the following compilation warnings:
+
+```scala
+pony:~/tmp dpp$$ scala -unchecked some3.scala 
+(fragment of some3.scala):5: warning: refinement AnyRef{def price: Int} in type pattern is unchecked since it is eliminated by erasure
+        case p: {def price: Int} => "price "+p.price
+                 ^
+(fragment of some3.scala):6: warning: refinement AnyRef{def cost: Int} in type pattern is unchecked since it is eliminated by erasure
+        case c: {def cost: Int} => "cost "+c.cost
+                 ^
+two warnings found
+```
+
+However, the types can be discovered at runtime and should not be eliminated by erasure.
+
+And yes, this could be considered an enhancement :-)

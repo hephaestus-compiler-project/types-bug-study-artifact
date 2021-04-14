@@ -1,0 +1,29 @@
+As reported in https://github.com/lampepfl/dotty/issues/3273#issuecomment-335345859:
+
+```scala
+tail /tmp/Test.java sandbox/client.scala ;  javac -d /tmp /tmp/Test.java && scalac -cp /tmp sandbox/client.scala && ./bin/dotc -classpath /tmp sandbox/client.scala
+==> /tmp/Test.java <==
+class Test {
+	static abstract class A<X> extends B {
+		abstract B foo();
+	}
+	static abstract class B<X> {
+		abstract A bar();
+	}
+}
+
+==> sandbox/client.scala <==
+class Client {
+  val a = (_: Test.A[AnyRef]).foo
+  val b = (_: Test.B[AnyRef]).bar
+  def test(x: Test.A[AnyRef]): Test.B[_] = x
+}
+-- [E007] Type Mismatch Error: sandbox/client.scala:4:43 -----------------------
+4 |  def test(x: Test.A[AnyRef]): Test.B[_] = x
+  |                                           ^
+  |                                           found:    Test.A[AnyRef](x)
+  |                                           required: Test.B[_]
+  |
+
+one error found
+```

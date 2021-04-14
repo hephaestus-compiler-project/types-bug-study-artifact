@@ -1,0 +1,75 @@
+This following ill-formed input crashes javac:
+
+```
+abstract class T {
+
+  void p(int padding) {}
+
+  static boolean t() {
+    return true;
+  }
+
+  private void f() {
+    p(T::t ? 1 : 0);
+  }
+}
+```
+
+```
+$ javac -fullversion T.java
+javac full version "15-ea+31-1502"
+An exception has occurred in the compiler (15-ea). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program, the following diagnostic, and the parameters passed to the Java compiler in your report. Thank you.
+java.lang.AssertionError
+        at jdk.compiler/com.sun.tools.javac.util.Assert.error(Assert.java:155)
+        at jdk.compiler/com.sun.tools.javac.util.Assert.checkNonNull(Assert.java:62)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredAttrNode$StructuralStuckChecker.visitReference(DeferredAttr.java:923)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMemberReference.accept(JCTree.java:2366)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.scan(TreeScanner.java:49)
+        at jdk.compiler/com.sun.tools.javac.tree.TreeScanner.visitConditional(TreeScanner.java:207)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCConditional.accept(JCTree.java:1465)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredAttrNode$StructuralStuckChecker.complete(DeferredAttr.java:836)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredType.check(DeferredAttr.java:343)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredAttrNode.process(DeferredAttr.java:783)
+        at jdk.compiler/com.sun.tools.javac.comp.DeferredAttr$DeferredAttrContext.complete(DeferredAttr.java:630)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.rawInstantiate(Resolve.java:625)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.selectBest(Resolve.java:1574)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.findMethodInScope(Resolve.java:1744)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.findMethod(Resolve.java:1813)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.findMethod(Resolve.java:1787)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.findFun(Resolve.java:1944)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve$9.doLookup(Resolve.java:2648)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve$BasicLookupHelper.lookup(Resolve.java:3320)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.lookupMethod(Resolve.java:3570)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.lookupMethod(Resolve.java:3555)
+        at jdk.compiler/com.sun.tools.javac.comp.Resolve.resolveMethod(Resolve.java:2644)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitIdent(Attr.java:3981)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCIdent.accept(JCTree.java:2419)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:665)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitApply(Attr.java:2401)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1745)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:665)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribExpr(Attr.java:718)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitExec(Attr.java:2113)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1532)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:665)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:739)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStats(Attr.java:757)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitBlock(Attr.java:1435)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:1047)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:665)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:739)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.visitMethodDef(Attr.java:1225)
+        at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:893)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribTree(Attr.java:665)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribStat(Attr.java:739)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:5270)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribClass(Attr.java:5161)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attribClass(Attr.java:5001)
+        at jdk.compiler/com.sun.tools.javac.comp.Attr.attrib(Attr.java:4946)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1344)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:973)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:317)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:176)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:59)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:45)
+```

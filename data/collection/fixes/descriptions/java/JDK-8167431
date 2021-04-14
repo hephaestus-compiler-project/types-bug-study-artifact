@@ -1,0 +1,100 @@
+FULL PRODUCT VERSION :
+java version "1.8.0_102"
+Java(TM) SE Runtime Environment (build 1.8.0_102-b14)
+Java HotSpot(TM) 64-Bit Server VM (build 25.102-b14, mixed mode)
+
+FULL OS VERSION :
+Darwin JasonMBP2014.local 16.0.0 Darwin Kernel Version 16.0.0: Mon Aug 29 17:56:20 PDT 2016; root:xnu-3789.1.32~3/RELEASE_X86_64 x86_64
+
+A DESCRIPTION OF THE PROBLEM :
+The Scala programming language is in the process of migrating to Java 8. As part of this, we have started to use default methods in interfaces in our standard library.
+
+We have noticed a regression in the startup time of applications. Steps to reproduce are below.
+
+I profiled this and noticed the most of the time is spent in HierarchyVisitor<FindMethodsByErasedSig>. 
+
+Inspection of this code suggest to me that it does not guard against redundant work when there are multiple paths to a particular super interface through the super-type lattice.
+
+Related discussion: https://github.com/scala/scala/pull/5429
+
+"redundancy" of super interfaces is fairly common in our collections hierarchy:
+
+scala> def interfaceCount(cls: Class[_]) = {
+  val m = collection.mutable.Map[Class[_], Int]().withDefaultValue(0)
+  def loop(cls1: Class[_]) 
+    cls1.getInterfaces.foreach(i => m(i) = (m(i) + 1))
+    cls1.getInterfaces.foreach(loop)
+    if (cls1.getSuperclass != null) loop(cls1.getSuperclass)
+  }
+  loop(cls)
+  m
+}
+interfaceCount: (cls: Class[_])scala.collection.mutable.Map[Class[_],Int]
+
+scala> println(interfaceCount(Nil.getClass).toSeq.sortBy(-_._2).mkString("\n"))
+(interface scala.collection.GenTraversableOnce,75)
+(interface scala.collection.Parallelizable,58)
+(interface scala.collection.GenTraversableLike,58)
+(interface scala.collection.generic.HasNewBuilder,32)
+(interface scala.collection.GenIterableLike,26)
+(interface scala.Equals,19)
+(interface scala.collection.TraversableOnce,17)
+(interface scala.collection.generic.FilterMonadic,17)
+(interface scala.collection.TraversableLike,17)
+(interface scala.collection.generic.GenericTraversableTemplate,15)
+(interface scala.collection.GenTraversable,15)
+(interface scala.collection.IterableLike,10)
+(interface scala.collection.GenSeqLike,8)
+(interface scala.collection.GenIterable,8)
+(interface scala.collection.Traversable,7)
+(interface scala.collection.SeqLike,5)
+(interface scala.collection.Iterable,5)
+(interface scala.collection.Seq,3)
+(interface scala.PartialFunction,3)
+(interface scala.Function1,3)
+(interface scala.collection.GenSeq,3)
+(interface java.io.Serializable,2)
+(interface scala.collection.LinearSeqLike,2)
+...
+
+
+THE PROBLEM WAS REPRODUCIBLE WITH -Xint FLAG: Yes
+
+THE PROBLEM WAS REPRODUCIBLE WITH -server FLAG: Yes
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+For instance, running a small main method in the standard library that depends on the Scala standard collections and prints some system properties to console:
+
+Scala 2.11.8 (no default methods, available from http://scala-lang.org/download/2.11.8.html)
+
+
+% time java -classpath ~/scala/2.11.8/lib/scala-library.jar scala.util.Properties
+Scala library version 2.11.8 -- Copyright 2002-2016, LAMP/EPFL
+
+real	0m0.262s
+user	0m0.260s
+sys	0m0.044s
+
+Scala 2.12.0-RC1 (uses default methods, available from http://scala-lang.org/download/2.12.0-RC1.html)
+
+% time java -classpath ~/scala/2.12.0-RC1/lib/scala-library.jar scala.util.Properties
+Scala library version 2.12.0-RC1 -- Copyright 2002-2016, LAMP/EPFL
+
+real	0m0.891s
+user	0m0.877s
+sys	0m0.074s
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+Expected: Comparable startup performance to before
+Actual: 0.55s startup regression
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+I not yet created a Java benchmark to demonstrate this problem, but I can do so if requested.
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+ - Restructure interface hierarchy to avoid excessive redundancy and depth
+ - Avoid using default methods
+

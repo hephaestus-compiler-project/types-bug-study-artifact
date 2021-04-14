@@ -1,0 +1,184 @@
+If I have the following inheritance structure
+
+```scala
+trait T
+
+trait TA
+trait TB
+
+class A extends T with TA
+class B extends T with TB
+class AB extends T with TA with TB
+```
+
+Matching on `_: TA with TB`
+
+```scala
+val li: Vector[T] = Vector(new A, new B, new AB)
+
+val matched = (for (l <- li) yield {
+  l match {
+    case _: TA with TB => "tab"
+    case _: TA => "ta"
+    case _: TB => "tb"
+  }
+})
+
+println(matched)
+// prints
+// Vector(tab, tb, tab)
+```
+
+Matching on `_: T with TA with TB`
+
+```scala
+val matched2 = (for (l <- li) yield {
+  l match {
+    case _: T with TA with TB => "tab"
+    case _: T with TA => "ta"
+    case _: T with TB => "tb"
+  }
+})
+
+println(matched2)
+// prints
+// Vector(ta, tb, tab)
+
+// For comparison: This works correctly
+println((new A).isInstanceOf[TA with TB]) // prints false
+println((new B).isInstanceOf[TA with TB]) // prints false
+println((new AB).isInstanceOf[TA with TB]) // prints true
+```
+
+Running with -Xprint:typer, both match statements are identical (and the isInstanceOf clause is inferred to be [T with TA with TB] in both cases)
+```scala
+private[this] val matched2: scala.collection.immutable.Vector[String] = $anon.this.li.map[String, scala.collection.immutable.Vector[String]]({
+            @SerialVersionUID(0) final <synthetic> class $anonfun extends scala.runtime.AbstractFunction1[this.T,String] with Serializable {
+              def <init>(): anonymous class $anonfun = {
+                $anonfun.super.<init>();
+                ()
+              };
+              final def apply(l: this.T): String = {
+                case <synthetic> val x1: this.T = l;
+                case6(){
+                  if (x1.isInstanceOf[this.T with this.TA with this.TB])
+                    {
+                      val x2: this.T with this.TA with this.TB = (x1.asInstanceOf[this.T with this.TA with this.TB]: this.T with this.TA with this.TB);
+                      matchEnd5("tab")
+                    }
+                  else
+                    case7()
+                };
+                case7(){
+                  if (x1.isInstanceOf[this.T with this.TA])
+                    {
+                      val x3: this.T with this.TA = (x1.asInstanceOf[this.T with this.TA]: this.T with this.TA);
+                      matchEnd5("ta")
+                    }
+                  else
+                    case8()
+                };
+                case8(){
+                  if (x1.isInstanceOf[this.T with this.TB])
+                    {
+                      val x4: this.T with this.TB = (x1.asInstanceOf[this.T with this.TB]: this.T with this.TB);
+                      matchEnd5("tb")
+                    }
+                  else
+                    case9()
+                };
+                case9(){
+                  matchEnd5(throw new MatchError(x1))
+                };
+                matchEnd5(x: String){
+                  x
+                }
+              }
+            };
+            new anonymous class $anonfun()
+          })(immutable.this.Vector.canBuildFrom[String]);
+```
+
+-Xprint:erasure however shows the difference:
+
+**matched**:
+```scala
+final def apply(l: T): String = {
+      case <synthetic> val x1: T = l;
+      case6(){
+        if (x1.$isInstanceOf[TA]())
+          {
+            val x2: TA = (x1.$asInstanceOf[TA](): TA);
+            matchEnd5("tab")
+          }
+        else
+          case7()
+      };
+      case7(){
+        if (x1.$isInstanceOf[TA]())
+          {
+            val x3: T = (x1.$asInstanceOf[T](): T);
+            matchEnd5("ta")
+          }
+        else
+          case8()
+      };
+      case8(){
+        if (x1.$isInstanceOf[TB]())
+          {
+            val x4: T = (x1.$asInstanceOf[T](): T);
+            matchEnd5("tb")
+          }
+        else
+          case9()
+      };
+      case9(){
+        matchEnd5(throw new MatchError(x1))
+      };
+      matchEnd5(x: String){
+        x
+      }
+    };
+```
+
+**matched2**:
+```scala
+final def apply(l: T): String = {
+      case <synthetic> val x1: T = l;
+      case6(){
+        if (x1.$isInstanceOf[TA]().&&(x1.$isInstanceOf[TB]()))
+          {
+            val x2: T = (x1.$asInstanceOf[T](): T);
+            matchEnd5("tab")
+          }
+        else
+          case7()
+      };
+      case7(){
+        if (x1.$isInstanceOf[TA]())
+          {
+            val x3: T = (x1.$asInstanceOf[T](): T);
+            matchEnd5("ta")
+          }
+        else
+          case8()
+      };
+      case8(){
+        if (x1.$isInstanceOf[TB]())
+          {
+            val x4: T = (x1.$asInstanceOf[T](): T);
+            matchEnd5("tb")
+          }
+        else
+          case9()
+      };
+      case9(){
+        matchEnd5(throw new MatchError(x1))
+      };
+      matchEnd5(x: String){
+        x
+      }
+    };
+```
+
+So, the check against TB is somehow missing when one writes `\_: TA with TB` but is included if it is written as `\_: T with TA with TB`.

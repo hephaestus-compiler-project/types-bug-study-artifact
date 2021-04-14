@@ -1,0 +1,75 @@
+FULL PRODUCT VERSION :
+java version "9-ea"
+Java(TM) SE Runtime Environment (build 9-ea+159)
+Java HotSpot(TM) 64-Bit Server VM (build 9-ea+159, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Windows 7 x64 [6.1.7601]
+
+A DESCRIPTION OF THE PROBLEM :
+The provided source code fails to compile due to method overload ambiguity over "fx.method(new FxSubscriber<T>() {":
+
+The pattern compiles fine with Java 8u121 with target -6.
+
+IntelliJ also doesn't indicates any ambiguity in its editor window (Build #IU-171.3691.12, built on March 1, 2017).
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile the supplied code with javac target -9
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Compiles fine
+ACTUAL -
+Compilation error
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+Error:(15, 11) java: reference to method is ambiguous
+  both method method(java.util.concurrent.Flow.Subscriber<? super T>) in hu.akarnokd.java9.benchmark.OverloadResolution.Fx and method method(hu.akarnokd.java9.benchmark.OverloadResolution.FxSubscriber<? super T>) in hu.akarnokd.java9.benchmark.OverloadResolution.Fx match
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import java.util.concurrent.Flow;
+
+public class OverloadResolution {
+
+    interface FxSubscriber<T> extends Flow.Subscriber<T> { }
+
+    abstract class Fx<T> {
+        void method(Flow.Subscriber<? super T> f) { }
+        void method(FxSubscriber<? super T> f) { }
+    }
+
+    <T> void m() {
+        Fx<? extends T> fx = new Fx<T>() { };
+
+        fx.method(new FxSubscriber<T>() {
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+
+            }
+
+            @Override
+            public void onNext(T item) {
+
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+
+            }
+
+            @Override
+            public void onComplete() {
+
+            }
+        });
+    }
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Change Fx<? extends T> into Fx<T> (may require suppressing the 
+

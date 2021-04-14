@@ -1,0 +1,64 @@
+Reported by Oleksandr Olgashko here: https://groups.google.com/d/msg/scala-user/ERoeBq5Et9s/lPU2emA9EfgJ
+
+```scala
+trait A {
+  val value: String
+}
+
+trait B {
+  val as: List[A]
+}
+
+case class C(value: String) extends A
+
+object Test {
+  new B {
+    val as = List(
+      new C("one") {},
+      new C("two") {}
+    )
+
+    def method = as match {
+      case List(C("one"), _) => 1
+      case _ => 42
+    }
+  }
+}
+```
+
+Oleksandr reports this error message (verified on 2.11.4):
+
+```scala
+<console>:24: error: error during expansion of this match (this is a scalac bug).
+The underlying error was: value _1 is not a member of C
+           def method = as match {
+```
+
+This is the one for 2.11.5:
+
+```scala
+scala.reflect.internal.Types$TypeError: value _1 is not a member of C
+	at scala.tools.nsc.typechecker.Contexts$ThrowingReporter.handleError(Contexts.scala:1390)
+	at scala.tools.nsc.typechecker.Contexts$ContextReporter.issue(Contexts.scala:1242)
+	at scala.tools.nsc.typechecker.Contexts$Context.issue(Contexts.scala:573)
+	at scala.tools.nsc.typechecker.ContextErrors$ErrorUtils$.issueTypeError(ContextErrors.scala:98)
+	at scala.tools.nsc.typechecker.ContextErrors$ErrorUtils$.issueNormalTypeError(ContextErrors.scala:91)
+	at scala.tools.nsc.typechecker.ContextErrors$TyperContextErrors$TyperErrorGen$.NotAMemberError(ContextErrors.scala:368)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$lookupInQualifier$1(Typers.scala:4076)
+	at scala.tools.nsc.typechecker.Typers$Typer.handleMissing$1(Typers.scala:4720)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedSelectInternal$1(Typers.scala:4725)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedSelect$1(Typers.scala:4657)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedSelectOrSuperCall$1(Typers.scala:4796)
+	at scala.tools.nsc.typechecker.Typers$Typer.typedInAnyMode$1(Typers.scala:5321)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5337)
+	at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5373)
+	at scala.tools.nsc.typechecker.Typers$Typer.scala$tools$nsc$typechecker$Typers$Typer$$typedInternal(Typers.scala:5400)
+	at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5347)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5351)
+	at scala.tools.nsc.interpreter.ReplGlobal$$anon$1$$anon$2.typed(ReplGlobal.scala:36)
+	at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5443)
+	at scala.tools.nsc.transform.patmat.Interface$TypedSubstitution$Substitution$substIdentsForTrees$2$.typedStable(PatternMatching.scala:229)
+...
+```
+
+It seems toi be a regression in 2.11.x, it works in 2.10.4.

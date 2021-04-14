@@ -1,0 +1,30 @@
+With JDK 16-ea+34-2216, javadoc does not consistently escape the type annotation `@A("hello")` when it appears in the html.
+
+Note that some but not all of the following lines use `@p.A(%22hello%22)`.
+
+```
+grep 'p.A' p/T.html
+<div class="col-second even-row-color method-summary-table-tab2 method-summary-table-tab4 method-summary-table"><code><span class="member-name-link"><a href="#f(@p.A(%22hello%22)int)">f</a></span>&#8203;(@p.A("hello") int&nbsp;x)</code></div>
+<section class="detail" id="f(@p.A("hello")int)">
+<div class="member-signature"><span class="modifiers">public</span>&nbsp;<span class="return-type">void</span>&nbsp;<span class="element-name">f</span>&#8203;<span class="parameters">(@p.A("hello") int&nbsp;x)</span></div>
+```
+
+```
+package p;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target({ElementType.PARAMETER, ElementType.TYPE_USE})
+@Retention(RetentionPolicy.RUNTIME)
+@interface A {
+  String value();
+}
+
+/** Doc */
+public class T {
+  public void f(@A("hello") int x) {}
+}
+```

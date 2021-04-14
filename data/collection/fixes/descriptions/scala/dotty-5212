@@ -1,0 +1,626 @@
+Folks,
+
+I am still contiuing coding my `PDBP` library.
+
+For a (way too ?) long time I was using `Dotty` version `0.8.0`.
+
+I would (finally !) like to upgrade to `Dotty` version `0.10.0-RC1` (and work with shorter upgrade cycles).
+
+Changing `build.sbt` gave me a weird error. 
+
+I was able to pin down the problem to a few lines of code in the file `ReadingTransformation.scala` that makes use of *implicit functions*.
+
+The (very long) stack trace is below ...
+
+The simplest way to reproduce it is by cloning 
+`https://github.com/PDBP/pdbp.github.io/tree/upgradingDottyVersion`
+
+The project has *many* `.scala` files but *most of them* are moved to `.scala.NOTUSED` files
+
+Luc Duponcheel
+
+```
+sbt:pdbp> compile
+[info] Updating ...
+[warn] Binary version (0.10.0-RC1) for dependency ch.epfl.lamp#scala-library;0.10.0-RC1
+[warn]  in pdbp#pdbp_0.10;0.8.0 differs from Scala binary version in project (0.10).
+[warn] circular dependency found: ch.epfl.lamp#scala-library;0.10.0-RC1->ch.epfl.lamp#dotty-library_0.10;0.10.0-RC1->...
+[warn] circular dependency found: ch.epfl.lamp#dotty-library_0.10;0.10.0-RC1->ch.epfl.lamp#scala-library;0.10.0-RC1->...
+[info] Done updating.
+[info] Compiling 42 Scala sources to /opt/home/git/blog/pdbp/target/scala-0.10/classes ...
+exception while typing final class $anon() extends Object() with (C ~U~$u003E
+  ReadingTransformation.this.RTC
+) {
+  override def apply[Z](cz: C[Z]): ReadingTransformation.this.RTC[Z] =
+    {
+      def $anonfun(implicit evidence$7: R): C[Z] =
+        this.apply$direct[Z](cz)(evidence$7)
+      closure($anonfun)
+    }
+  def apply$direct[Z](cz: C[Z])(implicit x$0: R): C[Z] =
+    {
+      cz
+    }
+} of class class dotty.tools.dotc.ast.Trees$TypeDef # 31506
+exception while typing {
+  final class $anon() extends Object() with (C ~U~$u003E
+    ReadingTransformation.this.RTC
+  ) {
+    override def apply[Z](cz: C[Z]): ReadingTransformation.this.RTC[Z] =
+      {
+        def $anonfun(implicit evidence$7: R): C[Z] =
+          this.apply$direct[Z](cz)(evidence$7)
+        closure($anonfun)
+      }
+    def apply$direct[Z](cz: C[Z])(implicit x$0: R): C[Z] =
+      {
+        cz
+      }
+  }
+  new Object with pdbp.naturalTransformation.unary.~U~$u003E{...}():
+    C ~U~$u003E ReadingTransformation.this.RTC
+} of class class dotty.tools.dotc.ast.Trees$Block # 31507
+exception while typing override <accessor> def transform:
+  C ~U~$u003E
+    pdbp.computation.transformation.reading.ReadingTransformation.
+      ReadingTransformed
+    [R, C]
+
+ =
+  {
+    final class $anon() extends Object() with (C ~U~$u003E
+      ReadingTransformation.this.RTC
+    ) {
+      override def apply[Z](cz: C[Z]): ReadingTransformation.this.RTC[Z] =
+        {
+          def $anonfun(implicit evidence$7: R): C[Z] =
+            this.apply$direct[Z](cz)(evidence$7)
+          closure($anonfun)
+        }
+      def apply$direct[Z](cz: C[Z])(implicit x$0: R): C[Z] =
+        {
+          cz
+        }
+    }
+    new Object with pdbp.naturalTransformation.unary.~U~$u003E{...}():
+      C ~U~$u003E ReadingTransformation.this.RTC
+  } of class class dotty.tools.dotc.ast.Trees$DefDef # 31510
+exception while typing @scala.annotation.internal.SourceFile(
+
+    "/opt/home/git/blog/pdbp/src/main/scala/pdbp/computation/transformation/reading/ReadingTransformation.scala"
+
+) <trait> trait ReadingTransformation[R, C <: [+_$15] => Any](
+  implicit evidence$3: pdbp.computation.Computation[C]
+) extends Object with
+  pdbp.computation.transformation.ComputationTransformation[C,
+    pdbp.computation.transformation.reading.ReadingTransformation.
+      ReadingTransformed
+    [R, C]
+  ]
+ with
+  pdbp.program.reading.Reading[R,
+    pdbp.types.kleisli.binary.kleisliBinaryTypeConstructorType.Kleisli[
+      pdbp.computation.transformation.reading.ReadingTransformation.
+        ReadingTransformed
+      [R, C]
+    ]
+  ]
+ {
+  private type R
+  private type C <: [+_$15] => Any
+  private implicit <accessor> def evidence$3: pdbp.computation.Computation[C]
+  private type RTC =
+
+      pdbp.computation.transformation.reading.ReadingTransformation.
+        ReadingTransformed
+      [R, C]
+
+  private type =$u003ERTC =
+
+      pdbp.types.kleisli.binary.kleisliBinaryTypeConstructorType.Kleisli[
+        ReadingTransformation.this.RTC
+      ]
+
+  override <accessor> def transform:
+    C ~U~$u003E
+      pdbp.computation.transformation.reading.ReadingTransformation.
+        ReadingTransformed
+      [R, C]
+
+   =
+    {
+      final class $anon() extends Object() with (C ~U~$u003E
+        ReadingTransformation.this.RTC
+      ) {
+        override def apply[Z](cz: C[Z]): ReadingTransformation.this.RTC[Z] =
+          {
+            def $anonfun(implicit evidence$7: R): C[Z] =
+              this.apply$direct[Z](cz)(evidence$7)
+            closure($anonfun)
+          }
+        def apply$direct[Z](cz: C[Z])(implicit x$0: R): C[Z] =
+          {
+            cz
+          }
+      }
+      new Object with pdbp.naturalTransformation.unary.~U~$u003E{...}():
+        C ~U~$u003E ReadingTransformation.this.RTC
+    }
+  override def bind[Z, Y](rtcz: ReadingTransformation.this.RTC[Z],
+    z$u003E=rtcy: () => Z => ReadingTransformation.this.RTC[Y]
+  ): ReadingTransformation.this.RTC[Y] =
+    {
+      def $anonfun(implicit evidence$8: R): C[Y] =
+        this.bind$direct[Z, Y](rtcz,
+          <special-ops>.<cbn-arg>[Z => ReadingTransformation.this.RTC[Y]](
+            z$u003E=rtcy
+          )
+        )(evidence$8)
+      closure($anonfun)
+    }
+  def bind$direct[Z, Y](
+    rtcz:
+
+        pdbp.computation.transformation.reading.ReadingTransformation.
+          ReadingTransformed
+        [R, C][Z]
+
+  ,
+    z$u003E=rtcy:
+      () => Z =>
+        pdbp.computation.transformation.reading.ReadingTransformation.
+          ReadingTransformed
+        [R, C][Y]
+
+  )(implicit x$0: R): C[Y] =
+    {
+      this.evidence$3.bind[Z, Y](rtcz.apply(x$0),
+        <special-ops>.<cbn-arg>[Z => C[Y]](
+          {
+            def $anonfun(): Z => C[Y] =
+              {
+                {
+                  def $anonfun(z: Z): C[Y] =
+                    {
+                      `z$u003E=rtcy`.apply().apply(z).apply(x$0)
+                    }
+                  closure($anonfun)
+                }
+              }
+            closure($anonfun)
+          }
+        )
+      )
+    }
+  override <accessor> def u$u003E--$u003Er:
+
+      pdbp.types.kleisli.binary.kleisliBinaryTypeConstructorType.Kleisli[
+        pdbp.computation.transformation.reading.ReadingTransformation.
+          ReadingTransformed
+        [R, C]
+      ][Unit, R]
+
+   =
+    {
+      {
+        def $anonfun(_$16: Unit): ReadingTransformation.this.RTC[R] =
+          {
+            def $anonfun(implicit evidence$9: R): C[R] =
+              {
+                this.evidence$3.result[R].apply(
+                  /* inlined from dotty.DottyPredef */
+                    {
+                      evidence$9
+                    }
+                )
+              }
+            closure($anonfun)
+          }
+        closure($anonfun)
+      }
+    }
+} of class class dotty.tools.dotc.ast.Trees$TypeDef # 31549
+exception while typing package pdbp.computation.transformation.reading {
+  final lazy module val ReadingTransformation:
+    pdbp.computation.transformation.reading.ReadingTransformation
+   = new pdbp.computation.transformation.reading.ReadingTransformation()
+  @scala.annotation.internal.SourceFile(
+
+      "/opt/home/git/blog/pdbp/src/main/scala/pdbp/computation/transformation/reading/ReadingTransformation.scala"
+
+  ) <trait> trait ReadingTransformation[R, C <: [+_$15] => Any](
+    implicit evidence$3: pdbp.computation.Computation[C]
+  ) extends Object with
+    pdbp.computation.transformation.ComputationTransformation[C,
+      pdbp.computation.transformation.reading.ReadingTransformation.
+        ReadingTransformed
+      [R, C]
+    ]
+   with
+    pdbp.program.reading.Reading[R,
+      pdbp.types.kleisli.binary.kleisliBinaryTypeConstructorType.Kleisli[
+        pdbp.computation.transformation.reading.ReadingTransformation.
+          ReadingTransformed
+        [R, C]
+      ]
+    ]
+   {
+    private type R
+    private type C <: [+_$15] => Any
+    private implicit <accessor> def evidence$3: pdbp.computation.Computation[C]
+    private type RTC =
+
+        pdbp.computation.transformation.reading.ReadingTransformation.
+          ReadingTransformed
+        [R, C]
+
+    private type =$u003ERTC =
+
+        pdbp.types.kleisli.binary.kleisliBinaryTypeConstructorType.Kleisli[
+          ReadingTransformation.this.RTC
+        ]
+
+    override <accessor> def transform:
+      C ~U~$u003E
+        pdbp.computation.transformation.reading.ReadingTransformation.
+          ReadingTransformed
+        [R, C]
+
+     =
+      {
+        final class $anon() extends Object() with (C ~U~$u003E
+          ReadingTransformation.this.RTC
+        ) {
+          override def apply[Z](cz: C[Z]): ReadingTransformation.this.RTC[Z] =
+            {
+              def $anonfun(implicit evidence$7: R): C[Z] =
+                this.apply$direct[Z](cz)(evidence$7)
+              closure($anonfun)
+            }
+          def apply$direct[Z](cz: C[Z])(implicit x$0: R): C[Z] =
+            {
+              cz
+            }
+        }
+        new Object with pdbp.naturalTransformation.unary.~U~$u003E{...}():
+          C ~U~$u003E ReadingTransformation.this.RTC
+      }
+    override def bind[Z, Y](rtcz: ReadingTransformation.this.RTC[Z],
+      z$u003E=rtcy: () => Z => ReadingTransformation.this.RTC[Y]
+    ): ReadingTransformation.this.RTC[Y] =
+      {
+        def $anonfun(implicit evidence$8: R): C[Y] =
+          this.bind$direct[Z, Y](rtcz,
+            <special-ops>.<cbn-arg>[Z => ReadingTransformation.this.RTC[Y]](
+              z$u003E=rtcy
+            )
+          )(evidence$8)
+        closure($anonfun)
+      }
+    def bind$direct[Z, Y](
+      rtcz:
+
+          pdbp.computation.transformation.reading.ReadingTransformation.
+            ReadingTransformed
+          [R, C][Z]
+
+    ,
+      z$u003E=rtcy:
+        () => Z =>
+          pdbp.computation.transformation.reading.ReadingTransformation.
+            ReadingTransformed
+          [R, C][Y]
+
+    )(implicit x$0: R): C[Y] =
+      {
+        this.evidence$3.bind[Z, Y](rtcz.apply(x$0),
+          <special-ops>.<cbn-arg>[Z => C[Y]](
+            {
+              def $anonfun(): Z => C[Y] =
+                {
+                  {
+                    def $anonfun(z: Z): C[Y] =
+                      {
+                        `z$u003E=rtcy`.apply().apply(z).apply(x$0)
+                      }
+                    closure($anonfun)
+                  }
+                }
+              closure($anonfun)
+            }
+          )
+        )
+      }
+    override <accessor> def u$u003E--$u003Er:
+
+        pdbp.types.kleisli.binary.kleisliBinaryTypeConstructorType.Kleisli[
+          pdbp.computation.transformation.reading.ReadingTransformation.
+            ReadingTransformed
+          [R, C]
+        ][Unit, R]
+
+     =
+      {
+        {
+          def $anonfun(_$16: Unit): ReadingTransformation.this.RTC[R] =
+            {
+              def $anonfun(implicit evidence$9: R): C[R] =
+                {
+                  this.evidence$3.result[R].apply(
+                    /* inlined from dotty.DottyPredef */
+                      {
+                        evidence$9
+                      }
+                  )
+                }
+              closure($anonfun)
+            }
+          closure($anonfun)
+        }
+      }
+  }
+  @scala.annotation.internal.SourceFile(
+
+      "/opt/home/git/blog/pdbp/src/main/scala/pdbp/computation/transformation/reading/ReadingTransformation.scala"
+
+  ) final module class ReadingTransformation() extends Object() {
+    type ReadingTransformed =
+      [R, C <: [+_$14] => Any] => [+Z] => implicit R => C[Z]
+  }
+} of class class dotty.tools.dotc.ast.Trees$PackageDef # 31550
+[info] exception occurred while compiling /opt/home/git/blog/pdbp/src/main/scala/pdbp/computation/Binding.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/computation/Computation.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/computation/FunctionLifting.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/computation/Lifting.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/computation/ObjectLifting.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/computation/OperatorLifting.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/computation/Resulting.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/computation/Sequencing.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/computation/transformation/ComputationTransformation.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/computation/transformation/reactive/LatencyTransformation.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/computation/transformation/reading/ReadingTransformation.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/naturalTransformation/binary/NaturalBinaryTypeConstructorTransformation.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/naturalTransformation/unary/NaturalUnaryTypeConstructorTransformation.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/program/Aggregation.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/program/Applying.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/program/Composition.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/program/Condition.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/program/Construction.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/program/Function.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/program/Program.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/program/failure/Failure.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/program/latency/Latency.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/program/latency/writing/LoggingLatency.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/program/reading/Reading.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/program/state/State.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/program/writing/Writing.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/types/const/constType.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/types/implicitFunctionType.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/types/kleisli/binary/kleisliBinaryTypeConstructorType.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/types/product/productType.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/types/sum/sumType.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/types/toConsole/ToConsole.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/utils/actorUtils.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/utils/effectfulFunctionUtils.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/utils/functionUtils.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/utils/infoUtils.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/utils/productAndSumUtils.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/utils/productUtils.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/utils/sumUtils.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/writable/Appendable.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/writable/Startable.scala, /opt/home/git/blog/pdbp/src/main/scala/pdbp/writable/Writable.scala
+[error] ## Exception when compiling 42 sources to /opt/home/git/blog/pdbp/target/scala-0.10/classes
+[error] assertion failed
+[error] dotty.DottyPredef$.assertFail(DottyPredef.scala:37)
+[error] dotty.tools.dotc.core.Types$MethodType.<init>(Types.scala:2980)
+[error] dotty.tools.dotc.core.Types$CachedMethodType.<init>(Types.scala:2997)
+[error] dotty.tools.dotc.core.Types$MethodTypeCompanion.apply(Types.scala:3065)
+[error] dotty.tools.dotc.core.Types$MethodTypeCompanion.apply(Types.scala:3064)
+[error] dotty.tools.dotc.core.Types$LambdaType.newLikeThis(Types.scala:2807)
+[error] dotty.tools.dotc.core.Types$LambdaType.derivedLambdaType(Types.scala:2802)
+[error] dotty.tools.dotc.transform.ShortcutImplicits$.directInfo(ShortcutImplicits.scala:178)
+[error] dotty.tools.dotc.transform.ShortcutImplicits$.directInfo(ShortcutImplicits.scala:177)
+[error] dotty.tools.dotc.transform.ShortcutImplicits$.dotty$tools$dotc$transform$ShortcutImplicits$$$newShortcutMethod(ShortcutImplicits.scala:188)
+[error] dotty.tools.dotc.transform.ShortcutImplicits$.shortcutMethod$$anonfun$2(ShortcutImplicits.scala:197)
+[error] dotty.tools.dotc.core.Symbols$Symbol.orElse(Symbols.scala:594)
+[error] dotty.tools.dotc.transform.ShortcutImplicits$.shortcutMethod(ShortcutImplicits.scala:197)
+[error] dotty.tools.dotc.transform.Bridges.add(Bridges.scala:129)
+[error] dotty.tools.dotc.transform.Erasure$Typer.typedStats(Erasure.scala:704)
+[error] dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1593)
+[error] dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1872)
+[error] dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1935)
+[error] dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:112)
+[error] dotty.tools.dotc.typer.Typer.typed(Typer.scala:1967)
+[error] dotty.tools.dotc.typer.Typer.typed(Typer.scala:1979)
+[error] dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1998)
+[error] dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2039)
+[error] dotty.tools.dotc.transform.Erasure$Typer.typedStats(Erasure.scala:706)
+[error] dotty.tools.dotc.typer.Typer.typedBlockStats(Typer.scala:665)
+[error] dotty.tools.dotc.typer.Typer.typedBlock(Typer.scala:668)
+[error] dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1889)
+[error] dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1936)
+[error] dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:112)
+[error] dotty.tools.dotc.typer.Typer.typed(Typer.scala:1967)
+[error] dotty.tools.dotc.typer.Typer.typed(Typer.scala:1979)
+[error] dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2050)
+[error] dotty.tools.dotc.typer.Typer.typedDefDef(Typer.scala:1489)
+[error] dotty.tools.dotc.transform.Erasure$Typer.typedDefDef(Erasure.scala:599)
+[error] dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1869)
+[error] dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1935)
+[error] dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:112)
+[error] dotty.tools.dotc.typer.Typer.typed(Typer.scala:1967)
+[error] dotty.tools.dotc.typer.Typer.typed(Typer.scala:1979)
+[error] dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1998)
+[error] dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2039)
+[error] dotty.tools.dotc.transform.Erasure$Typer.typedStats(Erasure.scala:706)
+[error] dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1593)
+[error] dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1872)
+[error] dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1935)
+[error] dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:112)
+[error] dotty.tools.dotc.typer.Typer.typed(Typer.scala:1967)
+[error] dotty.tools.dotc.typer.Typer.typed(Typer.scala:1979)
+[error] dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1998)
+[error] dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2039)
+[error] dotty.tools.dotc.transform.Erasure$Typer.typedStats(Erasure.scala:706)
+[error] dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:1707)
+[error] dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1914)
+[error] dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1936)
+[error] dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:112)
+[error] dotty.tools.dotc.typer.Typer.typed(Typer.scala:1967)
+[error] dotty.tools.dotc.typer.Typer.typed(Typer.scala:1979)
+[error] dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2050)
+[error] dotty.tools.dotc.transform.Erasure.run(Erasure.scala:99)
+[error] dotty.tools.dotc.core.Phases$Phase.runOn$$anonfun$1(Phases.scala:299)
+[error] scala.collection.immutable.List.map(List.scala:286)
+[error] dotty.tools.dotc.core.Phases$Phase.runOn(Phases.scala:301)
+[error] dotty.tools.dotc.Run.runPhases$4$$anonfun$4(Run.scala:175)
+[error] scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+[error] scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+[error] scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:32)
+[error] scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:29)
+[error] scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:194)
+[error] dotty.tools.dotc.Run.runPhases$5(Run.scala:187)
+[error] dotty.tools.dotc.Run.compileUnits$$anonfun$1(Run.scala:195)
+[error] scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+[error] dotty.tools.dotc.util.Stats$.maybeMonitored(Stats.scala:90)
+[error] dotty.tools.dotc.Run.compileUnits(Run.scala:202)
+[error] dotty.tools.dotc.Run.compileSources(Run.scala:137)
+[error] dotty.tools.dotc.Run.compile(Run.scala:121)
+[error] dotty.tools.dotc.Driver.doCompile(Driver.scala:31)
+[error] dotty.tools.dotc.Driver.process(Driver.scala:134)
+[error] xsbt.CachedCompilerImpl.run(CompilerInterface.scala:61)
+[error] xsbt.CachedCompilerImpl.run(CompilerInterface.scala:51)
+[error] xsbt.CompilerInterface.run(CompilerInterface.scala:35)
+[error] sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+[error] sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+[error] sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+[error] java.lang.reflect.Method.invoke(Method.java:498)
+[error] sbt.internal.inc.AnalyzingCompiler.call(AnalyzingCompiler.scala:237)
+[error] sbt.internal.inc.AnalyzingCompiler.compile(AnalyzingCompiler.scala:111)
+[error] sbt.internal.inc.AnalyzingCompiler.compile(AnalyzingCompiler.scala:90)
+[error] sbt.internal.inc.MixedAnalyzingCompiler.$anonfun$compile$3(MixedAnalyzingCompiler.scala:82)
+[error] scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+[error] sbt.internal.inc.MixedAnalyzingCompiler.timed(MixedAnalyzingCompiler.scala:133)
+[error] sbt.internal.inc.MixedAnalyzingCompiler.compileScala$1(MixedAnalyzingCompiler.scala:73)
+[error] sbt.internal.inc.MixedAnalyzingCompiler.compile(MixedAnalyzingCompiler.scala:116)
+[error] sbt.internal.inc.IncrementalCompilerImpl.$anonfun$compileInternal$1(IncrementalCompilerImpl.scala:307)
+[error] sbt.internal.inc.IncrementalCompilerImpl.$anonfun$compileInternal$1$adapted(IncrementalCompilerImpl.scala:307)
+[error] sbt.internal.inc.Incremental$.doCompile(Incremental.scala:106)
+[error] sbt.internal.inc.Incremental$.$anonfun$compile$4(Incremental.scala:87)
+[error] sbt.internal.inc.IncrementalCommon.recompileClasses(IncrementalCommon.scala:116)
+[error] sbt.internal.inc.IncrementalCommon.cycle(IncrementalCommon.scala:63)
+[error] sbt.internal.inc.Incremental$.$anonfun$compile$3(Incremental.scala:89)
+[error] sbt.internal.inc.Incremental$.manageClassfiles(Incremental.scala:134)
+[error] sbt.internal.inc.Incremental$.compile(Incremental.scala:80)
+[error] sbt.internal.inc.IncrementalCompile$.apply(Compile.scala:67)
+[error] sbt.internal.inc.IncrementalCompilerImpl.compileInternal(IncrementalCompilerImpl.scala:311)
+[error] sbt.internal.inc.IncrementalCompilerImpl.$anonfun$compileIncrementally$1(IncrementalCompilerImpl.scala:269)
+[error] sbt.internal.inc.IncrementalCompilerImpl.handleCompilationError(IncrementalCompilerImpl.scala:159)
+[error] sbt.internal.inc.IncrementalCompilerImpl.compileIncrementally(IncrementalCompilerImpl.scala:238)
+[error] sbt.internal.inc.IncrementalCompilerImpl.compile(IncrementalCompilerImpl.scala:69)
+[error] sbt.Defaults$.compileIncrementalTaskImpl(Defaults.scala:1544)
+[error] sbt.Defaults$.$anonfun$compileIncrementalTask$1(Defaults.scala:1518)
+[error] scala.Function1.$anonfun$compose$1(Function1.scala:44)
+[error] sbt.internal.util.$tilde$greater.$anonfun$$u2219$1(TypeFunctions.scala:40)
+[error] sbt.std.Transform$$anon$4.work(System.scala:67)
+[error] sbt.Execute.$anonfun$submit$2(Execute.scala:269)
+[error] sbt.internal.util.ErrorHandling$.wideConvert(ErrorHandling.scala:16)
+[error] sbt.Execute.work(Execute.scala:278)
+[error] sbt.Execute.$anonfun$submit$1(Execute.scala:269)
+[error] sbt.ConcurrentRestrictions$$anon$4.$anonfun$submitValid$1(ConcurrentRestrictions.scala:178)
+[error] sbt.CompletionService$$anon$2.call(CompletionService.scala:37)
+[error] java.util.concurrent.FutureTask.run(FutureTask.java:266)
+[error] java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+[error] java.util.concurrent.FutureTask.run(FutureTask.java:266)
+[error] java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+[error] java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+[error] java.lang.Thread.run(Thread.java:748)
+[error]
+[error] java.lang.AssertionError: assertion failed
+[error]         at dotty.DottyPredef$.assertFail(DottyPredef.scala:37)
+[error]         at dotty.tools.dotc.core.Types$MethodType.<init>(Types.scala:2980)
+[error]         at dotty.tools.dotc.core.Types$CachedMethodType.<init>(Types.scala:2997)
+[error]         at dotty.tools.dotc.core.Types$MethodTypeCompanion.apply(Types.scala:3065)
+[error]         at dotty.tools.dotc.core.Types$MethodTypeCompanion.apply(Types.scala:3064)
+[error]         at dotty.tools.dotc.core.Types$LambdaType.newLikeThis(Types.scala:2807)
+[error]         at dotty.tools.dotc.core.Types$LambdaType.derivedLambdaType(Types.scala:2802)
+[error]         at dotty.tools.dotc.transform.ShortcutImplicits$.directInfo(ShortcutImplicits.scala:178)
+[error]         at dotty.tools.dotc.transform.ShortcutImplicits$.directInfo(ShortcutImplicits.scala:177)
+[error]         at dotty.tools.dotc.transform.ShortcutImplicits$.dotty$tools$dotc$transform$ShortcutImplicits$$$newShortcutMethod(ShortcutImplicits.scala:188)
+[error]         at dotty.tools.dotc.transform.ShortcutImplicits$.shortcutMethod$$anonfun$2(ShortcutImplicits.scala:197)
+[error]         at dotty.tools.dotc.core.Symbols$Symbol.orElse(Symbols.scala:594)
+[error]         at dotty.tools.dotc.transform.ShortcutImplicits$.shortcutMethod(ShortcutImplicits.scala:197)
+[error]         at dotty.tools.dotc.transform.Bridges.add(Bridges.scala:129)
+[error]         at dotty.tools.dotc.transform.Erasure$Typer.typedStats(Erasure.scala:704)
+[error]         at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1593)
+[error]         at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1872)
+[error]         at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1935)
+[error]         at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:112)
+[error]         at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1967)
+[error]         at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1979)
+[error]         at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1998)
+[error]         at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2039)
+[error]         at dotty.tools.dotc.transform.Erasure$Typer.typedStats(Erasure.scala:706)
+[error]         at dotty.tools.dotc.typer.Typer.typedBlockStats(Typer.scala:665)
+[error]         at dotty.tools.dotc.typer.Typer.typedBlock(Typer.scala:668)
+[error]         at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1889)
+[error]         at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1936)
+[error]         at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:112)
+[error]         at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1967)
+[error]         at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1979)
+[error]         at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2050)
+[error]         at dotty.tools.dotc.typer.Typer.typedDefDef(Typer.scala:1489)
+[error]         at dotty.tools.dotc.transform.Erasure$Typer.typedDefDef(Erasure.scala:599)
+[error]         at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1869)
+[error]         at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1935)
+[error]         at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:112)
+[error]         at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1967)
+[error]         at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1979)
+[error]         at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1998)
+[error]         at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2039)
+[error]         at dotty.tools.dotc.transform.Erasure$Typer.typedStats(Erasure.scala:706)
+[error]         at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1593)
+[error]         at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1872)
+[error]         at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1935)
+[error]         at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:112)
+[error]         at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1967)
+[error]         at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1979)
+[error]         at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:1998)
+[error]         at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2039)
+[error]         at dotty.tools.dotc.transform.Erasure$Typer.typedStats(Erasure.scala:706)
+[error]         at dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:1707)
+[error]         at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1914)
+[error]         at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1936)
+[error]         at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:112)
+[error]         at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1967)
+[error]         at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1979)
+[error]         at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2050)
+[error]         at dotty.tools.dotc.transform.Erasure.run(Erasure.scala:99)
+[error]         at dotty.tools.dotc.core.Phases$Phase.runOn$$anonfun$1(Phases.scala:299)
+[error]         at scala.collection.immutable.List.map(List.scala:286)
+[error]         at dotty.tools.dotc.core.Phases$Phase.runOn(Phases.scala:301)
+[error]         at dotty.tools.dotc.Run.runPhases$4$$anonfun$4(Run.scala:175)
+[error]         at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+[error]         at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+[error]         at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:32)
+[error]         at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:29)
+[error]         at scala.collection.mutable.ArrayOps$ofRef.foreach(ArrayOps.scala:194)
+[error]         at dotty.tools.dotc.Run.runPhases$5(Run.scala:187)
+[error]         at dotty.tools.dotc.Run.compileUnits$$anonfun$1(Run.scala:195)
+[error]         at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+[error]         at dotty.tools.dotc.util.Stats$.maybeMonitored(Stats.scala:90)
+[error]         at dotty.tools.dotc.Run.compileUnits(Run.scala:202)
+[error]         at dotty.tools.dotc.Run.compileSources(Run.scala:137)
+[error]         at dotty.tools.dotc.Run.compile(Run.scala:121)
+[error]         at dotty.tools.dotc.Driver.doCompile(Driver.scala:31)
+[error]         at dotty.tools.dotc.Driver.process(Driver.scala:134)
+[error]         at xsbt.CachedCompilerImpl.run(CompilerInterface.scala:61)
+[error]         at xsbt.CachedCompilerImpl.run(CompilerInterface.scala:51)
+[error]         at xsbt.CompilerInterface.run(CompilerInterface.scala:35)
+[error]         at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+[error]         at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+[error]         at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+[error]         at java.lang.reflect.Method.invoke(Method.java:498)
+[error]         at sbt.internal.inc.AnalyzingCompiler.call(AnalyzingCompiler.scala:237)
+[error]         at sbt.internal.inc.AnalyzingCompiler.compile(AnalyzingCompiler.scala:111)
+[error]         at sbt.internal.inc.AnalyzingCompiler.compile(AnalyzingCompiler.scala:90)
+[error]         at sbt.internal.inc.MixedAnalyzingCompiler.$anonfun$compile$3(MixedAnalyzingCompiler.scala:82)
+[error]         at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+[error]         at sbt.internal.inc.MixedAnalyzingCompiler.timed(MixedAnalyzingCompiler.scala:133)
+[error]         at sbt.internal.inc.MixedAnalyzingCompiler.compileScala$1(MixedAnalyzingCompiler.scala:73)
+[error]         at sbt.internal.inc.MixedAnalyzingCompiler.compile(MixedAnalyzingCompiler.scala:116)
+[error]         at sbt.internal.inc.IncrementalCompilerImpl.$anonfun$compileInternal$1(IncrementalCompilerImpl.scala:307)
+[error]         at sbt.internal.inc.IncrementalCompilerImpl.$anonfun$compileInternal$1$adapted(IncrementalCompilerImpl.scala:307)
+[error]         at sbt.internal.inc.Incremental$.doCompile(Incremental.scala:106)
+[error]         at sbt.internal.inc.Incremental$.$anonfun$compile$4(Incremental.scala:87)
+[error]         at sbt.internal.inc.IncrementalCommon.recompileClasses(IncrementalCommon.scala:116)
+[error]         at sbt.internal.inc.IncrementalCommon.cycle(IncrementalCommon.scala:63)
+[error]         at sbt.internal.inc.Incremental$.$anonfun$compile$3(Incremental.scala:89)
+[error]         at sbt.internal.inc.Incremental$.manageClassfiles(Incremental.scala:134)
+[error]         at sbt.internal.inc.Incremental$.compile(Incremental.scala:80)
+[error]         at sbt.internal.inc.IncrementalCompile$.apply(Compile.scala:67)
+[error]         at sbt.internal.inc.IncrementalCompilerImpl.compileInternal(IncrementalCompilerImpl.scala:311)
+[error]         at sbt.internal.inc.IncrementalCompilerImpl.$anonfun$compileIncrementally$1(IncrementalCompilerImpl.scala:269)
+[error]         at sbt.internal.inc.IncrementalCompilerImpl.handleCompilationError(IncrementalCompilerImpl.scala:159)
+[error]         at sbt.internal.inc.IncrementalCompilerImpl.compileIncrementally(IncrementalCompilerImpl.scala:238)
+[error]         at sbt.internal.inc.IncrementalCompilerImpl.compile(IncrementalCompilerImpl.scala:69)
+[error]         at sbt.Defaults$.compileIncrementalTaskImpl(Defaults.scala:1544)
+[error]         at sbt.Defaults$.$anonfun$compileIncrementalTask$1(Defaults.scala:1518)
+[error]         at scala.Function1.$anonfun$compose$1(Function1.scala:44)
+[error]         at sbt.internal.util.$tilde$greater.$anonfun$$u2219$1(TypeFunctions.scala:40)
+[error]         at sbt.std.Transform$$anon$4.work(System.scala:67)
+[error]         at sbt.Execute.$anonfun$submit$2(Execute.scala:269)
+[error]         at sbt.internal.util.ErrorHandling$.wideConvert(ErrorHandling.scala:16)
+[error]         at sbt.Execute.work(Execute.scala:278)
+[error]         at sbt.Execute.$anonfun$submit$1(Execute.scala:269)
+[error]         at sbt.ConcurrentRestrictions$$anon$4.$anonfun$submitValid$1(ConcurrentRestrictions.scala:178)
+[error]         at sbt.CompletionService$$anon$2.call(CompletionService.scala:37)
+[error]         at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+[error]         at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+[error]         at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+[error]         at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+[error]         at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+[error]         at java.lang.Thread.run(Thread.java:748)
+[error] (Compile / compileIncremental) java.lang.AssertionError: assertion failed
+[error] Total time: 9 s, completed Oct 5, 2018 9:43:51 PM
+```

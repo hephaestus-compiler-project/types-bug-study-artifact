@@ -1,0 +1,41 @@
+```scala
+class T1 {
+  case class Foo(x: Int, xs1: List[String], xs2: List[String])
+}
+
+object T2 {
+  val foo: T1#Foo = ???
+
+  val Foo(x1, xs1, xs2) = foo
+}
+```
+
+While not a valid usage of extractors, this reports some weird errors:
+
+```scala
+-- Error: local/ext.scala:8:6 --------------------------------------------------
+8 |  val Foo(x1, xs1, xs2) = foo
+  |      ^^^
+  |      Foo cannot be used as an extractor in a pattern because it lacks an
+  |      unapply or unapplySeq method
+
+-- [E044] Syntax Error: local/ext.scala:8:2 ------------------------------------
+8 |  val Foo(x1, xs1, xs2) = foo
+  |  ^
+  |  recursive value x1 needs type
+
+longer explanation available when compiling with `-explain`
+-- [E045] Syntax Error: local/ext.scala:8:23 -----------------------------------
+8 |  val Foo(x1, xs1, xs2) = foo
+  |                       ^
+  |                       cyclic reference involving value $1$
+
+longer explanation available when compiling with `-explain`
+```
+
+The extraction could've been done like:
+
+```scala
+val t1 = new T1
+val t1.Foo(x1, xs1, xs2) = foo
+```

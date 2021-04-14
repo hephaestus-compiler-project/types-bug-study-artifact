@@ -1,0 +1,31 @@
+See [the scastie](https://scastie.scala-lang.org/yFo6yCv9TkiTmoCBhOuuLg).
+The code is reproduced below:
+
+```scala
+class Base {
+  class A
+  class B extends A
+  type of[+A0 <: A,T] = A0
+}
+object Base extends Base
+import Base._
+object Main {
+  def foo = new B
+  def foo2: B of Any = foo
+  
+  def main(args: Array[String]) = ()
+}
+```
+
+Fails with:
+
+```scala
+-- [E056] Type Mismatch Error: /tmp/scastie722928142903515025/src/main/scala/main.scala:10:12 
+10 |  def foo2: B of Any = foo
+   |            ^
+   |       Type argument Base.B does not conform to upper bound Base.this.A 
+```
+
+It works in Scalac, and it works in Dotty if the definitions are moved to the object!
+
+PS: note that it has nothing to do with object `Base` having the same name as class `Base`.

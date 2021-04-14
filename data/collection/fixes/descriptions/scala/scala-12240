@@ -1,0 +1,16 @@
+## reproduction steps
+
+using Scala 2.13.4
+
+```scala
+scala> Vector(1) match {
+  case Vector(_ @ _*) => ???
+}
+```
+
+## problem
+
+> match may not be exhaustive.
+> It would fail on the following input: `Vector1()`
+
+The match is totally exhaustive. Unfortunately, scalac doesn't know. `Vector.unapplySeq` seems to be using name-based pattern matching to return a `SeqFactory.UnapplySeqWrapper`. But name-based pattern matching can't AFAIK provide irrefutable patterns, so the pattern ends up refutable, and the warning (with the somewhat odd counterexample) is emitted.

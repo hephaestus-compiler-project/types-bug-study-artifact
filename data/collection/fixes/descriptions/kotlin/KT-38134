@@ -1,0 +1,48 @@
+Apologies if the issue title is vague/confusing/inaccurate, I'm not really sure exactly what the problem is here or how to word it.
+
+# Versions
+
+**Kotlin gradle plugin:** 1.4-M1
+**IntelliJ plugin:** 1.4-M1-release-Studio4.0-1
+**Android Studio:**
+Android Studio 4.0 Beta 3
+Build #AI-193.6494.35.40.6296804, built on March 14, 2020
+Runtime version: 1.8.0_242-release-1644-b3-6222593 x86_64
+VM: OpenJDK 64-Bit Server VM by JetBrains s.r.o
+macOS 10.15.3
+GC: ParNew, ConcurrentMarkSweep
+Memory: 1996M
+Cores: 16
+Registry: analyze.exceptions.on.the.fly=true, ide.new.welcome.screen.force=true, vcs.log.index.git=off, caches.indexerThreadsCount=16
+Non-Bundled Plugins: org.jetbrains.kotlin, izhangzhihao.rainbow.brackets
+
+# Description
+
+This code won't compile (note the `@UnsafeVariance` annotations, and the `out Any` on the parameter to `caller`, which is a more explicit way of writing `FunctionHolder<*>`):
+```kotlin
+data class FunctionHolder<out T : Any>(val f: (@UnsafeVariance T) -> Unit) {
+  fun f2(v: @UnsafeVariance T) {}
+}
+
+// Warning about "out" being redundant. And if it's removed, this code compiles.
+fun caller(holder: FunctionHolder<out Any>) {
+  // IDE shows both of these functions as taking Any in code completion, but compiler
+  // expects Nothing, and IDE parameter docs also show Nothing.
+  holder.f(Any())
+  holder.f2(Any())
+}
+```
+
+Here's IntelliJ's code completion saying what I'd expect:
+![IDE giving false hope](image.png)
+
+But here's the compiler error (happens from command line too):
+![Compiler error](image1.png)
+
+A bound method reference to `f2`, however, has the expected type:
+![bound method reference](image3.png)
+
+If the supposedly redundant `out` is removed, it works as expected:
+![no out](image2.png)
+
+In Kotlin 1.3.71, this code works fine. It seems like adding the extra `out` causes the compiler to expect the wrong type, since I believe the warning about `out` being redundant is true, in which case its presence or lack thereof shouldn't change what the compiler does.

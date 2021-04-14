@@ -1,0 +1,29 @@
+Spec changes to support better handling of static vs. instance methods when interpreting method references (JDK-8025891) need to be implemented by javac.  The changes are summarized below.
+
+----
+
+Method reference Type::foo given target type (A1, ..., An)->R has two searches performed:
+1) Argument types A1, ..., An in type Type
+2) If A1<:Type, argument types A2, ..., An in type Type (or Type<X,Y,Z> if Type is raw)
+
+Old behavior: If only one search finds a method, that's the result.  If both searches (or neither search) find an applicable method, error.  (Unclear what happens if a search has multiple applicable methods, with neither more specific...)  After checking compatibility with a target type, we come back and ensure that the static-ness of the method is valid.
+
+New behavior: If (1) produces a static method and (2) finds no applicable non-static method, use the (1) method.  If (2) finds a non-static method and (1) finds no applicable static method, use the (2) method.  Otherwise, error.
+
+-----
+
+Other method references have a single search performed.
+
+Old behavior: If a method is found, that's the result.  After checking compatibility with a target type, we come back and ensure that the method is not static.
+
+New behavior: If a method is found and it is non-static, that is the result.  Otherwise, error.
+
+(Practically speaking, this change shouldn't have any effect, since the difference between an error before or after compatibility checking is only apparent when doing overload resolution, and inexact method references are skipped during overload resolution anyway.)
+
+----
+
+During applicability testing of an inexact method reference, we do an arity-only check.
+
+Old behavior: if a method exists with the targeted arity n, or n-1 (and the reference has form Type::foo), consider the method reference to be valid for applicability.
+
+New behavior: for the form Type::foo, if a _static_ method exists at arity n, or an _instance_ method exists at arity n-1, consider the method reference to be valid for applicability; for all other forms, the reference is valid if an _instance_ method exists at arity n.

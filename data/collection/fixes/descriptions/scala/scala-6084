@@ -1,0 +1,43 @@
+The program below causes a crash, apparently due to the type alias in the package object. The commented out version compiles without a crash. See the attachment for the stack trace.
+
+Code similar to this has been present in our Kiama library for quite a while and has compiled fine with the 2.9 series compilers.
+
+```scala
+// This version crashes the compiler:
+
+package object foo {
+
+    type ==>[T,U] = PartialFunction[T,U]
+
+}
+
+package foo {
+
+    abstract class Foo[T,U] (val f : T ==> U) extends (T ==> U) {
+
+        def bar (r : T ==> U) : T ==> U = 
+            r match {
+                case d : Foo[_, _] => d.f
+                case _             => r
+            }
+
+    }
+
+}
+
+// This version compiles with no crashes:
+
+// package foo {
+
+//     abstract class Foo[T,U] (val f : PartialFunction[T,U]) extends (PartialFunction[T,U]) {
+
+//         def bar (r : PartialFunction[T,U]) : PartialFunction[T,U] = 
+//             r match {
+//                 case d : Foo[_, _] => d.f
+//                 case _             => r
+//             }
+
+//     }
+
+// }
+```

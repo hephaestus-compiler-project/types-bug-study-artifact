@@ -1,0 +1,44 @@
+```scala
+class Foo(val x: Bar) {
+  def isEmpty = false
+  def get = x
+}
+
+object Foo {
+  def unapply(x: Foo) = x
+}
+
+class Bar(val x: Option[Int], val y: Option[Int]) {
+  def isEmpty = false
+  def get = this
+  def _1 = x
+  def _2 = y
+}
+
+object Bar {
+  def unapply(x: Bar) = x
+}
+
+class Test {
+  def nameBased: Unit = {
+    val x: AnyRef = ???
+    x match {
+      case Foo(Bar(x1, x2)) => println(x1)
+    }
+  }
+}
+```
+
+```scala
+12:39 ~/Projects/211x/sandbox (2.11.x)$ s
+Test.scala:25: warning: fruitless type test: a value of type (Option[Int], Option[Int]) cannot also be a Bar
+      case Foo(Bar(x1, x2)) => println(x1)
+                  ^
+Test.scala:24: error: error during expansion of this match (this is a scalac bug).
+The underlying error was: type mismatch;
+ found   : Bar
+ required: (Option[Int], Option[Int])
+    x match {
+      ^
+one warning found
+```

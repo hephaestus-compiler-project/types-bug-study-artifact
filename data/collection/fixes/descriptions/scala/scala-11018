@@ -1,0 +1,49 @@
+Overloading a method on a class `A` via an implicit class works:
+```
+class A {
+  def and(i: Int): A = { println(i); this }
+}
+implicit class I(a: A) {
+  def and(t: (String, _)): A = { println(t) ; a }
+}
+(new A).and("a" -> "b") // works
+```
+
+But if one of the methods takes a type param for the return type: 
+
+```
+class A {
+  def and[T <: A](i: Int): T = { println(i); this.asInstanceOf[T] }
+}
+implicit class I(a: A) {
+  def and(t: (String, _)): A = { println(t) ; a }
+}
+(new A).and("a" -> "b") // fails
+```
+
+the following error occurs:
+```
+error: type mismatch;
+ found   : (String, String)
+ required: Int
+       (new A).and("a" -> "b")
+```
+
+Even giving them the same return type fails:
+```
+class A {
+  def and[T <: A](i: Int): T = { println(i); this.asInstanceOf[T] }
+}
+implicit class I(a: A) {
+  def and[T <: A](t: (String, _)): T = { println(t) ; a.asInstanceOf[T] }
+}
+(new A).and("a" -> "b") // fails
+```
+
+with:
+```
+error: type mismatch;
+ found   : (String, String)
+ required: Int
+       (new A).and("a" -> "b") // fails
+```

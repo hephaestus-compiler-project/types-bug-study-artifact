@@ -1,0 +1,24 @@
+This produces an unexpected error:
+
+  class C<T> {}
+  <X> void m(C<? super X> arg) {}
+  void test(C<?> arg) {
+    m(arg);
+  }
+
+error: method m in class cannot be applied to given types;
+    m(arg);
+    ^
+  required: C<? super X>
+  found: C<CAP#1>
+  reason: cannot infer type-variable(s) X
+    (argument mismatch; C<CAP#1> cannot be converted to C<? super X>)
+  where X is a type-variable:
+    X extends Object declared in method <X>m(C<? super X>)
+  where CAP#1 is a fresh type-variable:
+    CAP#1 extends Object from capture of ?
+1 error
+
+The error is the same under both -source 8 and -source 7.
+
+This is a regression: there is also an error in javac 7, but not javac 6.

@@ -1,0 +1,27 @@
+The following code does not compile with the error message: "error during expansion of this match expression (this is a scalac bug)"
+
+```scala
+object Test {
+
+  sealed abstract class ObjectValue {
+
+    type ExternalRep
+    def externalRep: ExternalRep
+
+    override def equals(other: Any): Boolean = other match {
+      case ObjectValue(otherExRep) => otherExRep == externalRep
+      case _ => false
+    }
+
+  }
+
+  object ObjectValue {
+    def apply[ExRep](underlying: ExRep): ObjectValue = new ObjectValue {
+      type ExternalRep = ExRep
+      val externalRep = underlying
+    }
+    def unapply(ov: ObjectValue): Option[(ov.ExternalRep)] = Some(ov.externalRep)
+  }
+}
+
+```

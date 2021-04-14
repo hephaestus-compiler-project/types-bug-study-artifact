@@ -1,0 +1,34 @@
+I'm using Vavr, which has a number of methods with overloads that take alternately a Supplier or a Function (particularly for creating an exception instance). The STC can't disambiguate which overload to call, _even when the syntax is explicit_.
+
+In the below code, each call to {{replace}} is entirely unambiguous, but the compiler reports "Reference to method is ambiguous" on both. Of course, the problem persists with closures. Only wrapping the entire lambda (including {{()}}) in parens and using {{as Function}} (or Supplier) works.
+
+{code:groovy}
+@CompileStatic
+class Groovy9881 {
+
+    def doReplace() {
+        new Value(123)
+            .replace(() -> "foo")
+
+        new Value(123)
+            .replace((Integer v) -> "bar")
+    }
+
+    static class Value<V> {
+        final V val
+
+        Value(V v) {
+            this.val = v
+        }
+
+        <T> Value<T> replace(Supplier<T> supplier) {
+            new Value<>(supplier.get())
+        }
+
+        <T> Value<T> replace(Function<? super V, ? extends T> function) {
+            new Value(function.apply(val))
+        }
+    }
+}
+
+{code}

@@ -1,0 +1,36 @@
+```
+package test
+import kotlin.reflect.KProperty1
+
+interface A {
+    val bla: CharSequence get() = ""
+}
+
+class B<T>(val x: T)
+fun <K, V> B<K>.foo(p: KProperty1<K, V>){
+    p.get(x)
+}
+
+class C : A {
+    override val bla: String
+        get() = ""
+}
+class D : A
+
+fun <R : A> B<R>.test(){
+    foo(C::bla)
+}
+
+fun main() {
+    B(D()).test()
+}
+```
+
+```stacktrace
+Exception in thread "main" java.lang.ClassCastException: test.D cannot be cast to test.C
+	at test.AKt$test$1.get(a.kt)
+	at test.AKt.foo(a.kt:10)
+	at test.AKt.test(a.kt:20)
+	at test.AKt.main(a.kt:24)
+	at test.AKt.main(a.kt)
+```

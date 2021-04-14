@@ -1,0 +1,25 @@
+I've been working a little with the package objects in 2.8, and I've found a little oddity.  Say you've got a package with a package object:
+```scala
+package com.rojoma
+
+package object pkg {
+  implicit def enrich(a: A) = new RichA(a)
+}
+```
+If you're *outside* the package, all works as expected:
+```scala
+import com.rojoma.pkg._
+(new A).someRichAMethod() // finds the implicit, great
+```
+But if you're *inside* it, you still have to explicitly import the package's contents for the implicits to be found:
+```scala
+package com.rojoma.pkg
+
+class Cls {
+  // doesn't find the implicit unless com.rojoma.pkg._ is imported
+  (new A).someRichAMethod()
+}
+```
+The `enrich` method is in scope; calling it explicitly works.  It's just not found by the implicit-resolution machinery.
+
+For completeness, the same thing happens if the code that wants to use the implicit is in a package nested inside "com.rojoma.pkg".

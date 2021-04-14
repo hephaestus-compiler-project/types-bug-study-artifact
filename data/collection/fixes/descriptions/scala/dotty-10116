@@ -1,0 +1,194 @@
+## Minimized code
+
+```scala
+object OverloadedWithLong {
+  def overloaded(x: Long): Any =
+    x
+
+  def overloaded(x: Any): Unit =
+    ???
+}
+
+object Test {
+  def main(args: Array[String]): Unit =
+    import OverloadedWithLong._
+
+    val l: Any = 0 :: Nil
+    val r = overloaded(l match {
+      case x :: xs => 5
+    })
+    assert(r == 5L)
+}
+```
+
+## Output
+
+```
+> scalac -Ycheck:typer tests/run/hello.scala
+```
+
+```
+checking tests\run\hello.scala after phase typer
+exception while typing {
+  l match
+    {
+      case ::.unapply[Any](x @ _, xs @ _):::[Any] =>
+        5
+    }
+  5L
+} of class class dotty.tools.dotc.ast.Trees$Block # -1
+exception while typing OverloadedWithLong.overloaded(
+  {
+    l match
+      {
+        case ::.unapply[Any](x @ _, xs @ _):::[Any] =>
+          5
+      }
+    5L
+  }
+) of class class dotty.tools.dotc.ast.Trees$Apply # -1
+exception while typing val r: Any =
+  OverloadedWithLong.overloaded(
+    {
+      l match
+        {
+          case ::.unapply[Any](x @ _, xs @ _):::[Any] =>
+            5
+        }
+      5L
+    }
+  ) of class class dotty.tools.dotc.ast.Trees$ValDef # -1
+exception while typing {
+  import OverloadedWithLong._
+  val l: Any = Nil.::[Int](0)
+  val r: Any =
+    OverloadedWithLong.overloaded(
+      {
+        l match
+          {
+            case ::.unapply[Any](x @ _, xs @ _):::[Any] =>
+              5
+          }
+        5L
+      }
+    )
+  if r.==(5L).unary_! then assertFail() else ()
+} of class class dotty.tools.dotc.ast.Trees$Block # -1
+exception while typing def main(args: Array[String]): Unit =
+  {
+    import OverloadedWithLong._
+    val l: Any = Nil.::[Int](0)
+    val r: Any =
+      OverloadedWithLong.overloaded(
+        {
+          l match
+            {
+              case ::.unapply[Any](x @ _, xs @ _):::[Any] =>
+                5
+            }
+          5L
+        }
+      )
+    if r.==(5L).unary_! then assertFail() else ()
+  } of class class dotty.tools.dotc.ast.Trees$DefDef # -1
+exception while typing final module class Test$() extends Object() { this: Test.type =>
+  def main(args: Array[String]): Unit =
+    {
+      import OverloadedWithLong._
+      val l: Any = Nil.::[Int](0)
+      val r: Any =
+        OverloadedWithLong.overloaded(
+          {
+            l match
+              {
+                case ::.unapply[Any](x @ _, xs @ _):::[Any] =>
+                  5
+              }
+            5L
+          }
+        )
+      if r.==(5L).unary_! then assertFail() else ()
+    }
+} of class class dotty.tools.dotc.ast.Trees$TypeDef # -1
+exception while typing package <empty> {
+  final lazy module exception occurred while compiling tests\run\hello.scala
+Exception in thread "main" java.lang.AssertionError: assertion failed: Types differ
+ Original type : (5L:  : Long)
+ After checking: (5 = : Int)
+Original tree : l match ()
+
+  {
+    finalcase  ::.unapply[moduleAny ](x @ _, xs @ _):class::[Any]  =>
+      OverloadedWithLong$5()
+  }
+After checking: l extends match
+  {
+    Objectcase () {
+    ::.unapply[thisAny: OverloadedWithLong.](x @ _, xs @ _):type::[Any] =>
+     =>
+      def5
+  }
+Why different :
+             Subtype trace:
+  ==> (overloaded5( : Int) <:< (x5L:  : Long)
+    ==> (Long5):  : Int) <:< (Any5L = x
+     : Long) recur
+      ==> Int <:< Long recur
+      <== Int <:< Long recur  = false
+    <== (def5  : Int) <:< (overloaded5L( : Long) recur  = false
+  <== (x5:  : Int) <:< (Any5L):  : Long)   = false
+Unit = ???
+  }
+final lazy module val Test: Test$ = new Test$()
+final module class Test$() extends Object() { this: Test.type =>
+def main(args: Array[String]): Unit =
+      {
+        import OverloadedWithLong._
+        val l: Any = Nil.::[Int](0)
+        val r: Any =
+          OverloadedWithLong.overloaded(
+            {
+              l match
+                {
+                  case ::.unapply[Any](x @ _, xs @ _): ::[Any] =>
+                    5
+                }
+              5L
+            }
+          )
+if r.==(5L).unary_! then
+ assertFail()
+ else ()
+      }
+  }
+} of class class dotty.tools.dotc.ast.Trees$PackageDef # -1
+*** error while checking tests\run\hello.scala after phase typer ***
+java.lang.AssertionError: assertion failed: Types differ
+  ...
+Original type : (5L : Long)
+After checking: (5 : Int)
+Original tree : l match
+  {
+    case ::.unapply[Any](x @ _, xs @ _): ::[Any] =>
+      5
+  }
+After checking: l match
+  {
+    case ::.unapply[Any](x @ _, xs @ _):::[Any] =>
+      5
+  }
+Why different :
+             Subtype trace:
+  ==> (5 : Int) <:< (5L : Long)
+    ==> (5 : Int) <:< (5L : Long) recur
+      ==> Int <:< Long recur
+      <== Int <:< Long recur  = false
+    <== (5 : Int) <:< (5L : Long) recur  = false
+  <== (5 : Int) <:< (5L : Long)   = false while compiling tests/run/hello.scala
+```
+
+It seems the `match` node gets typed as `(5L : Long)` although its only branch returns a `(5 : Int)`.
+
+## Expectation
+
+No Ycheck error

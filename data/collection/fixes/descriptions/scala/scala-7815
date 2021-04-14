@@ -1,0 +1,30 @@
+Consider this snippet:
+
+```scala
+trait Foo[A] {
+  type Repr
+  def f(a: A): Repr
+}
+ 
+object Foo {
+  type Aux[A, B] = Foo[A] { type Repr = B }
+}
+ 
+object Main extends App {
+  def mapWithFoo[A, B](as: List[A])(implicit foo: Foo.Aux[A, B]) =
+    as map foo.f
+}
+```
+
+scalac complains about that it can't convert the method to a function value, because it deems it to have a dependent type. At first glance, that seems correct. However, the following works:
+
+```scala
+  def mapWithFoo[A, B](as: List[A])(implicit foo: Foo.Aux[A, B]) =
+    as map (a => foo.f(a))
+```
+
+As you can see, the "dependent" return type `Repr` is actually bound to `B`, so eta-expansion could be done.
+
+Use case: shapeless 2.0.0-M1. Previously, the `FooAux` types were proper traits, so no dependent types involved. Now, they are type aliases in the style of `Foo.Aux`.
+
+Related to #4751.

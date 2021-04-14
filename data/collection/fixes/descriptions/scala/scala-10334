@@ -1,0 +1,38 @@
+(see comments below for more reduced examples, the bug is not related to by-name parameters)
+
+``` scala
+def byName(b: => Int): Int = b
+def namer[A, B](f: A => B): (A => B) { def apply(i: A): B } = f
+
+val namedFunction = namer(byName _)
+namedFunction(1)
+```
+```
+java.lang.NoSuchMethodException: Playground$$Lambda$5237/727589900.apply(scala.Function0)
+
+java.lang.ExceptionInInitializerError
+	at Main.main(main.scala)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at sbt.Run.invokeMain(Run.scala:67)
+	at sbt.Run.run0(Run.scala:61)
+	at sbt.Run.sbt$Run$$execute$1(Run.scala:51)
+	at sbt.Run$$anonfun$run$1.apply$mcV$sp(Run.scala:55)
+	at sbt.Run$$anonfun$run$1.apply(Run.scala:55)
+	at sbt.Run$$anonfun$run$1.apply(Run.scala:55)
+	at sbt.Logger$$anon$4.apply(Logger.scala:84)
+	at sbt.TrapExit$App.run(TrapExit.scala:248)
+	at java.lang.Thread.run(Thread.java:745)
+Caused by: java.lang.NoSuchMethodException: Playground$$Lambda$5237/727589900.apply(scala.Function0)
+	at java.lang.Class.getMethod(Class.java:1786)
+	at Playground.reflMethod$Method1(main.scala:7)
+	at Playground.<init>(main.scala:7)
+	at Main$.<init>(main.scala:11)
+	at Main$.<clinit>(main.scala)
+	... 14 more
+```
+https://scastie.scala-lang.org/Atry/iHBKTvX2TLOIZcDeKtbB7Q
+
+This example works in 2.11.11, but the underlying bug also exists in 2.11 (see comments)

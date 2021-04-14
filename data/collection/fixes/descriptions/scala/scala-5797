@@ -1,0 +1,143 @@
+The compiler aborts in icode when compiling a macro that reifies an anonymous function whose body is the macro argument. The crash happens when the macro argument contains a local variable use.
+
+The following REPL dump shows the crash.
+
+```scala
+$ scala-2.10.0-M3/bin/scala -Xmacros
+Welcome to Scala version 2.10.0-M3 (OpenJDK 64-Bit Server VM, Java 1.7.0-internal).
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+scala> import scala.reflect.makro._
+import scala.reflect.makro._
+
+scala> import language.experimental.macros
+import language.experimental.macros
+
+scala> object Fun { def fun[A: c.TypeTag](c: Context)(x: c.Expr[A]) = c.reify( () => x.eval ) }
+defined module Fun
+
+scala> def m[A](x: A) = macro Fun.fun[A]
+m: [A](x: A)() => A
+
+scala> m(1)
+res0: () => Int = <function0>
+
+scala> m { val x = 1; 2 }
+res1: () => Int = <function0>
+
+scala> m { val x = 1; x }
+ReplGlobal.abort: symbol value x$1 does not exist in $line15.$read$$iw$$iw$$iw$$iw.<init>
+error: symbol value x$1 does not exist in <init>
+error: 
+     while compiling:  <console>
+       current phase:  icode
+     library version:  version 2.10.0-M3
+    compiler version:  version 2.10.0-M3
+  reconstructed args:  -Xmacros
+
+uncaught exception during compilation: scala.reflect.internal.FatalError
+scala.reflect.internal.FatalError: 
+     while compiling:  <console>
+       current phase:  icode
+     library version:  version 2.10.0-M3
+    compiler version:  version 2.10.0-M3
+  reconstructed args:  -Xmacros
+
+symbol value x$1 does not exist in $line15.$read$$iw$$iw$$iw$$iw.<init>
+	at scala.reflect.internal.SymbolTable.abort(SymbolTable.scala:45)
+	at scala.tools.nsc.Global.abort(Global.scala:202)
+	at scala.tools.nsc.interpreter.IMain$$anon$1.scala$tools$nsc$interpreter$ReplGlobal$$super$abort(IMain.scala:288)
+	at scala.tools.nsc.interpreter.ReplGlobal$class.abort(ReplGlobal.scala:21)
+	at scala.tools.nsc.interpreter.IMain$$anon$1.abort(IMain.scala:288)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.liftedTree2$1(GenICode.scala:998)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:992)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1201)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1199)
+	at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:111)
+	at scala.collection.immutable.List.foldLeft(List.scala:77)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadArguments(GenICode.scala:1199)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:814)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1032)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1024)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genStat(GenICode.scala:168)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genStat$1.apply(GenICode.scala:148)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genStat$1.apply(GenICode.scala:148)
+	at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:111)
+	at scala.collection.immutable.List.foldLeft(List.scala:77)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:1023)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:116)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:72)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:72)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:77)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:72)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:141)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:91)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:72)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$gen$1.apply(GenICode.scala:72)
+	at scala.collection.LinearSeqOptimized$class.foreach(LinearSeqOptimized.scala:59)
+	at scala.collection.immutable.List.foreach(List.scala:77)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:72)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:82)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:68)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.apply(GenICode.scala:64)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:432)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:398)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:392)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:697)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1124)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:392)
+	at scala.tools.nsc.backend.icode.GenICode$ICodePhase.run(GenICode.scala:57)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1336)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1309)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1303)
+	at scala.tools.nsc.interpreter.IMain.compileSourcesKeepingRun(IMain.scala:461)
+	at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compileAndSaveRun(IMain.scala:845)
+	at scala.tools.nsc.interpreter.IMain$ReadEvalPrint.compile(IMain.scala:803)
+	at scala.tools.nsc.interpreter.IMain$Request.compile(IMain.scala:979)
+	at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:629)
+	at scala.tools.nsc.interpreter.IMain.interpret(IMain.scala:595)
+	at scala.tools.nsc.interpreter.ILoop.reallyInterpret$1(ILoop.scala:826)
+	at scala.tools.nsc.interpreter.ILoop.interpretStartingWith(ILoop.scala:883)
+	at scala.tools.nsc.interpreter.ILoop.command(ILoop.scala:783)
+	at scala.tools.nsc.interpreter.ILoop.processLine$1(ILoop.scala:647)
+	at scala.tools.nsc.interpreter.ILoop.innerLoop$1(ILoop.scala:654)
+	at scala.tools.nsc.interpreter.ILoop.loop(ILoop.scala:657)
+	at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply$mcZ$sp(ILoop.scala:962)
+	at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply(ILoop.scala:924)
+	at scala.tools.nsc.interpreter.ILoop$$anonfun$process$1.apply(ILoop.scala:924)
+	at scala.tools.nsc.util.ScalaClassLoader$.savingContextLoader(ScalaClassLoader.scala:157)
+	at scala.tools.nsc.interpreter.ILoop.process(ILoop.scala:924)
+	at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:79)
+	at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:92)
+	at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:101)
+	at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+
+That entry seems to have slain the compiler.  Shall I replay
+your session? I can re-run each line except the last one.
+[y/n]
+
+```
+
+
+This does not happen when using `scala.reflect.mirror` directly:
+
+```scala
+scala> scala.reflect.mirror.reify { val x = 1; x }
+res0: reflect.mirror.Expr[Int] = 
+Expr[Int]({
+  val x = 1;
+  x
+})
+
+scala> scala.reflect.mirror.reify { () => res0.eval }
+res1: reflect.mirror.Expr[() => Int] = 
+Expr[() => Int]((() => {
+  val x = 1;
+  x
+}))
+
+scala> res1.eval()
+res2: Int = 1
+```

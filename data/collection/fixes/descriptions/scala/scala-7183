@@ -1,0 +1,23 @@
+```scala
+class A
+object A {
+  def unapply(a: A): Some[A] = Some(a) // Change return type to Option[A] and the warning is gone
+}
+
+object Test {
+  for (A(a) <- List(new A)) yield a // spurious dead code warning.
+}
+
+// List(new A()).withFilter(((check$ifrefutable$2) => check$ifrefutable$2: @scala.unchecked match {
+//  case A((a @ _)) => true
+//  case _ => false // this is dead code, but it's compiler generated.
+// }))
+
+```
+
+I'm pretty sure the regression is explained by the combination of:
+
+https://github.com/scala/scala/commit/cbd02059
+and
+https://github.com/scala/scala/commit/dfbaaa17
+

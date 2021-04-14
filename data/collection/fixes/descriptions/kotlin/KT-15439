@@ -1,0 +1,35 @@
+Run the following diagnostic test:
+
+```
+// KT-12044 Assertion "Rewrite at slice LEXICAL_SCOPE" for 'if' with property references
+
+fun test() {
+    data class Pair<F, S>(val first: F, val second: S)
+    val (x, y) =
+            Pair(1,
+                 if (1 == 1)
+                     Pair<String, String>::first
+                 else
+                     Pair<String, String>::second)
+}
+```
+
+```
+junit.framework.AssertionFailedError: Resolved call for 'first'(11,44) is not completed
+
+	at junit.framework.Assert.fail(Assert.java:57)
+	at junit.framework.Assert.assertTrue(Assert.java:22)
+	at junit.framework.TestCase.assertTrue(TestCase.java:192)
+	at org.jetbrains.kotlin.checkers.AbstractDiagnosticsTest.checkAllResolvedCallsAreCompleted(AbstractDiagnosticsTest.kt:492)
+	at org.jetbrains.kotlin.checkers.AbstractDiagnosticsTest.analyzeAndCheck(AbstractDiagnosticsTest.kt:127)
+	at org.jetbrains.kotlin.checkers.BaseDiagnosticsTest.doMultiFileTest(BaseDiagnosticsTest.kt:62)
+	at org.jetbrains.kotlin.checkers.KotlinMultiFileTestWithJava.doTest(KotlinMultiFileTestWithJava.java:147)
+	at org.jetbrains.kotlin.checkers.DiagnosticsTestGenerated$Tests$CallableReference$Resolve.testKt12044(DiagnosticsTestGenerated.java:2388)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+	at java.lang.reflect.Method.invoke(Method.java:597)
+	at junit.framework.TestCase.runTest(TestCase.java:176)
+```
+
+Note that the compilation is working fine, the problem is only reproducible in diagnostic tests.

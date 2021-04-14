@@ -1,0 +1,77 @@
+The following exception is thrown while executing the test case below.
+
+java.lang.ClassCastException: com.sun.tools.javac.code.Symbol$TypeSymbol cannot be cast to com.sun.tools.javac.code.Symbol$ClassSymbol
+	at com.sun.tools.javac.comp.Check.checkImplementations(Check.java:1558)
+	at com.sun.tools.javac.comp.Check.checkImplementations(Check.java:1549)
+	at com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:2736)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:2666)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:2602)
+	at com.sun.tools.javac.comp.Attr.attribBounds(Attr.java:480)
+	at com.sun.tools.javac.comp.Attr.visitMethodDef(Attr.java:584)
+	at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:653)
+	at com.sun.tools.javac.comp.Attr.attribTree(Attr.java:372)
+	at com.sun.tools.javac.comp.Attr.attribStat(Attr.java:409)
+	at com.sun.tools.javac.comp.Attr.attribClassBody(Attr.java:2740)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:2666)
+	at com.sun.tools.javac.comp.Attr.attribClass(Attr.java:2602)
+	at com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1050)
+	at com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1026)
+	at com.sun.tools.javac.api.JavacTaskImpl.analyze(JavacTaskImpl.java:369)
+	at com.sun.tools.javac.api.JavacTaskImpl.analyze(JavacTaskImpl.java:349)
+	at T9999999.main(T9999999.java:61)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+	at java.lang.reflect.Method.invoke(Method.java:597)
+	at com.sun.javatest.regtest.MainAction$SameVMThread.run(MainAction.java:560)
+	at java.lang.Thread.run(Thread.java:619)
+
+
+/*
+ * @test 
+ * @bug 9999999
+ * @summary a ClassCastException thrown when analyzing incorrect code.
+ */
+
+import com.sun.source.util.JavacTask;
+import java.io.IOException;
+import java.net.URI;
+import java.util.Arrays;
+import javax.tools.JavaCompiler;
+import javax.tools.JavaFileObject;
+import javax.tools.SimpleJavaFileObject;
+import javax.tools.ToolProvider;
+
+public class T9999999 {
+    static class MyFileObject extends SimpleJavaFileObject {
+        private String text;
+        public MyFileObject(String text) {
+            super(URI.create("myfo:/Test.java"), JavaFileObject.Kind.SOURCE);
+            this.text = text;
+        }
+        @Override
+        public CharSequence getCharContent(boolean ignoreEncodingErrors) {
+            return text;
+        }
+    }
+    
+    public static void main(String[] args) throws IOException {
+        final String bootPath = System.getProperty("sun.boot.class.path"); //NOI18N
+        final JavaCompiler tool = ToolProvider.getSystemJavaCompiler();
+        assert tool != null;
+        
+        String code = "package test; public class Test<S> { <T extends S & Runnable> void test() {} }";
+        
+        JavacTask ct = (JavacTask)tool.getTask(null, null, null, Arrays.asList("-bootclasspath",  bootPath, "-Xjcov"), null, Arrays.asList(new MyFileObject(code)));
+        
+        ct.analyze();
+    }
+}
+
+
+I have a revision 252 from:
+https://openjdk.dev.java.net/svn/openjdk/jdk/trunk
+
+See also NetBeans issue:
+http://www.netbeans.org/issues/show_bug.cgi?id=116436
+An error is (correctly) reported before the exception occurs (the error is that the bound combines a type variable and an interface, which is prohibited, according to JLS 4.4). The problem IMO is that the Attr/Check are not prepared for this situation. Presumably because the execution never reaches Attr/Check in the cmd line javac in this case.

@@ -1,0 +1,84 @@
+Here is a minimized test case:
+```scala
+
+
+object O {
+
+	class X[A]
+
+	def id[B](x: X[B]): X[B] = x
+
+	def test[C](f: X[C] => X[C], x: X[C]): X[C] = f(x)
+
+	val x0 = new X[Int]
+
+	test(id, x0)
+
+}
+
+```
+
+It fails to compile, giving:
+```xml
+/home/clhodapp/test/Test.scala:12: type mismatch;
+ found   : O.X[Nothing] => O.X[Nothing]
+ required: O.X[Int] => O.X[Int]
+	test(id, x0)
+	     ^
+one error found
+```
+
+It would seem that the compiler is inferring `Int` to pass as `C`, but `Nothing` to pass as `B` in `test(id, x)`. I would argue that it `Int` should be passed as both `B` and `C`.
+
+
+Let's look at (a fragment of) the typer-debug output:
+```scala
+test(id, x0) BYVALmode-EXPRmode (site: value <local O> in O) 
+ |-- test BYVALmode-EXPRmode-FUNmode-POLYmode (silent: value <local O> in O) 
+ |    [adapt] [C](f: O.X[C] => O.X[C], x: O.X[C])O.X[C] adapted to [C](f: O.X[C] => O.X[C], x: O.X[C])O.X[C]
+ |    \-> (f: O.X[C] => O.X[C], x: O.X[C])O.X[C]
+ |-- id : pt=O.X[?] => O.X[?] BYVALmode-EXPRmode-POLYmode (site: value <local O> in O) 
+ |    |-- { ((x: O.X[B]) => O.this.id[B](x)) } BYVALmode-EXPRmode-POLYmode (site solving: type B: value <local O> in O) 
+ |    |    |-- ((x: O.X[B]) => O.this.id[B](x)) BYVALmode-EXPRmode-POLYmode (site: value <local O> in O) 
+ |    |    |    |-- O.this.id[B](x) EXPRmode (site: value $anonfun in O) 
+ |    |    |    |    |-- O.this.id[B] BYVALmode-EXPRmode-FUNmode-POLYmode (silent: value $anonfun in O) 
+ |    |    |    |    |    |-- O.this.id BYVALmode-EXPRmode-FUNmode-POLYmode-TAPPmode (silent: value $anonfun in O) 
+ |    |    |    |    |    |    \-> [B](x: O.X[B])O.X[B]
+ |    |    |    |    |    \-> (x: O.X[B])O.X[B]
+ |    |    |    |    |-- x : pt=O.X[B] BYVALmode-EXPRmode (site: value $anonfun in O) 
+ |    |    |    |    |    \-> O.X[B]
+ |    |    |    |    \-> O.X[B]
+ |    |    |    \-> O.X[B] => O.X[B]
+ |    |    \-> O.X[B] => O.X[B]
+ |    solving for (B: ?B)
+ |    [adapt] [B](x: O.X[B])O.X[B] adapted to { ((x: O.X[Nothing]) => O.this.id[Nothing](x)) } based on pt O.X[?] => O.X[?]
+ |    \-> O.X[Nothing] => O.X[Nothing]
+ |-- x0 : pt=O.X[?] BYVALmode-EXPRmode-POLYmode (site: value <local O> in O) 
+ |    \-> O.X[Int]
+ solving for (C: ?C)
+ \-> O.X[Int]
+```
+
+We can see that the types for `x` and `id` are computed before the type to use as an argument to test is computed. Specifically, the type to be passed as `B` is computed as `Nothing`, since, given no other constraints, this is the most specific, and thus the most desirable, type to pass. This way of doing things might be acceptable if these were regarded as tentative types, with the possibility of being recomputed once the type to be passed as C was inferred. However, they are **not** recomputed, leading to the sorry state of affairs seen here.
+
+I do have one idea as to how to change the logic here, in case it helps anyone. Basically, it would seem to me that the best thing to do would be to infer type arguments from the outside in instead of from the inside out. Specifically, I would create a type range, which started as `<: Any >: Nothing`, and narrow it with each value parameter that referenced it, based on the restrictions created by the arguments passed as those parameters. For instance, here the type of `f` references `C` and `id` is passed as `f`. However, the type of `id` does not narrow the range of possible values for `C`. The type of `x` also references `C`. Since `x0` is passed as `x`, we have to see if the type of `x0` restricts the type of `C`. In fact it does! It restricts `C` to be `>: Int <: Int`, meaning that it must just be `Int`. From here, we can compute expected types for the value arguments of `test`. Specifically, `Int` as `C` gives us an expected type of `X[Int]` for the argument passed as `x`, meaning that `Int` must be passed as `B`.
+
+One other thing to note: this seems to only be a problem when eta-expansion is involved. I when I changed id to return a custom type similar to Function1:
+```scala
+
+object O {
+
+	class X[A]
+
+	class ~>[-T, +U]
+
+	def id[B]: X[B] ~> X[B] = ???
+
+	def test[C](f: X[C] ~> X[C], x: X[C]): X[C] = ???
+
+	val x0 = new X[Int]
+
+	test(id, x0)
+
+}
+```

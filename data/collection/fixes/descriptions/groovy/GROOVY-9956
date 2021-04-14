@@ -1,0 +1,64 @@
+I have the following Groovy program.
+{code:groovy}
+class Foo<T> {
+    T f;
+    Foo (T f) {
+      this.f = f;
+    }
+
+}
+
+interface Bar{}
+class Baz<T> implements Bar {}
+
+@groovy.transform.TypeChecked
+class Main  {
+  public static void main(String[] args) {
+    Foo<Bar> x1 = new Foo<Bar>(new Baz<Integer>()) // Compiles
+    Foo<Bar> x2 = new Foo<>(new Baz<Integer>()) // Does not compile
+  }
+}
+{code}
+h2. Actual Behavior
+
+The program does not compile, and I get the following error.
+{code:java}
+org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
+Main.groovy: 16: [Static type checking] - Incompatible generic argument types. Cannot assign Foo <Baz> to: Foo <Bar>
+ @ line 16, column 19.
+       Foo<Bar> x2 = new Foo<>(new Baz<Integer>())
+                     ^
+
+1 error
+
+{code}
+h2. Expected Behavior
+
+Compile successfully.
+h2. Affected Version
+
+I have also tested it with the compiler from Master (commit: 666627b3be7718e3265fc42b473060bc73f42e2f).
+h2. Comment
+
+If I remove the type parameter from Baz, then it only fails when compiled with the compiler from the Master.
+ Specifically, the following test case compiles with 3.0.7 and 4.0.0-alpha-2 compilers but fails with the same message as the previous test case when using the compiler from the Master.
+{code:groovy}
+class Foo<T> {
+    T f;
+    Foo (T f) {
+      this.f = f;
+    }
+
+}
+
+interface Bar{}
+class Baz implements Bar {}
+
+@groovy.transform.TypeChecked
+class Main  {
+  public static void main(String[] args) {
+    Foo<Bar> x1 = new Foo<Bar>(new Baz()) // Compiles
+    Foo<Bar> x2 = new Foo<>(new Baz()) // Does not compile
+  }
+}
+{code}

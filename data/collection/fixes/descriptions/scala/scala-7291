@@ -1,0 +1,21 @@
+```scala
+trait Fooable[T]
+object Fooable {
+  implicit def conjure[T]: Fooable[T] = {
+    println("conjure")
+    new Fooable[T]{}
+  }
+
+}
+
+object Main extends App {
+  implicit def traversable[T, Coll[_] <: Traversable[_]](implicit
+elem: Fooable[T]): Fooable[Coll[T]] = {
+    println("traversable")
+    new Fooable[Coll[T]]{}
+  }
+  implicitly[Fooable[List[Any]]] 
+}
+```
+
+Should print "conjure", then "traversable". Currently it prints just "conjure". Details: http://groups.google.com/group/scala-internals/browse_thread/thread/f284df8ee19c2aba

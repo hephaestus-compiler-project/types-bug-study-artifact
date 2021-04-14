@@ -1,0 +1,33 @@
+This is test case taken https://github.com/scala/scala/pull/6050:
+
+```scala
+trait Foo[T]
+
+object Foo {
+  implicit def pair[T, U]
+    (implicit
+      fooT: => Foo[(T, U)],
+      fooU: => Foo[(U, T)]
+    ): Foo[(T, U)] = ???
+
+  implicit def int: Foo[Int] = ???
+  implicit def string: Foo[String] = ???
+}
+
+object Test {
+  implicitly[Foo[(Int, String)]]
+}
+```
+
+```scala
+Exception in thread "main" java.lang.IllegalArgumentException: Could not find proxy for lazy var $_lazy_implicit_$3$lzy1: dotty.run
+time.LazyRef in List(val $_lazy_implicit_$3$lzy1, val <local Test$>, module class Test$, module class <empty>, module class <root>), encl = package <empty>, owners = package <empty>, package <root>; enclosures = package <empty>, package <root>
+        at dotty.tools.dotc.transform.LambdaLift$Lifter.searchIn$1(LambdaLift.scala:374)
+        at dotty.tools.dotc.transform.LambdaLift$Lifter.proxy(LambdaLift.scala:387)
+        at dotty.tools.dotc.transform.LambdaLift$Lifter.proxyRef(LambdaLift.scala:405)
+        at dotty.tools.dotc.transform.LambdaLift$Lifter.$anonfun$addFreeArgs$1(LambdaLift.scala:411)
+        at scala.collection.immutable.List.map(List.scala:283)
+        at dotty.tools.dotc.transform.LambdaLift$Lifter.addFreeArgs(LambdaLift.scala:411)
+        at dotty.tools.dotc.transform.LambdaLift.transformApply(LambdaLift.scala:532)
+        at dotty.tools.dotc.transform.LambdaLift.transformApply(LambdaLift.scala:486)
+```

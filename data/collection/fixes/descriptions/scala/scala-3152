@@ -1,0 +1,42 @@
+This bug has been popping up regularly during Scalaz development for a few months, but I could never reproduce it in isolation.
+
+It can usually be worked around by adding or removing type ascriptions, extracting sub-expressions to local vals, as demonstrated below. 
+
+```scala
+
+trait Applicative[M[_]]
+
+sealed trait MA[M[_], A] { 
+  def sequence[N[_], B](implicit a: A <:< N[B], n: Applicative[N]): N[M[B]] = error("stub")
+  
+  def sequence2[N[_], B](implicit a: A <:< N[B]): N[M[B]] = error("stub")
+}
+
+object test {
+  implicit def ListMA[A](l: List[A]): MA[List, A] = error("stub")  
+  implicit val ao: Applicative[Option] = error("stub")
+
+
+  /* All of these variations compile OK:
+  {
+    val x = List[Option[Int]]().sequence; 
+    x: Option[List[Int]]
+  }  
+  {
+    val x = ((List[Option[Int]]()): MA[List, Option[Int]]).sequence; 
+    x: Option[List[Int]]
+  }
+  (null: MA[List, Option[Int]]).sequence: Option[List[Int]]
+  (List[Option[Int]]()).sequence2: Option[List[Int]]
+  (ListMA(List[Option[Int]]())).sequence: Option[List[Int]]
+  {
+      val ls: List[Option[Int]] = Nil
+      ls.sequence: Option[List[Int]]
+  }
+  */
+      
+  //enclosing.scala:33: error: immutable is not an enclosing class
+  (List[Option[Int]]()).sequence: Option[List[Int]]
+}
+
+```

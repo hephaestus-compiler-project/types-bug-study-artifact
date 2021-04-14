@@ -1,0 +1,41 @@
+## minimized code
+
+```Scala
+trait Foo
+  def g(f: Int => Int): Int = 1
+  def g(given String)(f: Int => String): String = "2"
+
+@main def Test =
+  val m: Foo = ???
+  given String = "foo"
+  m.g(x => "2")
+```
+
+```scala
+-- [E007] Type Mismatch Error: /Users/kmetiuk/Projects/scala3/pg/sandbox/iss71.scala:8:11
+8 |  m.g(x => "2")
+  |           ^^^
+  |           Found:    ("2" : String)
+  |           Required: Int
+1 error found
+```
+
+Works if you define the second `g` as (move the `given` to the last arg group):
+
+```scala
+  def g(f: Int => String)(given String): String = "2"
+```
+
+Works also if you define `g`s as:
+
+```scala
+  def g(f: Int): Int = 1
+  def g(given String)(f: String): String = "2"
+```
+
+And use as `m.g("2")`.
+
+Works also if you call `m.g(x => 1)`.
+
+## expectation
+The original case should resolve overloading correctly.

@@ -1,0 +1,103 @@
+scalac compiles but dotc crashes.
+
+$ dotc -version
+```
+Dotty compiler version 0.5.0-bin-SNAPSHOT-git-4fefb64 -- Copyright 2002-2017, LAMP/EPFL
+```
+
+$ dotc abc.scala
+```
+exception while typing /* inlined from Trait2*/
+  {
+    1
+  }
+.unary_+ of class class dotty.tools.dotc.ast.Trees$Select # 241
+exception while typing {
+  /* inlined from Trait2*/
+    {
+      1
+    }
+  .unary_+
+} of class class dotty.tools.dotc.ast.Trees$Block # 242
+exception while typing def main: Int =
+  {
+    /* inlined from Trait2*/
+      {
+        1
+      }
+    .unary_+
+  } of class class dotty.tools.dotc.ast.Trees$DefDef # 243
+exception while typing @scala.annotation.internal.SourceFile("abc.scala") final module class Test()
+   extends
+ Object() with Trait2 {
+  def main: Int =
+    {
+      /* inlined from Trait2*/
+        {
+          1
+        }
+      .unary_+
+    }
+} of class class dotty.tools.dotc.ast.Trees$TypeDef # 294
+exception while typing package <empty> {
+  @scala.annotation.internal.SourceFile("abc.scala") <trait> trait Trait1()
+     extends
+   Object {
+    def foo2(n: Int): Int = n
+  }
+  @scala.annotation.internal.SourceFile("abc.scala") <trait> trait Trait2()
+     extends
+   Object {
+    @1 @inline() inline def foo3(n: Int): Int = 1
+  }
+  @scala.annotation.internal.SourceFile("abc.scala") class Base() extends Object
+    (
+  ) {
+    def foo(n: Int): Int = n
+  }
+  final lazy module val Test: Test$ = new Test$()
+  @scala.annotation.internal.SourceFile("abc.scala") final module class Test()
+     extends
+   Object() with Trait2 {
+    def main: Int =
+      {
+        /* inlined from Trait2*/
+          {
+            1
+          }
+        .unary_+
+      }
+  }
+} of class class dotty.tools.dotc.ast.Trees$PackageDef # 295
+
+exception occurred while compiling abc.scala
+Exception in thread "main" java.lang.AssertionError: NoDenotation.owner
+	at dotty.tools.dotc.core.SymDenotations$NoDenotation.owner(SymDenotations.scala:1856)
+	at dotty.tools.dotc.transform.Erasure$Typer.mapOwner$1(Erasure.scala:381)
+	at dotty.tools.dotc.transform.Erasure$Typer.typedSelect(Erasure.scala:385)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1623)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1689)
+	at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:94)
+	at dotty.tools.dotc.typer.Typer.op$40(Typer.scala:1707)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1703)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:1764)
+	at dotty.tools.dotc.typer.Typer.op$10(Typer.scala:633)
+	at dotty.tools.dotc.typer.Typer.typedBlock(Typer.scala:625)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1649)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1690)
+	at dotty.tools.dotc.typer.ReTyper.typedUnadapted(ReTyper.scala:94)
+	at dotty.tools.dotc.typer.Typer.op$40(Typer.scala:1707)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:1703)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:1764)
+<snipped>
+```
+
+$ cat abc.scala
+```scala
+trait Trait1 { def foo2(n: Int) = n }
+trait Trait2 { @inline def foo3(n: Int) = 1 }
+class Base { def foo(n: Int) = n }
+object Test extends Trait2 {
+  def main = { +(foo3(2)) }
+}
+```

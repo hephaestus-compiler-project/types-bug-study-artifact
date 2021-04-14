@@ -1,0 +1,22 @@
+A test case:
+
+```scala
+class Foo {
+  class Marker
+  implicit def marker: Marker = new Marker
+  def needMarker()(implicit marker: Marker) {}
+}
+
+class Bar(foo: Foo)
+
+class Baz extends Bar(new Foo {
+  needMarker() // error: could not find implicit value for parameter marker: this.Marker
+})
+object Baz2 extends Bar(new Foo {
+  needMarker() // error: could not find implicit value for parameter marker: this.Marker
+})
+
+val bar = new Bar(new Foo {
+  needMarker() // however, this code compiles ok
+})
+```

@@ -1,0 +1,68 @@
+javac's Pretty class does not correctly handle enum constant declarations when the declaration involves use of a non-default constructor. The args to be passed to the constructor get hidden inside a comment, meaning that the actual code printed is incorrect and cannot be compiled.
+Here's a test program:
+--------------------------------------------------------
+import java.io.*;
+import javax.tools.JavaFileObject;
+import javax.tools.StandardJavaFileManager;
+
+
+import com.sun.source.tree.CompilationUnitTree;
+import com.sun.source.util.JavacTask;
+import com.sun.tools.javac.api.JavacTool;
+import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.Pretty;
+public class Test {
+
+    public static void main(String[] args) throws Exception {
+        new Test().run(args);
+    }
+
+    void run(String... args) throws IOException {
+        PrintWriter out = new PrintWriter(System.out);
+        try {
+            JavacTool tool = JavacTool.create();
+            StandardJavaFileManager fm = tool.getStandardFileManager(null, null,
+ null);
+
+            Iterable<? extends JavaFileObject> files = fm.getJavaFileObjects(arg
+s);
+
+            JavacTask t = tool.getTask(null, fm, null, null, null, files);
+            Iterable<? extends CompilationUnitTree> trees = t.parse();
+            for (CompilationUnitTree tree: trees) {
+                new Pretty(out, true).printExpr((JCTree) tree);
+            }
+        } finally {
+            out.flush();
+        }
+    }
+}
+---------------------------------------------------------
+
+Run it on this source:
+-------------------------------
+enum E {
+    E1(1), E2(2), E3(3);
+    E(int i) { }
+}
+-------------------------------
+
+to get:
+-------------------------------
+enum E {
+    /*public static final*/ E1 /* = new E(1) */,
+    /*public static final*/ E2 /* = new E(2) */,
+    /*public static final*/ E3 /* = new E(3) */;
+    
+    E(int i) {
+    }
+}
+-------------------------------
+
+Compiling that output gives the following, because of the incorrect code generated:
+-------------------------------
+error: cannot find symbol
+symbol  : constructor E()
+location: class E
+1 error
+-------------------------------

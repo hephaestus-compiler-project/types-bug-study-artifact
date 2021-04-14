@@ -1,0 +1,26 @@
+```
+object Test {
+  val c0 = false
+  val c1 = true
+
+  def foo(x: List[Boolean], y: List[Boolean]) = (x,y) match {
+    case (`c0`::x, `c0`::y) => x
+    case (`c0`::x, `c1`::y) => y
+    case (`c1`::x, `c0`::y) => y
+    case (`c1`::x, `c1`::y) => x
+  }
+}
+```
+
+generates the following spurious warnings:
+
+```
+bug.scala:7: error: unreachable code
+    case (`c0`::x, `c1`::y) => y
+                               ^
+bug.scala:5: error: match may not be exhaustive.
+It would fail on the following inputs: (List(false), List(true)), (List(true), List(false)), (List(true), List(true))
+  def foo(x: List[Boolean], y: List[Boolean]) = (x,y) match {
+                                                ^
+two errors found
+```

@@ -1,0 +1,55 @@
+FULL PRODUCT VERSION :
+java version "1.7.0-ea"
+Java(TM) SE Runtime Environment (build 1.7.0-ea-b70)
+Java HotSpot(TM) 64-Bit Server VM (build 16.0-b07, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux n050409 2.6.22.19-lustre.1.6.5.1 #2 SMP Tue Oct 28 14:06:20 CET 2008 x86_64 x86_64 x86_64 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+Compilation of a recursive type parameter usage gives an error. Compilation on JDK 1.6 works.
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+javac -d . Fact_j17.java
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Compiles without errors.
+ACTUAL -
+compile errors
+
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+Fact_j17.java:6: type parameter AlgebraicNumber<C> is not within its bound
+    public Fact_j17<AlgebraicNumber<C>> xyz;
+                                   ^
+  where C is a type-variable:
+    C extends GcdRingElem<C> declared in class Fact_j17
+1 error
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+public class Fact_j17<C extends GcdRingElem<C>> {
+    public Fact_j17<AlgebraicNumber<C>> xyz;
+}
+
+class AlgebraicNumber<C extends GcdRingElem<C>> implements GcdRingElem<AlgebraicNumber<C>> {
+}
+
+interface GcdRingElem<C extends GcdRingElem<C>> {
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+stay with JDK 1.6
+
+Release Regression From : 6u16
+The above release value was the last known release where this 
+bug was not reproducible. Since then there has been a regression.

@@ -1,0 +1,92 @@
+Compiling a generated file with about 50 thousand imports compiles in under 10 seconds with JDK 8, and 3-4 minutes with JDK 9. The example below is based on the output of a real-world code generator.
+
+A program that generates the test inputs is attached. It creates a large number of classes in unique packages, and two source files:
+A.java imports all of the generated classes and creates variables for each of the imports.
+B.java creates an equivalent number of locals but doesn't import anything.
+
+Example:
+
+$ javac Gen.java && java Gen 2
+
+=== ./A.java
+import p0.Tp0;
+import p0.p0.Tp0_p0;
+import p0.p1.Tp0_p1;
+import p1.Tp1;
+import p1.p0.Tp1_p0;
+import p1.p1.Tp1_p1;
+
+class A {
+  void f0() {
+    Tp0_p0 Tp0_p0_;
+    Tp0_p1 Tp0_p1_;
+    Tp0 Tp0_;
+    Tp1_p0 Tp1_p0_;
+    Tp1_p1 Tp1_p1_;
+    Tp1 Tp1_;
+  }
+}
+=== ./B.java
+class B {
+  void f0() {
+    Object Tp0_p0_;
+    Object Tp0_p1_;
+    Object Tp0_;
+    Object Tp1_p0_;
+    Object Tp1_p1_;
+    Object Tp1_;
+  }
+}
+=== ./p0/p0/Tp0_p0.java
+package p0.p0;
+public class Tp0_p0 {}
+=== ./p0/p1/Tp0_p1.java
+package p0.p1;
+public class Tp0_p1 {}
+=== ./p0/Tp0.java
+package p0;
+public class Tp0 {}
+=== ./p1/p0/Tp1_p0.java
+package p1.p0;
+public class Tp1_p0 {}
+=== ./p1/p1/Tp1_p1.java
+package p1.p1;
+public class Tp1_p1 {}
+=== ./p1/Tp1.java
+package p1;
+public class Tp1 {}
+===
+
+# Repro:
+
+# generate the inputs
+$ javac Gen.java && java Gen 6
+
+# pre-compile the files to import
+$ find p* -type f | xargs javac
+
+# compile A.java and B.java with JDK 8 and JDK 9 javacs
+
+$ time javac -fullversion -sourcepath : -cp . B.java
+javac full version "1.8.0_162-ea-b03"
+real    0m1.532s
+user    0m3.708s
+sys     0m0.692s
+
+$ time javac -fullversion -sourcepath : -cp . A.java
+javac full version "1.8.0_162-ea-b03"
+real    0m6.271s
+user    0m20.800s
+sys     0m3.424s
+
+$ time javac -fullversion -sourcepath : -cp . B.java
+javac full version "9.0.1+11"
+real    0m11.201s
+user    0m9.236s
+sys     0m11.992s
+
+$ time javac -fullversion -sourcepath : -cp . A.java
+javac full version "9.0.1+11"
+real    3m56.710s
+user    2m49.572s
+sys     1m32.724s

@@ -1,0 +1,22 @@
+Consider the following example code:
+```scala
+import scala.language.higherKinds
+
+object Bug {
+  object Definition {
+    final class Tag[+W[D1, C1, M1[X1, +Y1] <: Map[X1, Y1]]]
+    private val instance = new Tag[Nothing]
+
+    def ofType[W[D2, C2, M2[X2, +Y2] <: Map[X2, Y2]]]: Tag[W] = instance
+    type InSeq[D3, C3, M3[X3, +Y3] <: Map[X3, Y3]] = IndexedSeq[M3[D3, C3]]
+    val result = Definition.ofType[Definition.InSeq]
+  }
+  object Usage {
+    val result = Definition.ofType[Definition.InSeq]
+  }
+}
+```
+
+The definitions of "result" objects are the same. However, the "result" of Usage compiles, while "result" of Definition does not.
+
+The whole effect is very unstable when regarding the circumstances. For example, incremental compilation under IntelliJ IDEA may report successful compilation of the otherwise buggy code when the previous compilation was OK.

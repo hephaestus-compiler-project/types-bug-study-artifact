@@ -1,0 +1,56 @@
+When repeated annotation with TYPE_USE is used on record's component there is a compile time error when annotation processor is specified. There is no error when simple compilation is done. 
+
+>/ws/java/java16/bin/javac -cp . --enable-preview --release 16 -processor proc.SimpleProcessor p/Test.java
+..
+p/Test.java:15: error: constructor TestRecord in record TestRecord cannot be applied to given types;
+        TestRecord rec = new TestRecord(10, 20);
+                         ^
+  required: int[]
+  found:    int,int
+  reason: actual and formal argument lists differ in length
+
+>/ws/java/java16/bin/javac -cp . --enable-preview --release 16  p/Test.java
+
+Compiles fine.
+
+Code:
+p/Test.java
+
+package p;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Target;
+import java.lang.annotation.Repeatable;
+
+@Target({ElementType.TYPE_USE}) @interface SimpleContainer{Simple[] value();}
+@Repeatable(SimpleContainer.class)
+@Target({ElementType.TYPE_USE}) @interface Simple {}
+
+record TestRecord(@Simple int ...val) {}
+
+public class Test {
+    public static void main(String argv[]) {
+        TestRecord rec = new TestRecord(10, 20);
+    }
+}
+
+
+proc/SimpleProcessor.java
+
+package proc;
+
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.lang.model.element.TypeElement;
+import java.util.Set;
+
+@SupportedAnnotationTypes("*")
+public class SimpleProcessor extends AbstractProcessor {
+
+    @Override
+    public boolean process(Set<? extends TypeElement> annotations,
+                           RoundEnvironment roundEnv) {
+        return true;
+    }
+}

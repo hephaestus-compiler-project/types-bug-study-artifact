@@ -1,0 +1,47 @@
+```scala
+trait ListMatcher {                                                                
+  object __match {                                                                 
+    def one[T](x: T): List[T] = List(x)                                            
+    def zero = Nil                                                                 
+    def guard[T](cond: Boolean, result: => T): List[T] =                           
+      if (cond) one(result) else zero                                              
+    def runOrElse[T, U](in: T)(matcher: T => List[U]): List[U] =                   
+      matcher(in)                                                                  
+  }                                                                                
+                                                                                   
+  def infix_orElse[A](lst: List[A], alternative: => List[A]): List[A] =            
+    lst ++ alternative                                                             
+                                                                                   
+  object CharsOf {                                                                 
+    def unapply(s: String): List[Char] = s.toList                                  
+  }                                                                                
+}                                                                                  
+                                                                                   
+object Test extends App with ListMatcher {                                         
+  def f(s: String) = s match {                                                     
+    case CharsOf(c) => c                                                           
+  }                                                                                
+  println(f("hello"))                                                              
+}
+```
+
+When compiling this snippet with flags -Xexperimental, we get a compiler crash:
+```
+error: java.lang.NullPointerException
+	at scala.tools.nsc.typechecker.PatternMatching$MatchTranslation$ExtractorCallProd.rawSubPatTypes(PatternMatching.scala:732)
+	at scala.tools.nsc.typechecker.PatternMatching$MatchTranslation$ExtractorCallProd.isSeq(PatternMatching.scala:731)
+	at scala.tools.nsc.typechecker.PatternMatching$MatchTranslation$ExtractorCall.subPatTypes(PatternMatching.scala:641)
+...
+```
+
+The problem is that Infer.extractorFormalTypes is hard-coded for the Option monad. A quick fix is simply changing
+```scala
+lazy val optionArgs = resTp.baseType(OptionClass).typeArgs
+```
+to
+```scala
+lazy val optionArgs = resTp.typeArgs
+```
+in https://github.com/scala/scala/blob/2.10.x/src/compiler/scala/tools/nsc/typechecker/Infer.scala#L98
+
+Then the snippet runs, with the expected result: List(h, e, l, l, o).

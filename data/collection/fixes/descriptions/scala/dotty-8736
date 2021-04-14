@@ -1,0 +1,187 @@
+The following code compiles under Scala 2, all the way back to 2.11.12 (with literal type signatures omitted), but fails to compile in Dotty.
+
+Scala 2 Scastie: https://scastie.scala-lang.org/yq2w0NDqQTm9VboAjm0Dqg
+Dotty Scastie: https://scastie.scala-lang.org/JzTLvfBrRbGkKdIa8NrQNA
+
+## Minimized code
+
+```Scala
+object App extends App {
+
+  trait Rec0[K <: String] {
+    private[App] val map: Map[String, Any]
+    def get(k: K): Any
+  }
+  def Rec0(map0: Map[String, Any]) = new Rec0[String] {
+    val map = map0
+    def get(k: String): Any = map(k)
+  }
+
+  type Rec[K <: String, V0] = Rec0[K] { def get(k: K): V0 }
+  def field[V](s: String)(v: V): Rec[s.type, V] = Rec0(Map(s -> v)).asInstanceOf[Rec[s.type, V]]
+
+  implicit class RecOps[R <: Rec0[_]](has: R) {
+    def +[K1 <: String, V1](that: Rec[K1, V1]): R with Rec[K1, V1] = Rec0(has.map ++ that.map).asInstanceOf[R with Rec[K1, V1]]
+  }
+
+  def rec:
+    Rec["k", String]
+      with Rec["v", Int]
+      with Rec["z", Boolean]
+    = {
+    field("k")("Str") +
+      field("v")(0) +
+      field("z")(true)
+  }
+  def res1: String  = rec.get("k")
+  def res2: Int     = rec.get("v")
+  def res3: Boolean = rec.get("z")
+  // error
+//  def res4: Boolean = rec.get("nofield")
+
+  println((res1, res2, res3))
+}
+```
+
+## Output
+
+<details>
+
+```scala
+java.lang.AssertionError: assertion failed
+	at dotty.DottyPredef$.assertFail(DottyPredef.scala:16)
+	at dotty.tools.dotc.typer.Applications.op$1(Applications.scala:1347)
+	at dotty.tools.dotc.typer.Applications.compare(Applications.scala:1507)
+	at dotty.tools.dotc.typer.Typer.compare(Typer.scala:83)
+	at dotty.tools.dotc.typer.Applications.survivors$1(Applications.scala:1523)
+	at dotty.tools.dotc.typer.Applications.narrowMostSpecific(Applications.scala:1530)
+	at dotty.tools.dotc.typer.Typer.narrowMostSpecific(Typer.scala:83)
+	at dotty.tools.dotc.typer.Applications.op$2(Applications.scala:1816)
+	at dotty.tools.dotc.typer.Applications.resolveOverloaded1(Applications.scala:1845)
+	at dotty.tools.dotc.typer.Applications.resolve$1(Applications.scala:1604)
+	at dotty.tools.dotc.typer.Applications.resolveOverloaded(Applications.scala:1645)
+	at dotty.tools.dotc.typer.Typer.resolveOverloaded(Typer.scala:83)
+	at dotty.tools.dotc.typer.Typer.adaptOverloaded$1(Typer.scala:2659)
+	at dotty.tools.dotc.typer.Typer.adapt1(Typer.scala:3218)
+	at dotty.tools.dotc.typer.Typer.op$3(Typer.scala:2635)
+	at dotty.tools.dotc.typer.Typer.adapt(Typer.scala:2636)
+	at dotty.tools.dotc.typer.Typer.op$1(Typer.scala:2304)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2313)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2316)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2424)
+	at dotty.tools.dotc.typer.Applications.typedFunPart$$anonfun$1(Applications.scala:820)
+	at dotty.tools.dotc.typer.Typer.tryEither(Typer.scala:2432)
+	at dotty.tools.dotc.typer.Applications.typedFunPart(Applications.scala:828)
+	at dotty.tools.dotc.typer.Typer.typedFunPart(Typer.scala:83)
+	at dotty.tools.dotc.typer.Applications.realApply$1(Applications.scala:839)
+	at dotty.tools.dotc.typer.Applications.typedApply(Applications.scala:976)
+	at dotty.tools.dotc.typer.Typer.typedApply(Typer.scala:83)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:2208)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2266)
+	at dotty.tools.dotc.typer.Typer.op$1(Typer.scala:2304)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2313)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2316)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2424)
+	at dotty.tools.dotc.typer.Typer.typedDefDef(Typer.scala:1742)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:2195)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2265)
+	at dotty.tools.dotc.typer.Typer.op$1(Typer.scala:2304)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2313)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2316)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:2338)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2382)
+	at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1875)
+	at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:2198)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2265)
+	at dotty.tools.dotc.typer.Typer.op$1(Typer.scala:2304)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2313)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2316)
+	at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:2338)
+	at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2382)
+	at dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:2001)
+	at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:2239)
+	at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:2266)
+	at dotty.tools.dotc.typer.Typer.op$1(Typer.scala:2304)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2313)
+	at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2316)
+	at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2424)
+	at dotty.tools.dotc.typer.FrontEnd.liftedTree1$2(FrontEnd.scala:78)
+	at dotty.tools.dotc.typer.FrontEnd.typeCheck$$anonfun$1(FrontEnd.scala:83)
+	at dotty.runtime.function.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.typer.FrontEnd.monitor(FrontEnd.scala:42)
+	at dotty.tools.dotc.typer.FrontEnd.typeCheck(FrontEnd.scala:84)
+	at dotty.tools.dotc.typer.FrontEnd.runOn$$anonfun$3(FrontEnd.scala:114)
+	at dotty.runtime.function.JProcedure1.apply(JProcedure1.java:15)
+	at dotty.runtime.function.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.immutable.List.foreach(List.scala:305)
+	at dotty.tools.dotc.typer.FrontEnd.runOn(FrontEnd.scala:114)
+	at dotty.tools.dotc.Run.runPhases$4$$anonfun$4(Run.scala:167)
+	at dotty.runtime.function.JProcedure1.apply(JProcedure1.java:15)
+	at dotty.runtime.function.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.ArrayOps$.foreach$extension(ArrayOps.scala:1323)
+	at dotty.tools.dotc.Run.runPhases$5(Run.scala:177)
+	at dotty.tools.dotc.Run.compileUnits$$anonfun$1(Run.scala:185)
+	at dotty.runtime.function.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+	at dotty.tools.dotc.util.Stats$.maybeMonitored(Stats.scala:64)
+	at dotty.tools.dotc.Run.compileUnits(Run.scala:192)
+	at dotty.tools.dotc.Run.compileSources(Run.scala:129)
+	at dotty.tools.dotc.Run.compile(Run.scala:112)
+	at dotty.tools.dotc.Driver.doCompile(Driver.scala:36)
+	at dotty.tools.dotc.Driver.process(Driver.scala:189)
+	at dotty.tools.dotc.Main.process(Main.scala)
+	at xsbt.CachedCompilerImpl.run(CachedCompilerImpl.java:69)
+	at xsbt.CompilerInterface.run(CompilerInterface.java:41)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at sbt.internal.inc.AnalyzingCompiler.call(AnalyzingCompiler.scala:248)
+	at sbt.internal.inc.AnalyzingCompiler.compile(AnalyzingCompiler.scala:122)
+	at sbt.internal.inc.AnalyzingCompiler.compile(AnalyzingCompiler.scala:95)
+	at sbt.internal.inc.MixedAnalyzingCompiler.$anonfun$compile$4(MixedAnalyzingCompiler.scala:91)
+	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+	at sbt.internal.inc.MixedAnalyzingCompiler.timed(MixedAnalyzingCompiler.scala:186)
+	at sbt.internal.inc.MixedAnalyzingCompiler.$anonfun$compile$3(MixedAnalyzingCompiler.scala:82)
+	at sbt.internal.inc.MixedAnalyzingCompiler.$anonfun$compile$3$adapted(MixedAnalyzingCompiler.scala:77)
+	at sbt.internal.inc.JarUtils$.withPreviousJar(JarUtils.scala:215)
+	at sbt.internal.inc.MixedAnalyzingCompiler.compileScala$1(MixedAnalyzingCompiler.scala:77)
+	at sbt.internal.inc.MixedAnalyzingCompiler.compile(MixedAnalyzingCompiler.scala:146)
+	at sbt.internal.inc.IncrementalCompilerImpl.$anonfun$compileInternal$1(IncrementalCompilerImpl.scala:343)
+	at sbt.internal.inc.IncrementalCompilerImpl.$anonfun$compileInternal$1$adapted(IncrementalCompilerImpl.scala:343)
+	at sbt.internal.inc.Incremental$.doCompile(Incremental.scala:120)
+	at sbt.internal.inc.Incremental$.$anonfun$compile$4(Incremental.scala:100)
+	at sbt.internal.inc.IncrementalCommon.recompileClasses(IncrementalCommon.scala:180)
+	at sbt.internal.inc.IncrementalCommon.cycle(IncrementalCommon.scala:98)
+	at sbt.internal.inc.Incremental$.$anonfun$compile$3(Incremental.scala:102)
+	at sbt.internal.inc.Incremental$.manageClassfiles(Incremental.scala:155)
+	at sbt.internal.inc.Incremental$.compile(Incremental.scala:92)
+	at sbt.internal.inc.IncrementalCompile$.apply(Compile.scala:75)
+	at sbt.internal.inc.IncrementalCompilerImpl.compileInternal(IncrementalCompilerImpl.scala:348)
+	at sbt.internal.inc.IncrementalCompilerImpl.$anonfun$compileIncrementally$1(IncrementalCompilerImpl.scala:301)
+	at sbt.internal.inc.IncrementalCompilerImpl.handleCompilationError(IncrementalCompilerImpl.scala:168)
+	at sbt.internal.inc.IncrementalCompilerImpl.compileIncrementally(IncrementalCompilerImpl.scala:248)
+	at sbt.internal.inc.IncrementalCompilerImpl.compile(IncrementalCompilerImpl.scala:74)
+	at sbt.Defaults$.compileIncrementalTaskImpl(Defaults.scala:1762)
+	at sbt.Defaults$.$anonfun$compileIncrementalTask$1(Defaults.scala:1735)
+	at scala.Function1.$anonfun$compose$1(Function1.scala:49)
+	at sbt.internal.util.$tilde$greater.$anonfun$$u2219$1(TypeFunctions.scala:62)
+	at sbt.std.Transform$$anon$4.work(Transform.scala:67)
+	at sbt.Execute.$anonfun$submit$2(Execute.scala:281)
+	at sbt.internal.util.ErrorHandling$.wideConvert(ErrorHandling.scala:19)
+	at sbt.Execute.work(Execute.scala:290)
+	at sbt.Execute.$anonfun$submit$1(Execute.scala:281)
+	at sbt.ConcurrentRestrictions$$anon$4.$anonfun$submitValid$1(ConcurrentRestrictions.scala:178)
+	at sbt.CompletionService$$anon$2.call(CompletionService.scala:37)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:748)
+```
+
+</details>
+
+## Expectation
+
+Expected compilation success

@@ -1,0 +1,46 @@
+## reproduction steps
+
+using Scala `2.13.4`,
+
+https://scastie.scala-lang.org/Jhe2tNcHRaW4JA8gVIEI1Q
+
+```scala
+sealed trait A
+final case class B() extends A
+final case class C() extends A
+
+object x extends App {
+
+  def matcher[A1 <: A](a1: A1) = a1 match {
+    case x @ (_: B | _: C) => println("B")
+  }
+  
+}
+```
+
+## problem
+
+```
+match may not be exhaustive.
+It would fail on the following input: (x: A1 forSome x not in (B, C))
+```
+
+## workaround
+
+adding `a1:  A` ascription fixes the issue
+
+https://scastie.scala-lang.org/Jhe2tNcHRaW4JA8gVIEI1Q
+
+```scala
+sealed trait A
+final case class B() extends A
+final case class C() extends A
+
+object x extends App {
+
+  def matcher[A1 <: A](a1: A1) = (a1: A) match {
+    case x @ (_: B | _: C) => println("B")
+  }
+  
+}
+```

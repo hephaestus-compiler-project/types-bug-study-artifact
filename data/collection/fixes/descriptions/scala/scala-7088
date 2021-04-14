@@ -1,0 +1,32 @@
+The following code crashes the compiler:
+
+```scala
+object Example extends App {
+  type Tag[X] = {type Tag = X}
+  type TaggedArray[T] = Array[T] with Tag[Any]
+
+  def method[T: reflect.ClassTag](a: TaggedArray[T], value: T) {a.update(0, value)}
+
+  method(Array(1, 2).asInstanceOf[TaggedArray[Int]], 1)
+}
+```
+
+Sympton:
+[error] uncaught exception during compilation: RuntimeException("scala.Array.update : Object, Object, Any") @ scala.sys.
+package$.error(package.scala:27)
+java.lang.RuntimeException: scala.Array.update : Object, Object, Any
+        at scala.sys.package$.error(package.scala:27)
+        at scala.tools.nsc.backend.ScalaPrimitives$$anonfun$elementType$1$1$$anonfun$apply$1.apply(ScalaPrimitives.scala
+:571)
+        at scala.tools.nsc.backend.ScalaPrimitives$$anonfun$elementType$1$1.apply(ScalaPrimitives.scala:571)
+        at scala.tools.nsc.backend.ScalaPrimitives$$anonfun$elementType$1$1.apply(ScalaPrimitives.scala:567)
+        at scala.reflect.internal.SymbolTable.enteringPhase(SymbolTable.scala:203)
+        at scala.tools.nsc.backend.ScalaPrimitives.elementType$1(ScalaPrimitives.scala:567)
+        at scala.tools.nsc.backend.ScalaPrimitives.getPrimitive(ScalaPrimitives.scala:592)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genPrimitiveOp(GenICode.scala:421)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadApply6$1(GenICode.scala:751)
+
+
+My theory is that the presence of the "with Tag" on the Array type disrupts the usual process of resolving the correct primitive type when generating operations on the Array.
+
+Note this is the (greatly simplified) cause of #6975, which I reported. I will close the other issue now.

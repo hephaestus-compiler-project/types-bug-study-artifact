@@ -1,0 +1,162 @@
+FULL PRODUCT VERSION :
+java version "1.8.0-ea"
+Java(TM) SE Runtime Environment (build 1.8.0-ea-b118)
+Java HotSpot(TM) Server VM (build 25.0-b60, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux laptop 3.2.0-57-generic #87-Ubuntu SMP Tue Nov 12 21:38:12 UTC 2013 i686 i686 i386 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+When defining function and wraps lambda's body in parentheses as follows (see "inc" function):
+        final Function2<Integer, Integer, Integer> add = (x, y) -> x + y;
+        final Function1<Integer, Integer> inc = x -> (add.apply(x, 1));
+It compiles but JVM fails in runtime with the following error:
+
+Exception in thread "main" java.lang.VerifyError: Bad return type
+Exception Details:
+  Location:
+    TestFailing.lambda$main$1(LTestFailing$Function2;Ljava/lang/Integer;)Ljava/lang/Integer; @11: areturn
+  Reason:
+    Type 'java/lang/Object' (current frame, stack[0]) is not assignable to 'java/lang/Integer' (from method signature)
+  Current Frame:
+    bci: @11
+    flags: { }
+    locals: { 'TestFailing$Function2', 'java/lang/Integer' }
+    stack: { 'java/lang/Object' }
+  Bytecode:
+    0000000: 2a2b 04b8 0005 b900 0803 00b0
+
+at java.lang.Class.getDeclaredMethods0(Native Method)
+at java.lang.Class.privateGetDeclaredMethods(Class.java:2680)
+at java.lang.Class.getMethod0(Class.java:2929)
+at java.lang.Class.getMethod(Class.java:1763)
+at sun.launcher.LauncherHelper.validateMainClass(LauncherHelper.java:544)
+at sun.launcher.LauncherHelper.checkAndLoadMain(LauncherHelper.java:526)
+
+
+ADDITIONAL REGRESSION INFORMATION:
+java version "1.8.0-ea"
+Java(TM) SE Runtime Environment (build 1.8.0-ea-b118)
+Java HotSpot(TM) Server VM (build 25.0-b60, mixed mode)
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Compile and run the code below:
+
+public class TestFailing {
+
+    @FunctionalInterface
+    public static interface Function1<R, A> {
+        R apply(A input);
+    }
+
+    @FunctionalInterface
+    public static interface Function2<R, A1, A2> {
+        R apply(A1 input1, A2 input2);
+    }
+
+    public static void main(String[] args) {
+        final Function2<Integer, Integer, Integer> add = (x, y) -> x + y;
+        final Function1<Integer, Integer> inc = x -> (add.apply(x, 1));
+        System.out.println(inc.apply(0));
+    }
+
+}
+
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+"1" in console.
+ACTUAL -
+Exception in thread "main" java.lang.VerifyError: Bad return type
+Exception Details:
+  Location:
+    TestFailing.lambda$main$1(LTestFailing$Function2;Ljava/lang/Integer;)Ljava/lang/Integer; @11: areturn
+  Reason:
+    Type 'java/lang/Object' (current frame, stack[0]) is not assignable to 'java/lang/Integer' (from method signature)
+  Current Frame:
+    bci: @11
+    flags: { }
+    locals: { 'TestFailing$Function2', 'java/lang/Integer' }
+    stack: { 'java/lang/Object' }
+  Bytecode:
+    0000000: 2a2b 04b8 0005 b900 0803 00b0
+
+at java.lang.Class.getDeclaredMethods0(Native Method)
+at java.lang.Class.privateGetDeclaredMethods(Class.java:2680)
+at java.lang.Class.getMethod0(Class.java:2929)
+at java.lang.Class.getMethod(Class.java:1763)
+at sun.launcher.LauncherHelper.validateMainClass(LauncherHelper.java:544)
+at sun.launcher.LauncherHelper.checkAndLoadMain(LauncherHelper.java:526)
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+Exception in thread "main" java.lang.VerifyError: Bad return type
+Exception Details:
+  Location:
+    TestFailing.lambda$main$1(LTestFailing$Function2;Ljava/lang/Integer;)Ljava/lang/Integer; @11: areturn
+  Reason:
+    Type 'java/lang/Object' (current frame, stack[0]) is not assignable to 'java/lang/Integer' (from method signature)
+  Current Frame:
+    bci: @11
+    flags: { }
+    locals: { 'TestFailing$Function2', 'java/lang/Integer' }
+    stack: { 'java/lang/Object' }
+  Bytecode:
+    0000000: 2a2b 04b8 0005 b900 0803 00b0
+
+at java.lang.Class.getDeclaredMethods0(Native Method)
+at java.lang.Class.privateGetDeclaredMethods(Class.java:2680)
+at java.lang.Class.getMethod0(Class.java:2929)
+at java.lang.Class.getMethod(Class.java:1763)
+at sun.launcher.LauncherHelper.validateMainClass(LauncherHelper.java:544)
+at sun.launcher.LauncherHelper.checkAndLoadMain(LauncherHelper.java:526)
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+public class TestFailing {
+
+    @FunctionalInterface
+    public static interface Function1<R, A> {
+        R apply(A input);
+    }
+
+    @FunctionalInterface
+    public static interface Function2<R, A1, A2> {
+        R apply(A1 input1, A2 input2);
+    }
+
+    public static void main(String[] args) {
+        final Function2<Integer, Integer, Integer> add = (x, y) -> x + y;
+        final Function1<Integer, Integer> inc = x -> (add.apply(x, 1));
+        System.out.println(inc.apply(0));
+    }
+
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Don't use parentheses to wrap lambda's body:
+
+public class TestWorking {
+
+    @FunctionalInterface
+    public static interface Function1<R, A> {
+        R apply(A input);
+    }
+
+    @FunctionalInterface
+    public static interface Function2<R, A1, A2> {
+        R apply(A1 input1, A2 input2);
+    }
+
+    public static void main(String[] args) {
+        final Function2<Integer, Integer, Integer> add = (x, y) -> x + y;
+        final Function1<Integer, Integer> inc = x -> add.apply(x, 1);
+        System.out.println(inc.apply(0));
+    }
+
+}

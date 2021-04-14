@@ -1,0 +1,37 @@
+Compilation of this code:
+package javaapplication1;
+
+public class Main {
+
+    public static void main(String[] args) {
+        @SuppressWarnings("deprecation")
+        java.rmi.RMISecurityException ex;
+    }
+
+}
+
+with "-Xlint:deprecation" produces:
+
+/tmp/JavaApplication1/src/javaapplication1/Main.java:7: warning: [deprecation] java.rmi.RMISecurityException in java.rmi has been deprecated
+
+This does not seem right, as JLS 9.6.1.5 says that:
+"a Java compiler must not report any warning identified by one of S1, ... , S k if that warning would have been generated as a result of the annotated declaration or any of its parts"
+
+Tested this on:
+[snip]/jdk17/bin$ ./java -version
+java version "1.7.0-ea"
+Java(TM) SE Runtime Environment (build 1.7.0-ea-b18)
+Java HotSpot(TM) Server VM (build 1.7.0-ea-b18, mixed mode)
+Another case where the @SuppressWarnings("deprecation") does not work correctly:
+package javaapplication5;
+
+@Deprecated
+public class A {
+}
+
+package javaapplication5;
+
+@SuppressWarnings("deprecation")
+public class B extends A { //reports "A is deprecated" here
+
+}

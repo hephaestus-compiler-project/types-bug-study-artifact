@@ -1,0 +1,32 @@
+The following code declares a trait `C` with a method and a context bound. `s.fun(g)` does not type check unless we use `s.fun.apply(g)`. This issue will appear with the typical uses and implicit function types (as we discussed with @nicolasstucki) so I am including the similar snippet as well, for our pos tests.
+
+/cc @yallop who discovered it
+
+```scala
+object Test {
+  trait B[A]
+
+  trait C {
+    def fun[A: B]: Int => Int
+  }
+
+  def ex[A: B](s: C) = {
+    s.fun(3) // ok with s.fun.apply(3)
+  }
+}
+```
+
+```scala
+object Test {
+
+ type Stringly[X] = implicit String => X
+
+ trait C {
+   def fun: Stringly[Int => Int]
+ }
+
+ def ex(s: C): Stringly[Int] = {
+   s.fun(3) // ok with s.fun.apply(3)
+ }
+}
+```

@@ -1,0 +1,14 @@
+The following code crashes typer:
+
+```scala
+trait A[_]
+trait B[X] extends A[B[X @unchecked]] { this.x }
+```
+
+A is not essential (any type constructor will do), neither is x (any name lookup in "this" suffices) nor unchecked (any annotation does the trick).
+
+The problem appears to be in Implicits.companionImplicitMap (at least that's where it manifests itself), with an endless recursion between getClassParts and getParts, called with types that appear to be the same but not identical. In the reproduction above, the bts(i) as seen in getClassParts are always:
+
+```scala
+bts(1) = A[B[... @... @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked @unchecked]]
+```

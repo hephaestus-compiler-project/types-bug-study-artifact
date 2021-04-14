@@ -1,0 +1,153 @@
+This occurs on the latest `master`.
+
+For the code below, the type of `eqSymmetric1`, `eqSymmetric2` and `eqSymmetric3` should all be equivalent.
+```Scala
+object Test {
+  type Obj
+  type Forall[F[_]] = (x: Obj) => F[x.type]
+
+  trait =::=[A, B] { def sub[F[_]]: F[A] => F[B]; def commute: B =::= A = this.sub[[b] => b =::= A](implicitly[A =::= A]) }
+  implicit def typeEq[A]: A =::= A = new =::=[A, A] { def sub[F[_]]: F[A] => F[A] = identity }
+
+  // these are both fine
+  val eqReflexive1: (x: Obj) => (x.type =::= x.type) = { x: Obj => implicitly }
+  val eqReflexive2: Forall[[x] => x =::= x] = { x: Obj => implicitly }
+
+  // this compiles
+  val eqSymmetric1: (x: Obj) => ((y: Obj) => ((x.type =::= y.type) => (y.type =::= x.type))) = {
+    { x: Obj => { y: Obj => { xEqy: x.type =::= y.type => xEqy.commute } } }
+  }
+
+  /** crashes (assertion failed)
+  val eqSymmetric2: Forall[[x] => (y: Obj) => (x =::= y.type) => (y.type =::= x)] = {
+    { x: Obj => { y: Obj => { xEqy: x.type =::= y.type => xEqy.commute } } }
+  }*/
+
+  /** type error
+  val eqSymmetric3: Forall[[x] => Forall[[y] => (x =::= y) => (y =::= x)]] = {
+    { x: Obj => { y: Obj => { xEqy: x.type =::= y.type => xEqy.commute } } }
+  }
+  */
+}
+```
+However, when `eqSymmetric2` is included, the compiler crashes with:
+```
+exception occurred while typechecking Test.scala
+exception occurred while compiling Test.scala
+java.lang.AssertionError: assertion failed: (y: Test.Obj): _ <: Test.Obj =::= y.type => y.type =::= _ <: Test.Obj & (y: Test.Obj): v1.type =::= y.type => y.type =::= v1.type / MethodType(List(y), List(TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),type Obj)), AppliedType(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Function1),List(AppliedType(TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),class =::=),List(TypeBounds(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Nothing),TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),type Obj)), TermParamRef(y))), AppliedType(TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),class =::=),List(TermParamRef(y), TypeBounds(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Nothing),TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),type Obj))))))) & MethodType(List(y), List(TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),type Obj)), AppliedType(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Function1),List(AppliedType(TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),class =::=),List(TermParamRef(v1), TermParamRef(y))), AppliedType(TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),class =::=),List(TermParamRef(y), TermParamRef(v1)))))) while compiling Test.scala
+Exception in thread "main" java.lang.AssertionError: assertion failed: (y: Test.Obj): _ <: Test.Obj =::= y.type => y.type =::= _ <: Test.Obj & (y: Test.Obj): v1.type =::= y.type => y.type =::= v1.type / MethodType(List(y), List(TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),type Obj)), AppliedType(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Function1),List(AppliedType(TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),class =::=),List(TypeBounds(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Nothing),TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),type Obj)), TermParamRef(y))), AppliedType(TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),class =::=),List(TermParamRef(y), TypeBounds(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Nothing),TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),type Obj))))))) & MethodType(List(y), List(TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),type Obj)), AppliedType(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Function1),List(AppliedType(TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),class =::=),List(TermParamRef(v1), TermParamRef(y))), AppliedType(TypeRef(ThisType(TypeRef(ThisType(TypeRef(NoPrefix,module class <empty>)),module class Test$)),class =::=),List(TermParamRef(y), TermParamRef(v1))))))
+        at dotty.DottyPredef$.assertFail(DottyPredef.scala:38)
+        at dotty.tools.dotc.core.Types$AndType$.apply(Types.scala:2675)
+        at dotty.tools.dotc.core.TypeComparer.andType$$anonfun$1(TypeComparer.scala:1571)
+        at dotty.tools.dotc.core.TypeComparer.liftIfHK(TypeComparer.scala:1609)
+        at dotty.tools.dotc.core.TypeComparer.andType(TypeComparer.scala:1571)
+        at dotty.tools.dotc.core.TypeComparer.glb(TypeComparer.scala:1389)
+        at dotty.tools.dotc.core.Types$Type.$amp(Types.scala:915)
+        at dotty.tools.dotc.core.TypeComparer.distributeAnd(TypeComparer.scala:1647)
+        at dotty.tools.dotc.core.TypeComparer.andType(TypeComparer.scala:1565)
+        at dotty.tools.dotc.core.TypeComparer.glb(TypeComparer.scala:1389)
+        at dotty.tools.dotc.core.Types$Type.$amp(Types.scala:915)
+        at dotty.tools.dotc.core.Denotations$Denotation.infoMeet$2(Denotations.scala:439)
+        at dotty.tools.dotc.core.Denotations$Denotation.infoMeet$2(Denotations.scala:419)
+        at dotty.tools.dotc.core.Denotations$Denotation.mergeSingleDenot$1(Denotations.scala:538)
+        at dotty.tools.dotc.core.Denotations$Denotation.mergeDenot$1(Denotations.scala:455)
+        at dotty.tools.dotc.core.Denotations$Denotation.$amp(Denotations.scala:561)
+        at dotty.tools.dotc.core.Types$Type.goRefined$1(Types.scala:653)
+        at dotty.tools.dotc.core.Types$Type.go$1(Types.scala:569)
+        at dotty.tools.dotc.core.Types$Type.findMember(Types.scala:702)
+        at dotty.tools.dotc.core.Types$Type.memberBasedOnFlags(Types.scala:533)
+        at dotty.tools.dotc.core.Types$Type.nonPrivateMember(Types.scala:523)
+        at dotty.tools.dotc.core.Types$abstractTermNameFilter$.apply(Types.scala:4985)
+        at dotty.tools.dotc.core.Types$Type.memberNames$$anonfun$1(Types.scala:731)
+        at scala.collection.TraversableLike.$anonfun$filterImpl$1(TraversableLike.scala:247)
+        at scala.collection.immutable.Set$Set1.foreach(Set.scala:95)
+        at scala.collection.TraversableLike.filterImpl(TraversableLike.scala:246)
+        at scala.collection.TraversableLike.filterImpl$(TraversableLike.scala:244)
+        at scala.collection.AbstractTraversable.filterImpl(Traversable.scala:104)
+        at scala.collection.TraversableLike.filter(TraversableLike.scala:258)
+        at scala.collection.TraversableLike.filter$(TraversableLike.scala:258)
+        at scala.collection.AbstractTraversable.filter(Traversable.scala:104)
+        at dotty.tools.dotc.core.Types$Type.memberNames(Types.scala:731)
+        at dotty.tools.dotc.core.Types$Type.memberNames(Types.scala:733)
+        at dotty.tools.dotc.core.Types$Type.memberDenots(Types.scala:747)
+        at dotty.tools.dotc.core.Types$Type.abstractTermMembers(Types.scala:754)
+        at dotty.tools.dotc.core.Types$SAMType$.unapply(Types.scala:4229)
+        at dotty.tools.dotc.typer.Typer.decomposeProtoFunction(Typer.scala:757)
+        at dotty.tools.dotc.typer.Typer.typedFunctionValue(Typer.scala:837)
+        at dotty.tools.dotc.typer.Typer.typedFunction(Typer.scala:772)
+        at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1934)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1979)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2010)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2022)
+        at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2085)
+        at dotty.tools.dotc.typer.Typer.typedBlock(Typer.scala:683)
+        at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1932)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1979)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2010)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2022)
+        at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2085)
+        at dotty.tools.dotc.typer.Typer.typedBlock(Typer.scala:683)
+        at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1932)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1979)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2010)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2022)
+        at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2085)
+        at dotty.tools.dotc.typer.Typer.typedValDef(Typer.scala:1461)
+        at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1909)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1978)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2010)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2022)
+        at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:2041)
+        at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2074)
+        at dotty.tools.dotc.typer.Typer.typedClassDef(Typer.scala:1633)
+        at dotty.tools.dotc.typer.Typer.typedNamed$1(Typer.scala:1915)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1978)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2010)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2022)
+        at dotty.tools.dotc.typer.Typer.traverse$1(Typer.scala:2041)
+        at dotty.tools.dotc.typer.Typer.typedStats(Typer.scala:2074)
+        at dotty.tools.dotc.typer.Typer.typedPackageDef(Typer.scala:1751)
+        at dotty.tools.dotc.typer.Typer.typedUnnamed$1(Typer.scala:1957)
+        at dotty.tools.dotc.typer.Typer.typedUnadapted(Typer.scala:1979)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2010)
+        at dotty.tools.dotc.typer.Typer.typed(Typer.scala:2022)
+        at dotty.tools.dotc.typer.Typer.typedExpr(Typer.scala:2085)
+        at dotty.tools.dotc.typer.FrontEnd.typeCheck$$anonfun$1(FrontEnd.scala:60)
+        at scala.compat.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:12)
+        at dotty.tools.dotc.typer.FrontEnd.monitor(FrontEnd.scala:34)
+        at dotty.tools.dotc.typer.FrontEnd.typeCheck(FrontEnd.scala:64)
+        at dotty.tools.dotc.typer.FrontEnd.runOn$$anonfun$2(FrontEnd.scala:88)
+        at scala.compat.java8.JProcedure1.apply(JProcedure1.java:18)
+        at scala.compat.java8.JProcedure1.apply(JProcedure1.java:10)
+        at scala.collection.immutable.List.foreach(List.scala:388)
+        at dotty.tools.dotc.typer.FrontEnd.runOn(FrontEnd.scala:88)
+        ...
+```
+and when `eqSymmetric3` is included, a type error is given:
+```
+-- [E007] Type Mismatch Error: Test.scala:21:72 --------------------------------
+21 |    { x: Obj => { y: Obj => { xEqy: x.type =::= y.type => xEqy.commute } } }
+   |                                                                        ^
+   |found:    (y: Test.Obj) => Test.Obj(x) =::= y.type => y.type =::= Test.Obj(x)
+   |required: (x: Test.Obj) => (_ <: Test.Obj =::= x'.type => x'.type =::= _ <: Test.Obj) & 
+   |  Test.Forall[[y] => Test.Obj(x) =::= y' => y' =::= Test.Obj(x)]
+   |
+   |where:    x  is a value in an anonymous function in object Test
+   |          x' is a reference to a value parameter
+   |          y  is a reference to a value parameter
+   |          y' is a type variable
+-- [E007] Type Mismatch Error: Test.scala:21:74 --------------------------------
+21 |    { x: Obj => { y: Obj => { xEqy: x.type =::= y.type => xEqy.commute } } }
+   |                                                                          ^
+   |found:    (x: Test.Obj) => (x: Test.Obj) => (_ <: Test.Obj =::= x.type => x.type =::= _
+   |   <: Test.Obj
+   |) & Test.Forall[[y] => x'.type =::= y => y =::= x'.type]
+   |required: Test.Forall[[x] => Test.Forall[[y] => x'' =::= y' => y' =::= x'']]
+   |
+   |where:    x   is a reference to a value parameter
+   |          x'  is a reference to a value parameter
+   |          x'' is a type variable
+   |          y   is a type variable
+   |          y'  is a type variable
+two errors found
+```

@@ -1,0 +1,19 @@
+In the following code, whether an implicit conversion is found by the compiler depends on the order of modules in the file, and on whether the method is called explicitly in a seperate statement:
+
+```scala
+// code doesn't compile, no suitable implicit found for the last println
+object Foo extends Application {
+  import Utils.string2FooString;
+  //println(string2FooString("%s = %s") % ("foo", "bar")); // this line causes next line to compile!
+  println("str" % ("foo", "bar"));
+}
+
+// if this module is moved to the top of the file, the code compiles
+object Utils {
+  class FooString(s: String) {
+    def % (arg1: String, arg2: String) = arg1+arg2;
+  }
+    
+  implicit def string2FooString(s: String) = new FooString(s)
+}
+```

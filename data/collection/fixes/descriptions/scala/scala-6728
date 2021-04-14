@@ -1,0 +1,146 @@
+The compiler crashes during the parser phase on the following code:
+
+```scala
+package test
+
+object X {
+  while (true) {
+    for
+  }
+}
+```
+
+The output when compiling with 2.10.0:
+
+```scala
+$ scalac test/X.scala 
+error: 
+     while compiling: test/X.scala
+        during phase: parser
+     library version: version 2.10.0-20121121-080154-57b91c5ee7
+    compiler version: version 2.10.0-20121121-080154-57b91c5ee7
+  reconstructed args: 
+
+  last tree to typer: EmptyTree
+              symbol: null
+   symbol definition: null
+                 tpe: <notype>
+       symbol owners: 
+      context owners: package <root>
+
+== Enclosing template or block ==
+
+Template(
+  // parents
+  ValDef(
+    private
+    "_"
+    <tpt>
+    <empty>
+  )
+  {}
+)
+
+== Expanded type of tree ==
+
+<notype>
+
+uncaught exception during compilation: java.lang.UnsupportedOperationException
+error: java.lang.UnsupportedOperationException: Position.point
+	at scala.reflect.internal.util.Position.point(Position.scala:119)
+	at scala.reflect.internal.util.Position.endOrPoint(Position.scala:128)
+	at scala.tools.nsc.ast.parser.TreeBuilder.makeWhile(TreeBuilder.scala:255)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.parseWhile$1(Parsers.scala:1342)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.expr0(Parsers.scala:1345)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.expr(Parsers.scala:1288)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$templateStatSeq$1.apply(Parsers.scala:2974)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$templateStatSeq$1.apply(Parsers.scala:2969)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.checkNoEscapingPlaceholders(Parsers.scala:428)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.templateStatSeq(Parsers.scala:2969)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.templateBody(Parsers.scala:2849)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.templateBodyOpt(Parsers.scala:2856)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.templateOpt(Parsers.scala:2815)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.objectDef(Parsers.scala:2735)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.tmplDef(Parsers.scala:2673)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.topLevelTmplDef(Parsers.scala:2654)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$topStatSeq$2.apply(Parsers.scala:2940)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$topStatSeq$2.apply(Parsers.scala:2940)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.joinComment(Parsers.scala:683)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.topStatSeq(Parsers.scala:2940)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$compilationUnit$1.topstats$1(Parsers.scala:3135)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$compilationUnit$1.topstats$1(Parsers.scala:3127)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$compilationUnit$1.apply(Parsers.scala:3141)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$compilationUnit$1.apply(Parsers.scala:3105)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.checkNoEscapingPlaceholders(Parsers.scala:428)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.compilationUnit(Parsers.scala:3105)
+	at scala.tools.nsc.ast.parser.Parsers$SourceFileParser$$anonfun$parseStartRule$1.apply(Parsers.scala:141)
+	at scala.tools.nsc.ast.parser.Parsers$SourceFileParser$$anonfun$parseStartRule$1.apply(Parsers.scala:141)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.parse(Parsers.scala:313)
+	at scala.tools.nsc.ast.parser.Parsers$UnitParser.smartParse(Parsers.scala:242)
+	at scala.tools.nsc.ast.parser.SyntaxAnalyzer$ParserPhase.apply(SyntaxAnalyzer.scala:29)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:461)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:428)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:428)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:727)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1156)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:428)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1574)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1548)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1544)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1654)
+	at scala.tools.nsc.Driver.doCompile(Driver.scala:33)
+	at scala.tools.nsc.Main$.doCompile(Main.scala:79)
+	at scala.tools.nsc.Driver.process(Driver.scala:54)
+	at scala.tools.nsc.Driver.main(Driver.scala:67)
+	at scala.tools.nsc.Main.main(Main.scala)
+
+Exception in thread "main" java.lang.UnsupportedOperationException: Position.point
+	at scala.reflect.internal.util.Position.point(Position.scala:119)
+	at scala.reflect.internal.util.Position.endOrPoint(Position.scala:128)
+	at scala.tools.nsc.ast.parser.TreeBuilder.makeWhile(TreeBuilder.scala:255)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.parseWhile$1(Parsers.scala:1342)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.expr0(Parsers.scala:1345)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.expr(Parsers.scala:1288)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$templateStatSeq$1.apply(Parsers.scala:2974)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$templateStatSeq$1.apply(Parsers.scala:2969)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.checkNoEscapingPlaceholders(Parsers.scala:428)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.templateStatSeq(Parsers.scala:2969)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.templateBody(Parsers.scala:2849)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.templateBodyOpt(Parsers.scala:2856)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.templateOpt(Parsers.scala:2815)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.objectDef(Parsers.scala:2735)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.tmplDef(Parsers.scala:2673)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.topLevelTmplDef(Parsers.scala:2654)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$topStatSeq$2.apply(Parsers.scala:2940)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$topStatSeq$2.apply(Parsers.scala:2940)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.joinComment(Parsers.scala:683)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.topStatSeq(Parsers.scala:2940)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$compilationUnit$1.topstats$1(Parsers.scala:3135)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$compilationUnit$1.topstats$1(Parsers.scala:3127)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$compilationUnit$1.apply(Parsers.scala:3141)
+	at scala.tools.nsc.ast.parser.Parsers$Parser$$anonfun$compilationUnit$1.apply(Parsers.scala:3105)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.checkNoEscapingPlaceholders(Parsers.scala:428)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.compilationUnit(Parsers.scala:3105)
+	at scala.tools.nsc.ast.parser.Parsers$SourceFileParser$$anonfun$parseStartRule$1.apply(Parsers.scala:141)
+	at scala.tools.nsc.ast.parser.Parsers$SourceFileParser$$anonfun$parseStartRule$1.apply(Parsers.scala:141)
+	at scala.tools.nsc.ast.parser.Parsers$Parser.parse(Parsers.scala:313)
+	at scala.tools.nsc.ast.parser.Parsers$UnitParser.smartParse(Parsers.scala:242)
+	at scala.tools.nsc.ast.parser.SyntaxAnalyzer$ParserPhase.apply(SyntaxAnalyzer.scala:29)
+	at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:461)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:428)
+	at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:428)
+	at scala.collection.Iterator$class.foreach(Iterator.scala:727)
+	at scala.collection.AbstractIterator.foreach(Iterator.scala:1156)
+	at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:428)
+	at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1574)
+	at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1548)
+	at scala.tools.nsc.Global$Run.compileSources(Global.scala:1544)
+	at scala.tools.nsc.Global$Run.compile(Global.scala:1654)
+	at scala.tools.nsc.Driver.doCompile(Driver.scala:33)
+	at scala.tools.nsc.Main$.doCompile(Main.scala:79)
+	at scala.tools.nsc.Driver.process(Driver.scala:54)
+	at scala.tools.nsc.Driver.main(Driver.scala:67)
+	at scala.tools.nsc.Main.main(Main.scala)
+```
+
+This problem has been reported in the Scala IDE ticket system [#1001356](https://scala-ide-portfolio.assembla.com/spaces/scala-ide/tickets/1001356)

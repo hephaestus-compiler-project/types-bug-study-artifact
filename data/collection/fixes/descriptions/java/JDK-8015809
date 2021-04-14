@@ -1,0 +1,59 @@
+Consider this program:
+-----
+package test;
+
+import java.io.FileInputStream;
+import java.io.InputStream;
+import javax.swing.SwingUtilities;
+
+public class Test {
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            InputStream in = new FileInputStream("");
+            
+            in.read();
+        });
+    }
+}
+-----
+
+Compiling this class yields this compile-time error:
+Test.java:10: error: incompatible thrown types IOException in lambda expression
+        SwingUtilities.invokeLater(() -> {
+                                   ^
+1 error
+
+Which, while correct, does not point the user to the place where the problem(s) appear, and is inconsistent with compile-time errors reported for similar problems outside lambda expressions.
+
+As an example, consider this program:
+-----
+package test;
+
+import java.io.FileInputStream;
+import java.io.InputStream;
+
+public class Test {
+
+    public static void main(String[] args) {
+        InputStream in = new FileInputStream("");
+
+        in.read();
+    }
+}
+----
+
+The compile-time errors produced for this class are:
+Test.java:9: error: unreported exception FileNotFoundException; must be caught or declared to be thrown
+        InputStream in = new FileInputStream("");
+                         ^
+Test.java:11: error: unreported exception IOException; must be caught or declared to be thrown
+        in.read();
+               ^
+2 errors
+
+These errors point out the problematic places. It would be nice if similar errors could be produced when the uncaught exceptions are inside the lambda expression.
+
+Tested on:
+$ javac -fullversion
+javac full version "1.8.0-ea-b91"

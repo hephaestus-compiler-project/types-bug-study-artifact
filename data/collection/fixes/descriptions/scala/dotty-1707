@@ -1,0 +1,55 @@
+scalac can compile it but dotc crashes.
+
+$ cat abc.scala
+```
+object DepBug {
+  class A {
+    class B
+    def mkB = new B
+    def m(b: B) = b
+  }
+  trait Dep {
+    val a: A
+    val b: a.B
+  }
+  val dep = new {
+    val a = new A
+    val b = a mkB
+  }
+  def useDep(d: Dep) {
+    import d._
+    a m (b)
+  }
+  {
+    import dep._
+    a m (b)
+  }
+  dep.a m (dep b)
+}
+```
+
+
+$ dotc abc.scala
+```
+-- Error: abc.scala ----------------------------------------------------------------------------------------------------
+15 |  def useDep(d: Dep) {
+   |                     ^
+   |                     '=' expected but '{' found
+-- Error: abc.scala ----------------------------------------------------------------------------------------------------
+19 |  {
+   |  ^
+   |  '}' expected but '{' found
+
+exception occurred while parsing abc.scala
+
+exception occurred while compiling abc.scala
+Exception in thread "main" java.lang.AssertionError: assertion failed
+	at scala.Predef$.assert(Predef.scala:151)
+	at dotty.tools.dotc.util.Positions$Position$.start$extension(Positions.scala:40)
+	at dotty.tools.dotc.parsing.Parsers$Parser.simpleExprRest(Parsers.scala:1199)
+	at dotty.tools.dotc.parsing.Parsers$Parser.simpleExpr(Parsers.scala:1186)
+	at dotty.tools.dotc.parsing.Parsers$Parser$$anonfun$8.apply(Parsers.scala:1137)
+	at dotty.tools.dotc.parsing.Parsers$Parser$$anonfun$8.apply(Parsers.scala:1128)
+	at dotty.tools.dotc.parsing.Parsers$Parser.postfixExpr(Parsers.scala:1124)
+<snipped>
+```

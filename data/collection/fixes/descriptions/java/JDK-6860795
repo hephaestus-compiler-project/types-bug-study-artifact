@@ -1,0 +1,92 @@
+Javac starting JDK 7 b62 throws NullPointerException when compiling the following negative java source:
+
+=====
+public class T {
+  float f;
+  void foo(float x, int x) {    // compile-time error
+        f = x;
+  }
+}
+=====
+
+Compiler output:
+
+<ag153348@jck> /set/java/re/jdk/7/promoted/ea/b62/binaries/solaris-i586/bin/javac T.java
+An exception has occurred in the compiler (1.7.0-ea). Please file a bug at the Java Developer Connection (http://java.sun.com/webapps/bugreport)  after checking the Bug Parade for duplicates. Include your program and the following diagnostic in your report.  Thank you.
+java.lang.NullPointerException
+	at com.sun.tools.javac.code.Types$UnaryVisitor.visit(Types.java:3425)
+	at com.sun.tools.javac.util.RichDiagnosticFormatter$3.visitMethodSymbol(RichDiagnosticFormatter.java:552)
+	at com.sun.tools.javac.util.RichDiagnosticFormatter$3.visitMethodSymbol(RichDiagnosticFormatter.java:536)
+	at com.sun.tools.javac.code.Symbol$MethodSymbol.accept(Symbol.java:1264)
+	at com.sun.tools.javac.code.Types$DefaultSymbolVisitor.visit(Types.java:3372)
+	at com.sun.tools.javac.util.RichDiagnosticFormatter.preprocessSymbol(RichDiagnosticFormatter.java:532)
+	at com.sun.tools.javac.util.RichDiagnosticFormatter.preprocessArgument(RichDiagnosticFormatter.java:150)
+	at com.sun.tools.javac.util.RichDiagnosticFormatter.preprocessDiagnostic(RichDiagnosticFormatter.java:130)
+	at com.sun.tools.javac.util.RichDiagnosticFormatter.format(RichDiagnosticFormatter.java:103)
+	at com.sun.tools.javac.util.RichDiagnosticFormatter.format(RichDiagnosticFormatter.java:62)
+	at com.sun.tools.javac.util.Log.writeDiagnostic(Log.java:367)
+	at com.sun.tools.javac.util.Log.report(Log.java:344)
+	at com.sun.tools.javac.util.AbstractLog.error(AbstractLog.java:92)
+	at com.sun.tools.javac.comp.Check.duplicateError(Check.java:233)
+	at com.sun.tools.javac.comp.Check.checkUnique(Check.java:2121)
+	at com.sun.tools.javac.comp.MemberEnter.visitVarDef(MemberEnter.java:636)
+	at com.sun.tools.javac.tree.JCTree$JCVariableDecl.accept(JCTree.java:706)
+	at com.sun.tools.javac.comp.MemberEnter.memberEnter(MemberEnter.java:403)
+	at com.sun.tools.javac.comp.MemberEnter.signature(MemberEnter.java:366)
+	at com.sun.tools.javac.comp.MemberEnter.visitMethodDef(MemberEnter.java:575)
+	at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:650)
+	at com.sun.tools.javac.comp.MemberEnter.memberEnter(MemberEnter.java:403)
+	at com.sun.tools.javac.comp.MemberEnter.memberEnter(MemberEnter.java:415)
+	at com.sun.tools.javac.comp.MemberEnter.finishClass(MemberEnter.java:425)
+	at com.sun.tools.javac.comp.MemberEnter.finish(MemberEnter.java:1013)
+	at com.sun.tools.javac.comp.MemberEnter.complete(MemberEnter.java:980)
+	at com.sun.tools.javac.code.Symbol.complete(Symbol.java:404)
+	at com.sun.tools.javac.code.Symbol$ClassSymbol.complete(Symbol.java:793)
+	at com.sun.tools.javac.comp.Enter.complete(Enter.java:468)
+	at com.sun.tools.javac.comp.Enter.main(Enter.java:446)
+	at com.sun.tools.javac.main.JavaCompiler.enterTrees(JavaCompiler.java:902)
+	at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:805)
+	at com.sun.tools.javac.main.Main.compile(Main.java:400)
+	at com.sun.tools.javac.main.Main.compile(Main.java:318)
+	at com.sun.tools.javac.main.Main.compile(Main.java:309)
+	at com.sun.tools.javac.Main.compile(Main.java:82)
+	at com.sun.tools.javac.Main.main(Main.java:67)
+<ag153348@jck> 
+=============
+
+Works fine with JDK 7 b61:
+=====
+<ag153348@jck> /set/java/re/jdk/7/promoted/ea/b61/binaries/solaris-i586/bin/javac T.java
+T.java:3: x is already defined in foo
+  void foo(float x, int x) {	// compile-time error
+                        ^
+1 error
+=====
+
+The following JCK tests fail due this problem when running *only* when they are running in the MultiJVM mode testing "command-line" compiler:
+    lang/CLSS/clss115/clss11502/clss11502a.html#clss11502src
+    lang/CLSS/clss115/clss11501/clss11501a.html#clss11501src
+    lang/CLSS/clss115/clss11503/clss11503a.html#clss11503src
+    lang/CLSS/clss115/clss11504/clss11504a.html#clss11504src
+
+Here is the output from the command below that runs JCK in this mode:
+
+ag153348@sqeel$ java -jar /java/re/jck/7/promoted/latest/binaries/JCK-compiler-7/lib/jtjck.jar -v -jtoptions:"-set jck.env.testPlatform.multiJVM Yes -set jck.env.compiler.testCompile.compilerType command\ line\ tool -set jck.env.compiler.testCompile.cmdAsFile /java/re/jdk/7/promoted/ea/b62/binaries/solaris-sparc/bin/javac" lang/CLSS/clss115
+Jul 15, 2009 5:24:01 AM Harness starting test run with configuration "jck_compiler_solaris"...
+Passed: lang/CLSS/clss115/clss11502/clss11502.html
+Passed: lang/CLSS/clss115/clss11501/clss11501.html
+Passed: lang/CLSS/clss115/clss11503/clss11503.html
+FAILED: lang/CLSS/clss115/clss11503/clss11503a.html#clss11503src
+FAILED: lang/CLSS/clss115/clss11502/clss11502a.html#clss11502src
+FAILED: lang/CLSS/clss115/clss11501/clss11501a.html#clss11501src
+Passed: lang/CLSS/clss115/clss11504/clss11504.html
+Passed: lang/CLSS/clss115/clss11505/clss11505.html
+Passed: lang/CLSS/clss115/clss11506m3/clss11506m3.html
+Passed: lang/CLSS/clss115/clss11506m1/clss11506m1.html
+Passed: lang/CLSS/clss115/clss11506m2/clss11506m2.html
+FAILED: lang/CLSS/clss115/clss11504/clss11504a.html#clss11504src
+Jul 15, 2009 5:24:19 AM Finished executing all tests, wait for cleanup...
+Jul 15, 2009 5:24:19 AM Harness done with cleanup from test run.
+Test results: passed: 8; failed: 4
+Results written to /home/ag153348/tmp/JCK-compiler-7_b18-work.
+Error: Some tests did not pass

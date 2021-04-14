@@ -1,0 +1,79 @@
+In some cases bitwise shifts (<<. >> and >>>) for certain numeric types return value of incorrect type. For instance:
+
+```scala
+scala> val int = 1
+int: Int = 1
+
+scala> val long = 2L
+long: Long = 2
+
+scala> int << long
+res0: Int = 4
+
+scala> int << 2L
+res1: Int = 4
+
+scala> 1 << long
+res2: Int = 4
+
+scala> 1 << 2L
+res3: Long = 4
+
+scala> 1.toInt << long
+res4: Int = 4
+
+scala> 1.toInt << 2L
+res5: Int = 4
+```
+
+res3: This 1 of type Int has been changed to Long. 
+
+As Jason Zaugg said (see https://groups.google.com/forum/#!topic/scala-internals/nr0HOhXjrPs ):
+
+This is related to constant folding.
+
+In the implementation, we have:
+
+```scala
+  private def foldBinop(op: Name, x: Constant, y: Constant): Constant = {
+    val optag =
+      if (x.tag == y.tag) x.tag
+      else if (x.isNumeric && y.isNumeric) math.max(x.tag, y.tag)
+      else NoTag
+
+    try optag match {
+      case BooleanTag                               => foldBooleanOp(op, x, y)
+      case ByteTag | ShortTag | CharTag | IntTag    => foldSubrangeOp(op, x, y)
+      case LongTag                                  => foldLongOp(op, x, y)
+      case FloatTag                                 => foldFloatOp(op, x, y)
+      case DoubleTag                                => foldDoubleOp(op, x, y)
+      case StringTag if op == nme.ADD               => Constant(x.stringValue + y.stringValue)
+      case _                                        => null
+    }
+    catch {
+      case ex: ArithmeticException => null
+    }
+  }
+```
+ 
+The wider of the operands type is used.
+
+For other arithmetic operations, this lines up with the regular signatures of the methods. For example:
+
+```scala
+scala> reflect.runtime.universe.reify{1 + (2L: Long)}
+res9: reflect.runtime.universe.Expr[Long] = Expr[Long](1.$plus((2L: Long)))
+
+scala> reflect.runtime.universe.reify{1 + 2L}
+res8: reflect.runtime.universe.Expr[Long] = Expr[Long(3L)](3L)
+```
+
+But this doesn't hold for the shifts:
+
+```scala
+scala> reflect.runtime.universe.reify{1 << (2L: Long)}
+res10: reflect.runtime.universe.Expr[Int] = Expr[Int](1.$less$less((2L: Long)))
+
+scala> reflect.runtime.universe.reify{1 << (2L)}
+res11: reflect.runtime.universe.Expr[Long] = Expr[Long(4L)](4L)
+```

@@ -1,0 +1,30 @@
+The issue is that for any value `-Xmax-inlines` it is possible to construct a method that has the recursion deep enough to make the compiler crash with a `StackOverflowError`. We are currently just in the boundary to make `neg/power.scala` compile. The following code shows a simple way to create a method that will crash the compiler. 
+
+```scala
+object Test {
+  @inline
+  def rec(n: Int): Unit = {
+    {
+      {
+        {
+          {
+            {
+              rec(n)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  def main(args: Array[String]): Unit = {
+    rec(42)
+  }
+}
+```
+
+The simplest way to workaround this is to decrease the `-Xmax-inlines`. This is not a solution as it forces an upper bound on possible `-Xmax-inlines`.
+
+We might need to take into account the deepness of the reclusive inlined code to limit the number of inlines.
+
+We might also consider having an annotation to limit the recursion of a specific method.

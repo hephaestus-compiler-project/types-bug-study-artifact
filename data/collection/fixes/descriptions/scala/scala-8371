@@ -1,0 +1,22 @@
+Scala seems to be picking out the wrong instance variable:
+
+```scala
+import scala.collection.mutable._
+
+class Beam { outer =>
+  private val queue = new ArrayBuffer[Int]()
+
+  def foo {
+    outer.queue += 42
+    new Beam {
+      println(queue)
+      assert(queue.length == 0) // boom
+    }
+  }
+}
+
+// 2.10: prints ArrayBuffer()
+// 2.11: prints ArrayBuffer(42) and then throws assertion error.
+(new Beam).foo() 
+
+```

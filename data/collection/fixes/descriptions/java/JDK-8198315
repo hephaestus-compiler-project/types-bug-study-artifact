@@ -1,0 +1,37 @@
+=== A.java
+public class A {}
+=== B.java
+public class B extends A {}
+=== C.java
+public class C extends D<B> {}
+=== D.java
+public class D<T extends A> {
+  public void f(String s) {}
+}
+=== Test.java
+public class Test {
+  public void test(C c) {
+    c.f(null, null);
+  }
+}
+===
+
+$ javac A.java B.java C.java D.java
+$ rm A.class
+$ javac -fullversion -sourcepath : -implicit:none Test.java
+javac full version "10-ea+37"
+...
+java.lang.NullPointerException
+	at jdk.compiler/com.sun.tools.javac.comp.TransTypes.visitSelect(TransTypes.java:862)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCFieldAccess.accept(JCTree.java:2110)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at jdk.compiler/com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:499)
+	at jdk.compiler/com.sun.tools.javac.comp.TransTypes.visitApply(TransTypes.java:672)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1634)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at jdk.compiler/com.sun.tools.javac.comp.TransTypes.translate(TransTypes.java:499)
+	at jdk.compiler/com.sun.tools.javac.comp.TransTypes.visitExec(TransTypes.java:650)
+	at jdk.compiler/com.sun.tools.javac.tree.JCTree$JCExpressionStatement.accept(JCTree.java:1452)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:58)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.translate(TreeTranslator.java:70)
+	at jdk.compiler/com.sun.tools.javac.tree.TreeTranslator.visitBlock(TreeTranslator.java:167)

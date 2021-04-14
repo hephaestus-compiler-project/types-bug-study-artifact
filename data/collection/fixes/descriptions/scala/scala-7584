@@ -1,0 +1,31 @@
+With Scala 2.11.0-M3 (works under Scala 2.10.0):
+
+```scala
+scala> def fold[A, B](f: (A, => B) => B) = ???
+fold: [A, B](f: (A, => B) => B)Nothing
+
+scala> def f[A, B](x: A, y: B): B = ???
+f: [A, B](x: A, y: B)B
+
+scala> def x[A, B] = fold[A, B]((x, y) => f(x, y))
+<console>:9: error: type mismatch;
+ found   : y.type (with underlying type => B)
+ required: B
+       def x[A, B] = fold[A, B]((x, y) => f(x, y))
+
+scala> def x[A, B] = fold[A, B](f)
+<console>:9: error: type mismatch;
+ found   : y.type (with underlying type => B)
+ required: B
+       def x[A, B] = fold[A, B](f)
+                                ^
+```
+
+However, these work:
+
+```scala
+fold[Int, Int]((x, y) => f(x, y))
+fold[Int, Int](f)
+```
+
+Edit: Seems to have regressed some time between M2 and M3.

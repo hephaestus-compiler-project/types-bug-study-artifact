@@ -1,0 +1,23 @@
+This shouldn't compile because `X` appears covariantly in the rhs of `type Id[-X] = X`:
+
+``` scala
+abstract class A {
+  type Id[-X]
+  def a: Id[Any]
+  def b: Id[String] = a
+}
+class B extends A {
+  type Id[-X] = X // error in scalac, compiles in dotty
+  override def a = 1
+}
+object Test {
+  def main(args: Array[String]): Unit = {
+    val b = new B
+    println(b.a)
+    println(b.b)
+    val x: String = b.b // ClassCastException at runtime
+  }
+}
+```
+
+`scalac` doesn't allow `type Id[-X] = X` and `type Id[-X] <: X` but allows `type Id[-X] >: X`, I haven't thought enough about it to know if that makes sense.

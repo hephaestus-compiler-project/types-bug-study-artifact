@@ -1,0 +1,50 @@
+* They don't have up arrows on left gutter
+* Find usages doesn't suggest searching for base property usages
+
+{code}
+interface ModuleMapModuleSymbol {
+  val name: String
+  val parent: ModuleMapModuleSymbol?
+  val pathResolver: ModuleMapPathResolver
+  val umbrellaHeader: String?
+  val umbrellaDir: String?
+  val headers: List<String>
+  val excludeHeaders: List<String>
+  val subModules: Map<String, ModuleMapModuleSymbol>
+  val isFramework: Boolean
+  val isExplicit: Boolean
+
+  val qualifiedName: String
+  val topmostParentOrThis: ModuleMapModuleSymbol
+}
+
+class ModuleMapModuleSymbolImpl(
+    override val name: String,
+    override val parent: ModuleMapModuleSymbol?,
+    override val pathResolver: ModuleMapPathResolver,
+    override val umbrellaHeader: String?,
+    override val umbrellaDir: String?,
+    override val headers: List<String>,
+    override val excludeHeaders: List<String>,
+    override val subModules: Map<String, ModuleMapModuleSymbol>,
+    override val isFramework: Boolean,
+    override val isExplicit: Boolean
+) : ModuleMapModuleSymbol {
+
+  override val qualifiedName: String
+    get() {
+      if (parent == null) return name
+      return parent.qualifiedName + "." + name
+    }
+
+  override val topmostParentOrThis: ModuleMapModuleSymbol
+    get() {
+      if (parent == null) return this
+      return parent.topmostParentOrThis
+    }
+
+  override fun toString(): String {
+    return qualifiedName
+  }
+}
+{code}

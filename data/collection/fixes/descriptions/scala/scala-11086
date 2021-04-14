@@ -1,0 +1,27 @@
+2.12.6:
+
+```scala
+trait ZZ {
+  type HKT[_[_]]
+  trait HasHKT {
+    type F[_]
+    def hkt: HKT[F]
+  }
+  def foo(hasHKT: HasHKT) = {
+    implicit val hkt: HKT[hasHKT.F] = ???
+    implicitly[HKT[hasHKT.F]]      // doesn't compile, shouldn't it though?
+    implicitly[HKT[hasHKT.F]](hkt) // compiles…
+  }
+  // outside of a method, it works:
+  val hasHKT: HasHKT = ???
+  implicit val hkt: HKT[hasHKT.F] = ???
+  implicitly[HKT[hasHKT.F]]      // compiles
+  implicitly[HKT[hasHKT.F]](hkt) // compiles
+}
+```
+compile error:
+```
+error: could not find implicit value for parameter e: ZZ.this.HKT[hasHKT.F]
+    implicitly[HKT[hasHKT.F]]      // doesn't compile, shouldn't it though?
+              ^
+```

@@ -1,0 +1,67 @@
+Given the following code:
+
+```
+sealed class Base {
+    abstract class A : Base()
+
+    class A1 : A()
+    class A2 : A()
+
+    abstract class B : Base()
+
+    class B1 : B()
+    class B2 : B()
+}
+
+fun f(b: Base): Int {
+    return when (b) {
+        is Base.A1 -> 1
+        is Base.A2 -> 2
+        is Base.B1 -> 3
+        is Base.B2 -> 4
+    }
+}
+```
+
+Compilation fails with:
+
+     Error:(17, 12) Kotlin: 'when' expression must be exhaustive or contain an 'else' branch
+
+It should not fail, because the when expression exhaustively covers all concrete subclasses of `Base`
+
+Neither does the exhaustiveness check work when A and B are themselves sealed classes.  E.g. with the following definition, neither f and g compile.
+
+```
+sealed class Base {
+    sealed class A : Base() {
+        class A1 : A()
+        class A2 : A()
+    }
+    sealed class B : Base() {
+        class B1 : B()
+        class B2 : B()
+    }
+}
+
+fun f(b: Base): Int {
+    return when (b) {
+        is Base.A.A1 -> 1
+        is Base.A.A2 -> 2
+        is Base.A.B1 -> 3
+        is Base.A.B2 -> 4
+    }
+}
+
+fun g(b: Base): Int {
+    return when (b) {
+        is Base.A -> when(b) {
+            is Base.A.A1 -> 1
+            is Base.A.A2 -> 2
+        }
+        is Base.B -> when (b) {
+            is Base.A.B1 -> 3
+            is Base.A.B2 -> 4
+        }
+    }
+}
+```

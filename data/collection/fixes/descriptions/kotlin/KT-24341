@@ -1,0 +1,26 @@
+Maybe it is already reported with https://ea.jetbrains.com/browser/ea_reports/1905077 but just in case it is not the same
+Consider the following: 
+java:
+```
+class Foo{ public String hello() { return "hello"; } }
+```
+kotlin
+```
+class A<T: Any>(t: T)
+class B<T>(t: T)
+
+fun <T: Any> bar(t: T): A<T> = A(t)
+fun <T> bar(t: T): B<T> = B(t)
+fun <T: Any> A<T>.foo(t: T){}
+
+fun <T> B<T>.foo(`null`: Nothing?){}
+
+fun foo(){
+    val f = Foo()
+    bar(f.hello()).foo(null) // says foo does not exists, (has probably chosen the overload with A for bar)
+    bar(f.hello() as String?).foo(null) // states `as String?` is unnecessary
+}
+
+```
+
+

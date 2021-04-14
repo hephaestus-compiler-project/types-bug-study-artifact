@@ -1,0 +1,134 @@
+Run the following program on JDK 6:
+
+---%<---
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.TypeElement;
+import javax.tools.Diagnostic.Kind;
+import javax.tools.JavaCompiler;
+import javax.tools.JavaCompiler.CompilationTask;
+import javax.tools.StandardLocation;
+import javax.tools.ToolProvider;
+public class Demo {
+    public static void main(String[] args) throws Exception {
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        System.err.println("using " + compiler.getClass() + " from " + compiler.getClass().getProtectionDomain().getCodeSource());
+        String tmp = System.getProperty("java.io.tmpdir");
+        for (File kid : new File(tmp, "p").listFiles()) {
+            kid.delete();
+        }
+        File input = new File(tmp, "X.java");
+        Writer w = new FileWriter(input);
+        w.write("package p; class X {{p.C.first();}}");
+        w.close();
+        List<String> opts = Arrays.asList("-s", tmp, "-d", tmp);
+        CompilationTask task = compiler.getTask(null, null, null, opts, null, compiler.getStandardFileManager(null, null, null).getJavaFileObjects(input));
+        task.setProcessors(Collections.singleton(new Proc("first")));
+        System.err.println("success? " + task.call());
+        w = new FileWriter(input);
+        w.write("package p; class X {{p.C.second();}}");
+        w.close();
+        task = compiler.getTask(null, null, null, opts, null, compiler.getStandardFileManager(null, null, null).getJavaFileObjects(input));
+        task.setProcessors(Collections.singleton(new Proc("second")));
+        System.err.println("success? " + task.call());
+        task = compiler.getTask(null, null, null, opts, null, compiler.getStandardFileManager(null, null, null).getJavaFileObjects(input));
+        task.setProcessors(Collections.singleton(new Proc("second")));
+        System.err.println("success? " + task.call());
+    }
+    @SupportedAnnotationTypes("*")
+    @SupportedSourceVersion(SourceVersion.RELEASE_6)
+    private static class Proc extends AbstractProcessor {
+        final String m;
+        Proc(String m) {
+            this.m = m;
+        }
+        int count;
+        @Override public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+            if (roundEnv.processingOver() || count++ > 0) {
+                return false;
+            }
+            System.err.println("running Proc");
+            try {
+                processingEnv.getMessager().printMessage(Kind.NOTE, "found previous content of length " +
+                        processingEnv.getFiler().getResource(StandardLocation.SOURCE_OUTPUT, "p", "C.java").getCharContent(false).length());
+            } catch (FileNotFoundException x) {
+                processingEnv.getMessager().printMessage(Kind.NOTE, "not previously there");
+            } catch (IOException x) {
+                processingEnv.getMessager().printMessage(Kind.ERROR, "while reading: " + x);
+            }
+            try {
+                Writer w = processingEnv.getFiler().createSourceFile("p.C").openWriter();
+                w.write("package p; public class C {public static void " + m + "() {}}");
+                w.close();
+                processingEnv.getMessager().printMessage(Kind.NOTE, "wrote new content");
+            } catch (IOException x) {
+                processingEnv.getMessager().printMessage(Kind.ERROR, "while writing: " + x);
+            }
+            return true;
+        }
+    }
+    private Demo() {}
+}
+---%<---
+
+JDK 6 compiles successfully, as expected:
+
+---%<---
+using class com.sun.tools.javac.api.JavacTool from (file:/.../jdk1.6.0_26/lib/tools.jar <no signer certificates>)
+running Proc
+Note: not previously there
+Note: wrote new content
+success? true
+running Proc
+Note: found previous content of length 57
+Note: wrote new content
+success? true
+running Proc
+Note: found previous content of length 58
+Note: wrote new content
+success? true
+---%<---
+
+But JDK 7 fails:
+
+---%<---
+using class com.sun.tools.javac.api.JavacTool from (file:/.../jdk1.7.0-b146/lib/tools.jar <no signer certificates>)
+running Proc
+warning: Supported source version 'RELEASE_6' from annotation processor 'Demo$Proc' less than -source '1.7'
+Note: not previously there
+Note: wrote new content
+1 warning
+success? true
+running Proc
+warning: Supported source version 'RELEASE_6' from annotation processor 'Demo$Proc' less than -source '1.7'
+Note: found previous content of length 57
+Note: wrote new content
+/tmp/X.java:1: error: cannot find symbol
+package p; class X {{p.C.second();}}
+                        ^
+  symbol:   method second()
+  location: class C
+1 error
+1 warning
+success? false
+running Proc
+warning: Supported source version 'RELEASE_6' from annotation processor 'Demo$Proc' less than -source '1.7'
+Note: found previous content of length 58
+Note: wrote new content
+1 warning
+success? true
+---%<---
+
+While the processor regenerated C.java with a new signature, javac continued to use the prior content for compiling X.java.

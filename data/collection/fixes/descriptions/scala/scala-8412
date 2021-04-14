@@ -1,0 +1,74 @@
+I did my best to find the corresponding issue, but I couldn't pinpoint it. Here's what happens:
+```scala
+$ cat Test.scala 
+package test
+
+sealed trait Tree
+case class Let(sth: List[Any]) extends Tree
+case class Lit(sth: Any) extends Tree
+
+object Test {
+  def wroong(tree: Tree) =
+    tree match {
+      case Let(_ :: rest) =>
+        ???
+      case Let(Nil) =>
+        ???
+      // no warning for missing Lit(_) in 2.10
+    }
+}
+
+$ scalac210 -version
+Scala compiler version 2.10.4-20140209-180020-b66a39653b -- Copyright 2002-2013, LAMP/EPFL
+
+$ scalac210 Test.scala 
+
+$ scalac210 -Xoldpatmat Test.scala #using the old pattern matcher
+Test.scala:10: warning: match is not exhaustive!
+missing combination            Lit
+
+    tree match {
+    ^
+one warning found
+
+$ scalac211 -version
+Scala compiler version 2.11.0-20140227-142303-fabc9f1424 -- Copyright 2002-2013, LAMP/EPFL
+
+$ scalac211 Test.scala 
+Test.scala:10: warning: match may not be exhaustive.
+It would fail on the following input: Lit(_)
+    tree match {
+    ^
+one warning found
+```
+
+
+
+Yet, when I join the two cases, the warning appears:
+
+
+```scala
+$ cat Test2.scala 
+package test
+
+sealed trait Tree
+case class Let(sth: List[Any]) extends Tree
+case class Lit(sth: Any) extends Tree
+
+object Test {
+
+  def ookay(tree: Tree) =
+    tree match {
+      case Let(_) =>
+        ???
+      // missing Lit(_) warning in both 2.10 and 2.11
+    }
+}
+
+$ scalac Test2.scala 
+Test2.scala:10: warning: match may not be exhaustive.
+It would fail on the following input: Lit(_)
+    tree match {
+    ^
+one warning found
+```

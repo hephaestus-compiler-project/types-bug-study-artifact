@@ -1,0 +1,95 @@
+FULL PRODUCT VERSION :
+java version "1.7.0_01"
+Java(TM) SE Runtime Environment (build 1.7.0_01-b08)
+Java HotSpot(TM) 64-Bit Server VM (build 21.1-b02, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Microsoft Windows [Version 6.0.6002]
+
+A DESCRIPTION OF THE PROBLEM :
+In the following code snippet
+
+List<Set<? extends String>> a = null;
+List<? extends Set<? extends String>> b = a;   // 1
+
+List<? extends Set<? extends String>> c = null;
+List<Set<? extends String>> d = (List<Set<? extends String>>)c;  // 2
+
+(1) compiles but the reverse (2) doesn't compile.
+
+This example is due to Remi Forax, who reduced the original sample I had posted to http://mail.openjdk.java.net/pipermail/compiler-dev/2011-December/003894.html.
+
+REGRESSION.  Last worked in version 6u29
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Attempt to compile the following class under Java 7:
+
+import java.util.List;
+import java.util.Set;
+
+public class Demo {
+  public static void main(String[] args) {
+    List<Set<? extends String>> a = null;
+    List<? extends Set<? extends String>> b = a;
+
+    List<? extends Set<? extends String>> c = null;
+    List<Set<? extends String>> d = (List<Set<? extends String>>)c;
+  }
+}
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Should compile.
+ACTUAL -
+Fails to compile with:
+
+Demo.java:10: error: inconvertible types
+    List<Set<? extends String>> d = (List<Set<? extends String>>)c;
+                                                                 ^
+  required: List<Set<? extends String>>
+  found:    List<CAP#1>
+  where CAP#1 is a fresh type-variable:
+    CAP#1 extends Set<? extends String> from capture of ? extends Set<? extends
+String>
+1 error
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+See "actual result".
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import java.util.List;
+import java.util.Set;
+
+public class Demo {
+  public static void main(String[] args) {
+    List<Set<? extends String>> a = null;
+    List<? extends Set<? extends String>> b = a;
+
+    List<? extends Set<? extends String>> c = null;
+    List<Set<? extends String>> d = (List<Set<? extends String>>)c;
+  }
+}
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Perform the cast in a separate method, as in the following sample:
+
+import java.util.List;
+import java.util.Set;
+
+public class Demo {
+  public static void main(String[] args) {
+    List<Set<? extends String>> a = null;
+    List<? extends Set<? extends String>> b = a;
+
+    List<? extends Set<? extends String>> c = null;
+    List<Set<? extends String>> d = castToSpecific(c);
+  }
+  
+  static <T> List<T> castToSpecific(List<? extends T> input) {
+    return (List<T>) input;
+  }
+}

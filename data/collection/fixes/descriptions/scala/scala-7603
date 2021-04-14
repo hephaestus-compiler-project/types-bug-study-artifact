@@ -1,0 +1,23 @@
+We've had reports of:
+
+```
+We are getting this error from time to time: 
+error: trait Test is abstract; cannot be instantiated 
+11:09:50 [ant:scalac] @Test def testClientRequestNum = { 
+11:09:50 [ant:scalac] ^ 
+```
+
+I see the error is similar to one we spotted on a build here: https://github.com/scala/scala/pull/2107#issuecomment-13408939
+
+The error suggests that the annotation is binding to the wrong symbol on the classpath has the same name.
+
+I can't reproduce it, but I think I've spotted the problem. Can you?
+
+```scala
+// need to be lazy, #1782. beforeTyper to allow inferView in annotation args, SI-5892.
+AnnotationInfo lazily {
+  val context1 = typer.context.make(ann)
+  context1.setReportErrors()
+  enteringTyper(newTyper(context1) typedAnnotation ann)
+}
+```

@@ -1,0 +1,34 @@
+While type annotations on most lambda expression are (thus far) ignored, a type annotation on a type argument in a lambda method referece crashses javac.
+Compile TAlamba2.java below:
+
+import java.lang.annotation.*;
+import static java.lang.annotation.RetentionPolicy.*;
+import static java.lang.annotation.ElementType.*;
+
+public class TAlambda2 {
+
+    public void test() {
+        Integer[] intarray = { new Integer(1), new Integer(2), new Integer(3) };
+        printArray(intarray, TPrint::<@A String>print);
+    }
+
+    public void printArray(Object[] oa, PrintString ps) {
+      for(Object o : oa ) ps.print(o.toString());
+    }
+
+    public static void main(String... args) {
+        new TAlambda2().test();
+    }
+}
+
+interface PrintString   { void    print(String s); }
+
+class TPrint {
+    public static <T> void print(T msg) {
+        System.out.println("TPrint: " + msg.toString());
+    }
+}
+
+@Retention(RUNTIME)
+@Target({TYPE_USE})
+@interface A {}

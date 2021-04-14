@@ -1,0 +1,80 @@
+Consider the following interfaces:
+
+{code:title=CrudRepository.java}
+package f;
+
+import java.io.Serializable;
+
+public interface CrudRepository<T, S extends Serializable> {
+
+	void delete(S arg);
+	void delete(T arg);
+}
+{code}
+
+{code:title=MyRepository.java}
+package f;
+
+public interface MyRepository extends CrudRepository<String, Long> {
+}
+{code}
+
+The following implementation class:
+
+{code:title=MyRepositoryImpl.java}
+package f;
+
+public class MyRepositoryImpl implements MyRepository {
+
+	@Override
+	public void delete(String arg) {
+		System.out.println("String");
+	}
+
+	@Override
+	public void delete(Long arg) {
+		System.out.println("Long");
+	}
+}
+{code}
+
+And the following Groovy class:
+{code:title=MyClass.groovy}
+package f
+
+import groovy.transform.CompileStatic;
+import groovy.transform.TypeChecked;
+
+@TypeChecked
+class MyClass {
+
+	static MyRepository factory() {
+		return new MyRepositoryImpl()
+	}
+	
+	static void main(String[] args) {
+		MyRepository r = factory()
+		r.delete('foo')
+	}	
+}
+{code}
+
+Static type checking returns the following error:
+{noformat}
+MyClass.groovy: 15: [Static type checking] - Cannot call f.MyRepository#delete(S) with arguments [java.lang.String]
+{noformat}
+
+The same applies if you use {{@CompileStatic}} instead of {{@TypeChecked}}.
+
+Note that if, In the previous code, you change the method {{main}} by replacing:
+{code}
+MyRepository r = factory()
+{code}
+with: 
+{code}
+MyRepository r = new MyRepositoryImpl()
+{code}
+
+compilation succeeds. However in real code this might not be possible (the {{MyRepository}} instance may be injected and auto-generated, think of Spring Data for instance).
+
+The only workaround is (yet again...) to disable static type checking and static compilation.

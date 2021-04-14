@@ -1,0 +1,32 @@
+{code}
+inline fun<T> foo(block: () -> T):T = block()
+
+fun bar() {
+    val x: String = foo { // error: T infered as String? and result of call is String?
+        val x: String? = null
+        if (x == null) {
+            "default"
+        } else {
+            x
+        }
+    }
+}
+{code}
+Fixes
+1. explicitly specified type parameter
+2. replacing if-statement with elvis 
+3. removing braces on else block :)
+
+UPD
+{code}
+inline fun<T> foo(block: () -> T):T = block()
+fun bar() {
+    val x: String = foo {
+        val task: String? = null
+        if (task == null) {
+            return
+        } else task
+    }
+}
+{code}
+This code doesn't compile even without braces on else

@@ -1,0 +1,21 @@
+If a function has a local type declaration (not used in parameter and not used in return type), kotlin compiler should ignore this type on call side.
+
+```kotlin
+class FieldGenerator(private val fieldFactory: FieldFactory) {
+
+  fun addFields(parent: Component, properties: List<Property<out Any>>) {
+    properties.forEach{
+      // addField(parent, it) // TODO should compile
+      addField<Any,Fake<Any>>(parent, it) // TODO should not compile??
+    }
+  }
+
+  fun <T, C> addField(parent: Component, property: Property<out T>)
+      where C: Component, C: HasValue<T> {
+    val factory = fieldFactory.factoryFor<T,C>(property.type)
+    val field = factory.invoke()
+    field.setValue(property.value)
+    parent.add(field)
+  }
+}
+```

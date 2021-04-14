@@ -1,0 +1,60 @@
+Given the following Java class: 
+
+```scala
+class Funs {
+
+  public void fun(Integer a1, Object... objs) {
+    for (Object obj : objs) 
+      System.out.println("obj = " + obj);
+  }
+
+  public void fun(Integer a1, String... strings) {
+    for (String s : strings)
+      System.out.println("string = " + s);
+  }
+
+  {
+    fun(1, "a", 12); // obj = a, obj = 12
+    fun(1, "b", "c"); // string = b, string = c
+  }
+}
+```
+
+Scalac gets confused about which overload to pick, as shown below. Casting to `Seq[Object]` resolves the issue.
+
+```scala
+  val sample = new Funs
+
+  sample.fun(1, "a", "b")
+
+  //  [error] /Users/ktoso/code/akka/akka-stream/src/main/scala/akka/stream/impl/Samples.scala:12: overloaded method value fun with alternatives:
+  //  [error]   (a1: Integer,strings: <repeated...>[String])Unit <and>
+  //  [error]   (a1: Integer,objs: <repeated...>[Object])Unit
+  //  [error]  cannot be applied to (Int, Int, Int)
+  //  [error]   sample.fun(1, 11, 12)
+  //  sample.fun(1, 11, 12) // NOPE
+
+  //  [error] /Users/ktoso/code/akka/akka-stream/src/main/scala/akka/stream/impl/Samples.scala:14: overloaded method value fun with alternatives:
+  //  [error]   (a1: Integer,strings: <repeated...>[String])Unit <and>
+  //  [error]   (a1: Integer,objs: <repeated...>[Object])Unit
+  //  [error]  cannot be applied to (Int, String, Int)
+  //  [error]   sample.fun(1, "a", 12) // NOPE
+  //  [error]          ^
+  //  sample.fun(1, "a", 12) // NOPE
+
+  //  [error] /Users/ktoso/code/akka/akka-stream/src/main/scala/akka/stream/impl/Samples.scala:27: overloaded method value fun with alternatives:
+  //  [error]   (a1: Integer,strings: <repeated...>[String])Unit <and>
+  //  [error]   (a1: Integer,objs: <repeated...>[Object])Unit
+  //  [error]  cannot be applied to (Int, Any)
+  //  [error]   sample.fun(1, Seq("a", 12): _*) // NOPE
+  //  [error]          ^
+  //  sample.fun(1, Seq("a", 12): _*) // NOPE
+
+  sample.fun(1, Seq("a", 12).asInstanceOf[Seq[Object]]: _*) // OK!
+```
+
+We would expect scala to properly dispatch `fun(1, "a", 12)` to the `fun(Int, Seq Object)` overload instead.
+
+More info: 
+- https://twitter.com/domdorn/status/501050731928248321
+- https://gist.github.com/domdorn/fb504a510ffda470991b#comment-1283475

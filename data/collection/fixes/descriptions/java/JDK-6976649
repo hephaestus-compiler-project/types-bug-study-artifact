@@ -1,0 +1,55 @@
+SYNOPSIS
+--------
+javac does not enforce required annotation elements in arrays
+
+PROBLEM DESCRIPTION
+-------------------
+javac does not validate the elements of an annotation within another annotation which is missing mandatory attributes.
+
+While javac does not complain, the code fails at runtime with an IncompleteAnnotationException.
+
+JDK VERSION
+-----------
+Problem occurs with all 5.0, 6 and 7 releases/builds. This issue is also not covered by the prototype JDK 7 fix for CR 6881115, which describes a similar problem (we've tested with that fix in place).
+
+TESTCASE
+--------
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
+@ds({@d})
+//@d
+
+public class AnnotationTest {
+    public static void main(String[] args) {
+        System.out.println(AnnotationTest.class.getAnnotation(ds.class).value()[0].name());
+    }
+}
+
+@Retention(RetentionPolicy.RUNTIME)
+@interface d { String name();}
+
+@Retention(RetentionPolicy.RUNTIME)
+@interface ds { d[] value();}
+
+REPRODUCTION INSTRUCTIONS
+-------------------------
+Compile and run the testcase provided.
+
+Expected behaviour:
+A compile-time error, probably at line 14.
+
+Actual behaviour:
+Compiles without warning or error. IncompleteAnnotationException is thrown when the program is executed:
+
+Exception in thread "main" java.lang.annotation.IncompleteAnnotationException: d missing element name
+        at sun.reflect.annotation.AnnotationInvocationHandler.invoke(AnnotationInvocationHandler.java:53)
+        at $Proxy1.name(Unknown Source)
+        at c.main(c.java:7)
+
+The problem is that javac did not validate that the name element of the d annotation within the ds annotation is required. If the 'standalone' d annotation (line 5) is uncommented, javac DOES issue an error as follows:
+
+AnnotationTest.java:5: annotation d is missing name
+@d
+^
+1 error

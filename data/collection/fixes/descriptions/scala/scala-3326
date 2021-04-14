@@ -1,0 +1,37 @@
+The ++ method behaves differently on a variable types as a collection.SortedMap from an immutable.SortedMap. In the former case, the "current" ordering is ignored and the default ordering used instead.
+
+In the code appended below, if you run it as is: you will get the following output (which I would expect):
+
+   Map(5 -> Foo, 4 -> Bar, 2 -> Hello, 1 -> World)
+
+If, however, you change the import line as I have indicated, the following (unexpected) output occurs (i.e. the resulting map m3 has the default ordering and not that inherited from m1).
+
+    Map(1 -> World, 2 -> Hello, 4 -> Bar, 5 -> Foo)
+
+This is because the immutable.SortedMap trait overrides the ++ method whereas the collection.SortedMap does not (and hence the default CanBuildFrom comes into scope which, in turn, pulls in the default Ordering[Int])
+
+Here is the code example:
+
+```scala
+object SMtest {
+  def main(args: Array[String]) {
+
+    import scala.collection.immutable.SortedMap //(change to scala.collection.SortedMap)
+    import scala.math.Ordering
+
+    val order = implicitly[Ordering[Int]].reverse
+    var m1: SortedMap[Int, String] = SortedMap.empty(order)
+    var m2: SortedMap[Int, String] = SortedMap.empty(order)
+
+    m1 += (1 -> "World")
+    m1 += (2 -> "Hello")
+
+    m2 += (4 -> "Bar")
+    m2 += (5 -> "Foo")
+
+    val m3: SortedMap[Int, String] = m1 ++ m2
+    println(m3)
+
+  }
+}
+```

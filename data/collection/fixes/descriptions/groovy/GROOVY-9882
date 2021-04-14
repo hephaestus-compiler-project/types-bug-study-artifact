@@ -1,0 +1,13 @@
+In static mode, the compiler correctly coerces closures that match non-generic SAMs to their concrete type, but this breaks in the context of generics.
+
+{code:groovy}
+Runnable doIt = { '123' } // works fine
+Supplier<String> supplier = { '123' } // error
+{code}
+
+The error is
+{code}
+Cannot assign value of type groovy.lang.Closure <java.lang.String> to variable of type java.util.function.Supplier <String>
+{code}
+
+Not sure if it's relevant that the generic in the second case is reported as bare {{<String>}}. Replacing the type parameter with a literal {{<java.lang.String>}} causes the error message to match but does not fix the error. Using {{<Function<String, String>}} produces matching behavior, so it's not just a "skip java.lang", and in the latter case the reported bound is the raw type {{Function}}.

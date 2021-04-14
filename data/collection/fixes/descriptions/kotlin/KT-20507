@@ -1,0 +1,31 @@
+```kotlin
+package test.x
+
+open class GA<T> protected constructor()
+```
+
+```kotlin
+package test
+
+import test.x.GA
+
+class C : GA<Any>() {
+    companion object {
+        fun bar() = GA<Any>() // (*)
+    }
+}
+
+fun main(args: Array<String>) {
+    C.bar()
+}
+```
+
+For non-generic base class, call like (*) would be prohibited with PROTECTED_CONSTRUCTOR_NOT_IN_SUPER_CALL error.
+
+However, the code above compiles, but fails with IllegalAccessError at run-time:
+```
+Exception in thread "main" java.lang.IllegalAccessError: tried to access method test.x.GA.<init>()V from class test.C$Companion
+	at test.C$Companion.bar(test.kt:7)
+	at test.TestKt.main(test.kt:12)
+```
+

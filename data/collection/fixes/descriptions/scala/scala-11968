@@ -1,0 +1,46 @@
+## reproduction steps
+
+To reproduce execute:
+
+```
+git clone https://github.com/7mind/izumi.git
+cd izumi
+git checkout bug/no-unchecked-variance
+sbt compile
+```
+
+## problem
+
+Unchecked variance annotations are ignored and variance errors abort compilation:
+
+```
+[error] izumi/distage/distage-core-api/src/main/scala/izumi/distage/model/definition/DIResource.scala:776:12: contravariant type RR occurs in invariant position in type [-RR, +EE, +AA]F0[RR @scala.annotation.unchecked.uncheckedVariance,EE @scala.annotation.unchecked.uncheckedVariance,AA @scala.annotation.unchecked.uncheckedVariance] of type F
+[error]       type F[-RR, +EE, +AA] = F0[RR @v, EE @v, AA @v]
+[error]            ^
+[error] izumi/distage/distage-core-api/src/main/scala/izumi/distage/model/definition/DIResource.scala:801:12: contravariant type RR occurs in invariant position in type [-RR, +EE, +AA]F0[RR @scala.annotation.unchecked.uncheckedVariance,EE @scala.annotation.unchecked.uncheckedVariance,AA @scala.annotation.unchecked.uncheckedVariance] @scala.annotation.unchecked.uncheckedVariance of type F
+[error]       type F[-RR, +EE, +AA] = F0[RR @v, EE @v, AA @v] @v
+[error]            ^
+```
+
+Minimized example (https://scastie.scala-lang.org/NupT3nqjS6qGhHIIAYaA3A):
+
+```scala
+import scala.annotation.unchecked.uncheckedVariance
+
+trait T {
+  type F[+_]
+}
+object T {
+  implicit def fromUnchecked[F0[_]]: T { type F[+A] = F0[A @uncheckedVariance] } = new T {
+    type F[+A] = F0[A @uncheckedVariance]
+  }
+}
+```
+```
+covariant type A occurs in invariant position in type [+A]F0[A @scala.annotation.unchecked.uncheckedVariance] of type F
+```
+
+
+## expectation
+
+Expected code to compile as in 2.13.1.

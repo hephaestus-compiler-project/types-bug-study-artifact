@@ -1,0 +1,47 @@
+The following code compiles under `scalac` but not in dotty.
+```scala
+class Test {
+  class Foo[+T](val x: T)
+
+  def unfoo[T](foo: Foo[T]): T = foo.x
+
+  def fooArray: Foo[Array[Object]] = new Foo(Array.empty[Object])
+
+  unfoo(fooArray) ++ unfoo(fooArray)
+}
+```
+
+It infers an imprecise type for one of the type argument of the second `unfoo`
+```scala
+-- [E007] Type Mismatch Error: foo.scala:9:27 --------
+9 |  unfoo(fooArray) ++ unfoo(fooArray)
+  |                           ^^^^^^^^
+  |         Found:    Test.this.Foo[Array[Object]]
+  |         Required: Test.this.Foo[scala.collection.GenTraversableOnce[Any]]
+```
+
+```scala
+result of foo.scala after frontend:
+package <empty> {
+  class Test() extends Object() { 
+    class Foo[T >: Nothing <: Any](x: T) extends Object() { 
+       +T
+      val x: T
+    }
+    def unfoo[T >: Nothing <: Any](foo: Test.this.Foo[T]): T = foo.x
+    def fooArray: Test.this.Foo[Array[Object]] = 
+      new Test.this.Foo[Array[Object]](
+        Array.empty[Object](
+          scala.reflect.ClassTag.apply[Object](classOf[Object])
+        )
+      )
+    refArrayOps[Object](this.unfoo[Array[Object]](this.fooArray)).++[Object, 
+      Array[Object]
+    ](this.unfoo[scala.collection.GenTraversableOnce[Object]](this.fooArray))(
+      Array.canBuildFrom[Object](
+        scala.reflect.ClassTag.apply[Object](classOf[Object])
+      )
+    )
+  }
+}
+```

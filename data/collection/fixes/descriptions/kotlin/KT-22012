@@ -1,0 +1,41 @@
+Given the Java code from the Hamcrest assert library:
+
+    public static <T> void assertThat(T actual, Matcher<? super T> matcher) {
+        assertThat("", actual, matcher);
+    }
+
+    public static <T> Matcher<T> is(T value) {
+        return Is.is(value);
+    }
+
+the following Kotlin code does not compile:
+
+    interface A {}
+    class B(val x: String)
+    class C(val y: A)
+
+    class Tests : TestCase() {
+        public void testFoo() {
+            val a = C(B("foo"))
+            assertThat(a.x, `is`(B("foo")))
+        }
+    }
+
+it fails with the error:
+
+    assertThat(a.x, `is`(B("foo")))
+    ^^^^^^^^^^--- None of the following functions can be called with the arguments supplied.
+
+However, the equivalent Java statement works. This is because B is a superclass of A, and assertThat allows any superclass of A to be used in the Matcher. To get it to work in Kotlin, you need to either cast `a.x` to B, or the B value to A:
+
+    assertThat(a.x as B, `is`(B("foo")))
+    assertThat(a.x, `is`(B("foo") as A))
+
+If/when this is supported in Kotlin, it would be useful to have an inspection for `as T` constructs that are no longer needed due to the type deduction, like in the above examples.
+
+Platform details:
+1. Kotlin: 1.2.20-eap-11-IJ2017.3-1
+1. Build #IU-173.3727.127, built on November 27, 2017
+1. JRE: 1.8.0_152-release-1024-b6 amd64
+1. JVM: OpenJDK 64-Bit Server VM by JetBrains s.r.o
+1. Windows 10 10.0

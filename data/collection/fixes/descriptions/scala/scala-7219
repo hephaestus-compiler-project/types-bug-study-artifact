@@ -1,0 +1,136 @@
+Note that this bug affects Scala virtualized only.
+
+Consider the following test case:
+```scala
+trait Foos {
+
+  type Rep[+A]
+  def unit[A](a: A): Rep[A]
+
+  class Foo
+
+  implicit class FooOps(f: Rep[Foo]) {
+    def bar: Rep[String] = unit("bar")
+    def bar_=(s: Rep[String]) { }
+  }
+
+}
+
+trait Usage1 extends Foos {
+
+  def main(foo: Rep[Foo]) {
+    foo.bar = unit("baz")
+  }
+
+}
+
+trait Usage2 extends Foos with EmbeddedControls {
+
+  type Var[+T]
+  def __assign[T](lhs: Var[T], rhs: T): Rep[Unit]
+
+  def main(foo: Rep[Foo]) {
+    foo.bar = unit("baz")
+  }
+
+}
+```
+
+It makes the typer crash:
+
+```scala
+> compile
+[info] Compiling 1 Scala source to /home/jrf/workspace/dev/scala-setters/target/scala-2.10/classes...
+[error] EmptyScope.enter
+exception when typing $this.FooOps(foo).<none>
+exception when typing $this.FooOps(foo).<none>($this.unit("baz"))
+
+     while compiling: /home/jrf/workspace/dev/scala-setters/src/main/scala/Main.scala
+        during phase: mixin
+     library version: version 2.10.0
+    compiler version: version 2.10.0
+  reconstructed args: -classpath /home/jrf/workspace/dev/scala-setters/target/scala-2.10/classes -Yvirtualize -d /home/jrf/workspace/dev/scala-setters/target/scala-2.10/classes -bootclasspath /usr/lib/jvm/java-7-oracle/jre/lib/resources.jar:/usr/lib/jvm/java-7-oracle/jre/lib/rt.jar:/usr/lib/jvm/java-7-oracle/jre/lib/sunrsasign.jar:/usr/lib/jvm/java-7-oracle/jre/lib/jsse.jar:/usr/lib/jvm/java-7-oracle/jre/lib/jce.jar:/usr/lib/jvm/java-7-oracle/jre/lib/charsets.jar:/usr/lib/jvm/java-7-oracle/jre/lib/jfr.jar:/usr/lib/jvm/java-7-oracle/jre/classes:/home/jrf/.sbt/boot/org.scala-lang.virtualized.scala-2.10.0/lib/scala-library.jar
+
+  last tree to typer: Assign
+              symbol: null
+   symbol definition: null
+                 tpe: Unit
+       symbol owners: 
+      context owners: class Usage2$class -> package <empty>
+
+== Enclosing template or block ==
+
+Apply(
+  $this.FooOps(foo)."<none>"
+  Apply( // def unit(a: Object): Object in trait Foos, tree.tpe=Object
+    "$this"."unit" // def unit(a: Object): Object in trait Foos, tree.tpe=(a: Object)Object
+    "baz"
+  )
+)
+
+== Expanded type of tree ==
+
+TypeRef(TypeSymbol(final abstract class Unit extends ))
+
+unhandled exception while transforming Main.scala
+[error] 
+[error]      while compiling: /home/jrf/workspace/dev/scala-setters/src/main/scala/Main.scala
+[error]         during phase: mixin
+[error]      library version: version 2.10.0
+[error]     compiler version: version 2.10.0
+[error]   reconstructed args: -classpath /home/jrf/workspace/dev/scala-setters/target/scala-2.10/classes -Yvirtualize -d /home/jrf/workspace/dev/scala-setters/target/scala-2.10/classes -bootclasspath /usr/lib/jvm/java-7-oracle/jre/lib/resources.jar:/usr/lib/jvm/java-7-oracle/jre/lib/rt.jar:/usr/lib/jvm/java-7-oracle/jre/lib/sunrsasign.jar:/usr/lib/jvm/java-7-oracle/jre/lib/jsse.jar:/usr/lib/jvm/java-7-oracle/jre/lib/jce.jar:/usr/lib/jvm/java-7-oracle/jre/lib/charsets.jar:/usr/lib/jvm/java-7-oracle/jre/lib/jfr.jar:/usr/lib/jvm/java-7-oracle/jre/classes:/home/jrf/.sbt/boot/org.scala-lang.virtualized.scala-2.10.0/lib/scala-library.jar
+[error] 
+[error]   last tree to typer: Assign
+[error]               symbol: null
+[error]    symbol definition: null
+[error]                  tpe: Unit
+[error]        symbol owners: 
+[error]       context owners: class Usage2$class -> package <empty>
+[error] 
+[error] == Enclosing template or block ==
+[error] 
+[error] Apply(
+[error]   $this.FooOps(foo)."<none>"
+[error]   Apply( // def unit(a: Object): Object in trait Foos, tree.tpe=Object
+[error]     "$this"."unit" // def unit(a: Object): Object in trait Foos, tree.tpe=(a: Object)Object
+[error]     "baz"
+[error]   )
+[error] )
+[error] 
+[error] == Expanded type of tree ==
+[error] 
+[error] TypeRef(TypeSymbol(final abstract class Unit extends ))
+[error] 
+[error] uncaught exception during compilation: scala.reflect.internal.FatalError
+[trace] Stack trace suppressed: run last compile:compile for the full output.
+[error] (compile:compile) scala.reflect.internal.FatalError: 
+[error]      while compiling: /home/jrf/workspace/dev/scala-setters/src/main/scala/Main.scala
+[error]         during phase: global=mixin, atPhase=cleanup
+[error]      library version: version 2.10.0
+[error]     compiler version: version 2.10.0
+[error]   reconstructed args: -classpath /home/jrf/workspace/dev/scala-setters/target/scala-2.10/classes -Yvirtualize -d /home/jrf/workspace/dev/scala-setters/target/scala-2.10/classes -bootclasspath /usr/lib/jvm/java-7-oracle/jre/lib/resources.jar:/usr/lib/jvm/java-7-oracle/jre/lib/rt.jar:/usr/lib/jvm/java-7-oracle/jre/lib/sunrsasign.jar:/usr/lib/jvm/java-7-oracle/jre/lib/jsse.jar:/usr/lib/jvm/java-7-oracle/jre/lib/jce.jar:/usr/lib/jvm/java-7-oracle/jre/lib/charsets.jar:/usr/lib/jvm/java-7-oracle/jre/lib/jfr.jar:/usr/lib/jvm/java-7-oracle/jre/classes:/home/jrf/.sbt/boot/org.scala-lang.virtualized.scala-2.10.0/lib/scala-library.jar
+[error] 
+[error]   last tree to typer: Assign
+[error]               symbol: null
+[error]    symbol definition: null
+[error]                  tpe: Unit
+[error]        symbol owners: 
+[error]       context owners: class Usage2$class -> package <empty>
+[error] 
+[error] == Enclosing template or block ==
+[error] 
+[error] Apply(
+[error]   $this.FooOps(foo)."<none>"
+[error]   Apply( // def unit(a: Object): Object in trait Foos, tree.tpe=Object
+[error]     "$this"."unit" // def unit(a: Object): Object in trait Foos, tree.tpe=(a: Object)Object
+[error]     "baz"
+[error]   )
+[error] )
+[error] 
+[error] == Expanded type of tree ==
+[error] 
+[error] TypeRef(TypeSymbol(final abstract class Unit extends ))
+[error] 
+[error] EmptyScope.enter
+[error] Total time: 1 s, completed Mar 5, 2013 6:07:02 PM
+```

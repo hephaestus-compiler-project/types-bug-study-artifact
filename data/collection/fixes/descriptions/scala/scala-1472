@@ -1,0 +1,39 @@
+The attached/below code will fail with a cyclic reference error if compiled without -Yrecursion, and will produce a NPE when compiled with -Yrecursion.
+
+```
+object Test extends Application {
+  type SA = { type U; type T; val f : T => (U, T) }
+  type SB = { type U; type T; val g : T => (U, T) }
+
+  type S = { type Utmp = this.b.type#U
+             type Ttmp = this.a.type#T
+             val a : (SA { type U = Utmp })
+             val b : (SB { type T = Ttmp }) }
+
+  val AB : S = new { self =>
+    type Utmp = this.b.type#U
+    type Ttmp = this.a.type#T 
+    val a : (SA { type U = self.type#Utmp }) = null
+    val b : (SB { type T = self.type#Ttmp }) = null
+  }
+}
+ 
+/* 
+structure AB = rec (X : S) struct
+  structure A :> (SA where type u = X.B.u)
+    type u = X.B.u
+    type t = int
+    fun f (x:t) : u * t =
+        let val (y,z) = X.B.g(x+3) (* Error
+        in (y,z+5) end              (* Error
+    ...
+  end
+  structure B :> (SB where type t = X.A.t)
+    type t = X.A.t
+    type u = bool
+    fun g (x:t) : u * t = ...X.A.f(...)...
+    ...
+  end
+
+*/
+```

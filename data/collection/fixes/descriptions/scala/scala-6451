@@ -1,0 +1,23 @@
+
+Because attempting to create a file named "Con" on Windows throws an IOException (confusion with the "Con"sole device).
+
+The culprit:
+
+```
+trait Con[-X]  // <- the WinNT filesystem refuses to create `Con.class`
+trait Inv[X]
+trait Cov[+X]
+```
+
+Part of the stacktrace:
+
+```
+ [partest] Exception in thread "bcode-typer" java.io.IOException: The system cannot find the file specified
+ [partest]     at java.io.WinNTFileSystem.createFileExclusively(Native Method)
+ [partest]     at java.io.File.createNewFile(Unknown Source)
+ [partest]     at scala.reflect.io.AbstractFile.fileOrSubdirectoryNamed(AbstractFile.scala:235)
+ [partest]     at scala.reflect.io.AbstractFile.fileNamed(AbstractFile.scala:246)
+```
+
+
+The fix involves renaming `Con` in both `neg/unchecked-abstract.scala` and `neg/unchecked-abstract.check`

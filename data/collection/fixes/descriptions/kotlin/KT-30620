@@ -1,0 +1,86 @@
+Example:
+```
+import kotlin.experimental.ExperimentalTypeInference
+
+class Inv<K>(val value: K)
+
+interface ProducerScope<E> {
+    val prop: Inv<E>
+}
+class CoroutineScope
+class ReceiveChannel<E>
+
+@UseExperimental(ExperimentalTypeInference::class)
+public fun <E> produce(@BuilderInference block: suspend ProducerScope<E>.() -> Unit): ProducerScope<E> = TODO()
+
+fun test(ls: List<Int>) =
+    produce<Int> {
+        ls.asReceiveChannel().toChannel(prop)
+    }
+
+private fun <E> Iterable<E>.asReceiveChannel(): ReceiveChannel<E> = TODO()
+public suspend fun <E, C> ReceiveChannel<E>.toChannel(destination: C): C = TODO()
+```
+
+Exception:
+```
+Caused by: java.lang.AssertionError: Not singleClassifierType and not intersection subType: TypeVariable(E)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.TypeCheckerContextForConstraintSystem.assertInputTypes(TypeCheckerContextForConstraintSystem.kt:249)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.TypeCheckerContextForConstraintSystem.internalAddSubtypeConstraint(TypeCheckerContextForConstraintSystem.kt:75)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.TypeCheckerContextForConstraintSystem.addSubtypeConstraint(TypeCheckerContextForConstraintSystem.kt:59)
+	at org.jetbrains.kotlin.types.AbstractTypeChecker.completeIsSubTypeOf(AbstractTypeChecker.kt:178)
+	at org.jetbrains.kotlin.types.AbstractTypeChecker.isSubtypeOf(AbstractTypeChecker.kt:151)
+	at org.jetbrains.kotlin.types.AbstractTypeChecker.equalTypes(AbstractTypeChecker.kt:167)
+	at org.jetbrains.kotlin.types.AbstractTypeChecker.isSubtypeForSameConstructor(AbstractTypeChecker.kt:300)
+	at org.jetbrains.kotlin.types.AbstractTypeChecker.isSubtypeOfForSingleClassifierType(AbstractTypeChecker.kt:241)
+	at org.jetbrains.kotlin.types.AbstractTypeChecker.completeIsSubTypeOf(AbstractTypeChecker.kt:180)
+	at org.jetbrains.kotlin.types.AbstractTypeChecker.isSubtypeOf(AbstractTypeChecker.kt:151)
+	at org.jetbrains.kotlin.types.checker.NewKotlinTypeChecker.isSubtypeOf(NewKotlinTypeChecker.kt:71)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.ConstraintInjector$TypeCheckerContext.runIsSubtypeOf(ConstraintInjector.kt:127)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.ConstraintInjector.addSubTypeConstraintAndIncorporateIt(ConstraintInjector.kt:75)
+	at org.jetbrains.kotlin.resolve.calls.inference.components.ConstraintInjector.addInitialSubtypeConstraint(ConstraintInjector.kt:53)
+	at org.jetbrains.kotlin.resolve.calls.inference.model.NewConstraintSystemImpl.addSubtypeConstraint(NewConstraintSystemImpl.kt:83)
+	at org.jetbrains.kotlin.resolve.calls.inference.ConstraintSystemBuilderKt$addSubtypeConstraintIfCompatible$1.invoke(ConstraintSystemBuilder.kt:62)
+	at org.jetbrains.kotlin.resolve.calls.inference.ConstraintSystemBuilderKt$addSubtypeConstraintIfCompatible$1.invoke(ConstraintSystemBuilder.kt)
+	at org.jetbrains.kotlin.resolve.calls.inference.model.NewConstraintSystemImpl.runTransaction(NewConstraintSystemImpl.kt:129)
+	at org.jetbrains.kotlin.resolve.calls.inference.ConstraintSystemBuilderKt.addSubtypeConstraintIfCompatible(ConstraintSystemBuilder.kt:61)
+	at org.jetbrains.kotlin.resolve.calls.components.SimpleArgumentsChecksKt.checkExpressionArgument(SimpleArgumentsChecks.kt:83)
+	at org.jetbrains.kotlin.resolve.calls.components.SimpleArgumentsChecksKt.checkSimpleArgument(SimpleArgumentsChecks.kt:42)
+	at org.jetbrains.kotlin.resolve.calls.components.PostponeArgumentsChecksKt.resolveKtPrimitive(PostponeArgumentsChecks.kt:37)
+	at org.jetbrains.kotlin.resolve.calls.components.ResolutionPartsKt.resolveKotlinArgument(ResolutionParts.kt:275)
+	at org.jetbrains.kotlin.resolve.calls.components.ResolutionPartsKt.access$resolveKotlinArgument(ResolutionParts.kt:1)
+	at org.jetbrains.kotlin.resolve.calls.components.CheckReceivers.checkReceiver(ResolutionParts.kt:335)
+	at org.jetbrains.kotlin.resolve.calls.components.CheckReceivers.process(ResolutionParts.kt:342)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.processPart(ResolutionCandidate.kt:134)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.processPart$default(ResolutionCandidate.kt:130)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.processParts(ResolutionCandidate.kt:121)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.isSuccessful(ResolutionCandidate.kt:148)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$SuccessfulResultCollector.pushCandidates(TowerResolver.kt:321)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.processTowerData(TowerResolver.kt:277)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.access$processTowerData(TowerResolver.kt:77)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.process(TowerResolver.kt:158)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.process(TowerResolver.kt:167)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.run(TowerResolver.kt:199)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.run(TowerResolver.kt:96)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.runResolve(TowerResolver.kt:83)
+	at org.jetbrains.kotlin.resolve.calls.KotlinCallResolver.resolveCall(KotlinCallResolver.kt:80)
+	at org.jetbrains.kotlin.resolve.calls.tower.PSICallResolver.runResolutionAndInference(PSICallResolver.kt:96)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.doResolveCallOrGetCachedResults(CallResolver.java:576)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.lambda$computeTasksAndResolveCall$0(CallResolver.java:208)
+	at org.jetbrains.kotlin.util.PerformanceCounter.time(PerformanceCounter.kt:91)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:206)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:196)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.resolveFunctionCall(CallResolver.java:322)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getResolvedCallForFunction(CallExpressionResolver.kt:95)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfoWithoutFinalTypeCheck(CallExpressionResolver.kt:217)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getUnsafeSelectorTypeInfo(CallExpressionResolver.kt:332)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getSafeOrUnsafeSelectorTypeInfo(CallExpressionResolver.kt:369)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getQualifiedExpressionTypeInfo(CallExpressionResolver.kt:462)
+	at org.jetbrains.kotlin.types.expressions.BasicExpressionTypingVisitor.visitQualifiedExpression(BasicExpressionTypingVisitor.java:715)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.visitQualifiedExpression(ExpressionTypingVisitorDispatcher.java:371)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher$ForBlock.visitQualifiedExpression(ExpressionTypingVisitorDispatcher.java:58)
+	at org.jetbrains.kotlin.psi.KtVisitor.visitDotQualifiedExpression(KtVisitor.java:302)
+	at org.jetbrains.kotlin.psi.KtDotQualifiedExpression.accept(KtDotQualifiedExpression.kt:31)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.lambda$getTypeInfo$0(ExpressionTypingVisitorDispatcher.java:173)
+	... 153 more
+```

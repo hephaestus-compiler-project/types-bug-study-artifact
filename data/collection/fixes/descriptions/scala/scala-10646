@@ -1,0 +1,25 @@
+`Array.apply` doesn't box; `Array#update` does; `Array#apply` expects the box.
+
+```scala
+Welcome to Scala 2.12.4 (Java HotSpot(TM) 64-Bit Server VM, Java 1.8.0_121).
+Type in expressions for evaluation. Or try :help.
+scala> case class A[X](val a: X) extends AnyVal
+defined class A
+
+scala> val it = Array(A(1), A("fnord"))
+it: Array[A[_ >: String with Int]] = Array(1, fnord)
+
+scala> it(0) = A(123)
+
+scala> it.head
+res1: A[_ >: String with Int] = A(123)
+
+scala> it.last
+java.lang.ClassCastException: java.lang.String cannot be cast to A
+  ... 28 elided
+
+scala> it.head.getClass
+res3: Class[T] forSome { type T <: A[_1]; type _1 >: String with Int } = class A
+```
+
+Found in the vicinity of scala/scala#6131.

@@ -1,0 +1,23 @@
+```
+private fun compressOrUncompress(data: ByteArray,
+                                 transferFunction: (ByteArrayInputStream, ByteArrayOutputStream) -> Unit): Result<ByteArray> =
+    when {
+        data.isEmpty() -> Result.success(ByteArray(0))
+        else           -> ByteArrayOutputStream().use { baos ->
+            try {
+                ByteArrayInputStream(data).use { bais ->
+                    transferFunction(bais, baos)
+                }
+                Result.success(baos.toByteArray())
+            } catch (e: IOException) {
+                Result.failure<ByteArray>("Error while un-compressing: ${e.message}\n$e")
+            }
+        }
+    }
+```
+In the catch block, IntelliJ suggests  to remove explicit type argument in `Result.failure<ByteArray>`. Doing so causes the following error when compiling:
+
+```
+Error:(384, 24) Kotlin: Type inference failed: Not enough information to infer parameter V in fun <V : Any!> failure(p0: String!): Result<V!>!
+Please specify it explicitly.
+```

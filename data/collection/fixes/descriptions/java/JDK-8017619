@@ -1,0 +1,87 @@
+FULL PRODUCT VERSION :
+javac 1.8.0-ea
+
+
+FULL OS VERSION :
+ 2013 x86_64 x86_64 x86_64 GNU/Linux
+
+A DESCRIPTION OF THE PROBLEM :
+The following piece of code crashes javac version 8, buts works fine on version 7:
+
+class TestParamSubtype<T> {
+  private T p;
+  void foo(T p) {}
+  public Object clone() {
+    foo(p.clone());
+    return null;
+}  }
+
+java.lang.AssertionError: isSubClass T
+at com.sun.tools.javac.code.Symbol.isSubClass(Symbol.java:329)
+at com.sun.tools.javac.comp.Resolve.isProtectedAccessible(Resolve.java:433)
+at com.sun.tools.javac.comp.Resolve.isAccessible(Resolve.java:389)
+at com.sun.tools.javac.comp.Resolve.isAccessible(Resolve.java:359)
+at com.sun.tools.javac.comp.Resolve.selectBest(Resolve.java:1361)
+at com.sun.tools.javac.comp.Resolve.findMethodInScope(Resolve.java:1522)
+at com.sun.tools.javac.comp.Resolve.findMethod(Resolve.java:1594)
+at com.sun.tools.javac.comp.Resolve.findMethod(Resolve.java:1566)
+at com.sun.tools.javac.comp.DeferredAttr$DeferredChecker$1.lookup(DeferredAttr.java:949)
+...(more omitted)...
+at com.sun.tools.javac.main.JavaCompiler.attribute(JavaCompiler.java:1224)
+at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:877)
+at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:836)
+at com.sun.tools.javac.main.Main.compile(Main.java:518)
+at com.sun.tools.javac.main.Main.compile(Main.java:376)
+at com.sun.tools.javac.main.Main.compile(Main.java:365)
+at com.sun.tools.javac.main.Main.compile(Main.java:356)
+at com.sun.tools.javac.Main.compile(Main.java:77)
+at com.sun.tools.javac.Main.main(Main.java:62)
+
+I did not attempt further debugging.
+
+THE PROBLEM WAS REPRODUCIBLE WITH -Xint FLAG: Did not try
+
+THE PROBLEM WAS REPRODUCIBLE WITH -server FLAG: Did not try
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Attempt to compile:
+
+class TestParamSubtype<T> {
+  private T p;
+  void foo(T p) {}
+  public Object clone() {
+    foo(p.clone());
+    return null;
+}  }
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+Result on java v7:
+
+TestParamSubtype.java:6: error: clone() has protected access in Object
+    foo(p.clone());
+         ^
+TestParamSubtype.java:6: error: method foo in class TestParamSubtype<T> cannot be applied to given types;
+    foo(p.clone());
+    ^
+  required: T
+  found: Object
+  reason: actual argument Object cannot be converted to T by method invocation conversion
+  where T is a type-variable:
+    T extends Object declared in class TestParamSubtype
+2 errors
+
+Actual:
+
+Crash
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+class TestParamSubtype<T> {
+  private T p;
+  void foo(T p) {}
+  public Object clone() {
+    foo(p.clone());
+    return null;
+}  }
+---------- END SOURCE ----------

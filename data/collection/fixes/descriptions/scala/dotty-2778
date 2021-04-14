@@ -1,0 +1,72 @@
+The following code fails in scala 2.12.2:
+```scala
+scala> def printName(first: String, last: String): Unit = {
+     |   println(first + " " + last)
+     | }
+printName: (first: String, last: String)Unit
+
+scala> printName("John", first = "Smith")
+<console>:13: error: parameter 'first' is already specified at parameter position 1
+       printName("John", first = "Smith")
+                               ^
+```
+
+But compiles in dotty ([Scastie link](https://scastie.scala-lang.org/cK7KgMWPTMmwQ0bKq0eZ9w)):
+```scala
+object Main {
+  def printName(first: String, last: String): Unit = {
+    println(first + " " + last)
+  }
+
+  def main(args: Array[String]): Unit = {
+    printName("John", first = "Smith")
+  }
+}
+
+scastie: Connecting.
+scastie: Connected.
+sbt: [info] Compiling 1 Scala source to /tmp/scastie5500368941075143733/target/scala-0.1/classes...
+sbt: [info] Running Main
+Smith John
+```
+
+If the new behavior is intentional, the similar code (I use `last: String*` instead of `last: String`) fails in dotty ([Scastie link](https://scastie.scala-lang.org/lEpIbo05TCm7Tl8cQAoTtw)):
+```scala
+object Main {
+  def printName(first: String, last: String*): Unit = {
+    println(first + " " + last)
+  }
+
+  def main(args: Array[String]): Unit = {
+    printName("John", first = "Smith")
+  }
+}
+
+scastie: Connecting.
+scastie: Connected.
+sbt: [info] Compiling 1 Scala source to /tmp/scastie5500368941075143733/target/scala-0.1/classes...
+sbt: [info] Running Main
+sbt: [error] (run-main-10b) java.lang.NoClassDefFoundError: scala/$repeated$
+sbt: java.lang.NoClassDefFoundError: scala/$repeated$
+	at Main$.main(main.scala:7)
+	at Main.main(main.scala)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+Caused by: java.lang.ClassNotFoundException: scala.$repeated$
+	at java.net.URLClassLoader.findClass(URLClassLoader.java:381)
+	at java.lang.ClassLoader.loadClass(ClassLoader.java:424)
+	at java.lang.ClassLoader.loadClass(ClassLoader.java:357)
+	at Main$.main(main.scala:7)
+	at Main.main(main.scala)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+[trace] Stack trace suppressed: run 'last compile:run' for the full output.
+sbt: java.lang.RuntimeException: Nonzero exit code: 1
+	at scala.sys.package$.error(package.scala:27)
+[trace] Stack trace suppressed: run 'last compile:run' for the full output.
+sbt: [error] (compile:run) Nonzero exit code: 1
+```

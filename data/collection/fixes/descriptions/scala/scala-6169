@@ -1,0 +1,53 @@
+see attachments
+
+In java you can write
+
+```scala
+Circle circle = CircleBuilder.create().centerX(100).centerY(115).radius(100).build();
+```
+
+This is a builder pattern which make use of existential f-bounds
+The problem is that in scala the skolems get erased after two method calls and so the next method doesn't exist.
+
+
+if I javap the java code
+```
+const #33 = NameAndType #51:#52;//  create:()Ljavafx/scene/shape/CircleBuilder;
+const #34 = NameAndType #53:#54;//  centerX:(D)Ljavafx/scene/shape/CircleBuilder
+;
+const #35 = NameAndType #55:#54;//  centerY:(D)Ljavafx/scene/shape/CircleBuilder
+;
+const #36 = NameAndType #56:#54;//  radius:(D)Ljavafx/scene/shape/CircleBuilder;
+
+const #37 = NameAndType #57:#58;//  build:()Ljavafx/scene/shape/Circle;
+```
+then I can see that the names and types are stored in bytecode (so a sort of runtime type info / refied generics)
+
+
+In scala:
+```scala
+val circle = CircleBuilder.create().centerX(100).centerY(115).radius(100).build()
+```
+
+causes
+```
+C:\scala-2.10.0-M6\myexamples>scalac javafxbuilder.scala
+javafxbuilder.scala:19: error: value centerY is not a member of ?0
+      val circle = CircleBuilder.create().centerX(100).centerY(115).radius(100).
+build()
+                                                       ^
+one error found
+```
+
+The only way to solve it in scala is to do a downcast after two methods (.asInstanceOf[CircleBuilder[_]]) or implicit conversion or to generate reified skolems _$x beforehand.
+```scala
+val circlebuilder = CircleBuilder.create().asInstanceOf[CircleBuilder[_ <: CircleBuilder[_ <: CircleBuilder[_ <: CircleBuilder[_]]]]]
+```
+which generates $_1, $_2 and $_3 for calling 6 methods (2 per skolem)
+
+This looks a bit hackish to me and very unscala.
+
+associated thread:
+https://groups.google.com/forum/?hl=en&fromgroups#!topic/scala-user/Op79HcAoj2M
+
+

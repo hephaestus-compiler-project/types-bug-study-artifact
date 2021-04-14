@@ -1,0 +1,22 @@
+From https://github.com/JetBrains/kotlin/blob/9adc1a6e9bd1f79ecc58988a659d093cf40f6434/compiler/tests-common/tests/org/jetbrains/kotlin/fir/VMCounters.kt#L39
+```
+private fun <K, V> merge(first: Map<K, V>, second: Map<K, V>, valueOp: (V, V) -> V): Map<K, V> {
+    val result = first.toMutableMap()
+    for ((k, v) in second) {
+        result.merge(k, v, valueOp)
+    }
+    return result
+}
+```
+->
+```
+4.kt:4:25: warning: type mismatch: type parameter with nullable bounds is used V is used where V was expected. This warning will become an error soon
+        result.merge(k, v, valueOp)
+                        ^
+```
+
+First of all, notice that "is used" is used twice (pun intended).
+
+Second, I don't understand what the message is trying to say... Type parameter can't be "used" as expression; I'm using a _value_ of a type, whose classifier is a type parameter. We should be a bit more accurate with the wording because in cases when the type parameter name is equal to the callee's type parameter, it currently leads to the message which basically reads as "expected V, but got V". Probably, it's a good idea to add "see KT-XXXXX for more details" with more information as in other non-trivial diagnostics.
+
+But more importantly, it seems (but I'm not sure at all) that the warning is also incorrect in the example above, because `java.util.Map.merge`'s type parameter `V` doesn't have a non-nullable upper bound...

@@ -1,0 +1,47 @@
+FULL PRODUCT VERSION :
+java version "1.8.0_66"
+Java(TM) SE Runtime Environment (build 1.8.0_66-b17)
+Java HotSpot(TM) 64-Bit Server VM (build 25.66-b17, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux 2.6.32-573.3.1.el6.x86_64
+
+A DESCRIPTION OF THE PROBLEM :
+u51 javac compiles with a warning but u60 and later javac gives an error. I see no corresponding release note about change in behavior.
+
+REGRESSION.  Last worked in version 8u51
+
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+Ambiguity.java:14: error: reference to doSomething is ambiguous
+        doSomething(Stream.of("Foo", "Bar").map(Collections::singletonList).toArray(List[]::new));
+        ^
+  both method doSomething(List<String>[]) in Ambiguity and method doSomething(Set<String>[]) in Ambiguity match
+Note: Ambiguity.java uses unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+import java.util.*;
+import java.util.stream.*;
+
+public class Ambiguity {
+    public static void doSomething (List<String>[] stuff) {
+        System.out.println("List Stuff");
+    }
+
+    public static void doSomething (Set<String>[] stuff) {
+        System.out.println("Set Stuff");
+    }
+
+    public static void main (String[] args) {
+        doSomething(Stream.of("Foo", "Bar").map(Collections::singletonList).toArray(List[]::new));
+    }
+}
+
+---------- END SOURCE ----------
+

@@ -1,0 +1,42 @@
+Hi all, long time listener, first time poster. I have an odd scalac 2.13.1 issue that's affecting Apache Spark's transition to 2.13 (https://issues.apache.org/jira/browse/SPARK-25075 -> https://issues.apache.org/jira/browse/SPARK-30132)
+
+It occurs in scalac 2.13.1 but not 2.12.10. This occurs in Java 8. I didn't see an obvious open issue here, or easy answer from the gitter channel, but https://github.com/scala/bug/issues/11575 looks possibly related.
+
+Consider this simple subclass of a Hadoop LocalFileSystem class:
+
+```
+object foo extends org.apache.hadoop.fs.LocalFileSystem {}
+```
+
+Compiled with scalac 2.13.1, I get:
+
+```
+$ scalac -cp ~/.m2/repository/org/apache/hadoop/hadoop-common/3.2.0/hadoop-common-3.2.0.jar foo.scala 
+foo.scala:1: error: incompatible type in overriding
+def appendFile(x$1: org.apache.hadoop.fs.Path): org.apache.hadoop.fs.FSDataOutputStreamBuilder[S,B] forSome { type S <: org.apache.hadoop.fs.FSDataOutputStream; type B <: org.apache.hadoop.fs.FSDataOutputStreamBuilder[S,B] } (defined in class FileSystem)
+  with def appendFile(x$1: org.apache.hadoop.fs.Path): org.apache.hadoop.fs.FSDataOutputStreamBuilder (defined in class FilterFileSystem);
+ found   : (x$1: org.apache.hadoop.fs.Path)org.apache.hadoop.fs.FSDataOutputStreamBuilder
+ required: (x$1: org.apache.hadoop.fs.Path)org.apache.hadoop.fs.FSDataOutputStreamBuilder[S,B] forSome { type S <: org.apache.hadoop.fs.FSDataOutputStream; type B <: org.apache.hadoop.fs.FSDataOutputStreamBuilder[S,B] }
+object foo extends org.apache.hadoop.fs.LocalFileSystem {}
+       ^
+```
+
+This says that the compiled class hierarchy for this Hadoop class is invalid, though naturally, javac has accepted and compiled it. The definition in `FileSystem.java` in Hadoop 3.2.0:
+
+```
+  public FSDataOutputStreamBuilder appendFile(Path path) {
+    return new FileSystemDataOutputStreamBuilder(this, path).append();
+  }
+```
+
+The subtype `FilterFileSystem.java` has:
+
+```
+  public FSDataOutputStreamBuilder appendFile(Path path) {
+    return new FileSystemDataOutputStreamBuilder(this, path).append();
+  }
+```
+
+The signature is evidently identical. Now, `FSDataOutputStreamBuilder` does take two generic types, not specified here in the Hadoop source code. I kind of understand the error, that you can't say that the generic types in the overload are consistent. 
+
+But is this something that scalac should reject?

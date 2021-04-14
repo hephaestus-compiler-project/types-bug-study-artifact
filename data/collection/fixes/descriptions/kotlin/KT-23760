@@ -1,0 +1,28 @@
+common.kt
+```kotlin
+expect interface Upper
+
+expect interface BaseI {
+    fun f(p: Upper)
+}
+
+interface I : BaseI
+```
+
+actual.kt
+```kotlin
+interface X
+actual typealias Upper = X
+
+actual interface BaseI {
+    actual fun f(p: Upper)
+}
+
+internal class Impl : I {       // ERROR: 'Impl does not implement abstract member 'f'
+    override fun f(p: Upper) { // ERROR 'f' overrides nothing
+    }
+}
+
+```
+
+It doesn't fail like this if actual `upper` is not a typealias but just a regular actual interface

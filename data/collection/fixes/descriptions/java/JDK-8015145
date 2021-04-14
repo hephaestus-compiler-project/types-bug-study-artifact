@@ -1,0 +1,7 @@
+While trying to solve JDK-8009280, I've stumbled on a limitation in sjavac. I want to compile all java classes except the security classes first to jdk/classes, and then as a separate step, compile the security classes into a different directory. Using normal javac this works as it will pick up the sources for the security classes to link to them while compiling the rest. When using sjavac, since the security classes are filtered out, it will not find them for linking either.
+
+A possible workaround would be to copy the security classes to a different directory and add that directory with -sourcepath, and I think they would be available since the -sourcepath parameter would have a different set of filter rules defined. This feels akward though.
+
+What I would like is a switch to sjavac that disabled the strict filtering of sources to link to. I simulated this behavior by commenting out the filtering in SmartFileManager.java and got successful builds with the expected results. I can probably figure out how to add a parameter to control this behavior too, but would appreciate some help from the langtools team.
+
+Fixing this is important since JDK-8009280 needs to be fixed for the JCE team to start using the new build and we very much want to get sjavac enabled by default.

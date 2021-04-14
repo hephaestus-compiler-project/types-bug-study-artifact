@@ -1,0 +1,27 @@
+**Build version:** 
+1.3.40-eap-21-IJ2019.1-1 (in IDEA) and 1.3.40-eap-21 in build.gradle
+
+**Steps to reproduce:**
+```kotlin
+package foo
+
+import kotlin.properties.ReadWriteProperty
+import kotlin.reflect.KProperty
+
+class Store<T:Any?>(val init: (() -> T)) : ReadWriteProperty<Any?, T> {
+    override fun getValue(thisRef: Any?, property: KProperty<*>): T = init.invoke()
+
+    override fun setValue(thisRef: Any?, property: KProperty<*>, value: T) {
+    }
+}
+
+private val cache: Map<String, String> by Store { hashMapOf() } // <-- here comes an compiler error 
+
+// If you uncomment this line the code will compile fine but IDEA will advice to remove <String, String>
+// private val cache: Map<String, String> by Store { hashMapOf<String, String>() }
+
+```
+
+**Compiler error:**
+Error:(14, 51) Kotlin: Type inference failed: Not enough information to infer parameter K in inline fun <K, V> hashMapOf(): kotlin.collections.HashMap<K, V> /* = java.util.HashMap<K, V> */
+Please specify it explicitly.

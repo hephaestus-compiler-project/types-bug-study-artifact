@@ -1,0 +1,49 @@
+## Compiler version
+
+3.0.0-M3
+
+## Minimized code
+
+```Scala
+class Foo {
+  def ::(hd: String): Foo = ???
+  def ::(hd: Boolean): Foo  = ???
+  
+  List(1, 2) match {
+    case x :: tail => ()
+    case _ => ()
+  }
+}
+```
+
+## Output
+
+```
+[error] -- [E134] Type Mismatch Error: ~/ambiguous-reference/src/main/scala/foo.scala:8:11 
+[error] 8 |    case x :: tail => ()
+[error]   |           ^^
+[error]   |  None of the overloaded alternatives of method :: in class Foo with types
+[error]   |   (hd: Int): foo.Foo
+[error]   |   (hd: String): foo.Foo
+[error]   |  match expected type ?{ unapply: <?> }
+[error] one error found
+```
+
+## Expectation
+
+It should compile by applying the `scala.::` extractor.
+
+## Additional information
+
+- It does compile in Scala 2.13.4
+- The fact that `::` is an overloaded method in class `Foo` plays a role, because the following code compiles:
+```scala
+class Foo {
+  def ::(hd: String): Foo = ???
+  
+  List(1, 2) match {
+    case x :: tail => ()
+    case _ => ()
+  }
+}
+```

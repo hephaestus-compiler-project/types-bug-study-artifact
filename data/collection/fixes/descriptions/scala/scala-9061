@@ -1,0 +1,34 @@
+The following crashes scalac during icode,
+
+```scala
+trait Bar[T] {
+  val value: T
+}
+
+object Bar {
+  def apply[T](t: => T): Bar[T] = new Bar[T] {
+    val value = t
+  }
+}
+  
+trait Foo[A] { def foo(a: A): Unit }
+object Foo {
+  implicit val intFoo = new Foo[Int] { def foo(x: Int) = () }
+}
+
+object Demo {
+  Bar[Foo[Int]]({ object Blah { lazy val blah: Foo[Int] = Foo.intFoo }; Blah.blah }).value.foo _
+  //Bar[Foo[Int]]({ class Blah { lazy val blah: Foo[Int] = Foo.intFoo }; (new Blah).blah }).value.foo _
+}
+
+[error] 
+[error]   symbol variable Blah$module does not exist in shapeless.Demo.foo
+[error]      while compiling: /home/miles/projects/shapeless/scratch/src/main/scala/shapeless/test.scala
+[error]         during phase: icode
+[error]      library version: version 2.11.4
+[error]     compiler version: version 2.11.4
+```
+
+Replacing the inline object with an inline class as per the commented out line results in successful compilation.
+
+The by name argument to `Bar.apply` appears to be essential to the crash.

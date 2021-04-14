@@ -1,0 +1,114 @@
+Here's the code that crashes:
+
+```kotlin
+abstract class Foo<in I : Any, O : Any>
+
+class Bar<in I : Any, O : Any>() : Foo<I, O>() {
+    fun getOtherFoo(): Foo<*, O> = Bar<String, O>()
+}
+
+fun handle(foo: Foo<*, *>): List<Foo<*, *>> {
+    foo as Bar<*, *>
+    val other = foo.getOtherFoo()
+    return listOf(other)
+}
+
+fun main(args: Array<String>) {
+    handle(Bar<String, Unit>())
+}
+```
+
+And here's the crash:
+
+```
+Error:Kotlin: [Internal Error] java.lang.IllegalStateException: java.lang.AssertionError: Variance conflict: type parameter variance 'in' and projection kind 'out' cannot be combined
+	at org.jetbrains.kotlin.codegen.CompilationErrorHandler$1.reportException(CompilationErrorHandler.java:27)
+	at org.jetbrains.kotlin.codegen.PackageCodegen.generate(PackageCodegen.java:69)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.generatePackage(KotlinCodegenFacade.java:99)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.doGenerateFiles(KotlinCodegenFacade.java:77)
+	at org.jetbrains.kotlin.codegen.KotlinCodegenFacade.compileCorrectFiles(KotlinCodegenFacade.java:44)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.kt:415)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules(KotlinToJVMBytecodeCompiler.kt:150)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:178)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:51)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:199)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.exec(CLICompiler.java:154)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execAndOutputXml(CLICompiler.java:73)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$remoteIncrementalCompile$1.invoke(CompileServiceImpl.kt:247)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$remoteIncrementalCompile$1.invoke(CompileServiceImpl.kt:70)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$1$1.invoke(CompileServiceImpl.kt:421)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$1$1.invoke(CompileServiceImpl.kt:70)
+	at org.jetbrains.kotlin.daemon.common.DummyProfiler.withMeasure(PerfUtils.kt:137)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.checkedCompile(CompileServiceImpl.kt:454)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.access$checkedCompile(CompileServiceImpl.kt:70)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$1.invoke(CompileServiceImpl.kt:420)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl$doCompile$1.invoke(CompileServiceImpl.kt:70)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.ifAlive(CompileServiceImpl.kt:565)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.ifAlive$default(CompileServiceImpl.kt:504)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.doCompile(CompileServiceImpl.kt:411)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.remoteIncrementalCompile(CompileServiceImpl.kt:244)
+	at sun.reflect.GeneratedMethodAccessor5.invoke(Unknown Source)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:324)
+	at sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:568)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:826)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:683)
+	at java.security.AccessController.doPrivileged(Native Method)
+	at sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:682)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1142)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:617)
+	at java.lang.Thread.run(Thread.java:745)
+Caused by: java.lang.AssertionError: Variance conflict: type parameter variance 'in' and projection kind 'out' cannot be combined
+	at org.jetbrains.kotlin.types.TypeSubstitutor.combine(TypeSubstitutor.java:275)
+	at org.jetbrains.kotlin.types.TypeSubstitutor.combine(TypeSubstitutor.java:267)
+	at org.jetbrains.kotlin.types.typesApproximation.CapturedTypeApproximationKt.toTypeArgument(CapturedTypeApproximation.kt:56)
+	at org.jetbrains.kotlin.types.typesApproximation.CapturedTypeApproximationKt.approximateCapturedTypes(CapturedTypeApproximation.kt:124)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.getOrCreateCallGenerator(ExpressionCodegen.java:2636)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.invokeMethodWithArguments(ExpressionCodegen.java:2534)
+	at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:44)
+	at org.jetbrains.kotlin.codegen.Callable$invokeMethodWithArguments$1.invoke(Callable.kt:23)
+	at org.jetbrains.kotlin.codegen.OperationStackValue.putSelector(StackValue.kt:65)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:109)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:102)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:324)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen$10.invoke(ExpressionCodegen.java:1962)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen$10.invoke(ExpressionCodegen.java:1946)
+	at org.jetbrains.kotlin.codegen.OperationStackValue.putSelector(StackValue.kt:65)
+	at org.jetbrains.kotlin.codegen.StackValueWithLeaveTask.putSelector(StackValue.kt:57)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:109)
+	at org.jetbrains.kotlin.codegen.StackValue.put(StackValue.java:102)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.gen(ExpressionCodegen.java:324)
+	at org.jetbrains.kotlin.codegen.ExpressionCodegen.returnExpression(ExpressionCodegen.java:2026)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$FunctionDefault.doGenerateBody(FunctionGenerationStrategy.java:50)
+	at org.jetbrains.kotlin.codegen.FunctionGenerationStrategy$CodegenBased.generateBody(FunctionGenerationStrategy.java:72)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethodBody(FunctionCodegen.java:381)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:216)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.generateMethod(FunctionCodegen.java:146)
+	at org.jetbrains.kotlin.codegen.FunctionCodegen.gen(FunctionCodegen.java:121)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.genFunctionOrProperty(MemberCodegen.java:182)
+	at org.jetbrains.kotlin.codegen.PackagePartCodegen.generateBody(PackagePartCodegen.java:94)
+	at org.jetbrains.kotlin.codegen.MemberCodegen.generate(MemberCodegen.java:119)
+	at org.jetbrains.kotlin.codegen.PackageCodegen.generateFile(PackageCodegen.java:117)
+	at org.jetbrains.kotlin.codegen.PackageCodegen.generate(PackageCodegen.java:61)
+	... 39 more
+```
+
+I think the problem comes from the fact that, in the `handle` function, the `other` value gets resolves to the type `Foo<out Any, out Any>` (thanks alt-equal on IDEA), which is impossible, because `I` in `foo` is contravariant, not covariant.
+
+I suppose it resolves the star as `out Any` because it's possible for the `O` argument, but it gets applied to I, which is not a good idea.
+Later, when used with `listOf`, the crash happens.
+
+When playing with this, I found two ways to circumvent this issue:
+
+# Cast the `foo` variable to `Bar<*, Any>`
+
+# Define `O` as covariant : `abstract class Foo<in I : Any, out O : Any>`
+
+I don't really understand why those two method work, but they do ;)
+
+The most painful thing about this issue is that it's a *compiler crash*: the IDEA does not report any error or warning, and worst: the crash does not includes any usable intel about what line is at fault (it took me several hours of search to find this).

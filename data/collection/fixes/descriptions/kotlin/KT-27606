@@ -1,0 +1,48 @@
+Enum class values are not automatically cast to their super interface, and/or the super interface is not inferred as the type.  If I manually cast them, the compiler warns "No Cast Needed"
+
+Might be related to KT-26043.  Something similar happens for a the sub classes of a sealed class implementing an interface.
+Example:
+
+```kotlin
+interface Test
+
+enum class TestImpl1: Test
+
+enum class TestImpl2: Test
+
+fun testFunc(thing: Map<Int, Test>) = ""
+
+fun otherFunc(test1: TestImpl1, test2: TestImpl2, vals: Map<Int, Boolean>) =
+    testFunc(vals.mapValues {
+        if(it.value)
+            test1
+        else
+            test2
+    })
+```
+
+This gives the error `Error:(12, 19) Kotlin: Type inference failed. Expected type mismatch: inferred type is Map<Int, Any> but Map<Int, Test> was expected`
+
+Adding a manual cast to one of the values forces the correct type, like so:
+
+```kotlin
+interface Test
+
+enum class TestImpl1: Test
+
+enum class TestImpl2: Test
+
+fun testFunc(thing: Map<Int, Test>) = ""
+
+fun otherFunc(test1: TestImpl1, test2: TestImpl2, vals: Map<Int, Boolean>) =
+    testFunc(vals.mapValues {
+        if(it.value)
+            test1
+        else
+            test2 as Test
+    })
+```
+
+However, the compiler then reports that the cast is not needed, and it will be removed by 'Cleanup' in InteliJ.
+
+Note that this works just fine with normal classes.

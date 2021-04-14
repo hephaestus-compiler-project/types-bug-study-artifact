@@ -1,0 +1,44 @@
+Example:
+
+```scala
+object example extends App {
+
+  class Resource[F[_], A]
+
+  object Resource {
+    def mkId[A]: Resource[Lambda[X => X], A] = new Resource[Lambda[X => X], A]
+
+    implicit class SyntaxUse[F[_], A](private val self: Resource[F, A]) {
+      def use[B](f: A => B): F[B] = ???
+    }
+  }
+
+  // 1. error
+  val r: Resource[Lambda[X => X], Int] = Resource.mkId[Int]
+  r.use(println(_))
+
+  // 2. error
+  new Resource.SyntaxUse(r).use(println(_))
+
+  // 3. fine
+  type Identity[X] = X
+  val rr: Resource[Identity, Int] = r
+  rr.use(println(_))
+}
+```
+
+This example produces errors for first and second application of `use`. The third use, with `Identity` type alias instead of `Lambda[X => X]` is fine though.
+```
+Error:(15, 5) value use is not a member of example.Resource[[X]X,Int]
+  r.use(println(_))
+Error:(18, 3) no type parameters for constructor SyntaxUse: (self: example.Resource[F,A])example.Resource.SyntaxUse[F,A] exist so that it can be applied to arguments (example.Resource[[X]X,Int])
+ --- because ---
+argument expression's type is not compatible with formal parameter type;
+ found   : example.Resource[[X]X,Int]
+ required: example.Resource[?0F,?0A]
+  new Resource.SyntaxUse(r).use(println(_))
+Error:(18, 26) type mismatch;
+ found   : example.Resource[[X]X,Int]
+ required: example.Resource[F,A]
+  new Resource.SyntaxUse(r).use(println(_))
+```

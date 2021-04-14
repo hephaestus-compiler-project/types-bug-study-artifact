@@ -1,0 +1,47 @@
+{code}
+class Z {
+    fun L.test(s: Int, p: Int) {
+
+    }
+}
+
+class L {
+    fun test() {
+
+    }
+
+    fun test(p: Int) {
+
+    }
+}
+
+fun main(args: Array<String>) {
+    val z: Z? = Z()
+
+    with(z) {
+        L().test(11, 12)
+    }
+}
+{code}
+Cause z is nullable Z.test extension is not applicable but it doesn't appear in diagnostic:
+
+Error:(30, 13) Kotlin: None of the following functions can be called with the arguments supplied: 
+internal final fun test(): kotlin.Unit defined in zzz.L
+internal final fun test(p: kotlin.Int): kotlin.Unit defined in zzz.L
+
+
+Note that in next case i get unsafe call error
+{code}
+fun Z.test(s: Int) {}
+
+class Z {
+    fun test(s: Int, p: Int) { }
+}
+
+fun main(args: Array<String>) {
+    val z: Z? = Z()
+    with(z) {
+        test(11) // Error:(24, 9) Kotlin: Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type zzz.Z?
+    }
+}
+{code}

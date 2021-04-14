@@ -1,0 +1,37 @@
+When scala script compiler/runner is invoked on an empty file,
+or on a file with lines of code commented out, it fails to create the Main class (entry point into the script application),
+but still decides to run the thing, so it promptly crashes.
+
+{code:title=Script.scala|borderStyle=solid}
+import sys.process._
+import java.io.File
+
+// "gzip" #< new File("Script.scala") #> new File("Script.scala.gz")!
+// "zip" #< new File("Script.scala") #> new File("Script.zip")!
+{code}
+
+{panel}
+C:\>scala Script.scala
+java.lang.ClassNotFoundException: Main (args = , classpath = ...)
+	at scala.tools.nsc.util.ScalaClassLoader$URLClassLoader.run(ScalaClassLoader.scala:103)
+	at scala.tools.nsc.ObjectRunner$.run(ObjectRunner.scala:33)
+	at scala.tools.nsc.ObjectRunner$.runAndCatch(ObjectRunner.scala:40)
+	at scala.tools.nsc.ScriptRunner.scala$tools$nsc$ScriptRunner$$runCompiled(ScriptRunner.scala:171)
+	at scala.tools.nsc.ScriptRunner$$anonfun$runScript$1.apply(ScriptRunner.scala:188)
+	at scala.tools.nsc.ScriptRunner$$anonfun$runScript$1.apply(ScriptRunner.scala:188)
+	at scala.tools.nsc.ScriptRunner$$anonfun$withCompiledScript$1.apply$mcZ$sp(ScriptRunner.scala:157)
+	at scala.tools.nsc.ScriptRunner$$anonfun$withCompiledScript$1.apply(ScriptRunner.scala:131)
+	at scala.tools.nsc.ScriptRunner$$anonfun$withCompiledScript$1.apply(ScriptRunner.scala:131)
+	at scala.tools.nsc.util.package$.waitingForThreads(package.scala:26)
+	at scala.tools.nsc.ScriptRunner.withCompiledScript(ScriptRunner.scala:130)
+	at scala.tools.nsc.ScriptRunner.runScript(ScriptRunner.scala:188)
+	at scala.tools.nsc.ScriptRunner.runScriptAndCatch(ScriptRunner.scala:201)
+	at scala.tools.nsc.MainGenericRunner.runTarget$1(MainGenericRunner.scala:58)
+	at scala.tools.nsc.MainGenericRunner.process(MainGenericRunner.scala:80)
+	at scala.tools.nsc.MainGenericRunner$.main(MainGenericRunner.scala:89)
+	at scala.tools.nsc.MainGenericRunner.main(MainGenericRunner.scala)
+{panel}
+
+This doesn't look like the proper way, the compiler should either
+- create an empty Main procedure and run it, providing a valid error level 0 output in case this script was chained somewhere 
+- output something like "Nothing to compile", etc....

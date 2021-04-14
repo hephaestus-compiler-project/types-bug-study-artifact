@@ -1,0 +1,33 @@
+## Minimized code
+
+```Scala
+trait Txn[T <: Txn[T]]
+
+trait Elem[T <: Txn[T]]
+
+sealed trait State[+T]
+final case class Done[T <: Txn[T]](elem: Elem[T]) extends State[T]
+case object Busy extends State[Nothing]
+
+trait Test[Out <: Txn[Out]] {
+  def apply(opt: Option[State[Out]]): Any = opt match {
+    case Some(state) =>
+      state match {
+        case Done(out)  => "foo"    // problem here
+        case Busy       => throw new IllegalStateException("Cyclic object graph")
+      }
+      
+    case None => "bar"
+  }
+}
+```
+
+## Output
+
+https://scastie.scala-lang.org/KKu1hRdCSMuZONlMT8afZw
+
+> error: Type argument `T$1` does not conform to upper bound `Txn[LazyRef(T$1)]`
+
+## Expectation
+
+Should work ( https://scastie.scala-lang.org/r1Z7nuR2SRKc6HssuxVLJQ )

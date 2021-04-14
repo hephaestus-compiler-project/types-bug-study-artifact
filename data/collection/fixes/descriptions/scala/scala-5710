@@ -1,0 +1,43 @@
+One during macro expansion, one in genicode.
+```scala
+object Test {
+  def main(args: Array[String]): Unit = {
+    // #1
+    scala.reflect.mirror.reify({ val (x, y) = ("abc": Any) match { case x => (x, x) } })
+    // ./a.scala:3: error: exception during macro expansion: 
+    // scala.MatchError: ("abc": Any) (of class scala.reflect.api.Trees$Typed)
+    //  at scala.reflect.reify.phases.Reshape$$anon$1.toPreTyperTypedOrAnnotated(Reshape.scala:157)
+    //  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:35)
+    //  at scala.reflect.api.Trees$Transformer.transform(Trees.scala:1502)
+    //  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:85)
+    //  at scala.reflect.api.Trees$Transformer.transform(Trees.scala:1534)
+    //  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:85)
+    //  at scala.reflect.api.Trees$Transformer$$anonfun$transform$4.apply(Trees.scala:1458)
+    //  at scala.reflect.api.Trees$Transformer$$anonfun$transform$4.apply(Trees.scala:1457)
+    
+    // #2
+    scala.reflect.mirror.reify({ val (x, y) = "abc" match { case x => (x, x) } })
+    // error: symbol value x$2 does not exist in Test.main
+    // error: 
+    //      while compiling:  ./a.scala
+    //        current phase:  icode
+    //      library version:  version 2.10.0-20120425-102722-4c1d2e9827
+    //     compiler version:  version 2.10.0-20120425-102722-4c1d2e9827
+    //   reconstructed args:  
+    // 
+    // uncaught exception during compilation: scala.reflect.internal.FatalError
+    // error: scala.reflect.internal.FatalError: 
+    //      while compiling:  ./a.scala
+    //        current phase:  icode
+    //      library version:  version 2.10.0-20120425-102722-4c1d2e9827
+    //     compiler version:  version 2.10.0-20120425-102722-4c1d2e9827
+    //   reconstructed args:  
+    // 
+    // symbol value x$2 does not exist in Test.main
+    //  at scala.reflect.internal.SymbolTable.abort(SymbolTable.scala:45)
+    //  at scala.tools.nsc.Global.abort(Global.scala:202)
+    //  at scala.tools.nsc.backend.icode.GenICode$ICodePhase.liftedTree2$1(GenICode.scala:998)
+    //  at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:992)
+  }
+}
+```

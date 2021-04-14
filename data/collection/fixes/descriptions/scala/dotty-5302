@@ -1,0 +1,21 @@
+Because these unreducible applications correspond to existential types which we do not handle, we normally disallow them:
+```scala
+scala> type L[X]
+
+scala> def foo(x: L[_]) = x
+1 |def foo(x: L[_]) = x
+  |           ^^^^
+  |     unreducible application of higher-kinded type L to wildcard arguments
+```
+
+But by calling a method with a dependent result type we can still end up with such a type, this is probably unsound:
+```scala
+scala> def bar(x: Int): List[L[x.type]] = Nil
+def bar(x: Int): List[L[x.type]]
+
+scala> bar(identity(1))                                                                                                                                                                                                                     
+val res0: List[L[_ <: Int]] = List()
+
+```
+
+This should be fixable by calling `Checking.checkAppliedType` on types and not just on AppliedTypeTree.

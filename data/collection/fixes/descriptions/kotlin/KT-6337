@@ -1,0 +1,28 @@
+Consider following synthetic code:{code:lang=kotlin}
+abstract class Store<T>
+
+abstract class Test<T> {
+    abstract fun store(): Store<T>
+}
+class TestImpl<T>(val obj: T) : Test<T>() {
+    inner class SimpleStore(val o: T) : Store<T>() {
+        fun get(): T = o
+    }
+
+    override fun store() = SimpleStore(obj)
+}
+
+fun getStore<T>(a: Test<T>) = a.store()
+
+fun test<T>
+        (obj: T): T {
+    return (getStore(TestImpl(obj)) as TestImpl.SimpleStore).get()
+}
+{code}
+Compilation will result in error and warning:
+{monospace}
+Error:(18, 12) Kotlin: Type mismatch: inferred type is T but T was expected
+Warning:(18, 37) Kotlin: This cast can never succeed
+{monospace}
+
+Note that just adding own generic type to SimpleStore (SimpleStore<T>) results in successful compilation

@@ -1,0 +1,7 @@
+This can only be reproduced with `kotlin.mpp.enableGranularSourceSetsMetadata=true`.
+The simplest way to reproduce this is to declare a `RuntimeException` subtype in a HMPP (`RuntimeException` is a type in `kotlin-stdlib`, which is a legacy-format library now).
+
+1. Define a dependsOn graph with at least two common source sets that are both published included into `main` compilations of multiple targets
+2. In one of the source sets, say, in `commonMain`, declare `class MyException : RuntimeException()`
+3. In the other source set `otherMain` that depends on `commonMain`, use `MyException` as an instance of its supertype. For example. add a statement: `throw MyException()`.
+4. The compilation of `otherMain`, namely the task `compileOtherMainKotlinMetadata` will fail with a type mismatch error on the usage of `MyException`

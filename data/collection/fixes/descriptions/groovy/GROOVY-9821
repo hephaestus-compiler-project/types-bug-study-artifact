@@ -1,0 +1,19 @@
+I have been unable to create a more minimal MCVE, but this is reproducible at will using the Spring Security libraries.
+
+The following method definition:
+
+{code:groovy}
+def authorities(Authentication auth) {
+    auth.authorities*.authority
+}
+{code}
+
+produces an error
+
+{code}
+No such property: authority for class: java.util.Collection <? extends org.springframework.security.core.GrantedAuthority>
+{code}
+
+It should be attempting to spread the property access onto the collection's element type, not the collection itself. Using {{*.getAuthority()}} works as expected. I could not replicate with an inline Groovy test case; the resolution works, but invoking against the {{Authentication}} class reliably produces the error. The error occurs in both {{@CompileStatic}} and {{@TypeChecked}}.
+
+Removing static type checking makes Eclipse correctly display the interface-based property.

@@ -1,0 +1,26 @@
+The following code emits an error in dotty but not scalac:
+```scala
+object A {
+  def foo: Int = 1
+}
+object B {
+  def foo: Int = 2
+}
+object C {
+  import A._
+  import B._
+
+  def foo: Int = 3
+
+  println(foo)
+}
+```
+```scala
+13 |  println(foo)
+   |          ^^^
+   |          reference to `foo` is ambiguous
+   |          it is both imported by import A._
+   |          and imported subsequently by import B._
+```
+
+This is of course incorrect, the reference is not ambiguous, it must be `C.foo`.

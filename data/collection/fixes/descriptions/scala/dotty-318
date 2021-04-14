@@ -1,0 +1,18 @@
+While looking for counterexamples to narrowing in DOT, I found this example:
+
+``` scala
+object subtypcycle {
+  trait Y {
+    type A <: { type T >: B }
+    type B >: { type T >: A }
+  }
+
+  val y: Y = ???
+  val a: y.A = ???
+  val b: y.B = a
+}
+```
+
+Which sends dotty into an infinite loop checking if `y.A <: y.B`.
+
+`scalac` has the same problem, see [SI-9056](https://issues.scala-lang.org/browse/SI-9056).

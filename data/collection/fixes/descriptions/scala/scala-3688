@@ -1,0 +1,54 @@
+*From scala-user*
+
+Only three of these statements will pass through scalac.
+
+```scala
+ import collection.mutable
+ import collection.JavaConversions._
+ import java.{util => ju}
+
+ (null: ju.Dictionary[Int, String]): mutable.Map[Int, String]
+ implicitly[ju.Dictionary[Int, String] => mutable.Map[Int, String]]
+ (null: mutable.Map[Int, String]):  ju.Dictionary[Int, String]
+ implicitly[mutable.Map[Int, String] => ju.Dictionary[Int, String]]
+```
+
+Which fails?
+
+```scala
+ ~/code/scratch/implicit-overload: scalac implicit-overload.scala
+implicit-overload.scala:11: error: could not find implicit value for parameter e: (java.util.Dictionary[Int,String]) => scala.collection.mutable.Map[Int,String]
+  implicitly[ju.Dictionary[Int, String] => mutable.Map[Int, String]]
+            ^
+one error found
+```
+
+Once again, with `-Xlog-implicits`
+
+```scala
+ ~/code/scratch/implicit-overload: scalac -Xlog-implicits implicit-overload.scala
+scala.this.Predef.conforms is not a valid implicit value for (scala.collection.mutable.Map[Int,String]) => java.util.Dictionary[Int,String] because:
+type mismatch;
+ found : <:<[scala.collection.mutable.Map[Int,String],scala.collection.mutable.Map[Int,String]]
+ required: (scala.collection.mutable.Map[Int,String]) => java.util.Dictionary[Int,String]
+scala.this.collection.JavaConversions.asMap is not a valid implicit value for (java.util.Dictionary[Int,String]) => scala.collection.mutable.Map[Int,String] because:
+type mismatch;
+ found : [A,B](p: java.util.Dictionary[A,B])scala.collection.mutable.Map[A,B] <and> [A,B](m: java.util.Map[A,B])scala.collection.mutable.Map[A,B] <and> [A,B](m: scala.collection.Map[A,B])java.util.Map[A,B] <and> (p: java.util.Properties)scala.collection.mutable.Map[String,String] <and> [A,B](m: scala.collection.mutable.Map[A,B])java.util.Map[A,B]
+ required: (java.util.Dictionary[Int,String]) => scala.collection.mutable.Map[Int,String]
+scala.this.Predef.conforms is not a valid implicit value for (java.util.Dictionary[Int,String]) => scala.collection.mutable.Map[Int,String] because:
+type mismatch;
+ found : <:<[java.util.Dictionary[Int,String],java.util.Dictionary[Int,String]]
+ required: (java.util.Dictionary[Int,String]) => scala.collection.mutable.Map[Int,String]
+implicit-overload.scala:11: error: could not find implicit value for parameter e: (java.util.Dictionary[Int,String]) => scala.collection.mutable.Map[Int,String]
+  implicitly[ju.Dictionary[Int, String] => mutable.Map[Int, String]]
+            ^
+one error found
+```
+
+Responses could vary between:
+ * ignore the problem
+ * choose unique names for implicit defs in `JavaConversions`, with appropriate backwards compatibility rigmarole.
+ * instate such a naming convention for implicit conversion methods across the standard library.
+ * update implicit search to effectively generate fresh names for all overloaded implicit methods during implicit search.
+
+For now I'll assign to the Standard Library.

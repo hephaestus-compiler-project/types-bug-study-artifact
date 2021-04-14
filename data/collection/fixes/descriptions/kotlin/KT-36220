@@ -1,0 +1,24 @@
+In the following example `KotlinType` is inferred from the `parse { … }` call's return type.
+
+Because `KotlinType` is inferred from `parse` the code in `serialize { … }` should work just fine but yields a warning instead on the `it`.
+`KotlinType` cannot be inferred from `serialize` **alone** because it's used as an argument type. 
+
+If I specify `KotlinType` explicitly like `defineType<Int>` then `<Int>` then an inspection tells me that it's not needed and can be removed.
+
+Either the warning or the inspection are likely incorrect here.
+
+```kotlin
+class TypeDefinition<KotlinType : Any> {
+    fun parse(parser: (serializedValue: String) -> KotlinType?): Unit = TODO()
+    fun serialize(parser: (value: KotlinType) -> Any?): Unit = TODO()
+}
+
+fun <KotlinType : Any> defineType(@BuilderInference definition: TypeDefinition<KotlinType>.() -> Unit): Unit = TODO()
+
+fun main() {
+    defineType {
+        parse { it.toInt() }
+        serialize { it.toString() } // Non-applicable call for builder inference
+    }
+}
+```

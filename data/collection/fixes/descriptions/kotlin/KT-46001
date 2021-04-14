@@ -1,0 +1,25 @@
+Reproduced on this file in Dokka when trying to build it with 1.5.0 or current master: https://github.com/Kotlin/dokka/blob/c20d1170254d2251d868dd114c599020d42dbb72/core/src/main/kotlin/model/WithChildren.kt
+
+Here's a minimized test:
+
+```
+interface WithChildren<out T>
+
+fun <T : WithChildren<*>> WithChildren<WithChildren<*>>.test() {
+    withDescendants()
+}
+
+fun <T : WithChildren<T>> T.withDescendants() {}
+
+@JvmName("foo")
+fun WithChildren<*>.withDescendants() {}
+```
+
+1.4.30, 1.5.0-M2: compiles fine.
+
+1.5.0-RC-640 or current master, **even with language version 1.4**:
+```
+1.kt:4:5: error: type mismatch: inferred type is WithChildren<*> but WithChildren<WithChildren<*>> was expected
+    withDescendants()
+    ^
+```

@@ -1,0 +1,102 @@
+Try to compile following codes. 
+
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+
+public class Issue {
+    public static void main(String[] args) {
+        System.out.println(new Issue().getList().get());
+    }
+
+    Supplier<TT> getList() {
+        return () -> Stream.of(1).map(TT::new).findFirst().get();
+    }
+
+    class TT {
+        public TT(int i) {
+
+        }
+    }
+}
+////////////////////////////////////
+import java.util.function.Function;
+import java.util.stream.Stream;
+
+public class Issue {
+    public static void main(String[] args) {
+        System.out.println(new Issue().map().apply(1));
+    }
+
+    Function<Integer,TT> map() {
+        return (i) -> Stream.of(i).map(TT::new).findFirst().get();
+    }
+
+    class TT {
+        public TT(int i) {
+
+        }
+    }
+}
+
+//////////////////////////////////////////
+java.lang.NullPointerException
+        at com.sun.tools.javac.jvm.Code.emitop0(Code.java:563)
+        at com.sun.tools.javac.jvm.Items$SelfItem.load(Items.java:367)
+        at com.sun.tools.javac.jvm.Gen.genArgs(Gen.java:966)
+        at com.sun.tools.javac.jvm.Gen.visitApply(Gen.java:1905)
+        at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1459)
+        at com.sun.tools.javac.jvm.Gen.genExpr(Gen.java:947)
+        at com.sun.tools.javac.jvm.Gen.genArgs(Gen.java:966)
+        at com.sun.tools.javac.jvm.Gen.visitApply(Gen.java:1905)
+        at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1459)
+        at com.sun.tools.javac.jvm.Gen.genExpr(Gen.java:947)
+        at com.sun.tools.javac.jvm.Gen.visitSelect(Gen.java:2404)
+        at com.sun.tools.javac.tree.JCTree$JCFieldAccess.accept(JCTree.java:1891)
+        at com.sun.tools.javac.jvm.Gen.genExpr(Gen.java:947)
+        at com.sun.tools.javac.jvm.Gen.visitApply(Gen.java:1900)
+        at com.sun.tools.javac.tree.JCTree$JCMethodInvocation.accept(JCTree.java:1459)
+        at com.sun.tools.javac.jvm.Gen.genExpr(Gen.java:947)
+        at com.sun.tools.javac.jvm.Gen.visitTypeCast(Gen.java:2327)
+        at com.sun.tools.javac.tree.JCTree$JCTypeCast.accept(JCTree.java:1808)
+        at com.sun.tools.javac.jvm.Gen.genExpr(Gen.java:947)
+        at com.sun.tools.javac.jvm.Gen.visitReturn(Gen.java:1863)
+        at com.sun.tools.javac.tree.JCTree$JCReturn.accept(JCTree.java:1378)
+        at com.sun.tools.javac.jvm.Gen.genDef(Gen.java:737)
+        at com.sun.tools.javac.jvm.Gen.genStat(Gen.java:772)
+        at com.sun.tools.javac.jvm.Gen.genStat(Gen.java:758)
+        at com.sun.tools.javac.jvm.Gen.genStats(Gen.java:809)
+        at com.sun.tools.javac.jvm.Gen.visitBlock(Gen.java:1158)
+        at com.sun.tools.javac.tree.JCTree$JCBlock.accept(JCTree.java:903)
+        at com.sun.tools.javac.jvm.Gen.genDef(Gen.java:737)
+        at com.sun.tools.javac.jvm.Gen.genStat(Gen.java:772)
+        at com.sun.tools.javac.jvm.Gen.genMethod(Gen.java:1031)
+        at com.sun.tools.javac.jvm.Gen.visitMethodDef(Gen.java:994)
+        at com.sun.tools.javac.tree.JCTree$JCMethodDecl.accept(JCTree.java:772)
+        at com.sun.tools.javac.jvm.Gen.genDef(Gen.java:737)
+        at com.sun.tools.javac.jvm.Gen.genClass(Gen.java:2526)
+        at com.sun.tools.javac.main.JavaCompiler.genCode(JavaCompiler.java:748)
+        at com.sun.tools.javac.main.JavaCompiler.generate(JavaCompiler.java:1570)
+        at com.sun.tools.javac.main.JavaCompiler.generate(JavaCompiler.java:1534)
+        at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:904)
+        at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:863)
+        at com.sun.tools.javac.main.Main.compile(Main.java:523)
+        at com.sun.tools.javac.main.Main.compile(Main.java:381)
+        at com.sun.tools.javac.main.Main.compile(Main.java:370)
+        at com.sun.tools.javac.main.Main.compile(Main.java:361)
+        at com.sun.tools.javac.Main.compile(Main.java:56)
+        at com.sun.tools.javac.Main.main(Main.java:42)
+
+Exception in thread "main" java.lang.VerifyError: Bad type on operand stack
+Exception Details:
+  Location:
+    Issue.lambda$map$0(Ljava/lang/Integer;)LIssue$TT; @5: invokedynamic
+  Reason:
+    Type 'java/lang/Integer' (current frame, stack[1]) is not assignable to 'Issue'
+  Current Frame:
+    bci: @5
+    flags: { }
+    locals: { 'java/lang/Integer' }
+    stack: { 'java/util/stream/Stream', 'java/lang/Integer' }
+  Bytecode:
+    0000000: 2ab8 000a 2aba 000b 0000 b900 0c02 00b9
+    0000010: 000d 0100 b600 0ec0 000f b0            

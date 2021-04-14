@@ -1,0 +1,65 @@
+It appears that unions cannot propagate up through multiple branching statements for type inference, as reproduced in the code below.
+
+The {monospace}invalid{monospace} companion function results in a compile error (included as a comment). The {monospace}value{monospace} function moves the return statement into each branch of the top-level if, simplifying the expressions; this version compiles despite no meaningful change to the typing.
+
+I believe the failure on the FTT/FTF branch is because "{monospace}if (?) FTT() else FTF(){monospace}" types as a union of Repro and Feature, while all other branches type only as Repro (only one branch of each is Feature). The typing is handled correctly when propagating through two conditionals in the working version of the function, but the union appears to be converted to an Any when propagating through three conditionals.
+
+{code:lang=kotlin}
+interface Feature
+
+abstract class Repro {
+
+    class TTT : Repro()
+    class TTF : Repro(), Feature
+    class TFT : Repro(), Feature
+    class TFF : Repro()
+    class FTT : Repro(), Feature
+    class FTF : Repro(), Feature
+    class FFT : Repro(), Feature
+    class FFF : Repro()
+
+    companion object {
+        fun invalid(arg1: Boolean, arg2: Boolean, arg3: Boolean): Repro {
+            return if (arg1) {
+                if (arg2) {
+                    if (arg3) TTT() else TTF()
+                }
+                else {
+                    if (arg3) TFT() else TFF()
+                }
+            }
+            else {
+                if (arg2) {
+                    // ERROR: Kotlin: Type mismatch: inferred type is Any but Repro was expected
+                    if (arg3) FTT() else FTF()
+                }
+                else {
+                    if (arg3) FFT() else FFF()
+                }
+            }
+        }
+
+        // with the returns pushed one level down, the type inference is correct
+        fun valid(arg1: Boolean, arg2: Boolean, arg3: Boolean): Repro {
+            if (arg1) {
+                return if (arg2) {
+                    if (arg3) TTT() else TTF()
+                }
+                else {
+                    if (arg3) TFT() else TFF()
+                }
+            }
+            else {
+                return if (arg2) {
+                    if (arg3) FTT() else FTF()
+                }
+                else {
+                    if (arg3) FFT() else FFF()
+                }
+            }
+        }
+    }
+}
+
+{code}
+

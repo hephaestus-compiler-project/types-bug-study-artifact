@@ -1,0 +1,201 @@
+```scala
+import scala.reflect.runtime.universe._
+import scala.tools.reflect.Eval
+
+object Test extends App {
+  reify {
+    case class Person(name: String, age: Int)
+
+    /** An AddressBook takes a variable number of arguments
+     *  which are accessed as a Sequence
+     */
+    class AddressBook(a: Person*) {
+      private val people: List[Person] = a.toList
+
+      /** Serialize to XHTML. Scala supports XML literals
+       *  which may contain Scala expressions between braces,
+       *  which are replaced by their evaluation
+       */
+      def toXHTML =
+        <table cellpadding="2" cellspacing="0">
+          <tr>
+            <th>Name</th>
+            <th>Age</th>
+          </tr>
+          { for (p <- people) yield
+              <tr>
+                <td> { p.name } </td>
+                <td> { p.age.toString() } </td>
+              </tr>
+          }
+        </table>;
+    }
+
+    /** We introduce CSS using raw strings (between triple
+     *  quotes). Raw strings may contain newlines and special
+     *  characters (like \) are not interpreted.
+     */
+    val header =
+      <head>
+        <title>
+          { "My Address Book" }
+        </title>
+        <style type="text/css"> {
+       """table { border-right: 1px solid #cccccc; }
+          th { background-color: #cccccc; }
+          td { border-left: 1px solid #acacac; }
+          td { border-bottom: 1px solid #acacac;"""}
+        </style>
+      </head>;
+
+    val people = new AddressBook(
+      Person("Tom", 20),
+      Person("Bob", 22),
+      Person("James", 19));
+
+    val page =
+      <html>
+        { header }
+        <body>
+         { people.toXHTML }
+        </body>
+      </html>;
+
+    println(page)
+  }.eval
+}
+```
+
+```scala
+reify_addressbook.scala:5: error: exception during macro expansion: 
+scala.MatchError: ({
+  val $buf: scala.xml.NodeBuffer = new scala.xml.NodeBuffer();
+  $buf.&+(new scala.xml.Text("\n          "));
+  $buf.&+({
+    {
+      new scala.xml.Elem(null, "tr", scala.xml.Null, scala.this.Predef.$scope, false, ({
+        val $buf: scala.xml.NodeBuffer = new scala.xml.NodeBuffer();
+        $buf.&+(new scala.xml.Text("\n            "));
+        $buf.&+({
+          {
+            new scala.xml.Elem(null, "th", scala.xml.Null, scala.this.Predef.$scope, false, ({
+              val $buf: scala.xml.NodeBuffer = new scala.xml.NodeBuffer();
+              $buf.&+(new scala.xml.Text("Name"));
+              $buf
+            }: _*))
+          }
+        });
+        $buf.&+(new scala.xml.Text("\n            "));
+        $buf.&+({
+          {
+            new scala.xml.Elem(null, "th", scala.xml.Null, scala.this.Predef.$scope, false, ({
+              val $buf: scala.xml.NodeBuffer = new scala.xml.NodeBuffer();
+              $buf.&+(new scala.xml.Text("Age"));
+              $buf
+            }: _*))
+          }
+        });
+        $buf.&+(new scala.xml.Text("\n          "));
+        $buf
+      }: _*))
+    }
+  });
+  $buf.&+(new scala.xml.Text("\n          "));
+  $buf.&+(AddressBook.this.people.map[scala.xml.Elem, Any](((p: Person) => {
+    {
+      new scala.xml.Elem(null, "tr", scala.xml.Null, scala.this.Predef.$scope, false, ({
+        val $buf: scala.xml.NodeBuffer = new scala.xml.NodeBuffer();
+        $buf.&+(new scala.xml.Text("\n                "));
+        $buf.&+({
+          {
+            new scala.xml.Elem(null, "td", scala.xml.Null, scala.this.Predef.$scope, false, ({
+              val $buf: scala.xml.NodeBuffer = new scala.xml.NodeBuffer();
+              $buf.&+(new scala.xml.Text(" "));
+              $buf.&+(p.name);
+              $buf.&+(new scala.xml.Text(" "));
+              $buf
+            }: _*))
+          }
+        });
+        $buf.&+(new scala.xml.Text("\n                "));
+        $buf.&+({
+          {
+            new scala.xml.Elem(null, "td", scala.xml.Null, scala.this.Predef.$scope, false, ({
+              val $buf: scala.xml.NodeBuffer = new scala.xml.NodeBuffer();
+              $buf.&+(new scala.xml.Text(" "));
+              $buf.&+(p.age.toString());
+              $buf.&+(new scala.xml.Text(" "));
+              $buf
+            }: _*))
+          }
+        });
+        $buf.&+(new scala.xml.Text("\n              "));
+        $buf
+      }: _*))
+    }
+  }))(immutable.this.List.canBuildFrom[scala.xml.Elem]));
+  $buf.&+(new scala.xml.Text("\n        "));
+  $buf
+}: _*) (of class scala.reflect.internal.Trees$Typed)
+  at scala.reflect.reify.phases.Reshape$$anon$1.toPreTyperTypedOrAnnotated(Reshape.scala:195)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:38)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:24)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:868)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transformTrees$1.apply(Trees.scala:868)
+  at scala.collection.immutable.List.loop$1(List.scala:163)
+  at scala.collection.immutable.List.mapConserve(List.scala:179)
+  at scala.reflect.api.Trees$Transformer.transformTrees(Trees.scala:868)
+  at scala.reflect.api.Trees$Transformer.transform(Trees.scala:832)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:91)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:24)
+  at scala.reflect.api.Trees$Transformer.transform(Trees.scala:794)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:91)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:24)
+  at scala.reflect.api.Trees$Transformer.transform(Trees.scala:794)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:91)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:24)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transform$5.apply(Trees.scala:780)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transform$5.apply(Trees.scala:778)
+  at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:893)
+  at scala.reflect.api.Trees$Transformer.transform(Trees.scala:777)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:91)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:24)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$2.apply(Trees.scala:886)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$2.apply(Trees.scala:884)
+  at scala.collection.immutable.List.loop$1(List.scala:163)
+  at scala.collection.immutable.List.mapConserve(List.scala:179)
+  at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:884)
+  at scala.reflect.api.Trees$Transformer.transform(Trees.scala:792)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:91)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:24)
+  at scala.reflect.api.Trees$Transformer.transformTemplate(Trees.scala:870)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transform$2.apply(Trees.scala:764)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transform$2.apply(Trees.scala:763)
+  at scala.reflect.api.Trees$Transformer.atOwner(Trees.scala:893)
+  at scala.reflect.api.Trees$Transformer.transform(Trees.scala:762)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:91)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:24)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$2.apply(Trees.scala:886)
+  at scala.reflect.api.Trees$Transformer$$anonfun$transformStats$2.apply(Trees.scala:884)
+  at scala.collection.immutable.List.loop$1(List.scala:163)
+  at scala.collection.immutable.List.mapConserve(List.scala:179)
+  at scala.reflect.api.Trees$Transformer.transformStats(Trees.scala:884)
+  at scala.reflect.api.Trees$Transformer.transform(Trees.scala:794)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:91)
+  at scala.reflect.reify.phases.Reshape$$anon$1.transform(Reshape.scala:24)
+  at scala.reflect.reify.Phases$$anonfun$mkReificationPipeline$1.apply(Phases.scala:26)
+  at scala.reflect.reify.Phases$$anonfun$mkReificationPipeline$1.apply(Phases.scala:16)
+  at scala.reflect.reify.Reifier.liftedTree1$1(Reifier.scala:69)
+  at scala.reflect.reify.Reifier.reification(Reifier.scala:54)
+  at scala.reflect.reify.package$.reifyTree(package.scala:38)
+  at scala.reflect.makro.runtime.Reifiers$class.reifyTree(Reifiers.scala:22)
+  at scala.reflect.makro.runtime.Context.reifyTree(Context.scala:6)
+  at scala.reflect.reify.Taggers$$anonfun$1.apply(Taggers.scala:78)
+  at scala.reflect.reify.Taggers$$anonfun$1.apply(Taggers.scala:78)
+  at scala.reflect.reify.Taggers.translatingReificationErrors(Taggers.scala:84)
+  at scala.reflect.reify.Taggers.materializeExpr(Taggers.scala:78)
+
+  reify {
+        ^
+one error found
+```

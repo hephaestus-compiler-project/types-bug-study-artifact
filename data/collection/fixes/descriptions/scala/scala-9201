@@ -1,0 +1,39 @@
+```scala
+// Mu.scala
+import scala.language.higherKinds
+final case class Mu[F[_]](value: F[Mu[F]]) extends AnyVal
+final case class ExprF[T](arg: T)
+object Expr {
+  def apply(arg: Mu[ExprF]) = Mu(ExprF(arg))
+}
+```
+
+Gives:
+
+```
+error: java.lang.StackOverflowError
+        at scala.tools.nsc.transform.Erasure.scala$tools$nsc$transform$Erasure$$isTypeParameterInSig(Erasure.scala:81)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1.scala$tools$nsc$transform$Erasure$$anonfun$$jsig$1(Erasure.scala:298)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1.scala$tools$nsc$transform$Erasure$$anonfun$$boxedSig$1(Erasure.scala:234)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1.scala$tools$nsc$transform$Erasure$$anonfun$$argSig$1(Erasure.scala:272)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1$$anonfun$classSig$1$1.apply(Erasure.scala:286)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1$$anonfun$classSig$1$1.apply(Erasure.scala:286)
+        at scala.collection.immutable.List.map(List.scala:273)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1.classSig$1(Erasure.scala:286)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1.scala$tools$nsc$transform$Erasure$$anonfun$$jsig$1(Erasure.scala:327)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1.scala$tools$nsc$transform$Erasure$$anonfun$$jsig$1(Erasure.scala:323)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1.scala$tools$nsc$transform$Erasure$$anonfun$$boxedSig$1(Erasure.scala:234)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1.scala$tools$nsc$transform$Erasure$$anonfun$$argSig$1(Erasure.scala:272)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1$$anonfun$classSig$1$1.apply(Erasure.scala:286)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1$$anonfun$classSig$1$1.apply(Erasure.scala:286)
+        at scala.collection.immutable.List.map(List.scala:273)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1.classSig$1(Erasure.scala:286)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1.scala$tools$nsc$transform$Erasure$$anonfun$$jsig$1(Erasure.scala:327)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1.scala$tools$nsc$transform$Erasure$$anonfun$$jsig$1(Erasure.scala:323)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1.scala$tools$nsc$transform$Erasure$$anonfun$$boxedSig$1(Erasure.scala:234)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1.scala$tools$nsc$transform$Erasure$$anonfun$$argSig$1(Erasure.scala:272)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1$$anonfun$classSig$1$1.apply(Erasure.scala:286)
+        at scala.tools.nsc.transform.Erasure$$anonfun$javaSig$1$$anonfun$classSig$1$1.apply(Erasure.scala:286)
+        at scala.collection.immutable.List.map(List.scala:273)
+```
+It compiles without "extends AnyVal".

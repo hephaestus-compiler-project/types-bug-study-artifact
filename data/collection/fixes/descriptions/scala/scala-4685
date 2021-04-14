@@ -1,0 +1,23 @@
+When trying to access a private constructor with more than one parameter the compiler crashes.
+Can be reproduced with:
+
+// file: Crash.scala
+class Foo private (i: Int, j:Int)
+
+class Bar {
+  val c = new Foo(1, 2)
+}
+// end file
+
+$ scalac Crash.scala
+error: java.lang.Error: Unexpected New
+        at scala.tools.nsc.symtab.SymbolTable.abort(SymbolTable.scala:35)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:725)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1226)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1224)
+        at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:111)
+        at scala.collection.immutable.List.foldLeft(List.scala:45)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadArguments(GenICode.scala:1224)
+
+$ scalac -version
+Scala compiler version 2.9.0.1 -- Copyright 2002-2011, LAMP/EPFL

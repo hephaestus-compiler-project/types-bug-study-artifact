@@ -1,0 +1,69 @@
+{code}
+package compile
+
+import groovy.transform.TypeChecked
+
+interface Mapper<F, T> {
+    T to(F from)
+}
+
+@TypeChecked
+class Main {
+    static void main(String[] args) {
+        Mapper<String, Integer> mapper = new Mapper<String, Integer>() { //        Mapper<String, Integer> mapper = new Mapper<>() {
+            Integer to(String from) {
+                17
+            }
+        };
+    }
+}
+{code}
+Results in:
+
+{code}
+$ ~/Apps/groovy/bin/groovyc -e compile/Mapper.groovy 
+null
+>>> stacktrace:
+java.lang.NullPointerException
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.inferDiamondType(StaticTypeCheckingVisitor.java:456)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitBinaryExpression(StaticTypeCheckingVisitor.java:394)
+        at org.codehaus.groovy.ast.CodeVisitorSupport.visitDeclarationExpression(CodeVisitorSupport.java:245)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitDeclarationExpression(ClassCodeVisitorSupport.java:107)
+        at org.codehaus.groovy.ast.expr.DeclarationExpression.visit(DeclarationExpression.java:87)
+        at org.codehaus.groovy.ast.CodeVisitorSupport.visitExpressionStatement(CodeVisitorSupport.java:69)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitExpressionStatement(ClassCodeVisitorSupport.java:195)
+        at org.codehaus.groovy.ast.stmt.ExpressionStatement.visit(ExpressionStatement.java:40)
+        at org.codehaus.groovy.ast.CodeVisitorSupport.visitBlockStatement(CodeVisitorSupport.java:35)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitBlockStatement(ClassCodeVisitorSupport.java:165)
+        at org.codehaus.groovy.ast.stmt.BlockStatement.visit(BlockStatement.java:69)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitClassCodeContainer(ClassCodeVisitorSupport.java:101)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitConstructorOrMethod(ClassCodeVisitorSupport.java:112)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitConstructorOrMethod(StaticTypeCheckingVisitor.java:1051)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitMethod(ClassCodeVisitorSupport.java:123)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.startMethodInference(StaticTypeCheckingVisitor.java:1252)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitMethod(StaticTypeCheckingVisitor.java:1226)
+        at org.codehaus.groovy.ast.ClassNode.visitContents(ClassNode.java:1056)
+        at org.codehaus.groovy.ast.ClassCodeVisitorSupport.visitClass(ClassCodeVisitorSupport.java:50)
+        at org.codehaus.groovy.transform.stc.StaticTypeCheckingVisitor.visitClass(StaticTypeCheckingVisitor.java:216)
+        at org.codehaus.groovy.transform.StaticTypesTransformation.visit(StaticTypesTransformation.java:70)
+        at org.codehaus.groovy.transform.ASTTransformationVisitor.visitClass(ASTTransformationVisitor.java:132)
+        at org.codehaus.groovy.transform.ASTTransformationVisitor$2.call(ASTTransformationVisitor.java:176)
+        at org.codehaus.groovy.control.CompilationUnit.applyToPrimaryClassNodes(CompilationUnit.java:1024)
+        at org.codehaus.groovy.control.CompilationUnit.doPhaseOperation(CompilationUnit.java:562)
+        at org.codehaus.groovy.control.CompilationUnit.processPhaseOperations(CompilationUnit.java:540)
+        at org.codehaus.groovy.control.CompilationUnit.compile(CompilationUnit.java:517)
+        at org.codehaus.groovy.control.CompilationUnit.compile(CompilationUnit.java:496)
+        at org.codehaus.groovy.tools.FileSystemCompiler.compile(FileSystemCompiler.java:57)
+        at org.codehaus.groovy.tools.FileSystemCompiler.doCompilation(FileSystemCompiler.java:213)
+        at org.codehaus.groovy.tools.FileSystemCompiler.commandLineCompile(FileSystemCompiler.java:146)
+        at org.codehaus.groovy.tools.FileSystemCompiler.commandLineCompileWithErrorHandling(FileSystemCompiler.java:176)
+        at org.codehaus.groovy.tools.FileSystemCompiler.main(FileSystemCompiler.java:160)
+        at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
+        at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.lang.reflect.Method.invoke(Method.java:601)
+        at org.codehaus.groovy.tools.GroovyStarter.rootLoader(GroovyStarter.java:106)
+        at org.codehaus.groovy.tools.GroovyStarter.main(GroovyStarter.java:128)
+{code}
+
+It doesn't matter if I explicitly specify the parameters during creation, or whether I let the diamong operator kick in. Without @TypeChecked, it works fine. I am not sure whether the problem happens only with anonymous inner classes or is more general.

@@ -1,0 +1,33 @@
+## Minimized code
+
+```Scala
+// compiles fine
+object Main extends App {
+  trait SubtypeOf[A[_], B[_]]
+  implicit def instance[F[_], G[a] >: F[a]]: SubtypeOf[F, G] = new SubtypeOf[F, G] {}
+
+  implicitly[SubtypeOf[List, Seq]]
+}
+
+// won't compile on dotty, but compiles fine on scala 2.13.3
+object Main2 extends App {
+  trait SubtypeOf[A[_], B[_]]
+  implicit def instance[G[_], F[a] <: G[a]]: SubtypeOf[F, G] = new SubtypeOf[F, G] {}
+
+  implicitly[SubtypeOf[List, Seq]]
+}
+```
+
+## Output
+
+```scala
+no implicit argument of type Main.SubtypeOf[List, Seq] was found for parameter ev of method implicitly in object DottyPredef.
+I found:
+
+    Main.instance[Nothing, Nothing]
+
+But method instance in object Main does not match type Main.SubtypeOf[List, Seq].
+```
+
+## Expectation
+Implicit resolution works in both cases.

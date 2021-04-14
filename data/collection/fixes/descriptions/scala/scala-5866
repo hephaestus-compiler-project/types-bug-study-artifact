@@ -1,0 +1,73 @@
+```scala
+case class Foo(d: Double) extends AnyVal
+null.asInstanceOf[Foo]
+```
+
+```scala
+java.lang.NullPointerException
+	at .<init>(<console>:10)
+	at .<clinit>(<console>)
+	at .<init>(<console>:7)
+	at .<clinit>(<console>)
+	at $print(<console>)
+```
+
+This behavior is problematic because code in the standard library relies on the fact that casting null to a type returns the "default" value of this type (as specified in §4.2):
+
+```scala
+grep -r "null.asInstanceOf" *
+compiler/scala/tools/nsc/interpreter/AbstractOrMissingHandler.scala:  def apply[T]() = new AbstractOrMissingHandler[T](Console println _, null.asInstanceOf[T])
+compiler/scala/tools/nsc/typechecker/SyntheticMethods.scala:    def readConstantValue[T](name: String, default: T = null.asInstanceOf[T]): T = {
+compiler/scala/tools/nsc/transform/SpecializeTypes.scala:   *        super.this(null.asInstanceOf[Int], null.asInstanceOf[Int])
+continuations/library/scala/util/continuations/package.scala:    new ControlContext((f:A=>B,g:Exception=>B) => fun(f), null.asInstanceOf[A])
+continuations/library/scala/util/continuations/ControlContext.scala:      new ControlContext((k:(A1 => B)) => fun((x:A) => k(f(x))), null.asInstanceOf[A1])
+continuations/library/scala/util/continuations/ControlContext.scala:          new ControlContext((k: A1 => B, thr: Exception => B) => thr(ex).asInstanceOf[C], null.asInstanceOf[A1])
+continuations/library/scala/util/continuations/ControlContext.scala:      }, null.asInstanceOf[A1])
+continuations/library/scala/util/continuations/ControlContext.scala:          new ControlContext((k: A1 => B1, thr: Exception => B1) => thr(ex).asInstanceOf[C], null.asInstanceOf[A1])
+continuations/library/scala/util/continuations/ControlContext.scala:      }, null.asInstanceOf[A1])
+continuations/library/scala/util/continuations/ControlContext.scala:      new ControlContext(fun1, null.asInstanceOf[A1])
+continuations/library/scala/util/continuations/ControlContext.scala:          new ControlContext((k: A => B, thr: Exception => B) => thr(ex).asInstanceOf[C], null.asInstanceOf[A])
+continuations/library/scala/util/continuations/ControlContext.scala:      new ControlContext(fun1, null.asInstanceOf[A])
+library/scala/collection/convert/Wrappers.scala:        case None => null.asInstanceOf[B]
+library/scala/collection/convert/Wrappers.scala:      case ex: ClassCastException => null.asInstanceOf[B]
+library/scala/collection/convert/Wrappers.scala:      case None => null.asInstanceOf[B]
+library/scala/collection/convert/Wrappers.scala:        case None => null.asInstanceOf[B]
+library/scala/collection/convert/Wrappers.scala:      case ex: ClassCastException => null.asInstanceOf[B]
+library/scala/collection/convert/Wrappers.scala:        Some(null.asInstanceOf[B])
+library/scala/collection/convert/Wrappers.scala:    override def empty: Repr = null.asInstanceOf[Repr]
+library/scala/collection/convert/Wrappers.scala:      case None => null.asInstanceOf[B]
+library/scala/collection/convert/Wrappers.scala:      case None => null.asInstanceOf[B]
+library/scala/collection/convert/Wrappers.scala:      case None => null.asInstanceOf[B]
+library/scala/collection/convert/Wrappers.scala:      case None => null.asInstanceOf[B]
+library/scala/collection/convert/Wrappers.scala:        case None => null.asInstanceOf[B]
+library/scala/collection/convert/Wrappers.scala:      case ex: ClassCastException => null.asInstanceOf[B]
+library/scala/collection/convert/Wrappers.scala:      case None => null.asInstanceOf[B]
+library/scala/collection/convert/Wrappers.scala:        case None => null.asInstanceOf[B]
+library/scala/collection/convert/Wrappers.scala:      case ex: ClassCastException => null.asInstanceOf[B]
+library/scala/collection/concurrent/TrieMap.scala:    removehc(k, null.asInstanceOf[V], hc)
+library/scala/collection/parallel/ParIterableLike.scala:    @volatile var result: R = null.asInstanceOf[R]
+library/scala/collection/parallel/ParIterableLike.scala:    @volatile var result: R = null.asInstanceOf[R]
+library/scala/collection/parallel/ParIterableLike.scala:    @volatile var result: R1 = null.asInstanceOf[R1]
+library/scala/collection/parallel/ParIterableLike.scala:    @volatile var result: U = null.asInstanceOf[U]
+library/scala/collection/parallel/ParIterableLike.scala:    @volatile var result: S = null.asInstanceOf[S]
+library/scala/collection/parallel/ParIterableLike.scala:    @volatile var result: U = null.asInstanceOf[U]
+library/scala/collection/parallel/ParIterableLike.scala:    @volatile var result: U = null.asInstanceOf[U]
+library/scala/collection/mutable/UnrolledBuffer.scala:        array(idx) = null.asInstanceOf[T] // TODO find a way to assign a default here!!
+library/scala/collection/TraversableViewLike.scala:      var result: B = null.asInstanceOf[B]
+library/scala/concurrent/default/TaskImpl.scala.disabled:      var res: T = null.asInstanceOf[T]
+library/scala/concurrent/impl/ExecutionContextImpl.scala:        var result: T = null.asInstanceOf[T]
+library/scala/sys/PropImpl.scala:  protected def zero: T = null.asInstanceOf[T]
+swing/scala/swing/ComboBox.scala:      private var selected: A = if (items.isEmpty) null.asInstanceOf[A] else items(0)
+```
+
+See also the spec clarifications decided in the second part of #4437 (which I tried to reflect in the spec https://github.com/soc/scala-dist/commit/39337a8e620ea59830fc89a323b17b6ce9917975#L2L4039 ):
+
+```scala
+Outdated spec: asInstanceOf[T] returns the null object itself if T conforms to scala.AnyRef, and throws a NullPointerException otherwise.
+
+Proposed update: asInstanceOf[T] returns the default value of that type, as specified in 4.2.
+```
+
+(4.2 probably needs some update in the line of "the default value of a value class is an instance of the value class with the default value of its enclosing member".
+
+Casting from null should be made to behave like existing AnyVal and AnyRef classes, so that NPE won't happen in surprising special cases.

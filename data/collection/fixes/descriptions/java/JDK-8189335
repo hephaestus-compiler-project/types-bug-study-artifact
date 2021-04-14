@@ -1,0 +1,90 @@
+FULL PRODUCT VERSION :
+java version "1.8.0_144"
+Java(TM) SE Runtime Environment (build 1.8.0_144-b01)
+Java HotSpot(TM) 64-Bit Server VM (build 25.144-b01, mixed mode)
+
+java version "9"
+Java(TM) SE Runtime Environment (build 9+181)
+Java HotSpot(TM) 64-Bit Server VM (build 9+181, mixed mode)
+
+
+ADDITIONAL OS VERSION INFORMATION :
+macOS Sierra v10.12.6
+Microsoft Windows [Version 10.0.10240]
+
+A DESCRIPTION OF THE PROBLEM :
+Compiling the sample program below causes javac to terminate with a NullPointerException.  It appears to be problem caused by an interaction between a private inner class and a normal class with the same name composed of the containing class name and '$1'.  This happens at least on Windows and macOS, and happens with Java 8 and Java 9, but does not happen in Java 7 (and possibly earlier versions).
+
+
+REGRESSION.  Last worked in version 7u80
+
+ADDITIONAL REGRESSION INFORMATION: 
+java version "1.7.0_80"
+Java(TM) SE Runtime Environment (build 1.7.0_80-b15)
+Java HotSpot(TM) 64-Bit Server VM (build 24.80-b11, mixed mode)
+
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+javac R.java
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Successful compilation.
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+Java 8:
+An exception has occurred in the compiler (1.8.0_144). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.NullPointerException
+	at com.sun.tools.javac.comp.Lower.makeEmptyClass(Lower.java:658)
+	at com.sun.tools.javac.comp.Lower.checkAccessConstructorTags(Lower.java:786)
+	at com.sun.tools.javac.comp.Lower.translateTopLevelClass(Lower.java:3938)
+	at com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1512)
+	at com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1356)
+	at com.sun.tools.javac.main.JavaCompiler.compile2(JavaCompiler.java:901)
+	at com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:860)
+	at com.sun.tools.javac.main.Main.compile(Main.java:523)
+	at com.sun.tools.javac.main.Main.compile(Main.java:381)
+	at com.sun.tools.javac.main.Main.compile(Main.java:370)
+	at com.sun.tools.javac.main.Main.compile(Main.java:361)
+	at com.sun.tools.javac.Main.compile(Main.java:56)
+	at com.sun.tools.javac.Main.main(Main.java:42)
+
+Java 9:
+An exception has occurred in the compiler (9). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program and the following diagnostic in your report. Thank you.
+java.lang.NullPointerException
+	at jdk.compiler/com.sun.tools.javac.comp.Lower.makeEmptyClass(Lower.java:660)
+	at jdk.compiler/com.sun.tools.javac.comp.Lower.checkAccessConstructorTags(Lower.java:788)
+	at jdk.compiler/com.sun.tools.javac.comp.Lower.translateTopLevelClass(Lower.java:3926)
+	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1565)
+	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.desugar(JavaCompiler.java:1418)
+	at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:959)
+	at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:302)
+	at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:162)
+	at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:57)
+	at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:43)
+
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+// R.java
+package test;
+class R {
+    private class R$1 {}
+    void f() {
+        new R$1();
+    }
+}
+class R$1 {}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+Changing the inner class to be non-private causes the compile to succeed.
+Changing the class names from R$1 to R$2 causes the compile to succeed.
+Changing the class names from R$1 to V$1 causes the compile to succeed.
+Removing either R$1 class definition cause the compile to succeed.
+
+Avoiding use of '$' in class names, although perhaps this construction is hard to avoid in certain cases when generating code.
+

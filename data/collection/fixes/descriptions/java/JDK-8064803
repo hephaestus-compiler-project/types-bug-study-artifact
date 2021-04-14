@@ -1,0 +1,78 @@
+Test includes 3 interfaces, 1 implementation and 1 test class. 
+public interface ParentA<T> {
+    T process() throws Exception;
+}
+public interface ParentB<T> {
+    T process() throws Exception;
+}
+public interface Child<T> extends ParentA<T>, ParentB<T> {
+   // everything works fine when this line is uncommented 
+   // T process() throws Exception;
+}
+public class ChildImpl<T> implements Child<T> {
+    @Override
+    public T process() {
+        return null;
+    }
+}
+public class Test {
+    public static void main(String[] args) throws Exception {
+        Child<String> child = new ChildImpl<String>();
+        String result = child.process();
+        System.err.println(result);
+    }
+}
+1 - When I compile these with javac 8 and run the main method in Test class, it fails with the following exception:
+Exception in thread "main" java.lang.NoSuchMethodError: Child.process()Ljava/lang/String;
+at Test.main(Test.java:5)
+2 - When I uncomment overriding method definition in `Child` interface, then it works fine.
+public interface Child<T> extends ParentA<T>, ParentB<T> {
+   T process() throws Exception;
+}
+3 - When I remove `throws Exception` declaration from `process` method, then it works fine again.
+Then I looked at the disassembled bytecode of the Test.class and saw in Java 6 and 7 versions there is an additional `checkcast` instruction after `Child.process()` method call. See;
+- With Java8: 
+public class Test {
+  public Test();
+    Code:
+       0: aload_0
+       1: invokespecial #1                  // Method java/lang/Object."<init>":()V
+       4: return
+  public static void main(java.lang.String[]) throws java.lang.Exception;
+    Code:
+       0: new           #2                  // class ChildImpl
+       3: dup
+       4: invokespecial #3                  // Method ChildImpl."<init>":()V
+       7: astore_1
+       8: aload_1
+       9: invokeinterface #4,  1            // InterfaceMethod Child.process:()Ljava/lang/String;
+      14: astore_2
+      15: getstatic     #5                  // Field java/lang/System.err:Ljava/io/PrintStream;
+      18: aload_2
+      19: invokevirtual #6                  // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+      22: return
+}
+- With Java7:
+Compiled from "Test.java"
+public class Test {
+  public Test();
+    Code:
+       0: aload_0
+       1: invokespecial #1                  // Method java/lang/Object."<init>":()V
+       4: return
+  public static void main(java.lang.String[]) throws java.lang.Exception;
+    Code:
+       0: new           #2                  // class ChildImpl
+       3: dup
+       4: invokespecial #3                  // Method ChildImpl."<init>":()V
+       7: astore_1
+       8: aload_1
+       9: invokeinterface #4,  1            // InterfaceMethod Child.process:()Ljava/lang/Object;
+      14: checkcast     #5                  // class java/lang/String
+      17: astore_2
+      18: getstatic     #6                  // Field java/lang/System.err:Ljava/io/PrintStream;
+      21: aload_2
+      22: invokevirtual #7                  // Method java/io/PrintStream.println:(Ljava/lang/String;)V
+      25: return
+}
+Javac 8 is expecting to call a method with return type of String (InterfaceMethod Child.process:()Ljava/lang/String), but on Java 7 version is expecting a method with return type of Object (InterfaceMethod Child.process:()Ljava/lang/Object) which is expected because of type-erasure then it's checking type of returning value with `checkcast` instruction.

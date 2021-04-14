@@ -1,0 +1,75 @@
+The repro:
+```
+// FILE: Bar.java
+
+public class Bar<K, N> { }
+
+// FILE: Foo.java
+
+public class Foo<P> extends Bar<Integer,Integer> {
+  public static final Bar bar = null;
+}
+
+// FILE: main.kt
+
+fun <P> takeFoo(foo: Foo<P>) {}
+
+fun main() {
+  val bar = Foo.bar
+  if (bar !is Foo<*>) return
+  takeFoo(bar)
+}
+```
+```stacktrace
+Caused by: java.lang.AssertionError: Number of arguments should not be less than number of parameters, but: parameters=2, args=1
+	at org.jetbrains.kotlin.types.IndexedParametersSubstitution.<init>(TypeSubstitution.kt:90)
+	at org.jetbrains.kotlin.types.IndexedParametersSubstitution.<init>(TypeSubstitution.kt:87)
+	at org.jetbrains.kotlin.types.IndexedParametersSubstitution.<init>(TypeSubstitution.kt:97)
+	at org.jetbrains.kotlin.types.TypeConstructorSubstitution$Companion.create(TypeSubstitution.kt:79)
+	at org.jetbrains.kotlin.types.KotlinTypeFactory.computeMemberScope(KotlinTypeFactory.kt:54)
+	at org.jetbrains.kotlin.types.KotlinTypeFactory.simpleType(KotlinTypeFactory.kt:85)
+	at org.jetbrains.kotlin.types.KotlinTypeFactory.simpleType$default(KotlinTypeFactory.kt:77)
+	at org.jetbrains.kotlin.types.checker.NewCapturedTypeKt.replaceArguments(NewCapturedType.kt:104)
+	at org.jetbrains.kotlin.types.checker.NewCapturedTypeKt.access$replaceArguments(NewCapturedType.kt:1)
+	at org.jetbrains.kotlin.types.checker.NewCapturedTypeKt$captureFromExpression$1.invoke(NewCapturedType.kt:60)
+	at org.jetbrains.kotlin.types.checker.NewCapturedTypeKt.captureFromExpression(NewCapturedType.kt:67)
+	at org.jetbrains.kotlin.types.checker.NewCapturedTypeKt.prepareArgumentTypeRegardingCaptureTypes(NewCapturedType.kt:34)
+	at org.jetbrains.kotlin.resolve.calls.components.ArgumentsUtilsKt.getStableType(ArgumentsUtils.kt:83)
+	at org.jetbrains.kotlin.resolve.calls.components.SuspendTypeConversions.conversionDefinitelyNotNeeded(SuspendConversionUtils.kt:23)
+	at org.jetbrains.kotlin.resolve.calls.components.TypeConversions.performConversionBeforeSubtyping(typeConversions.kt:112)
+	at org.jetbrains.kotlin.resolve.calls.components.TypeConversions.performCompositeConversionBeforeSubtyping(typeConversions.kt:42)
+	at org.jetbrains.kotlin.resolve.calls.components.ResolutionPartsKt.resolveKotlinArgument(ResolutionParts.kt:499)
+	at org.jetbrains.kotlin.resolve.calls.components.ResolutionPartsKt.access$resolveKotlinArgument(ResolutionParts.kt:1)
+	at org.jetbrains.kotlin.resolve.calls.components.CheckArgumentsInParenthesis.process(ResolutionParts.kt:677)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.processPart(ResolutionCandidate.kt:148)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.processPart$default(ResolutionCandidate.kt:144)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.processParts(ResolutionCandidate.kt:135)
+	at org.jetbrains.kotlin.resolve.calls.model.KotlinResolutionCandidate.isSuccessful(ResolutionCandidate.kt:162)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$SuccessfulResultCollector.pushCandidates(TowerResolver.kt:363)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.processTowerData(TowerResolver.kt:293)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.access$processTowerData(TowerResolver.kt:80)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.process(TowerResolver.kt:161)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.process(TowerResolver.kt:170)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.access$process(TowerResolver.kt:101)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task$run$5.invoke(TowerResolver.kt:202)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver$Task.run(TowerResolver.kt:209)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.run(TowerResolver.kt:99)
+	at org.jetbrains.kotlin.resolve.calls.tower.TowerResolver.runResolve(TowerResolver.kt:86)
+	at org.jetbrains.kotlin.resolve.calls.KotlinCallResolver.resolveCall(KotlinCallResolver.kt:75)
+	at org.jetbrains.kotlin.resolve.calls.tower.PSICallResolver.runResolutionAndInference(PSICallResolver.kt:102)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.doResolveCallOrGetCachedResults(CallResolver.java:599)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.lambda$computeTasksAndResolveCall$0(CallResolver.java:213)
+	at org.jetbrains.kotlin.util.PerformanceCounter.time(PerformanceCounter.kt:101)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:211)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.computeTasksAndResolveCall(CallResolver.java:199)
+	at org.jetbrains.kotlin.resolve.calls.CallResolver.resolveFunctionCall(CallResolver.java:327)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getResolvedCallForFunction(CallExpressionResolver.kt:98)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfoWithoutFinalTypeCheck(CallExpressionResolver.kt:220)
+	at org.jetbrains.kotlin.resolve.calls.CallExpressionResolver.getCallExpressionTypeInfo(CallExpressionResolver.kt:197)
+	at org.jetbrains.kotlin.types.expressions.BasicExpressionTypingVisitor.visitCallExpression(BasicExpressionTypingVisitor.java:700)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.visitCallExpression(ExpressionTypingVisitorDispatcher.java:388)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher$ForBlock.visitCallExpression(ExpressionTypingVisitorDispatcher.java:59)
+	at org.jetbrains.kotlin.psi.KtCallExpression.accept(KtCallExpression.java:35)
+	at org.jetbrains.kotlin.types.expressions.ExpressionTypingVisitorDispatcher.lambda$getTypeInfo$0(ExpressionTypingVisitorDispatcher.java:175)
+	... 72 more
+```

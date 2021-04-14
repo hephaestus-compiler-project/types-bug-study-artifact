@@ -1,0 +1,109 @@
+Compiling the following code:
+
+```scala
+package valueClass.classes {
+
+  trait A extends Any {
+    def a: A
+  }
+
+  private[classes] trait B extends Any with A {
+    def b: B
+    def a = b
+  }
+
+  case class C( val value: Int ) extends AnyVal with B {
+    def b = this
+  }
+
+}
+
+package valueClass.test {
+  import valueClass.classes._
+
+  object Test {
+    C( 1 ).a
+  }
+}
+```
+
+results in
+
+```
+error: should have been unboxed by erasure: new valueClass.classes.C(1).$asInstanceOf[Int]()
+error: scala.reflect.internal.FatalError:
+  should have been unboxed by erasure: new valueClass.classes.C(1).$asInstanceOf[Int]()
+     while compiling: Test.scala
+        during phase: icode
+     library version: version 2.11.0
+    compiler version: version 2.11.0
+  reconstructed args:
+
+  last tree to typer: Ident(value)
+       tree position: line 12 of Test.scala
+            tree tpe: Int
+              symbol: value value
+   symbol definition: value: Int (a TermSymbol)
+      symbol package: valueClass.classes
+       symbol owners: value value -> constructor C -> class C
+           call site: constructor Test in object Test in package test
+
+== Source file context for tree position ==
+
+     9   }
+    10
+    11   case class C( val value: Int ) extends AnyVal with B {
+    12     def b = this
+    13   }
+    14
+    15 }
+        at scala.reflect.internal.SymbolTable.abort(SymbolTable.scala:58)
+        at scala.tools.nsc.Global.abort(Global.scala:269)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadApply1$1(GenICode.scala:627)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:636)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1131)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genLoadArguments$1.apply(GenICode.scala:1129)
+        at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:110)
+        at scala.collection.immutable.List.foldLeft(List.scala:83)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadArguments(GenICode.scala:1129)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadApply3$1(GenICode.scala:695)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:705)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadQualifier(GenICode.scala:1090)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.genLoadApply6$1(GenICode.scala:775)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:807)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genStat(GenICode.scala:179)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genStat$1.apply(GenICode.scala:153)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase$$anonfun$genStat$1.apply(GenICode.scala:153)
+        at scala.collection.LinearSeqOptimized$class.foldLeft(LinearSeqOptimized.scala:110)
+        at scala.collection.immutable.List.foldLeft(List.scala:83)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.scala$tools$nsc$backend$icode$GenICode$ICodePhase$$genLoad(GenICode.scala:913)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:121)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:69)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:146)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:96)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:69)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:87)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:69)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:87)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.gen(GenICode.scala:65)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.apply(GenICode.scala:61)
+        at scala.tools.nsc.Global$GlobalPhase.applyPhase(Global.scala:430)
+        at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:397)
+        at scala.tools.nsc.Global$GlobalPhase$$anonfun$run$1.apply(Global.scala:397)
+        at scala.collection.Iterator$class.foreach(Iterator.scala:743)
+        at scala.collection.AbstractIterator.foreach(Iterator.scala:1174)
+        at scala.tools.nsc.Global$GlobalPhase.run(Global.scala:397)
+        at scala.tools.nsc.backend.icode.GenICode$ICodePhase.run(GenICode.scala:53)
+        at scala.tools.nsc.Global$Run.compileUnitsInternal(Global.scala:1625)
+        at scala.tools.nsc.Global$Run.compileUnits(Global.scala:1610)
+        at scala.tools.nsc.Global$Run.compileSources(Global.scala:1605)
+        at scala.tools.nsc.Global$Run.compile(Global.scala:1703)
+        at scala.tools.nsc.Driver.doCompile(Driver.scala:34)
+        at scala.tools.nsc.MainClass.doCompile(Main.scala:23)
+        at scala.tools.nsc.Driver.process(Driver.scala:55)
+        at scala.tools.nsc.Driver.main(Driver.scala:68)
+        at scala.tools.nsc.Main.main(Main.scala)
+```
+
+The cause seems to be the combination of the reduced scope of B and the usage of a value class.
+Removing either `private[classes]` or `extends AnyVal` works.

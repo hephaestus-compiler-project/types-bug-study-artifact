@@ -1,0 +1,36 @@
+Here's a simple example where an implicit conversion fails to run.  The problem is related to adding support for new types to the standard arithmetic operators on a Double (although it's all operators on all primitive types afaik).  I'm working on improving the operator code in scalala http://code.google.com/p/scalala/ and this bug is really biting me.
+
+```scala
+object ImplicitBadness {
+  class Op[I];
+  class IntOp extends Op[Int];
+
+  class Rich(x : Double) {
+    def +       (op : IntOp) = op;
+    def +    [I](op : Op[I]) = op;
+    def plus [I](op : Op[I]) = op;
+  }
+
+  implicit def iToRich(x : Double) =
+    new Rich(x);
+
+  // fails to compile
+  val failure = 1.0 + new Op[Int];
+
+  // works as expected --
+  //   problem isn't in adding new "+"
+  val a = 1.0 + new IntOp;
+
+  // works as expected --
+  //   problem isn't in binding type variable I
+  val b = 1.0 plus new Op[Int];
+
+  // works as expected --
+  //   problem isn't in using Rich.+[I](op : Op[I])
+  val c = iToRich(1.0) + new Op[Int];
+}
+```
+
+This bug applies to at least 2.7.4 and scala-2.8.0.r18030-b20090615020147
+
+This might be related to https://lampsvn.epfl.ch/trac/scala/ticket/2046 but it doesn't seem like a dup to me on a first read.

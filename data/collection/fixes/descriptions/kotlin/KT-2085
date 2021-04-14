@@ -1,0 +1,36 @@
+In fact the case even more narrow than it's described in summary. One of constraints should also refer to itself. See code bellow:
+
+{code}
+import java.util.Map
+
+trait Trait {
+    fun <A, B> foo1() where A : Cloneable, B: Comparable<B>;
+    fun <A> foo2() where A : Cloneable, A : Appendable
+    fun <B> foo3() where B: Comparable<B>;
+    fun <B> foo4() where B: Cloneable
+
+    fun <B> foo() where B: Cloneable, B: Comparable<B>;
+}
+
+class TraitImpl: Trait {
+    override fun <A, B> foo1() where A : Cloneable, B: Comparable<B> { // Ok
+        throw UnsupportedOperationException()
+    }
+
+    override fun <A> foo2() where A : Cloneable, A : Appendable { // Ok
+        throw UnsupportedOperationException()
+    }
+
+    override fun <B> foo3() where B: Comparable<B> { // Ok
+        throw UnsupportedOperationException()
+    }
+
+    override fun <B> foo4() where B: Cloneable { // Ok
+        throw UnsupportedOperationException()
+    }
+
+    override fun <B> foo() where B: Cloneable, B: Comparable<B> { // ERROR: foo overrides nothing
+        throw UnsupportedOperationException()
+    }
+}
+{code}

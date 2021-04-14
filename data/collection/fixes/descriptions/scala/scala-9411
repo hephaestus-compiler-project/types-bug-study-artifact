@@ -1,0 +1,67 @@
+In following snippet:
+
+```scala
+object OhNoes {
+
+  sealed trait F
+  sealed abstract class FA extends F
+  sealed abstract class FB extends F
+
+  case object FA1 extends FA
+  case object FB1 extends FB
+  case object FB2 extends FB
+
+  sealed trait G
+  case object G1 extends G
+  case object G2 extends G
+
+  sealed trait H
+  case class H1(a: FB, b: G) extends H
+  case class H2(a: F)        extends H
+
+  val demo: H => Unit = {
+    case H1(FB1, G1) =>
+    case H1(FB2, G2) =>
+    case H2(_: FB) =>
+    case H2(_: FA) =>
+    case H1(FB1, G2) =>
+    case H1(FB2, G1) =>
+  }
+}
+```
+
+the naughty little compiler lies and reports:
+
+```
+[warn] /tmp/ah/demo.scala:23: unreachable code
+[warn]     case H2(_: FA) =>
+```
+
+Very interestingly, H1 and H2 both having a parameter with the same name seems to be pertinent. If you rename H2's "a" to "b" you get a different (incorrect) warning:
+
+```
+[warn] It would fail on the following input: H2(_)
+[warn]   val demo: H => Unit = {
+```
+
+Renaming H2's "a" to "x" the warnings disappear.
+
+Finally, rearranging the order of cases produces different, incorrect warnings, likely related to #9399 and #9398. Example:
+
+```scala
+  val demo2: H => Unit = {
+    case H2(_: FA) =>
+    case H2(_: FB) =>
+    case H1(FB1, G1) =>
+    case H1(FB2, G1) =>
+    case H1(FB1, G2) =>
+    case H1(FB2, G2) =>
+  }
+```
+
+produces
+
+```
+[warn] It would fail on the following inputs: H1(_, G1), H1(_, G2)
+[warn]   val demo2: H => Unit = {
+```

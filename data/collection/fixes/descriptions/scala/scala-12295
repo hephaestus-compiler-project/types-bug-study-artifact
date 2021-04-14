@@ -1,0 +1,77 @@
+## reproduction steps
+
+Using Scala 2.x (e.g. 2.11, 2.12, .2.13), not reproducible on Dotty M3.
+Compile the following snippet:
+```scala
+object App {
+
+  def main(xs: Array[String]) = ()
+  
+  def err[F[_]]: Unit = {
+
+    sealed trait Foo[+A] // sealed or not doesn't matter
+    case class ImplA[A](a: A) extends Foo[A]
+    case class ImplAny[A](a: Any) extends Foo[A]
+
+    trait Bar[+G[_]] // must be covariant 
+
+    val x: Foo[Foo[Bar[F]]] = ???
+
+    x match {
+      case ImplAny(ImplAny(_)) => ??? // ok
+      case ImplAny(ImplA(_))   => ??? // ok
+      case ImplA(_)            => ??? // ok
+      case ImplAny(_)          => ??? // ok
+      case _                   => ???
+    }
+
+    x match {
+
+      // error during expansion of this match (this is a scalac bug).
+      case ImplA(ImplA(_)) => ???
+
+      // error during expansion of this match (this is a scalac bug).
+      case ImplA(ImplAny(_)) => ???
+
+      // error during expansion of this match (this is a scalac bug).
+      case ImplA(y) => y.toString
+
+      // error during expansion of this match (this is a scalac bug).
+      case ImplA(y) =>
+        y match {
+          case ImplA(_) => ???
+          case _        => ???
+        }
+
+      // can't existentially abstract over parameterized type, ok
+      // case ImplA(y) => y
+      case _ => ???
+    }
+    ()
+  }
+}
+```
+Demo at https://scastie.scala-lang.org/tom91136/BSpEJgLrT7iKs6ofm6JAdw 
+
+## problem
+
+On Scala 2.x, the compiler reports something like:
+```
+error during expansion of this match (this is a scalac bug).
+The underlying error was: type mismatch;
+ found   : Foo[Bar[?F5]] where type ?F5 <: F (this is a GADT skolem)
+ required: Foo[Bar[F]]
+```
+This occurs for all variants of the pattern as shown in the snippet.
+Code compiles fine on Dotty M3.
+
+The bug was discovered while attempting something loosely like the following which isn't even all that uncommon (!?):
+```scala
+sealed trait DecodeResult[+A] // something from circe/sttp
+class Stream[+F[_], A] // something from fs2
+val x : DecodeResult[Either[String, Stream[F, String]]] = ???
+x match {
+  case Success(Right(x)) => // touch x and it explodes
+  ...
+}
+```

@@ -1,0 +1,47 @@
+### Expected behavior
+Mapper function name shouldn't influence
+### Actual behavior
+If I map Mono, and then map it again it works as soon as mapper functions name is the same. Please check example below.
+### Steps to reproduce
+```
+import reactor.core.publisher.Mono
+
+class Example<A> {
+
+    fun example1(input: Mono<API1<A>>): Mono<API1<A>> {
+        return input.map(::map1).map(::map2) // error here - but if names are same it is ok
+    }
+
+    fun example2(input: Mono<API1<A>>): Mono<API1<A>> {
+        return input.map(::map1).map(::map1)
+    }
+
+   fun example3(input: Mono<API1<A>>): Mono<API1<A>> {
+        return input.map(::map1).map(this<A>::map2) // explisit type is also fine
+    }
+}
+
+fun <A> map1(input: API1<A>): API2<A> {
+    return API2(input.b)
+}
+
+fun <A> map1(input: API2<A>): API1<A> { // has the same signature as fun map2
+    return API1(input.b)
+}
+
+fun <A> map2(input: API2<A>): API1<A> {
+    return API1(input.b)
+}
+
+data class API1<B>(val b: B)
+data class API2<B>(val b: B)
+```
+
+### Reactor Core version
+3.1.8.RELEASE
+### JVM version (e.g. `java -version`)
+java version "1.8.0_161"
+Java(TM) SE Runtime Environment (build 1.8.0_161-b12)
+Java HotSpot(TM) 64-Bit Server VM (build 25.161-b12, mixed mode)
+kotlinVersion = "1.2.50"
+springBootVersion = "2.0.3.RELEASE"

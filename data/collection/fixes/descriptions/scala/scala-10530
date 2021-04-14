@@ -1,0 +1,32 @@
+Either of these
+```scala
+class X(val u: Any with X) extends AnyVal
+class X(val u: X with X) extends AnyVal
+class X(val u: X with String) extends AnyVal
+class X(val u: X with Int) extends AnyVal
+```
+
+kill 2.12.3 REPL with
+
+```scala
+java.lang.StackOverflowError
+	at scala.reflect.internal.transform.Erasure.valueClassIsParametric(Erasure.scala:97)
+	at scala.reflect.internal.transform.Erasure.valueClassIsParametric$(Erasure.scala:95)
+	at scala.tools.nsc.transform.Erasure.valueClassIsParametric(Erasure.scala:15)
+	at scala.reflect.internal.transform.Erasure.erasedValueClassArg(Erasure.scala:83)
+	at scala.reflect.internal.transform.Erasure.erasedValueClassArg$(Erasure.scala:80)
+	at scala.tools.nsc.transform.Erasure.erasedValueClassArg(Erasure.scala:15)
+	at scala.reflect.internal.transform.Erasure$ErasureMap.eraseDerivedValueClassRef(Erasure.scala:112)
+...
+```
+
+
+If we put `AnyRef` first, the error message is not very helpful either (`case` modifier is important in this case):
+```scala
+scala>  case class X(val u: AnyRef with X) extends AnyVal
+<console>:11: error: bridge generated for member method apply: (u: X)X in object X
+which overrides method apply: (v1: T1)R in trait Function1
+clashes with definition of the member itself;
+both have erased type (v1: Object)Object
+        case class X(val u: AnyRef with X) extends AnyVal
+```

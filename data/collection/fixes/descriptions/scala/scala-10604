@@ -1,0 +1,43 @@
+I'm observing a stackoverflow in typechecker with ScalaIDE 4.7.0 when using scalac 2.12.3 or 2.12.4, which is not present with scala 2.12.2. The stackoverflow does not happen when I'm compiling from the command line using maven. 
+I saw a lot of variation of the problem (`call site initialization exception` and `java.lang.UnsupportedOperationException: Position.point on NoPosition`) but these other problem seems to be consequences of the stackoverflow. 
+
+Of course I tried to set a bigger Xss, but it does not change anything (even with 256m), and the fact that the maven compilation works or that it works on 2.12.2 with normal Xss tends to let me think that it is a genuine bug. 
+
+I don't have at all a minimal reproducer, and the stacktraces are not very telling, but the problem happen with an open source project: https://github.com/Normation/rudder/ (on branch master). 
+
+It may or not may be related to Daniel "infinite macro expansion in scala 2.12.3/2.12.4" https://github.com/scala/bug/issues/10584 or perhaps both have same root cause (rudder-core uses doobie and so macro expansion).
+
+Nonetheless, here are the SOE and other exception I saw: 
+
+```
+2017-10-26 18:33:47,710 ERROR [main] - org.scala-ide.sdt.core - org.scala-ide.sdt.core - org.scala-ide.sdt.core - 0 - Error in Scala compiler
+java.lang.StackOverflowError
+    at scala.tools.nsc.typechecker.Contexts$Context.make(Contexts.scala:463)
+    at scala.tools.nsc.typechecker.Contexts$Context.makeNewScope(Contexts.scala:516)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedOutsidePatternMode$1(Typers.scala:5511)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedInAnyMode$1(Typers.scala:5546)
+    at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5553)
+    at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5589)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedInternal(Typers.scala:5619)
+    at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5563)
+    at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5567)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedQualifier(Typers.scala:5670)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedQualifier(Typers.scala:5676)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedSelectOrSuperCall$1(Typers.scala:4999)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedInAnyMode$1(Typers.scala:5537)
+    at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5553)
+    at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5589)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedInternal(Typers.scala:5619)
+    at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5563)
+    at scala.tools.nsc.typechecker.Typers$Typer.typed(Typers.scala:5567)
+    at scala.tools.nsc.typechecker.Typers$Typer.$anonfun$typed1$38(Typers.scala:4697)
+    at scala.tools.nsc.typechecker.Typers$Typer.silent(Typers.scala:699)
+    at scala.tools.nsc.typechecker.Typers$Typer.normalTypedApply$1(Typers.scala:4699)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedApply$1(Typers.scala:4746)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedInAnyMode$1(Typers.scala:5536)
+    at scala.tools.nsc.typechecker.Typers$Typer.typed1(Typers.scala:5553)
+    at scala.tools.nsc.typechecker.Typers$Typer.runTyper$1(Typers.scala:5589)
+    at scala.tools.nsc.typechecker.Typers$Typer.typedInternal(Typers.scala:5619)
+    at scala.tools.nsc.typechecker.Typers$Typer.body$2(Typers.scala:5563)
+   .... and on and on...
+```

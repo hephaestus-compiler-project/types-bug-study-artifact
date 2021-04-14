@@ -1,0 +1,23 @@
+(Version 2.8) The implicit LowPriorityImplicits.wrapString and the various LowPriorityImplicits.wrapXXXArray methods, when given a null parameter, will return invalid WrappedArray(null) and WrappedString(null) objects which have undefined behaviour, and typically cause NullPointerExceptions at a later point in time.  
+
+Suggested modifications:
+
+1) LowPriorityImplicits.wrapString and LowPriorityImplicits.wrapXXXArray methods return null if given null
+
+2) WrappedString and WrappedArray classes immediately fail if initialised with null, eg 
+```scala
+assume(array != null) // In WrappedArray class body
+assume(self != null) // In WrappedString class body
+
+// In LowPriorityImplicits:
+implicit def wrapRefArray[T <: AnyRef](xs: Array[T]): WrappedArray[T] = if (xs != null) new WrappedArray.ofRef[T](xs) else null
+// And so forth for the other wrapXXXArray() methods
+
+implicit def wrapString(s: String): WrappedString = if (xs != null) new WrappedString(s) else null
+implicit def unwrapString(ws: WrappedString): String = if (ws != null) ws.self else null
+```
+
+Discussed on Scala User threads:
+[http://old.nabble.com/Scala-null-and-implicit-conversion-%28bug-%29-td27546874.html#a27546874]
+and
+[http://old.nabble.com/nulls-and-WrappedArray-td27637395.html]

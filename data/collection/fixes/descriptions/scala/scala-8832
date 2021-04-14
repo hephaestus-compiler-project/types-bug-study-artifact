@@ -1,0 +1,43 @@
+Desugared:
+```
+$ scalac sample-anyval-bug.scala
+sample-anyval-bug.scala:8: error: object creation impossible, since:
+it has 2 unimplemented members.
+/** As seen from anonymous class $anon, the missing signatures are as follows.
+ *  For convenience, these are usable as stub implementations.
+ */
+  // Members declared in scala.Function1
+  def apply(v1: T): T = ???
+
+  // Members declared in scala.PartialFunction
+  def isDefinedAt(x: T): Boolean = ???
+
+      seq.collect(new PartialFunction[T, T] {
+                      ^
+sample-anyval-bug.scala:9: error: method isDefinedAt overrides nothing.
+Note: the super classes of anonymous class $anon contain the following, non final members named isDefinedAt:
+def isDefinedAt(x: T): Boolean
+        override def isDefinedAt(x: T): Boolean = true  // doesn't matter
+                     ^
+sample-anyval-bug.scala:10: error: method apply overrides nothing.
+Note: the super classes of anonymous class $anon contain the following, non final members named apply:
+def apply(v1: T): T
+        override def apply(x: T): T = x
+                     ^
+three errors found
+```
+
+Sugared:
+```
+scalac sample-anyval-bug-sugared.scala
+sample-anyval-bug-sugared.scala:8: error: overriding method applyOrElse in trait PartialFunction of type [A1 <: T, B1 >: T](x: A1, default: A1 => B1)B1;
+ method applyOrElse has incompatible type
+      seq collect {
+                  ^
+one error found
+```
+
+Without extending AnyVal, it succeeds:
+```
+$ scalac sample-non-anyval.scala
+```

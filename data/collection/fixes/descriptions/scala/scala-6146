@@ -1,0 +1,35 @@
+In the following pattern matching scenario, the compiler for Scala 2.10.0-M6 emits the warning message "unreachable code". That warning is not emitted in Scala 2.9.2. Furthermore, a simple test shows the case is still reached correctly.
+
+```scala
+trait AxisCompanion {
+   sealed trait Format
+   object Format {
+      case object Decimal extends Format
+      case object Integer extends Format
+      final case class Time( hours: Boolean = false, millis: Boolean = true ) extends Format
+   }
+}
+object Axis extends AxisCompanion
+class Axis {
+   import Axis._
+   def test( f: Format ) = f match {
+      case Format.Integer => "Int"
+      case Format.Time( hours, millis ) => "Time"
+      case Format.Decimal => "Dec"
+   }
+}
+```
+
+The warning:
+
+```scala
+<console>:20: warning: unreachable code
+             case Format.Time( hours, millis ) => "Time"                                                ^
+```
+
+A test:
+
+```scala
+val a = new Axis
+a.test( Axis.Format.Time() ) // ok!
+```

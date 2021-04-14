@@ -1,0 +1,34 @@
+The following compiles in Scala but fails in Dotty (using Scastie)
+```scala
+object Foo {
+  val map = new java.util.HashMap[String, String]
+  map.computeIfAbsent("hello", foo => "world")
+}
+```
+```
+-- Error: /tmp/scastie5756006742801572629/src/main/scala/main.scala:5:31 -------
+5 |  map.computeIfAbsent("hello", foo => "world")
+  |                               ^^^
+  |                    missing parameter type for parameter foo, expected = ?
+-- [E007] Type Mismatch Error: /tmp/scastie5756006742801572629/src/main/scala/main.scala:5:38 
+5 |  map.computeIfAbsent("hello", foo => "world")
+  |                                      ^^^^^^^
+  |         found:    String("world")
+  |         required: java.util.function.Function[_ >: String, _ <: String]#R         
+```
+trying
+```scala
+object Foo {
+  val map = new java.util.HashMap[String, String]
+  map.computeIfAbsent("hello", (foo: String) => "world")
+}
+```
+still results in the second error
+```
+-- [E007] Type Mismatch Error: /tmp/scastie5756006742801572629/src/main/scala/main.scala:5:48 
+5 |  map.computeIfAbsent("hello", (foo: String) => "world")
+  |                                                ^^^^^^^
+  |         found:    String("world")
+  |         required: java.util.function.Function[_ >: String, _ <: String]#R
+  |         
+```

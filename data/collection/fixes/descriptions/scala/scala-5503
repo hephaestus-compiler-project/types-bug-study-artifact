@@ -1,0 +1,51 @@
+This pattern is used in `scala.reflect._`. I haven't managed to produce a standalone reproduction.
+
+```scala
+$ ./build/quick/bin/scala -unchecked
+Welcome to Scala version 2.10.0-M1-0362-g2fe570291a-2012-02-18 (Java HotSpot(TM) 64-Bit Server VM, Java 1.6.0_29).
+
+scala> import reflect.mirror._
+import reflect.mirror._
+
+scala> object A { def foo(t: Tree) = t.tpe match { case MethodType(_, _) => 0 }} 
+<console>:13: warning: abstract type reflect.mirror.MethodType in type pattern reflect.mirror.MethodType is unchecked since it is eliminated by erasure
+       object A { def foo(t: Tree) = t.tpe match { case MethodType(_, _) => 0 }}
+
+```
+
+Inspection of the generated code shows that the extractor is being used.
+
+```scala
+                                                                  ^
+defined module A
+
+scala> :javap -v ACompiled from "<console>"
+...
+public int foo(scala.reflect.api.Trees$Tree);
+  Code:
+   Stack=3, Locals=3, Args_size=2
+   0:	aload_1
+   1:	invokevirtual	#21; //Method scala/reflect/api/Trees$Tree.tpe:()Lscala/reflect/api/Types$AbsType;
+   4:	astore_2
+   5:	aload_2
+   6:	instanceof	#23; //class scala/reflect/api/Types$AbsType
+   9:	ifeq	38
+   12:	getstatic	#28; //Field scala/reflect/package$.MODULE$:Lscala/reflect/package$;
+   15:	invokevirtual	#32; //Method scala/reflect/package$.mirror:()Lscala/reflect/api/Mirror;
+   18:	checkcast	#34; //class scala/reflect/api/Types
+   21:	invokeinterface	#38,  1; //InterfaceMethod scala/reflect/api/Types.MethodType:()Lscala/reflect/api/Types$MethodTypeExtractor;
+   26:	aload_2
+   27:	invokevirtual	#44; //Method scala/reflect/api/Types$MethodTypeExtractor.unapply:(Lscala/reflect/api/Types$AbsType;)Lscala/Option;
+   30:	invokevirtual	#50; //Method scala/Option.isEmpty:()Z
+   33:	ifne	38
+   36:	iconst_0
+   37:	ireturn
+   38:	new	#52; //class scala/MatchError
+   41:	dup
+   42:	aload_2
+   43:	invokespecial	#55; //Method scala/MatchError."<init>":(Ljava/lang/Object;)V
+   46:	athrow
+  LineNumberTable: 
+   line 13: 0
+...
+```

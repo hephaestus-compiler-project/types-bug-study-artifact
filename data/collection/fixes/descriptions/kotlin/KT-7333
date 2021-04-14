@@ -1,0 +1,34 @@
+```
+interface A<T, S : T>
+
+fun main(args : Array<String>) {
+    val a : A<*,*> = object : A<String, String> { }
+    foo(a)
+}
+
+fun <T, S : T> foo(a : A<T, S>) { }
+```
+
+```
+Error:(6, 5) Kotlin: Cannot infer type parameter T in fun <T, S : T> foo(a: A<T, S>): kotlin.Unit
+None of the following substitutions
+(A<CapturedTypeConstructor(*), T>)
+(A<CapturedTypeConstructor(*), T>)
+can be applied to
+(A<*, *>)
+```
+
+The corresponding Java code compiles fine (although IDEA shows a bogus error at `foo(a)` invocation):
+
+```
+public class J {
+    interface A<T, S extends T> { }
+
+    static void main(String[] args){
+        A<?,?> a = new A<String, String>() { };
+        foo(a);
+    }
+
+    static <T, S extends T> void foo(A<T, S> a) { }
+}
+```

@@ -1,0 +1,23 @@
+For this test case:
+
+import java.lang.annotation.*;
+
+@Target({ElementType.TYPE_USE, ElementType.RECORD_COMPONENT})
+@Retention(RetentionPolicy.RUNTIME)
+@interface Anno { }
+
+record R(@Anno String s) {}
+
+javac decorates the corresponding field with two instances of @Anno, when it should have only one, a type annotation applied to the type of the field. From the class file:
+
+private final java.lang.String s;
+    descriptor: Ljava/lang/String;
+    flags: (0x0012) ACC_PRIVATE, ACC_FINAL
+    RuntimeVisibleAnnotations:
+      0: #27()
+        Anno
+    RuntimeVisibleTypeAnnotations:
+      0: #27(): FIELD
+        Anno
+
+From a test case created by: Dmitry Bessonov

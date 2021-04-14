@@ -1,0 +1,69 @@
+Example:
+{code}annotation class myAnnotation(array: Array<String?>)
+
+[myAnnotation(array = Array<String?>(1, {""}))]  // should be disallowed, now backend throws exception
+[myAnnotation(array = array("" + ""))]           // should be allowed, now backend throws exception (see related issue)
+[myAnnotation(array = array(""))]                // should be allowed, now works
+[myAnnotation(array = array("" + System.currentTimeMillis()))] // should be disallowed, now backend throws exception 
+class Foo() { }
+}{code}
+If issue will be fixed before KT-2528, then non-trivial constants in annotations should be prohibited, as well (but with different error message like "not implemented yet")
+
+
+
+I try to compile this test-project: https://github.com/ContextFramework/kotlintest, but it fails in maven and in IDE. 
+
+Stacktrace from Maven:
+
+{monospace}
+EXCEPTION: java.lang.IllegalStateException: Don't know how to compile annotation value
+	at org.jetbrains.jet.codegen.AnnotationCodegen.genAnnotationExpressionValue(AnnotationCodegen.java:189)
+	at org.jetbrains.jet.codegen.AnnotationCodegen.genAnnotationValueArgument(AnnotationCodegen.java:122)
+	at org.jetbrains.jet.codegen.AnnotationCodegen.getAnnotation(AnnotationCodegen.java:106)
+	at org.jetbrains.jet.codegen.AnnotationCodegen.genAnnotationExpressionValue(AnnotationCodegen.java:181)
+	at org.jetbrains.jet.codegen.AnnotationCodegen.genAnnotationValueArgument(AnnotationCodegen.java:122)
+	at org.jetbrains.jet.codegen.AnnotationCodegen.getAnnotation(AnnotationCodegen.java:106)
+	at org.jetbrains.jet.codegen.AnnotationCodegen.genAnnotation(AnnotationCodegen.java:93)
+	at org.jetbrains.jet.codegen.AnnotationCodegen.genAnnotations(AnnotationCodegen.java:78)
+	at org.jetbrains.jet.codegen.ImplementationBodyCodegen.generateDeclaration(ImplementationBodyCodegen.java:165)
+	at org.jetbrains.jet.codegen.ClassBodyCodegen.generate(ClassBodyCodegen.java:61)
+	at org.jetbrains.jet.codegen.ClassCodegen.generateImplementation(ClassCodegen.java:78)
+	at org.jetbrains.jet.codegen.ClassCodegen.generate(ClassCodegen.java:68)
+	at org.jetbrains.jet.codegen.NamespaceCodegen.generate(NamespaceCodegen.java:147)
+	at org.jetbrains.jet.codegen.NamespaceCodegen.generate(NamespaceCodegen.java:109)
+	at org.jetbrains.jet.codegen.GenerationState.generateNamespace(GenerationState.java:180)
+	at org.jetbrains.jet.codegen.GenerationState.compileCorrectFiles(GenerationState.java:156)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.generate(KotlinToJVMBytecodeCompiler.java:279)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyzeAndGenerate(KotlinToJVMBytecodeCompiler.java:232)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyzeAndGenerate(KotlinToJVMBytecodeCompiler.java:216)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileBunchOfSources(KotlinToJVMBytecodeCompiler.java:137)
+	at org.jetbrains.jet.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileBunchOfSourceDirectories(KotlinToJVMBytecodeCompiler.java:197)
+	at org.jetbrains.jet.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.java:124)
+	at org.jetbrains.jet.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.java:49)
+	at org.jetbrains.jet.cli.common.CLICompiler.exec(CLICompiler.java:117)
+	at org.jetbrains.jet.cli.jvm.K2JVMCompiler.exec(K2JVMCompiler.java:188)
+	at org.jetbrains.jet.cli.jvm.K2JVMCompiler.exec(K2JVMCompiler.java:49)
+	at org.jetbrains.kotlin.maven.KotlinCompileMojoBase.execute(KotlinCompileMojoBase.java:118)
+	at org.apache.maven.plugin.DefaultBuildPluginManager.executeMojo(DefaultBuildPluginManager.java:101)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:209)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:153)
+	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:145)
+	at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject(LifecycleModuleBuilder.java:84)
+	at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject(LifecycleModuleBuilder.java:59)
+	at org.apache.maven.lifecycle.internal.LifecycleStarter.singleThreadedBuild(LifecycleStarter.java:183)
+	at org.apache.maven.lifecycle.internal.LifecycleStarter.execute(LifecycleStarter.java:161)
+	at org.apache.maven.DefaultMaven.doExecute(DefaultMaven.java:319)
+	at org.apache.maven.DefaultMaven.execute(DefaultMaven.java:156)
+	at org.apache.maven.cli.MavenCli.execute(MavenCli.java:537)
+	at org.apache.maven.cli.MavenCli.doMain(MavenCli.java:196)
+	at org.apache.maven.cli.MavenCli.main(MavenCli.java:141)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:39)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:25)
+	at java.lang.reflect.Method.invoke(Method.java:597)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.launchEnhanced(Launcher.java:290)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.launch(Launcher.java:230)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.mainWithExitCode(Launcher.java:409)
+	at org.codehaus.plexus.classworlds.launcher.Launcher.main(Launcher.java:352)
+{monospace}
+

@@ -1,0 +1,57 @@
+The following code fails to compile, with an overload resolution ambiguity error.
+
+```
+class OverloadResolutionErrorTest {
+
+    var foo: String? = "a"
+    var bar: String? = null
+
+    @Test fun `does not compile`() {
+        foo = null
+        // Fails to compile due to overload resolution ambiguity.
+        assertSomething(foo)
+    }
+
+    @Test fun `compiles 1`() {
+        foo = null
+        // Compiles, but "as String?" is greyed-out in the editor, as if unnecessary.
+        assertSomething(foo as String?)
+    }
+
+    @Test fun `compiles 2`() {
+        foo = null
+        // Compiler seems to correctly infer the type as String?, thus the overload is resolved.
+        val foo1 = foo
+        assertSomething(foo1)
+    }
+
+    @Test fun `compiles 3`() {
+        // Why does this compile? bar is definitely null, so we'd expect the same overload ambiguity error as before.
+        assertSomething(bar)
+    }
+
+    @Test fun `compiles 4`() {
+        foo = "b"
+        assertSomething(foo)
+    }
+
+    @Test fun `compiles 5`() {
+        assertSomething(foo)
+    }
+
+    private fun assertSomething(v: String?): Unit = TODO()
+    private fun assertSomething(v: Int?): Unit = TODO()
+}
+```
+
+Kotlin version:
+ `1.2.41`
+
+IDE:
+```
+Android Studio 3.1.2
+Build #AI-173.4720617, built on April 14, 2018
+JRE: 1.8.0_152-release-1024-b01 x86_64
+JVM: OpenJDK 64-Bit Server VM by JetBrains s.r.o
+Mac OS X 10.13.4
+```

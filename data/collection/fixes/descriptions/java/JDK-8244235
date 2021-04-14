@@ -1,0 +1,52 @@
+With the fix for JDK-8237072, the following test:
+
+public inline class Test1 {
+    
+    int i = 2;
+    Inner2.ref i2 = new Inner2();
+  
+    inline class Inner2 {
+	int c = 3;
+    }
+  
+    static public void main(String[] args) {
+	Test1 t1 = new Test1();
+	System.out.println(t1.i + t1.i2.c);
+    }
+}
+
+fails with the following error:
+
+$ ./build/pull32/jdk/bin/java Test1
+Exception in thread "main" java.lang.NoSuchFieldError: this
+	at Test1.<init>(Test1.java:4)
+	at Test1.main(Test1.java:11)
+
+
+The error is thrown in the inline type constructor:
+
+public static Test1 Test1();
+    descriptor: ()QTest1;
+    flags: (0x0009) ACC_PUBLIC, ACC_STATIC
+    Code:
+      stack=2, locals=1, args_size=0
+         0: defaultvalue  #1                  // class Test1
+         3: astore_0
+         4: iconst_2
+         5: aload_0
+         6: swap
+         7: withfield     #3                  // Field i:I
+        10: astore_0
+        11: aload_0
+        12: getfield      #7                  // Field this:QTest1;
+        15: invokestatic  #11                 // Method Test1$Inner2."<init>":(QTest1;)QTest1$Inner2;
+        18: aload_0
+        19: swap
+        20: withfield     #17                 // Field i2:LTest1$Inner2$ref;
+        23: astore_0
+        24: aload_0
+        25: areturn
+      LineNumberTable:
+        line 1: 0
+        line 3: 4
+        line 4: 11

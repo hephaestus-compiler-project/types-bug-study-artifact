@@ -1,0 +1,39 @@
+When I use UFO operator in following code:
+{code}
+@groovy.transform.CompileStatic
+def main() {
+  Closure c = { Integer l, Integer r -> l <=> r }
+  // Closure c = { Integer l, Integer r -> l.compareTo(r) } // OK
+  println([7, 4, 1, 2, 3].sort(c))
+}
+main()
+{code}
+reports:
+{quote}
+Caught: org.codehaus.groovy.runtime.typehandling.GroovyCastException: Cannot cast object 'ufo@7067f21' with class 'ufo' to class 'java.lang.Comparable'
+org.codehaus.groovy.runtime.typehandling.GroovyCastException: Cannot cast object 'ufo@7067f21' with class 'ufo' to class 'java.lang.Comparable'
+	at ufo$_main_closure1.doCall(ufo.groovy)
+	at ufo.main(ufo.groovy:6)
+	at ufo.run(ufo.groovy:8)
+{quote}
+and I found another case, i don't know the relation of above case.
+When running:
+{code}
+@groovy.transform.TypeChecked
+def main() {
+  Integer x = 3
+  Integer y = 4
+  println (x <=> y)
+}
+main()
+{code}
+Static type checker claims:
+{quote}
+org.codehaus.groovy.control.MultipleCompilationErrorsException: startup failed:
+/tool/ufo2.groovy: 6: [Static type checking] - Reference to method is ambiguous. Cannot choose between [MethodNode@2142220333[int compareTo(java.lang.Object)], MethodNode@153838582[int compareTo(java.lang.Integer)]]
+ @ line 6, column 12.
+     println (x <=> y)
+              ^
+
+1 error
+{quote}

@@ -1,0 +1,27 @@
+I decided to try replacing an ugly lambda type with a typealias and it mostly worked, but not always. 
+```kt
+interface Tree<T: Comparable<T>> {
+    typealias nonEmptyFuncAlias<T,R> = (T, Tree<T>, Tree<T>) -> R
+
+    /**
+     * Structural pattern matching on a tree: calls one or the other lambda depending on whether the
+     * tree node in question is a leaf or an internal node.
+     */
+    fun <R> match(emptyFunc: () -> R, nonEmptyFunc: nonEmptyFuncAlias<T,R>): R
+}
+```
+There are two classes that implement this interface: one for a non-empty node, and one for an empty/leaf node. The non-empty node has a type parameter for T and everything works great. The empty-node is a bit weirder:
+
+```kt
+private object emptyTreeSingleton: Tree<Comparable<Any>> {
+        // this works
+        override fun <R> match(emptyFunc: () -> R, nonEmptyFunc: (Comparable<Any>, Tree<Comparable<Any>>, Tree<Comparable<Any>>) -> R): R = emptyFunc()
+
+        // this says that nonEmptyFuncAlias requires three type parameters, which is incorrect
+//        override fun <R> match(emptyFunc: () -> R, nonEmptyFunc: nonEmptyFuncAlias<Comparable<Any>, R>): R = emptyFunc()
+}
+```
+
+We later forcibly cast this singleton to any other type, which is safe since it never needs the type parameter T. Anyway, you'll see two different match functions above. The first one has the typealias expanded out and it works correctly. The second one tries to use the typealias, and generates an error saying that the alias requires three type parameters. Something is getting a big confused in the typealias expansion.
+
+Full code example here: https://github.com/danwallach/KLazyTrees

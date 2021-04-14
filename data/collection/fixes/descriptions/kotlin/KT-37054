@@ -1,0 +1,163 @@
+# Classification
+
+* Type of change:
+    * New errors are introduced
+* Motivation types:
+    * Type safety guarantees are not met
+    * Problematic usage patterns need to be blocked
+* Impact types:
+    * Compilation. Some code that used to compile won't compile anymore
+        * There were cases when such code worked with no exceptions
+            * Some such code could compile without any warnings
+    * Behavior changes
+        * The behavior in question belongs under a previously released specification, contract or official documentation
+            * By the contract, the old behavior is incorrect (thus a fix is needed)
+* Detection and Migration modes:
+    * Migration can't be automated
+
+# Existing behavior
+
+## Code example
+
+The code is:
+
+`Test.java`
+```
+import java.util.List;
+
+class Test {
+    public static List<String> foo() {
+        return null;
+    }
+}
+```
+`main.kt`
+```
+fun main()  {
+    val y = if (true) emptyList() else Test.foo()
+}
+```
+
+This example compiles without any warnings and errors.
+
+## What's wrong with it
+
+The main problem is that inferred type for the variable `y` is `(Mutable)List<String!>! `.
+`(Mutable)List<String!>! ` is a flexible type with lower `MutableList<String!>` type and upper `List<String!>?`, see the [documentation](https://github.com/JetBrains/kotlin/blob/master/spec-docs/flexible-java-types.md) for details.
+
+Basically, it means that such type can be used either as `MutableList<String>` or as `List<String>` and with any nullability.
+As a result, it's possible to add elements to this list:
+```
+fun main()  {
+    val y = if (true) emptyList() else Test.foo()
+    y.add("str")
+}
+```
+
+And get the next expected exception at runtime:
+```
+Caused by: java.lang.UnsupportedOperationException: Operation is not supported for read-only collection
+	at kotlin.collections.EmptyList.add(Collections.kt)
+	at AKt.box(a.kt:7)
+	... 45 more
+```
+
+Indeed, at runtime `y` is initialized with a read-only `List` but due to incorrectly inferred type, it's possible to add elements, which leads to this exception.
+
+## Why and how this happens
+
+To infer type for `y` from the example, internally we have the following constraint system:
+(`I` -- type variable for `if` call, T -- type variable for `emptyList()` call)
+```
+List<T> <: I (from argument emptyList())
+(Mutable)List<String!>!  <: I (from argument Test.foo())
+
+=>
+
+I := CommonSupertype(List<T>, (Mutable)List<String!>!)
+```
+
+In order to compute common supertype here, all types that contain non-fixed ones (as `List<T>`, where `T` is non-fixed type) are filtered out. 
+It leads to the fact that `I` is fixed to `(Mutable)List<String!>!`:
+```
+I := CommonSupertype(List<T>, (Mutable)List<String!>!) = 
+= CommonSupertype((Mutable)List<String!>!) = 
+= (Mutable)List<String!>!
+```
+
+Later `T` is fixed to `String!`. Next, note that the resulting constraint system is correct due to subtyping for flexible types:
+```
+List<String!> <: (Mutable)List<String!>!  // OK! 
+```
+
+So, here the compiler fooled himself as on the one hand this is correct, but on the other, it's inconsistent and produces errors.
+For example, here the inferred type is just `List<String!>!` (without `(Mutable)`)
+```
+fun main(listOfStrings: List<String>)  {
+    val y = if (true) listOfStrings else Test.foo()
+    y.add("foo") // error: there is no "add" method on List
+}
+```
+
+Also, if we simulate a similar situation without flexible types, then there will be an error because the resulting constraint system will be contradictory:
+```
+interface Child<T>
+class Parent<T> : Child<T>
+
+fun <K> materializeChild(): Child<K> = TODO()
+
+fun test(p: Parent<String>) {
+    val a = if (true) materializeChild() else p // Error: Child<String> is not subtype of Parent<String>
+}
+```
+
+This issue is only about the case with `(Mutable)List<T>` as this is the only flexible type that has different type constructors for lower and upper parts.
+See [table](https://github.com/JetBrains/kotlin/blob/master/spec-docs/flexible-java-types.md#more-precise-type-information-from-annotations) describing how Kotlin Compiler loads types from Java. 
+
+# Affected versions: when did the problem appear first?
+
+The problem exists since Kotlin 1.0
+
+# Proposed changes
+
+The proposal is to tune the common supertype calculation. Namely, our proposal is to replace non-fixed types before calculation with stub ones that are subtype to any type.
+For example:
+```
+// T is non-fixed type
+CST(List<T>, (Mutable)List<String!>!) = 
+ = CST(List<StubType>, (Mutable)List<String!>!) = 
+ = CST(List<StubType>, List<String>)..CST(List<StubType>, MutableList<String!>!) = 
+ = List<String>..List<String!>!
+```
+
+In other words, we "filter" not the whole types but only non-fixed parts, which allows inferring a more general type.
+
+And as a result, in the initial example, variable `y` will have type `List<String!>!`:
+```
+fun main()  {
+    val y = if (true) emptyList() else Test.foo()
+    y.add("foo") // error: there is no "add" method on List
+}
+```
+
+# Impact
+
+Since the type changed in the described cases, some code will not compile anymore:
+```
+fun main()  {
+    val y = if (true) emptyList() else Test.foo()
+    y.add("foo") // new error
+    
+}
+```
+
+Moreover, such code could work without any problems if such variables are initialized with a really mutable list at runtime.
+
+While checking our internal and user projects, this pattern was found once and the code was incorrect. 
+Still, we think that it's better to fix this issue in order to avoid subtle bugs in the future.
+
+# Migration plan
+
+- 1.4.0 Implement proposed changes
+
+This problem is fixed under the new type inference algorithm, so there will be a common compiler key for the old behavior.

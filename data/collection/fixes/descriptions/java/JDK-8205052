@@ -1,0 +1,42 @@
+Please refer to below code: 
+
+class U1 {}
+class U3 {}
+
+class X1 extends U1 {}
+class X3 extends U3 {}
+
+@FunctionalInterface
+interface SAM<P1 extends X1, P2 extends P1, P3 extends X3> {
+    P3 m(P1 p1, P2 p2);
+}
+
+interface I<T> { }
+
+@SuppressWarnings("unchecked")
+class Tester {
+    public X3 foo(X1 x1, Object x2) { return new X3(); }
+    Object method(SAM<?, ?, ?> sam) {
+        return sam.m(null, null);
+    }
+    Object run() {
+        return method((SAM<?, ?, ?> & I<?>) this::foo);
+    }
+}
+
+public class LmbdTest  {
+    public static void main(String argv[]) {
+    	new Tester().run();
+    }
+} 
+
+In the above code, we have functional interface type parameter bounded to another type parameter. The method parameter has unbounded wildcard type arguments.
+
+Earlier the code used to fail with correct error as below:
+
+error: incompatible types: cannot infer functional interface descriptor for SAM<X1,Object,X3>
+        return method((SAM<?, ?, ?> & I<?>) this::foo);
+
+Now, there is no error thrown which is not as per expectation.
+
+Sample reproducible test case file is attached.

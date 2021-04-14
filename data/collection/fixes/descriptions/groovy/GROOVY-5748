@@ -1,0 +1,96 @@
+This code:
+{code}
+// adapted from:
+// http://stackoverflow.com/questions/9383681/how-can-i-design-a-type-safe-stack-in-java-preventing-pops-from-an-empty-list
+
+import groovy.transform.ASTTest
+import groovy.transform.TypeChecked
+import static org.codehaus.groovy.transform.stc.StaticTypesMarker.*
+import static org.codehaus.groovy.ast.ClassHelper.*
+
+interface IStack<T> {
+    INonEmptyStack<T, ? extends IStack<T>> push(T x)
+}
+
+interface IEmptyStack<T> extends IStack<T> {
+    @Override
+    INonEmptyStack<T, IEmptyStack<T>> push(T x)
+}
+
+interface INonEmptyStack<T, TStackBeneath extends IStack<T>> extends IStack<T> {
+    T getTop()
+
+    TStackBeneath pop()
+
+    @Override
+    INonEmptyStack<T, INonEmptyStack<T, TStackBeneath>> push(T x)
+}
+
+class EmptyStack<T> implements IEmptyStack<T> {
+    @Override
+    INonEmptyStack<T, IEmptyStack<T>> push(T x) {
+        new NonEmptyStack<T, IEmptyStack<T>>(x, this)
+    }
+}
+
+class NonEmptyStack<T, TStackBeneath extends IStack<T>>
+        implements INonEmptyStack<T, TStackBeneath> {
+    private final TStackBeneath stackBeneathTop;
+    private final T top
+
+    NonEmptyStack(T top, TStackBeneath stackBeneathTop) {
+        this.top = top
+        this.stackBeneathTop = stackBeneathTop
+    }
+
+    @Override
+    T getTop() {
+        top
+    }
+
+    @Override
+    TStackBeneath pop() {
+        stackBeneathTop
+    }
+
+    @Override
+    INonEmptyStack<T, INonEmptyStack<T, TStackBeneath>> push(T x) {
+        new NonEmptyStack<T, INonEmptyStack<T, TStackBeneath>>(x, this)
+    }
+}
+
+@TypeChecked
+def main() {
+    final IStack<Integer> stack = new EmptyStack<Integer>()
+
+    @ASTTest(phase=INSTRUCTION_SELECTION, value={
+        println 'oneInteger:' + node.getNodeMetaData(INFERRED_TYPE)
+    })
+    def oneInteger = stack.push(1)
+    assert oneInteger.getTop() == 1
+
+    @ASTTest(phase=INSTRUCTION_SELECTION, value={
+        println 'twoIntegers:' + node.getNodeMetaData(INFERRED_TYPE)
+    })
+    def twoIntegers = stack.push(1).push(2)
+    assert twoIntegers.getTop() == 2
+
+    @ASTTest(phase=INSTRUCTION_SELECTION, value={
+        println 'oneIntegerAgain:' + node.getNodeMetaData(INFERRED_TYPE)
+    })
+    def oneIntegerAgain = stack.push(1).push(2).pop()
+    // assert oneIntegerAgain.getTop() == 1 // BOOM!!!!
+}
+{code}
+Gives this output:
+{noformat}
+oneInteger:INonEmptyStack <java.lang.Integer, IEmptyStack> -> INonEmptyStack <T, TStackBeneath extends IStack <T> -> IStack <T>>
+twoIntegers:INonEmptyStack <java.lang.Integer, INonEmptyStack> -> INonEmptyStack <T, TStackBeneath extends IStack <T> -> IStack <T>>
+oneIntegerAgain:IStack <INonEmptyStack> -> IStack <T>
+{noformat}
+and gives this error when the last assert is uncommented:
+{noformat}
+1 compilation error:
+[Static type checking] - Cannot find matching method IStack#getTop(). Please check if the declared type is right and if the method exists.
+ at line: 79, column: 12
+{noformat}

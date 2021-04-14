@@ -1,0 +1,46 @@
+On 20/03/13 19:05, robert.field@oracle.com wrote:
+> Changeset: 85ba5a25c9e2
+> Author:    rfield
+> Date:      2013-03-20 12:05 -0700
+> URL:       http://hg.openjdk.java.net/lambda/lambda/langtools/rev/85ba5a25c9e2
+>
+> 8010010: NPE generating serializedLambdaName for nested lambda
+> Reviewed-by: mcimadamore
+>
+> ! src/share/classes/com/sun/tools/javac/comp/LambdaToMethod.java
+>
+>
+This causes several regression failures and crashes. I believe you 
+didn't see those because you are running tests with assertion disabled.
+
+One thing that I missed during the review is that for throwing assertion 
+you should use the utility method
+
+Assert.check(condition)
+
+instead of the language
+
+assert condition
+
+The former will throw an assertion error regardless of assertions being 
+enabled at the VM level - so you will catch'em'all.
+
+The problem with the patch is, I think that the assertion is wrong:
+
+if (owner.type != null) {
+                 Assert.check(directlyEnclosingLambda() != null);
+
+If a lambda is nested into another lambda, the owner will be null. Which 
+should mean that if the owner is not null, it should be a toplevel 
+lambda, so directlyEnclosingLambda should be null.
+
+Since I have to take another stab at the code, I think I will rewrite 
+the code:
+
+Assert.check(owner.type != null || directlyEnclosingLambda() != null);
+if (owner.type != null) {
+...
+}
+
+In fact, the existing assertion doesn't trigger if a null owner is found 
+when not in a nested lambda, which was the whole point of the exercise.

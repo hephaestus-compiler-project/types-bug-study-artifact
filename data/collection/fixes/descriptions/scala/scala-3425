@@ -1,0 +1,36 @@
+Compiling the code below with Scala 2.8.x
+```scala
+class Foo(x: Int)
+class Bar extends Foo(1)
+
+trait A {
+  def foo[T <: Foo]
+}
+class B extends A {
+  def foo[Bar] { println("B.foo[Bar]") }
+}
+object bug1 {
+  val x = new B
+  val y = new A {
+    def foo[Bar] { println("A.foo[Bar]") }
+  }
+  def main(args: Array[String]) {
+    x.foo // ok
+    y.foo // <==== java.lang.AssertionError: assertion failed
+  }
+}
+```
+produces the following output :
+```scala
+Exception in thread "main" java.lang.AssertionError: assertion failed
+	at scala.Predef$$.assert(Predef.scala:79)
+	at scala.tools.nsc.ast.TreeGen.mkCast(TreeGen.scala:142)
+	at scala.tools.nsc.Global$$gen$$.mkAttributedCast(Global.scala:74)
+	at scala.tools.nsc.ast.TreeDSL$$CODE$$TreeMethods.AS_ATTR(TreeDSL.scala:125)
+	at scala.tools.nsc.transform.Erasure$$Eraser.cast(Erasure.scala:503)
+	at scala.tools.nsc.transform.Erasure$$Eraser.adaptMember(Erasure.scala:626)
+	at scala.tools.nsc.transform.Erasure$$Eraser.liftedTree1$$1(Erasure.scala:652)
+	at scala.tools.nsc.transform.Erasure$$Eraser.typed1(Erasure.scala:651)
+	at scala.tools.nsc.typechecker.Typers$$Typer.typed(Typers.scala:4151)
+        ...
+```

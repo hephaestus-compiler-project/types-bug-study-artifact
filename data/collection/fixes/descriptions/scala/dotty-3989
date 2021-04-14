@@ -1,0 +1,34 @@
+This compiles without warnings in both Dotty master and Scala 2.12:
+
+```scala
+trait A[+X]
+case class B[X](x: X) extends A[X]
+class C[X](x: Any) extends B[Any](x) with A[X]
+def f(a: A[Int]): Int = a match {
+  case B(i) => i
+  case _ => 0
+}
+f(new C[Int]("foo"))
+```
+
+There used to be unsoundness warnings but they are gone since (presumably) https://github.com/lampepfl/dotty/issues/3918 even though the pattern match is unsound.
+
+Furthermore the following compiles without warnings:
+
+```scala
+trait A[+X] { def get: X }
+case class B[X](x: X) extends A[X] { def get: X = x }
+class C[X](x: Any) extends B[Any](x) with A[X]
+def g(a: A[Int]): Int = a.get
+g(new C[Int]("foo"))
+```
+
+In this case, which doesn't rely on pattern matching, the definition of `C` itself is unsound but Dotty accepts it anyway. Scala 2.12 rightfully complains:
+
+```
+scala> class C[X](x: Any) extends B[Any](x) with A[X]
+<console>:14: error: overriding method get in trait A of type => X;
+ method get in class B of type => Any has incompatible type
+       class C[X](x: Any) extends B[Any](x) with A[X]
+             ^
+```

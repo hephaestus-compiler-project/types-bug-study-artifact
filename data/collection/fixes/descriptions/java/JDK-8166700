@@ -1,0 +1,85 @@
+Let's consider following code:
+
+public class Test54 {
+	static class Nested {
+		static {
+			class Local { }
+		}
+	}
+}
+
+When this code is a subject of annotation processing NPE is thrown when annotation processor invokes getEnclosedElements() on the Element instance representing a package:
+
+java.lang.NullPointerException
+        at com.sun.tools.javac.jvm.Code.width(jdk.compiler@9-ea/Code.java:279)
+        at com.sun.tools.javac.jvm.ClassReader.initParameterNames(jdk.compiler@9-ea/ClassReader.java:2242)
+        at com.sun.tools.javac.jvm.ClassReader.readMethod(jdk.compiler@9-ea/ClassReader.java:2191)
+        at com.sun.tools.javac.jvm.ClassReader.readClass(jdk.compiler@9-ea/ClassReader.java:2446)
+        at com.sun.tools.javac.jvm.ClassReader.readClassBuffer(jdk.compiler@9-ea/ClassReader.java:2511)
+        at com.sun.tools.javac.jvm.ClassReader.readClassFile(jdk.compiler@9-ea/ClassReader.java:2524)
+        at com.sun.tools.javac.code.ClassFinder.fillIn(jdk.compiler@9-ea/ClassFinder.java:350)
+        at com.sun.tools.javac.code.ClassFinder.complete(jdk.compiler@9-ea/ClassFinder.java:287)
+        at com.sun.tools.javac.code.ClassFinder.access$000(jdk.compiler@9-ea/ClassFinder.java:74)
+        at com.sun.tools.javac.code.ClassFinder$1.complete(jdk.compiler@9-ea/ClassFinder.java:166)
+        at com.sun.tools.javac.code.Symbol.complete(jdk.compiler@9-ea/Symbol.java:623)
+        at com.sun.tools.javac.code.Symbol$ClassSymbol.complete(jdk.compiler@9-ea/Symbol.java:1235)
+        at com.sun.tools.javac.code.Symbol$ClassSymbol.flags(jdk.compiler@9-ea/Symbol.java:1169)
+        at com.sun.tools.javac.code.Symbol$TypeSymbol.getEnclosedElements(jdk.compiler@9-ea/Symbol.java:790)
+        at Test54Proc.process(Test54Proc.java:19)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.callProcessor(jdk.compiler@9-ea/JavacProcessingEnvironment.java:959)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.discoverAndRunProcs(jdk.compiler@9-ea/JavacProcessingEnvironment.java:875)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.access$2100(jdk.compiler@9-ea/JavacProcessingEnvironment.java:106)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment$Round.run(jdk.compiler@9-ea/JavacProcessingEnvironment.java:1182)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.doProcessing(jdk.compiler@9-ea/JavacProcessingEnvironment.java:1290)
+        at com.sun.tools.javac.main.JavaCompiler.processAnnotations(jdk.compiler@9-ea/JavaCompiler.java:1232)
+        at com.sun.tools.javac.main.JavaCompiler.compile(jdk.compiler@9-ea/JavaCompiler.java:911)
+        at com.sun.tools.javac.main.Main.compile(jdk.compiler@9-ea/Main.java:292)
+        at com.sun.tools.javac.main.Main.compile(jdk.compiler@9-ea/Main.java:148)
+        at com.sun.tools.javac.Main.compile(jdk.compiler@9-ea/Main.java:55)
+        at com.sun.tools.javac.Main.main(jdk.compiler@9-ea/Main.java:41)
+
+This error is reproduced on JDK build 137.
+
+This error is reproduced only when the source is "compiled twice", namely when Test54$Nested$1Local.class is on the class path passed to javac via -classpath option.
+
+The minimized test case is attached, in order to reproduce the bug please:
+1. Unzip attached archive to some dir, say A, on Unix/Linux machine.
+2. Modify A/Test54/test.sh by setting JDK_HOME variable to your JDK installation dir.
+3. Run A/Test54/test.sh. 
+
+It produces following output:
+
+First compilation
+Root elemnts count: 1
+pack: unnamed package
+Root elemnts count: 0
+Second compilation
+Root elemnts count: 1
+pack: unnamed package
+java.lang.NullPointerException
+        at com.sun.tools.javac.jvm.Code.width(jdk.compiler@9-ea/Code.java:279)
+        at com.sun.tools.javac.jvm.ClassReader.initParameterNames(jdk.compiler@9-ea/ClassReader.java:2242)
+        at com.sun.tools.javac.jvm.ClassReader.readMethod(jdk.compiler@9-ea/ClassReader.java:2191)
+        at com.sun.tools.javac.jvm.ClassReader.readClass(jdk.compiler@9-ea/ClassReader.java:2446)
+        at com.sun.tools.javac.jvm.ClassReader.readClassBuffer(jdk.compiler@9-ea/ClassReader.java:2511)
+        at com.sun.tools.javac.jvm.ClassReader.readClassFile(jdk.compiler@9-ea/ClassReader.java:2524)
+        at com.sun.tools.javac.code.ClassFinder.fillIn(jdk.compiler@9-ea/ClassFinder.java:350)
+        at com.sun.tools.javac.code.ClassFinder.complete(jdk.compiler@9-ea/ClassFinder.java:287)
+        at com.sun.tools.javac.code.ClassFinder.access$000(jdk.compiler@9-ea/ClassFinder.java:74)
+        at com.sun.tools.javac.code.ClassFinder$1.complete(jdk.compiler@9-ea/ClassFinder.java:166)
+        at com.sun.tools.javac.code.Symbol.complete(jdk.compiler@9-ea/Symbol.java:623)
+        at com.sun.tools.javac.code.Symbol$ClassSymbol.complete(jdk.compiler@9-ea/Symbol.java:1235)
+        at com.sun.tools.javac.code.Symbol$ClassSymbol.flags(jdk.compiler@9-ea/Symbol.java:1169)
+        at com.sun.tools.javac.code.Symbol$TypeSymbol.getEnclosedElements(jdk.compiler@9-ea/Symbol.java:790)
+        at Test54Proc.process(Test54Proc.java:19)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.callProcessor(jdk.compiler@9-ea/JavacProcessingEnvironment.java:959)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.discoverAndRunProcs(jdk.compiler@9-ea/JavacProcessingEnvironment.java:875)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.access$2100(jdk.compiler@9-ea/JavacProcessingEnvironment.java:106)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment$Round.run(jdk.compiler@9-ea/JavacProcessingEnvironment.java:1182)
+        at com.sun.tools.javac.processing.JavacProcessingEnvironment.doProcessing(jdk.compiler@9-ea/JavacProcessingEnvironment.java:1290)
+        at com.sun.tools.javac.main.JavaCompiler.processAnnotations(jdk.compiler@9-ea/JavaCompiler.java:1232)
+        at com.sun.tools.javac.main.JavaCompiler.compile(jdk.compiler@9-ea/JavaCompiler.java:911)
+        at com.sun.tools.javac.main.Main.compile(jdk.compiler@9-ea/Main.java:292)
+        at com.sun.tools.javac.main.Main.compile(jdk.compiler@9-ea/Main.java:148)
+        at com.sun.tools.javac.Main.compile(jdk.compiler@9-ea/Main.java:55)
+        at com.sun.tools.javac.Main.main(jdk.compiler@9-ea/Main.java:41)

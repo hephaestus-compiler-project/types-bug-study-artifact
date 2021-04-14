@@ -1,0 +1,54 @@
+## Minimized code
+
+```Scala
+sealed trait Test[+F[_], +A] extends Product with Serializable
+
+object Test {
+
+  implicit class Syntax[F[_], A](val self: Test[F, A]) extends AnyVal {
+
+    def fold[B](completed: F[A] => B): B = self match {
+      case Completed(fa) => completed(fa)
+    }
+  }
+
+
+  final case class Completed[F[_], A](fa: F[A]) extends Test[F, A]
+}
+```
+
+## Output
+
+Dotty 0.24.0-RC1:
+
+```scala
+[error] -- [E007] Type Mismatch Error: /Users/daniel/Development/Scala/cats-effect/core/src/main/scala/cats/effect/Test.scala:26:38 
+[error] 26 |      case Completed(fa) => completed(fa)
+[error]    |                                      ^^
+[error]    |                 Found:    (fa : F$1[A$1])
+[error]    |                 Required: F[A]
+[error]    |
+[error]    |                 where:    A$1 is a type in method fold with bounds <: A
+[error]    |                           F$1 is a type in method fold with bounds <: F
+```
+
+Dotty master:
+```scala
+-- [E029] Pattern Match Exhaustivity Warning: try/dj.scala:7:43 ----------------
+7 |    def fold[B](completed: F[A] => B): B = self match {
+  |                                           ^^^^
+  |                          match may not be exhaustive.
+  |
+  |                          It would fail on pattern case: Test.Completed(_)
+
+longer explanation available when compiling with `-explain`
+-- Warning: try/dj.scala:3:7 ---------------------------------------------------
+3 |object Test {
+  |       ^
+  |       the type test for Test.Completed[?, ?] cannot be checked at runtime
+2 warnings found
+```
+
+## Expectation
+
+I think 0.24.0-RC1 got it right, current master is missing the error and producing some weird warnings.

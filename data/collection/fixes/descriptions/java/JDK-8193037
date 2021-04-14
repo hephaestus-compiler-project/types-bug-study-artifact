@@ -1,0 +1,49 @@
+In JDK 9, annotations on package-infos are only reported during the first annotation processing round. They are handled correctly with JDK 8.
+
+=== P.java
+import java.util.Set;
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.PackageElement;
+import javax.lang.model.element.TypeElement;
+
+@SupportedAnnotationTypes("*")
+public class P extends AbstractProcessor {
+
+  @Override
+  public SourceVersion getSupportedSourceVersion() {
+    return SourceVersion.latestSupported();
+  }
+
+  private int i = 0;
+
+  @Override
+  public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+    PackageElement p = processingEnv.getElementUtils().getPackageElement("p");
+    System.err.println("[" + i++ + "] p: " + p.getAnnotationMirrors());
+    return false;
+  }
+}
+=== p/T.java
+package p;
+class T {}
+=== p/package-info.java
+@Deprecated
+package p;
+===
+
+With JDK 1.8.0_162-ea-b03, the annotations on the package 'p' are reported during both annotation processing rounds:
+
+$ javac P.java p/package-info.java
+$ javac -sourcepath : -cp . -processor P p/T.java
+[0] p: @java.lang.Deprecated
+[1] p: @java.lang.Deprecated
+
+With JDK 9.0.1+11, the annotations on the package 'p' are only reported during the first annotation processing round:
+
+$ javac P.java p/package-info.java
+$ javac -sourcepath : -cp . -processor P p/T.java
+[0] p: @java.lang.Deprecated
+[1] p:

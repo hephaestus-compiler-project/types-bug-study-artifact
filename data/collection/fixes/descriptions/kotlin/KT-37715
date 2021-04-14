@@ -1,0 +1,50 @@
+The following code compiles but fails at runtime because the varargs seem be be silently casted to Array<Object> instead of Array<Number>.
+
+```kotlin
+fun <T: Number> foo(vararg values: T) = values.toList()
+
+fun main() {
+    println(foo(1, 4.5))
+}
+```
+
+This explicit cast is needed to avoid the runtime error.
+
+```kotlin
+fun <T: Number> foo(vararg values: T) = values.toList()
+
+fun main() {
+    println(foo(*arrayOf<Number>(1, 4.5)))
+}
+```
+
+The stacktrace is:
+
+```
+Error: A JNI error has occurred, please check your installation and try again
+Exception in thread "main" java.lang.VerifyError: Bad type on operand stack
+Exception Details:
+  Location:
+    FooKt.main()V @20: invokestatic
+  Reason:
+    Type '[Ljava/lang/Object;' (current frame, stack[0]) is not assignable to '[Ljava/lang/Number;'
+  Current Frame:
+    bci: @20
+    flags: { }
+    locals: { }
+    stack: { '[Ljava/lang/Object;' }
+  Bytecode:
+    0x0000000: 05bd 0004 5903 04b8 0022 5359 0414 0023
+    0x0000010: b800 2953 b800 2b4b 033c b200 312a b600
+    0x0000020: 37b1                                   
+
+	at java.lang.Class.getDeclaredMethods0(Native Method)
+	at java.lang.Class.privateGetDeclaredMethods(Class.java:2701)
+	at java.lang.Class.privateGetMethodRecursive(Class.java:3048)
+	at java.lang.Class.getMethod0(Class.java:3018)
+	at java.lang.Class.getMethod(Class.java:1784)
+	at sun.launcher.LauncherHelper.validateMainClass(LauncherHelper.java:544)
+	at sun.launcher.LauncherHelper.checkAndLoadMain(LauncherHelper.java:526)
+
+Process finished with exit code 1
+```

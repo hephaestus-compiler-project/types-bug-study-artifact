@@ -1,0 +1,72 @@
+FULL PRODUCT VERSION :
+java version "9"
+Java(TM) SE Runtime Environment (build 9+178)
+Java HotSpot(TM) 64-Bit Server VM (build 9+178, mixed mode)
+
+ADDITIONAL OS VERSION INFORMATION :
+Linux 4.9.0-3-amd64 #1 SMP Debian 4.9.30-2+deb9u3 (2017-08-06) x86_64 GNU/Linux
+
+
+A DESCRIPTION OF THE PROBLEM :
+If you have an anonym implementation of a generic class without using the diamond operators the verifier will not use the generic type of the class, but will try to verify using Object, which will fail because it cannot be assigned to the generic type of the class.
+
+REGRESSION.  Last worked in version 8u151
+
+STEPS TO FOLLOW TO REPRODUCE THE PROBLEM :
+Run the provided test code on java 9.
+
+EXPECTED VERSUS ACTUAL BEHAVIOR :
+EXPECTED -
+Successful execution
+ACTUAL -
+VerifyError
+
+ERROR MESSAGES/STACK TRACES THAT OCCUR :
+9
+Exception in thread "main" java.lang.VerifyError: Bad type on operand stack
+Exception Details:
+  Location:
+    verifiertest/GenericClass$1.compareTo(Ljava/lang/Object;)I @2: invokespecial
+  Reason:
+    Type 'java/lang/Object' (current frame, stack[1]) is not assignable to 'verifiertest/GenericClass'
+  Current Frame:
+    bci: @2
+    flags: { }
+    locals: { 'verifiertest/GenericClass$1', 'java/lang/Object' }
+    stack: { 'verifiertest/GenericClass$1', 'java/lang/Object' }
+  Bytecode:
+    0000000: 2a2b b700 05ac                         
+
+	at verifiertest.GenericClass.<clinit>(GenericClass.java:16)
+
+REPRODUCIBILITY :
+This bug can be reproduced always.
+
+---------- BEGIN SOURCE ----------
+public class GenericClass<_J extends GenericClass> implements Comparable<_J>  {
+    static {
+        System.err.println(System.getProperty("java.version"));
+    }
+    public static GenericClass EMPTY = new GenericClass() {
+        
+        void something() {
+            System.out.println("This is something");
+        }
+    };
+    public GenericClass() {
+    }
+    @Override
+    public int compareTo(_J o) {
+        return 0;
+    }
+    public static void main(String[] args) {
+        GenericClass generic = GenericClass.EMPTY;
+    }
+}
+
+---------- END SOURCE ----------
+
+CUSTOMER SUBMITTED WORKAROUND :
+One workaround: change the parameter type of compareTo to Object to trick the verifier
+Other workaround: use a named class instead of the anonym implementation
+

@@ -1,0 +1,20 @@
+```scala
+trait A
+trait B
+
+trait L[A2, B2 <: A2]
+
+object Lub {
+  def lub = if (true) (null: L[A, A]) else (null: L[B, B])
+  def foo(a: Any, b: Any) = (a, b)
+  foo(b = lub, a = lub) // use named args transforms to include TypeTree(<lub.tpe>
+}
+```
+
+```
+<console>:13: error: type arguments [_1,_2] do not conform to trait L's type parameter bounds [A2,B2 <: A2]
+         foo(b = lub, a = lub) // use named args transforms to include TypeTree(<lub.tpe>
+                 ^
+```
+
+I suspect calculating the correct LUB will be to difficult, and we should instead disable the check for synthetic TypeTrees.

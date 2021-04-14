@@ -1,0 +1,40 @@
+## Minimized code
+
+This could probably be minimized further.
+
+```Scala
+import cats.Order
+import cats.implicits._
+
+def test[F[_], B](lhs: F[B], tolerance: B)(implicit ord: Order[F[B]]): Boolean =
+  (lhs: F[B]) <= (tolerance: B)
+```
+
+Cats 2.1.1 compiled for Scala 2.13.
+
+## Output
+
+Compiles and results in a `ClassCastException`.
+
+## Expectation
+
+Shouldn't compile. The ascriptions aren't necessary to trigger the bug, I just included them for clarity.
+
+This may be specific to the Scala 2 unpickler. I wasn't able to reproduce it with this pure-Dotty minimization:
+
+```scala
+object Foo {
+
+  implicit def toSyntax[A](a: A): Syntax[A] =
+    new Syntax[A](a)
+
+  class Syntax[A](self: A) {
+    def <=(other: A)(implicit A: Order[A]): Boolean = true
+  }
+
+  def test[F[_], B](lhs: F[B], tolerance: B)(implicit ord: Order[F[B]]): Boolean =
+    (lhs: F[B]) <= (tolerance: B)
+}
+```
+
+The above fails to compile, as I would expect.

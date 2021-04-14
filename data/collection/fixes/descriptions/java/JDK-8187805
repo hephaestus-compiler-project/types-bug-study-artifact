@@ -1,0 +1,125 @@
+A colleague reports:
+
+When an unused local that has a TYPE_USE annotation applied to it is nested inside a synchronized block, javac emits an entry in the RuntimeVisibleTypeAnnotations (or RuntimeInvisibleTypeAnnotations) whose start_pc and length are bogus. This causes issues with ASM and other bytecode reading tools.
+
+Repro:
+
+Foo.java
+===========================================
+import java.lang.annotation.Target;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
+class Foo {
+
+  Object lock;
+
+  void something() {   
+    synchronized(lock) {
+      @MyAnno Object o = new Object();
+    }
+  }
+}
+
+@Target(ElementType.TYPE_USE)
+@Retention(RetentionPolicy.RUNTIME)
+@interface MyAnno {}
+============================================
+
+javac Foo.java
+javap -v -c Foo
+
+============================================
+Classfile /usr/local/google/home/glorioso/Desktop/Foo.class
+  Last modified Sep 21, 2017; size 469 bytes
+  MD5 checksum d422c35506a08f107516ad8c5e82dea5
+  Compiled from "Foo.java"
+class Foo
+  minor version: 0
+  major version: 52
+  flags: ACC_SUPER
+Constant pool:
+   #1 = Methodref          #3.#20         // java/lang/Object."<init>":()V
+   #2 = Fieldref           #4.#21         // Foo.lock:Ljava/lang/Object;
+   #3 = Class              #22            // java/lang/Object
+   #4 = Class              #23            // Foo
+   #5 = Utf8               lock
+   #6 = Utf8               Ljava/lang/Object;
+   #7 = Utf8               <init>
+   #8 = Utf8               ()V
+   #9 = Utf8               Code
+  #10 = Utf8               LineNumberTable
+  #11 = Utf8               something
+  #12 = Utf8               StackMapTable
+  #13 = Class              #23            // Foo
+  #14 = Class              #22            // java/lang/Object
+  #15 = Class              #24            // java/lang/Throwable
+  #16 = Utf8               RuntimeVisibleTypeAnnotations
+  #17 = Utf8               LMyAnno;
+  #18 = Utf8               SourceFile
+  #19 = Utf8               Foo.java
+  #20 = NameAndType        #7:#8          // "<init>":()V
+  #21 = NameAndType        #5:#6          // lock:Ljava/lang/Object;
+  #22 = Utf8               java/lang/Object
+  #23 = Utf8               Foo
+  #24 = Utf8               java/lang/Throwable
+{
+  java.lang.Object lock;
+    descriptor: Ljava/lang/Object;
+    flags:
+
+  Foo();
+    descriptor: ()V
+    flags:
+    Code:
+      stack=1, locals=1, args_size=1
+         0: aload_0
+         1: invokespecial #1                  // Method java/lang/Object."<init>":()V
+         4: return
+      LineNumberTable:
+        line 6: 0
+
+  void something();
+    descriptor: ()V
+    flags:
+    Code:
+      stack=2, locals=4, args_size=1
+         0: aload_0
+         1: getfield      #2                  // Field lock:Ljava/lang/Object;
+         4: dup
+         5: astore_1
+         6: monitorenter
+         7: new           #3                  // class java/lang/Object
+        10: dup
+        11: invokespecial #1                  // Method java/lang/Object."<init>":()V
+        14: astore_2
+        15: aload_1
+        16: monitorexit
+        17: goto          25
+        20: astore_3
+        21: aload_1
+        22: monitorexit
+        23: aload_3
+        24: athrow
+        25: return
+      Exception table:
+         from    to  target type
+             7    17    20   any
+            20    23    20   any
+      LineNumberTable:
+        line 11: 0
+        line 12: 7
+        line 13: 15
+        line 14: 25
+      StackMapTable: number_of_entries = 2
+        frame_type = 255 /* full_frame */
+          offset_delta = 20
+          locals = [ class Foo, class java/lang/Object ]
+          stack = [ class java/lang/Throwable ]
+        frame_type = 250 /* chop */
+          offset_delta = 4
+      RuntimeVisibleTypeAnnotations:
+        0: #17(): LOCAL_VARIABLE, {start_pc=65535, length=65535, index=2}
+}
+SourceFile: "Foo.java"

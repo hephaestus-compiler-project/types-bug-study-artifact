@@ -1,0 +1,22 @@
+With SAMs in 2.12 the following works, but it fails in Dotty. I think this is Dotty's fault, correct me if I'm wrong.
+
+```scala
+  def addIfMissing(from: AbsolutePath, computeBuild: AbsolutePath => Build): Unit =
+    cache.computeIfAbsent(from, path => computeBuild(path))
+```
+  
+Error:
+```
+[error] -- [E007] Type Mismatch Error: /data/rw/code/scala/loop/rewo
+rk/src/main/scala/bloop/State.scala:29:58
+[error] 29 |    cache.computeIfAbsent(from, path => computeBuild(pat
+h))[error]    |
+  ^[error]    |found:    bloop.io.AbsolutePath => bloop.Build
+[error]    |required: java.util.function.Function[_ >: bloop.io.Abso
+lutePath, _ <: bloop.Build]
+[error]    |
+```
+  
+If you replace `path => computeBuild(path)` for the shorter `computeBuild` or even `computeBuild(_)` it also fails. I guess this is because Dotty does not have support for SAM types?
+  
+Scala 2 mode is enabled, didn't try without it.

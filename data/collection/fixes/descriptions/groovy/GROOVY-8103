@@ -1,0 +1,38 @@
+We are using a fluent API based testing library (FEST assert).  I tried to boil this problem down; I hope this example is not too abstract.  Basically, there is a main fluent method that starts every test assertion and this is a static method with many overloads.  The library offers an extension mechanism where you put in your own type and this is where the checker is failing.
+{code}
+@groovy.transform.TypeChecked
+def method() {
+    fluent('string').isEqualTo('x') // fine
+    fluent(new Util.Ours()).isSimilarTo('') // fine
+    fluent(Util.Ours.factory('{}')).isSimilarTo('{"key":"val"}') // STC error
+}
+{code}
+
+Supporting code (library provided):
+{code}
+class Fluent
+{
+    static FluentAPI fluent(String s) { return new FluentAPI() }
+    static <T extends FluentExtension> T fluent(T t) { return t }
+}
+
+class FluentAPI
+{
+    FluentAPI isEqualTo(String s) { return this }
+}
+
+interface FluentExtension
+{
+}
+{code}
+
+Our extension:
+{code}
+class Util {
+    static class Ours implements FluentExtension {
+        Ours isSimilarTo(String json) { return this }
+    }
+
+    static Ours factory(String json) { new Ours() }
+}
+{code}

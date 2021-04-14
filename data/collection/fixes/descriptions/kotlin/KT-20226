@@ -1,0 +1,157 @@
+# Classification
+
+* Some valid language constructs change their meaning
+* Motivation types:
+    * The implementation does not abide by a published spec or documentation
+    * Inconsistency in the design (things are done differently in different contexts)
+* Impact types:
+    * Behavior changes
+        * The behavior in question belongs under a previously released specification, contract or official documentation
+* Detection and Migration modes:
+    * Some automated migration is possible
+
+# Existing behavior
+
+## Code example
+
+```kotlin
+fun <T> foo(f: () -> T): T = f()
+
+fun test(b: Boolean, i: Int) {
+    // r1 has type Any
+    val r1 = foo {
+        if (b) return@foo 1
+        1L // any expression of type Long, Byte, Short...
+    }
+}
+```
+
+## What's wrong with it
+
+The resulting type for variable `r1` is `Any`. This is inconvenient as type `Any` usually not very useful and here the user can get a much better integer type without any casts.
+
+Also, this is counterintuitive as if one replace labeled return with a usual `if`, then the resulting type will be `Long`:
+```
+fun <T> foo(f: () -> T): T = f()
+
+fun test(b: Boolean) {
+    // r1 has type Long
+    val r1 = foo {
+        if (b) 1 else 1L
+    }
+}
+```
+
+## Why and how this happens
+
+This happens because simple integer literals (`1`, `2`, `42`...) are approximated to `Int` in labeled return position and later the compiler computes common supertype between this `Int` and `Long`, which results in `Any`. If integer literals are used in "one" context as in the example with `if`, they aren't approximated to `Int` so early and therefore there is no such problem. So, currently, the described example for the compiler is the same as the following:
+```
+fun <T> foo(f: () -> T): T = f()
+
+fun test(b: Boolean, i: Int) {
+    // r1 has type Any
+    val r1 = foo {
+        if (b) return@foo i
+        1L
+    }
+}
+```
+
+# Affected versions: when did the problem appear first?
+
+The problem exists since 1.0
+
+# Proposed changes
+
+The proposal is to postpone integer literal approximation in labeled return positions as it's done in other similar contexts. So, the initial example will produce result of type `Long`: 
+```kotlin
+fun <T> foo(f: () -> T): T = f()
+
+fun test(b: Boolean, i: Int) {
+    // r1 has type Long
+    val r1 = foo {
+        if (b) return@foo 1
+        1L
+    }
+}
+```
+
+# Impact
+
+Similar to KT-15020, the type was adjusted, so there can be cases with different resolution results. For example:
+```
+fun <T> foo(f: () -> T): T = f()
+
+fun bar(a: Any) {} // (1)
+fun bar(l: Long) {} // (2)
+
+fun test(b: Boolean, i: Int) {
+    val r1 = foo {
+        if (b) return@foo 1
+        1L
+    }
+    
+    bar(r1)
+}
+```
+Here, before the fix `bar` was resolved to `(1)` but after it will be resolved to `(2)` as it's more specific.
+
+And as in KT-15020, it's possible to construct an example where green code will become red:
+```kotlin
+fun <T> foo(f: () -> T): T = f()
+
+fun bar(a: Any): Int = 0
+fun bar(l: Long): String = ""
+
+fun test(b: Boolean, i: Int) {
+    val r1 = foo {
+        if (b) return@foo 1
+        1L
+    }
+
+    val n: Int = bar(r1)
+}
+```
+
+We haven't met this issue on our internal and several open-source projects as users usually add required casts explicitly, because type `Any` isn't useful here as a result, so we believe that this issue is quite rare.
+
+# Migration plan
+
+- 1.4.0 Implement proposed changes, add a compiler key for a fallback behavior 
+- Some automated migration is possible: it's possible to introduce IDE intention that will add casts to preserve old behavior for some migration time.
+
+------
+
+# Original issue
+
+Example (from Kotlin Native):
+```kotlin
+        staticCFunction {
+            buffer: CPointer<ByteVar>?, size: size_t, nitems: size_t, userdata: COpaquePointer? ->
+
+            if (buffer == null) return@staticCFunction 0
+            val header = buffer.toKString((size * nitems).toInt()).trim()
+            if (userdata != null) {
+                val thiz = StableObjPtr.fromValue(userdata).get() as KUrl
+                thiz.data(header)
+            }
+            return@staticCFunction size * nitems
+        }
+```
+
+Minimized example:
+```kotlin
+fun getLong() = 1L
+
+val flag = true
+
+val test1 = run {
+    if (flag) return@run 1
+    return@run getLong()
+}
+
+val test2 = if (flag) 1 else getLong()
+```
+
+Here `test1` has type `Any`, while `test2` has type `Long`.
+This causes unexpected boxing.

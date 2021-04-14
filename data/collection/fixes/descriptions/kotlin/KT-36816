@@ -1,0 +1,26 @@
+It may affect convergence of constraint system or common super type calculation, for example:
+1)
+```
+inline fun <R> test(transform: () -> R) {}
+
+class Inv<T>(x: T?) {}
+
+fun <K> foo(x: K) {
+    test { Inv(x) } // [TYPE_MISMATCH] Type mismatch. Required: () → Inv<K>; Found: () → Inv<K!!>
+}
+```
+2)
+```
+interface Parent<T>
+
+class Foo<T>(x: T?): Parent<T> {}
+class Bar<T>(x: T): Parent<T> {}
+
+fun <T> select(vararg x: T) = x[0]
+
+fun <T> main(x: T) {
+    val y = select(Foo(x), Bar(x)) // y is Parent<out T> in NI, Parent<T> in OI
+}
+```
+
+It's linked with the commit https://github.com/JetBrains/kotlin/commit/5582fd40567c10d0e0582a8bdee980e4af5d6c30 (but definitely not-null types were discarded there after the whole inference process)

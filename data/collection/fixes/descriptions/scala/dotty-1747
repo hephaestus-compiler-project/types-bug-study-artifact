@@ -1,0 +1,38 @@
+The following code will not compile because it can't match the types method types.
+```scala
+class Coll[E] extends java.util.Collection[E] {
+  def toArray[T](a: Array[T]): Array[T] = ???
+  ...
+}
+
+
+-- Error: Coll.scala -----------------------------------------------------------
+2 |   def toArray[T](a: Array[T]): Array[T] = ???
+  |       ^
+  |overriding method toArray in trait Collection of type [T] => (x$0: Array[T])Array[T];
+  | method toArray of type [T] => (a: Array[T])Array[T] has incompatible type
+-- Error: Coll.scala -----------------------------------------------------------
+1 |class Coll[E] extends java.util.Collection[E] {
+  |      ^
+  |class Coll needs to be abstract, since def toArray: [T] => (x$0: Array[T])Array[T] is not defined 
+  |(Note that Array[T] does not match Array[T]: their type parameters differ)
+
+two errors found
+```
+
+The same happens when trying to override the method:
+```scala
+class Coll[E] extends java.util.AbstractSet[E] {
+  override def toArray[T](a: Array[T]): Array[T] = ???
+  ...
+}
+
+
+-- Error: Coll.scala -----------------------------------------------------------
+2 |  override def toArray[T](a: Array[T]): Array[T] = ???
+  |               ^
+  |overriding method toArray in class AbstractCollection of type [T] => (x$0: Array[T])Array[T];
+  | method toArray of type [T] => (a: Array[T])Array[T] has incompatible type
+
+one error found
+```

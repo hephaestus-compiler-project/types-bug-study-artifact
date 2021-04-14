@@ -1,0 +1,65 @@
+Consider this source code:
+---
+public class InvalidEscapes {
+    private String s = """
+            \!
+            """;
+}
+---
+
+When compiled:
+---
+$ javac --enable-preview -source 14 InvalidEscape.java 
+InvalidEscape.java:3: error: illegal escape character
+            \!
+             ^
+Note: InvalidEscape.java uses preview language features.
+Note: Recompile with -Xlint:preview for details.
+1 error
+printing javac parameters to: <path>/javac.20190712_182002.args
+---
+
+Note the "printing javac parameters" - this means there was an exception inside javac. Recompiling with -XDdev shows the exception:
+---
+$ javac --enable-preview -source 14 -XDdev InvalidEscape.java 
+InvalidEscape.java:3: error: illegal escape character
+            \!
+             ^
+Note: InvalidEscape.java uses preview language features.
+Note: Recompile with -Xlint:preview for details.
+1 error
+An exception has occurred in the compiler (14-internal). Please file a bug against the Java compiler via the Java bug reporting page (http://bugreport.java.com) after checking the Bug Database (http://bugs.java.com) for duplicates. Include your program, the following diagnostic, and the parameters passed to the Java compiler in your report. Thank you.
+java.lang.RuntimeException: java.lang.reflect.InvocationTargetException
+        at jdk.compiler/com.sun.tools.javac.parser.JavaTokenizer$TextBlockSupport.translateEscapes(JavaTokenizer.java:395)
+        at jdk.compiler/com.sun.tools.javac.parser.JavaTokenizer.readToken(JavaTokenizer.java:1042)
+        at jdk.compiler/com.sun.tools.javac.parser.Scanner.nextToken(Scanner.java:115)
+        at jdk.compiler/com.sun.tools.javac.parser.JavacParser.nextToken(JavacParser.java:263)
+        at jdk.compiler/com.sun.tools.javac.parser.JavacParser.variableDeclaratorRest(JavacParser.java:3249)
+        at jdk.compiler/com.sun.tools.javac.parser.JavacParser.variableDeclaratorsRest(JavacParser.java:3220)
+        at jdk.compiler/com.sun.tools.javac.parser.JavacParser.classOrInterfaceBodyDeclaration(JavacParser.java:3952)
+        at jdk.compiler/com.sun.tools.javac.parser.JavacParser.classOrInterfaceBody(JavacParser.java:3848)
+        at jdk.compiler/com.sun.tools.javac.parser.JavacParser.classDeclaration(JavacParser.java:3687)
+        at jdk.compiler/com.sun.tools.javac.parser.JavacParser.classOrInterfaceOrEnumDeclaration(JavacParser.java:3641)
+        at jdk.compiler/com.sun.tools.javac.parser.JavacParser.typeDeclaration(JavacParser.java:3630)
+        at jdk.compiler/com.sun.tools.javac.parser.JavacParser.parseCompilationUnit(JavacParser.java:3474)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.parse(JavaCompiler.java:639)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.parse(JavaCompiler.java:676)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.parseFiles(JavaCompiler.java:1031)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.parseFiles(JavaCompiler.java:1018)
+        at jdk.compiler/com.sun.tools.javac.main.JavaCompiler.compile(JavaCompiler.java:938)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:318)
+        at jdk.compiler/com.sun.tools.javac.main.Main.compile(Main.java:176)
+        at jdk.compiler/com.sun.tools.javac.Main.compile(Main.java:57)
+        at jdk.compiler/com.sun.tools.javac.Main.main(Main.java:43)
+Caused by: java.lang.reflect.InvocationTargetException
+        at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+        at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.base/java.lang.reflect.Method.invoke(Method.java:567)
+        at jdk.compiler/com.sun.tools.javac.parser.JavaTokenizer$TextBlockSupport.translateEscapes(JavaTokenizer.java:393)
+        ... 20 more
+Caused by: java.lang.IllegalArgumentException: Invalid escape sequence: \! \\u0021
+        at java.base/java.lang.String.translateEscapes(String.java:3145)
+        ... 25 more
+printing javac parameters to: <path>/javac.20190712_181859.args
+---

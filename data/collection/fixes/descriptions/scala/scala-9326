@@ -1,0 +1,33 @@
+```scala
+package test
+
+case class C(data: Iterator[_])
+```
+
+```
+% scalac-hash v2.11.6 sandbox/test.scala
+% scalac-hash v2.12.0-M1 sandbox/test.scala
+sandbox/test.scala:3: error: object package is not a member of package test
+case class C(data: Iterator[_])
+                            ^
+one error found
+```
+
+Haven't bisected the point of regression yet.
+
+This patch fixes it:
+
+```scala
+diff --git a/src/compiler/scala/tools/nsc/typechecker/Contexts.scala b/src/compiler/scala/tools/nsc/typechecker/Contexts.scala
+index d5a3fba..660cab8 100644
+--- a/src/compiler/scala/tools/nsc/typechecker/Contexts.scala
++++ b/src/compiler/scala/tools/nsc/typechecker/Contexts.scala
+@@ -996,6 +996,7 @@ trait Contexts { self: Analyzer =>
+            s.owner.isClass
+         && !s.owner.isPackageClass
+         && !s.isTypeParameterOrSkolem
++        && !s.isExistentiallyBound
+       )
+       def lookupInPrefix(name: Name)    = pre member name filter qualifies
+       def accessibleInPrefix(s: Symbol) = isAccessible(s, pre, superAccess = false)
+```

@@ -1,0 +1,27 @@
+## reproduction steps
+
+using Scala (2.12.12),
+
+```scala
+object Test {
+  trait A[T <: A[T]]
+  trait B[T <: B[T]] extends A[T]
+
+  val s: Seq[A[_]] = Seq.empty
+
+  s.foreach {
+    case b: B[_]  ⇒ ()
+    case b: B[_]  ⇒ ()
+  }
+}
+```
+
+## problem
+type arguments [_$1] do not conform to trait A's type parameter bounds [T <: Playground.Test.A[T]]
+
+but it works if there is only one case with type `B[_]`
+```scala
+s.foreach {
+  case b: B[_]  ⇒ Unit
+}
+```

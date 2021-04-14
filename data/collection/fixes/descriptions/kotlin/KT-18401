@@ -1,0 +1,12 @@
+Consider the following example:
+```
+class A<out T: Any, out TSub : T>(t: List<T>, sub: KClass<TSub>): I<T, TSub>{} 
+interface I<out T, out TSub : T>{}
+fun foo (factory: (List<Number>, KClass<Int>) -> I<Number, Int>){}
+
+fun test() {
+    foo(::A) //type mismatch, it inferred A<Int,Int> instead of A<Number, Int>
+    foo({list, clazz -> A(list, clazz)})
+}
+```
+It would be nice if the first line `foo(::A)` compiles as well, or in other words if no extra help from the developer is necessary. Type inference should fall back to `Number` IMO.

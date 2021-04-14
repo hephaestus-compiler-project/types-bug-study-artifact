@@ -1,0 +1,17 @@
+The following subtyping test fails `Ycheck` after erasure:
+
+```scala
+class Test1(val x: Int) extends AnyVal
+class Test2(val y: Test1) extends AnyVal
+```
+
+In tree checker:
+
+```scala
+tree.tpe <:< pt // tree.tpe = ErasedValueType(Test2, ErasedValueType(Test1, Int))($this)
+                //       pt = Int
+```
+
+This is what causes erasure not to be `Ycheck`able. The next phase, `ElimErasedValueType`, removes the `ErasedValueType`s and casts so that it is again, `Ycheck`able.
+
+ping @odersky 
