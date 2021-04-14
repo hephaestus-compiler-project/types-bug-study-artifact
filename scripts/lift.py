@@ -157,7 +157,8 @@ def read_data(args):
                     print("Cannot find {}".format(bug))
 
 
-def compute(keyword, a, b, threshold=False, ithreshold=False, limit=None):
+def compute(keyword, a, b, threshold=False, ithreshold=False, limit=None,
+            filter_list=None):
     """https://stackabuse.com/association-rule-mining-via-apriori-algorithm-in-python/
     """
     size = sum(len(i) for i in a["total"].values())
@@ -184,12 +185,18 @@ def compute(keyword, a, b, threshold=False, ithreshold=False, limit=None):
         # Print Result
         a_key = key.split("->")[0]
         intersection = len(set(a[keyword][a_key]) & set(b[keyword][b_key]))
-        if threshold and lift < threshold:
-            continue
-        if ithreshold and intersection < ithreshold:
-            continue
-        if a_key == b_key:
-            continue
+        if filter_list:
+            if not any(a_key == r[0] and b_key == r[1] for r in filter_list):
+                continue
+        else:
+            if threshold and lift < threshold:
+                continue
+            if ithreshold and intersection < ithreshold:
+                continue
+            if a_key == b_key:
+                continue
+            if any(a_key in r and b_key in r for r in res):
+                continue
         res.append((a_key, b_key, lift, confidence, support_b[b_key],
                     len(a[keyword][a_key]), len(b[keyword][b_key]),
                     intersection, max_a, max_b))
@@ -238,11 +245,18 @@ def main():
     else:
         print("Char Categories -> Char Categories")
         compute("total", CHARACTERISTICS_CATEGORIES,
-                CHARACTERISTICS_CATEGORIES, args.threshold,
-                args.ithreshold, args.limit)
+                CHARACTERISTICS_CATEGORIES, 5, 20, 2)
         print("Characteristics -> Characteristics")
-        compute("total", CHARACTERISTICS, CHARACTERISTICS, args.threshold,
-                args.ithreshold, args.limit)
+        filter_list = [
+           ("Variable arguments", "Overloading"),
+           ("Use-site variance", "Parameterized function"),
+           ("Type argument type inference", "Parameterized function"),
+           ("Implicits", "Parameterized class"),
+           ("Type argument type inference", "Collection API"),
+           ("Type argument type inference", "Parameterized type"),
+        ]
+        compute("total", CHARACTERISTICS, CHARACTERISTICS,
+                filter_list=filter_list)
 
 
 if __name__ == "__main__":
