@@ -187,6 +187,15 @@ def print_most_per_lang(data, limit):
         print(80 * "-")
 
 
+def print_categories_stats(categories):
+    row_format = "{:<33}" + "{:>30}"
+    print("Most frequent characteristic categories")
+    print(80 * "-")
+    for row in categories:
+        print(row_format.format(row[0], "{:.2f}%".format(row[1])))
+    print()
+
+
 def create_dict():
     return {"total": [], "java": [], "groovy": [], "kotlin": [], "scala": []}
 
@@ -271,6 +280,13 @@ def compute_chars_per_lang(bugs):
     return stats
 
 
+def get_categories_stats(chars):
+    res = [(category, (values['total'] / 320) * 100)
+           for category, values in chars['Categories'].items()]
+    res.sort(reverse=True, key=lambda x: x[1])
+    return res
+
+
 def main():
     args = get_args()
     with open(args.bugs, 'r') as f:
@@ -281,10 +297,12 @@ def main():
     compilable, non_compilable = get_compilable_non_compilable(json_bugs)
     locs, classes, methods, calls = compute_test_cases_stats(args.test_cases)
     stats_per_lang = compute_chars_per_lang(json_bugs)
+    categories = get_categories_stats(json_chars)
 
     dataframes, characteristics = construct_dataframe(json_chars['Categories'])
     characteristics = sorted(characteristics, key=lambda tup: tup[2])
 
+    print_categories_stats(categories)
     print_generic_stats_table(compilable, non_compilable,
                               locs['total'], classes['total'],
                               methods['total'], calls['total'])
