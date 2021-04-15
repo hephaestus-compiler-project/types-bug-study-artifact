@@ -58,12 +58,15 @@ def print_stats(stats, title):
         ))
     header = ["", "Mean", "Median", "SD", "Min", "Max"]
     row_format = "{:<10}" * 6
-    print("{:>25}".format(title))
+    print("{:>30}".format(title))
+    print((10 * 6) * "=")
     print(row_format.format(*header))
+    print((10 * 6) * "-")
     print_line(stats["java"], "Java")
     print_line(stats["kotlin"], "Kotlin")
     print_line(stats["groovy"], "Groovy")
     print_line(stats["scala"], "Scala")
+    print((10 * 6) * "-")
     print_line(stats["total"], "Total")
     print()
 
