@@ -53,8 +53,7 @@ Requirements
 or a Docker installation.
 
 
-Ubuntu/Debian
--------------
+#### Ubuntu/Debian
 
 You need to install some apt packages and some python packages to run the
 experiments of this artifact.
@@ -73,8 +72,7 @@ source .env/bin/activate
 pip install requests matplotlib pandas seaborn
 ```
 
-Docker
-------
+#### Docker
 
 First, build the docker image.
 
@@ -106,8 +104,14 @@ The option `-v` is used to mount a local volume inside the Docker container.
 This option is used to get data from this repository to the Docker container,
 and to store all the figures produced from the scripts in `$(pwd)/figures`.
 
-Download the Data from sources
-------------------------------
+Download the bugs and fixes from sources
+----------------------------------------
+
+If you select to download and regenerate the initial dataset described in
+Section 2.1 of the paper, then you will need at least 20 GB of available disk
+space. At this point, we should note that the generated dataset will probably
+contain more bugs than the dataset described in the paper because new bugs
+will have been fixed from the time we downloaded the bugs until now.
 
 * Download data (~18 hours).
 
@@ -115,10 +119,145 @@ Download the Data from sources
 ./scripts/fetch/fetch.sh downloads $GH_TOKEN
 ```
 
+This command will execute several scripts in order to download all the data.
+The `downloads` directory is the directory in which the data will be saved.
+Moreover, you will need to save in a local variable called `GH_TOKEN`, a
+GitHub API token. This command takes that much time because (1) we need to
+download a number of large code repositories (compilers' codebases), and (2)
+we need to wait between some requests due to the rate limits of the GitHub API.
+More specifically, the following scripts will be executed. Note that in place
+of `$DOWNLOADS` is the `downloads` directory. The first five scripts compose
+Phase 1 of our collection process, while the 6th script is Phase 2 of our
+process.
+
+1. Fetch Groovy bugs.
+
+```bash
+python scripts/fetch/fetch_groovy_bugs.py $DOWNLOADS/bugs/groovy.txt \
+        $DOWNLOADS/bugs/fixes/descriptions/groovy $DOWNLOADS/bugs/groovy.json
+```
+
+This script fetches `groovyc` bugs from
+<https://issues.apache.org/jira/rest/api>, then it saves the URLs of the scripts
+in `$DOWNLOADS/bugs/groovy.txt`, the description and the summary for each
+bug (with id: GROOVY-XXXX) in
+`$DOWNLOADS/bugs/fixes/descriptions/groovy/GROOVY-XXXX`, and it saves
+statistics such as `created` timestamp, `resolution` timestamp, and `reporter`
+in `$DOWNLOADS/bugs/groovy.json`.
+
+2. Fetch Kotlin bugs.
+
+```bash
+python scripts/fetch/fetch_kotlin_bugs.py $DOWNLOADS/bugs/kotlin.txt \
+        $DOWNLOADS/bugs/fixes/descriptions/kotlin $DOWNLOADS/bugs/kotlin.json
+```
+
+This script fetches bugs for the Kotlin compiler from
+<https://youtrack.jetbrains.com/api/issues>, it saves the URLs of the scripts
+in `$DOWNLOADS/bugs/kotlin.txt`, the description and the summary for each
+bug (with id: KT-XXXX) in
+`$DOWNLOADS/bugs/fixes/descriptions/kotlin/KT-XXXX`, and it saves
+statistics such as `created` timestamp, `resolution` timestamp, and `reporter`
+in `$DOWNLOADS/bugs/kotlin.json`.
+
+3. Fetch Java bugs.
+
+```bash
+python scripts/fetch/fetch_java_bugs.py $DOWNLOADS/bugs/java.txt \
+        $DOWNLOADS/bugs/fixes/descriptions/java $DOWNLOADS/bugs/java.json
+```
+
+This script fetches bugs for `javac` from
+<https://bugs.openjdk.java.net/rest/api>, it saves the URLs of the scripts
+in `$DOWNLOADS/bugs/java.txt`, the description and the summary for each
+bug (with id: JDK-XXXX) in
+`$DOWNLOADS/bugs/fixes/descriptions/java/JDK-XXXX`, and it saves
+statistics such as `created` timestamp, `resolution` timestamp, and `reporter`
+in `$DOWNLOADS/bugs/java.json`.
+
+4. Fetch Scala bugs.
+
+```bash
+python scripts/fetch/fetch_scala_bugs.py $DOWNLOADS/bugs/scala.txt \
+        $DOWNLOADS/bugs/fixes/descriptions/scala $DOWNLOADS/bugs/scala.json $GH_TOKEN
+```
+
+This script fetches bugs for `scalac` and `dotty` from
+<https://api.github.com>, it saves the URLs of the scripts
+in `$DOWNLOADS/bugs/scala.txt`, the description and the summary for each
+bug (with id: scala-XXXX or dotty-XXXX) in
+`$DOWNLOADS/bugs/fixes/descriptions/scala/scala-XXXX`, and it saves
+statistics such as `created` timestamp, `resolution` timestamp, and `reporter`
+in `$DOWNLOADS/bugs/scala.json`.
+
+5. Clone compilers' repositories.
+
+```bash
+./scripts/fetch/clone.sh $DOWNLOADS/repos
+```
+
+This script downloads a number of repositories that we need to get the fixes
+of the analyzed bugs in `$DOWNLOADS/repos` directory. More specifically, it
+downloads the following repositories.
+
+```
+https://github.com/JetBrains/kotlin kotlin
+https://github.com/apache/groovy groovy
+https://github.com/lampepfl/dotty dotty
+https://github.com/scala/scala scala
+https://github.com/openjdk/valhalla Valhalla
+http://hg.openjdk.java.net/type-annotations/type-annotations/ type-annotations
+http://hg.openjdk.java.net/jdk/jdk/ JDK
+http://hg.openjdk.java.net/jdk7/jdk7/ jdk7
+http://hg.openjdk.java.net/jdk7u/jdk7u/ jdk7u
+http://hg.openjdk.java.net/jdk8/jdk8/ jdk8
+http://hg.openjdk.java.net/jdk8u/jdk8u/ jdk8u
+http://hg.openjdk.java.net/jdk9/jdk9/ jdk9
+http://hg.openjdk.java.net/jdk10/master/ jdk10
+http://hg.openjdk.java.net/jdk/jdk13/ jdk13
+http://hg.openjdk.java.net/jdk/jdk14/ jdk14
+```
+
+6. Detect fixes of the downloaded bugs.
+
+```
+./scripts/fetch/find_fixes.sh $DOWNLOADS/bugs \
+        $DOWNLOADS/bugs/fixes/descriptions $DOWNLOADS/repos \
+        $DOWNLOADS/bugs/fixes $GH_TOKEN 2>&1 | tee $DOWNLOADS/logs
+```
+
+This script is responsible for detecting the fixes for the bugs we fetched with
+the previous scripts. To do so, for each bug, it first searches in
+the corresponding repository for commits with its bug id in the commit message.
+If that fails and the repository is hosted in GitHub, then it searches for
+PRs that have tagged the bug id. Then it saves the URLs of the bug ids, along
+with their fixes in `$DOWNLOADS/bugs/fixes/{groovy,kotlin,java,scala}.txt`.
+
+
 * Print stats for download data.
 
 ```bash
 ./scripts/data_collection_stats.sh downloads/bugs
+```
+
+The above script prints the totals for the bugs collected in the previous step.
+It produces an output similar to the following.
+
+```
+Phase 1 groovy: 300
+Phase 1 java: 1252
+Phase 1 kotlin: 2189
+Phase 1 scale 2: 1180
+Phase 1 scale 3: 429
+Phase 1 scala: 1609
+Phase 1 total: 5350
+Phase 2 groovy: 246
+Phase 2 java: 873
+Phase 2 kotlin: 1601
+Phase 2 scale 2: 1067
+Phase 2 scale 3: 366
+Phase 2 scala: 1433
+Phase 2 total: 4153
 ```
 
 * Download and copy data for selected bugs in `data/iterations` (4.5 min).
@@ -126,17 +265,64 @@ Download the Data from sources
 ```bash
 ./scripts/get_data_for_selected_bugs.sh downloads data
 ```
+Finally, we need to get the fixes and the statistics for the selected bugs
+of our dataset. This script takes as input the `download directory, which
+includes the initial dataset, and the `data` directory, which must contain
+an `iterations` directory` with the selected bugs. Specifically, in this
+directory, some files contain bugs associated with their fixes.
+For example, you can look at `data/iterations/1/java.txt`. The script
+downloads fixes' diffs, and computes statistics for these fixes in
+`data/diffs/{groovy,java,kotlin,scala}/bug_id`. Each generated directory
+contains a `.diff` and a `stats.csv` file. More specifically, the following
+scripts will be executed.
 
-Reproduce Paper results
------------------------
+1. Get fixes of the bugs.
 
-* Bug collection stats (Section 2.1 -- Table 1).
+```bash
+./scripts/fetch/get_fixes.sh $DATA/iterations $DOWNLOADS/repos $DATA/diffs
+```
+
+This script finds the bugs' fixes in `$DATA/iterations` from the corresponding
+compiler's repository or its pull request from GitHub.
+Finally, it saves the diffs in `$DATA/diffs`.
+
+2. Compute statistics of diffs.
+
+```bash
+./scripts/fetch/get_diff_stats.sh $DATA/diffs
+```
+
+Using `diffstat` this script computes the stats of the diffs.
+
+3. Copy general statistics.
+
+```bash
+python scripts/fetch/copy_stats.py $DATA/iterations/ $DOWNLOADS/bugs/ $DATA/
+```
+
+For the bugs in `$DATA/iterations/` this script copies their statistics from
+the files `$DOWNLOADS/bugs/{groovy,kotlin,java,scala}.json`
+into `$DATA/{groovy,kotlin,java,scala}.json`.
+
+4. Compute LoCs of test cases.
+
+```bash
+./scripts/fetch/add_locs.sh $DATA/test_cases
+```
+
+Using `cloc`, this script computes the stats of the test cases.
+
+## Reproduce Paper results
+
+Collecting Bugs & Fixes (Section 2.1)
+-------------------------------------
 
 ```bash
 ./scripts/data_collection_stats.sh data/collection
 ```
 
-* RQ1: symptoms (Section 3.1 -- Figure 1).
+RQ1: Symptoms (Section 3.1)
+---------------------------
 
 ```bash
 python scripts/rq1.py data/bugs.json --output figures/symptoms.pdf
@@ -145,7 +331,8 @@ python scripts/rq1.py data/bugs.json --output figures/symptoms.pdf
 The above command prints the distribution of symptoms per language and
 it will save Figure 1 in `figures/symptoms.pdf`.
 
-* RQ2: Bug Patterns (Section 3.2 -- Figure 7a and Figure 7b.
+RQ2: Bug Patterns (Section 3.2)
+-------------------------------
 
 ```bash
 python scripts/rq2.py data/bugs.json --patterns figures/patterns.pdf \
@@ -156,7 +343,8 @@ This command prints the distribution of patterns per language and
 it will save Figures 7a and 7b in `figures/patterns.pdf` and
 `figures/patterns_symptoms.pdf`.
 
-* RQ3: Bug Fixes (Section 3.3 -- Figure 13a, Figure 13b, and Figure 14).
+RQ3: Bug Fixes (Section 3.3)
+----------------------------
 
 ```bash
 python scripts/rq3.py data/diffs/ data/ --directory figures
@@ -166,10 +354,10 @@ The previous command prints statistics for the lines, files, and duration of
 each bug fix. It also creates figures 13a, 13b, and 14 in
 `figures/{files,lines,duration}.pdf`.
 
-* RQ4: Test Case Characteristics (Section 3.4 -- Figure 14, Table 2, Table 3,
-and Table 4).
+RQ4: Test Case Characteristics (Section 3.4)
+--------------------------------------------
 
-```
+```bash
 python scripts/rq4.py data/characteristics.json data/bugs.json data/test_cases/ \
     --output figures/characteristics.pdf
 python scripts/lift.py data/bugs.json data/ data/diffs/
