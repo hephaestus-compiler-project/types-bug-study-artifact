@@ -9,11 +9,11 @@ fi
 mkdir -p $TARGET_DIR
 cd $TARGET_DIR
 
-#git clone https://github.com/JetBrains/kotlin kotlin
-#git clone https://github.com/apache/groovy groovy
-#git clone https://github.com/lampepfl/dotty dotty
-#git clone https://github.com/scala/scala scala
-#git clone https://github.com/openjdk/valhalla valhalla
+git clone https://github.com/JetBrains/kotlin kotlin
+git clone https://github.com/apache/groovy groovy
+git clone https://github.com/lampepfl/dotty dotty
+git clone https://github.com/scala/scala scala
+git clone https://github.com/openjdk/valhalla valhalla
 hg clone http://hg.openjdk.java.net/type-annotations/type-annotations/ type-annotations
 cd type-annotations && bash get_source.sh; cd ..
 hg clone http://hg.openjdk.java.net/jdk/jdk/ jdk
