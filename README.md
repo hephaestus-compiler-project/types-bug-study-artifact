@@ -349,11 +349,11 @@ python scripts/rq1.py data/bugs.json --output figures/symptoms.pdf
 
 This produces `symptoms.pdf` in the `figures` directory.
 It also prints a table in standard output that presents the total values
-and the percentages of symptoms per language. Specifically, it will print
+and the percentages of symptoms per compiler. Specifically, it will print
 the following.
 
 ```
-Symptom                                Groovy           Java         Kotlin          Scala          Total
+Symptom                               groovyc          javac        kotlinc scalac & Dotty          Total
 ---------------------------------------------------------------------------------------------------------
 Unexpected Compile-Time Error      59 (73.8%)     38 (47.5%)     30 (37.5%)     36 (45.0%)    163 (50.9%)
 Internal Compiler Error            10 (12.5%)     25 (31.2%)     18 (22.5%)     26 (32.5%)     79 (24.7%)
@@ -367,7 +367,7 @@ RQ2: Bug Patterns (Section 3.2)
 
 For the second research question, first we will reproduce Figures 7a and 7b.
 These figures demonstrates the distribution of bug patterns with regards to
-the languages and the symptoms. Second, we will produce two tables, one for
+the compiler and the symptoms. Second, we will produce two tables, one for
 each figure that display the total values and the percentages of the patterns.
 
 ```bash
@@ -380,13 +380,13 @@ The above command produce the figures `figures/patterns.pdf` and
 standard output.
 
 ```
-Pattern                                Groovy        Java      Kotlin       Scala       Total
----------------------------------------------------------------------------------------------
-Type-related Bugs                  37 (46.2%)  34 (42.5%)  31 (38.8%)  27 (33.8%) 129 (40.3%)
-Semantic Analysis Bugs             17 (21.2%)  16 (20.0%)  20 (25.0%)  24 (30.0%)  77 (24.1%)
-Resolution & Environment Bugs      24 (30.0%)  17 (21.2%)  22 (27.5%)  14 (17.5%)  77 (24.1%)
-Error Handling & Reporting Bugs      1 (1.2%)  10 (12.5%)    5 (6.2%)    6 (7.5%)   22 (6.9%)
-AST Transformation Bugs              1 (1.2%)    3 (3.8%)    2 (2.5%)   9 (11.2%)   15 (4.7%)
+Pattern                                      groovyc              javac            kotlinc     scalac & Dotty              Total
+--------------------------------------------------------------------------------------------------------------------------------
+Type-related Bugs                         37 (46.2%)         34 (42.5%)         31 (38.8%)         27 (33.8%)        129 (40.3%)
+Semantic Analysis Bugs                    17 (21.2%)         16 (20.0%)         20 (25.0%)         24 (30.0%)         77 (24.1%)
+Resolution & Environment Bugs             24 (30.0%)         17 (21.2%)         22 (27.5%)         14 (17.5%)         77 (24.1%)
+Error Handling & Reporting Bugs             1 (1.2%)         10 (12.5%)           5 (6.2%)           6 (7.5%)          22 (6.9%)
+AST Transformation Bugs                     1 (1.2%)           3 (3.8%)           2 (2.5%)          9 (11.2%)          15 (4.7%)
 
 Pattern                                Unexpected        Internal      Unexpected      Misleading     Compilation           Total
 ---------------------------------------------------------------------------------------------------------------------------------
@@ -458,9 +458,12 @@ RQ4: Test Case Characteristics (Section 3.4)
 ```bash
 python scripts/rq4.py data/characteristics.json data/bugs.json data/test_cases/ \
     --output figures/characteristics.pdf
-python scripts/lift.py data/bugs.json data/ data/diffs/
 ```
 
 The first command produces Figure 15 (`figures/characteristics.pdf`) and prints
 in standard output Tables 2, 3, and 4.
 The second command prints the lift scores reported in Section 3.4.2.
+
+```bash
+python scripts/lift.py data/bugs.json data/ data/diffs/
+```

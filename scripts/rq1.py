@@ -9,6 +9,14 @@ import seaborn as sns
 import pandas as pd
 
 
+LANG2COMP = {
+    'Groovy': 'groovyc',
+    'Java': 'javac',
+    'Kotlin': 'kotlinc',
+    'Scala': 'scalac & Dotty'
+}
+
+
 def get_args():
     parser = argparse.ArgumentParser(
         description='Compute stats and produce figure for RQ 1 (symptoms).'
@@ -25,12 +33,12 @@ def get_args():
 def construct_dataframe(bugs):
     data = defaultdict(lambda: 0)
     for bug in bugs.values():
-        data[(bug['language'], bug['symptom'])] += 1
+        data[(LANG2COMP[bug['language']], bug['symptom'])] += 1
     framedata = []
-    for (lang, symptom), value in data.items():
+    for (comp, symptom), value in data.items():
         framedata.append({
             "Symptom": symptom,
-            "Language": lang,
+            "Compiler": comp,
             "Number of bugs": value
         })
     return pd.DataFrame(framedata), data
@@ -68,7 +76,7 @@ def plot_fig(df, data, categories, output):
 
 def get_row(df, symptom):
     total = 0
-    langs = ["Groovy", "Java", "Kotlin", "Scala"]
+    langs = ["groovyc", "javac", "kotlinc", "scalac & Dotty"]
     res = [symptom]
     for lang in langs:
         n = int(df[lang][symptom])
@@ -84,7 +92,8 @@ def get_row(df, symptom):
 
 def print_stats(df):
     df = df.fillna(0)
-    header = ["Symptom", "Groovy", "Java", "Kotlin", "Scala", "Total"]
+    header = ["Symptom", "groovyc", "javac", "kotlinc", "scalac & Dotty",
+              "Total"]
     row1 = get_row(df, 'Unexpected Compile-Time Error')
     row2 = get_row(df, 'Internal Compiler Error')
     row3 = get_row(df, 'Unexpected Runtime Behavior')
@@ -106,8 +115,8 @@ def main():
     with open(args.data, 'r') as f:
         json_data = json.load(f)
     df, data = construct_dataframe(json_data)
-    df = df.groupby(['Language', 'Symptom'])['Number of bugs'].sum().unstack(
-        'Language')
+    df = df.groupby(['Compiler', 'Symptom'])['Number of bugs'].sum().unstack(
+        'Compiler')
     categories = [
         'Compilation Performance Issue',
         'Misleading Report',
