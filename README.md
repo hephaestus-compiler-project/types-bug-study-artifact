@@ -366,14 +366,38 @@ Compilation Performance Issue        0 (0.0%)       2 (2.5%)       3 (3.8%)     
 RQ2: Bug Patterns (Section 3.2)
 -------------------------------
 
+For the second research question, first we will reproduce Figures 7a and 7b.
+These figures demonstrates the distribution of bug patterns with regards to
+the languages and the symptoms. Second, we will produce two tables, one for
+each figure that display the total values and the percentages of the patterns.
+
 ```bash
 python scripts/rq2.py data/bugs.json --patterns figures/patterns.pdf \
     --patterns-symptoms figures/patterns_symptoms.pdf
 ```
 
-This command prints the distribution of patterns per language and
-it will save Figures 7a and 7b in `figures/patterns.pdf` and
-`figures/patterns_symptoms.pdf`.
+The above command produce the figures `figures/patterns.pdf` and
+`figures/patterns_symptoms.pdf`, and it prints the following in the
+standard output.
+
+```
+Pattern                                Groovy        Java      Kotlin       Scala       Total
+---------------------------------------------------------------------------------------------
+Type-related Bugs                  37 (46.2%)  34 (42.5%)  31 (38.8%)  27 (33.8%) 129 (40.3%)
+Semantic Analysis Bugs             17 (21.2%)  16 (20.0%)  20 (25.0%)  24 (30.0%)  77 (24.1%)
+Resolution & Environment Bugs      24 (30.0%)  17 (21.2%)  22 (27.5%)  14 (17.5%)  77 (24.1%)
+Error Handling & Reporting Bugs      1 (1.2%)  10 (12.5%)    5 (6.2%)    6 (7.5%)   22 (6.9%)
+AST Transformation Bugs              1 (1.2%)    3 (3.8%)    2 (2.5%)   9 (11.2%)   15 (4.7%)
+
+Pattern                                Unexpected        Internal      Unexpected      Misleading     Compilation           Total
+---------------------------------------------------------------------------------------------------------------------------------
+Type-related Bugs                      90 (28.1%)       23 (7.2%)       10 (3.1%)        3 (0.9%)        3 (0.9%)     129 (40.3%)
+Semantic Analysis Bugs                  24 (7.5%)       21 (6.6%)       27 (8.4%)        3 (0.9%)        2 (0.6%)      77 (24.1%)
+Resolution & Environment Bugs          44 (13.8%)       11 (3.4%)       16 (5.0%)        5 (1.6%)        1 (0.3%)      77 (24.1%)
+Error Handling & Reporting Bugs          0 (0.0%)       15 (4.7%)        0 (0.0%)        7 (2.2%)        0 (0.0%)       22 (6.9%)
+AST Transformation Bugs                  5 (1.6%)        9 (2.8%)        0 (0.0%)        0 (0.0%)        1 (0.3%)       15 (4.7%)
+```
+
 
 RQ3: Bug Fixes (Section 3.3)
 ----------------------------
