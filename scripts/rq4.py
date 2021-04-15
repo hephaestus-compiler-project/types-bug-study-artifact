@@ -126,7 +126,7 @@ def print_generic_stats_table(compilable, non_compilable, locs, classes,
                               methods, calls):
     print("General statistics on test case characteristics")
     row_format = "{:<33}" + "{:>30}"
-    print(80 * "-")
+    print(63 * "=")
     print(row_format.format(
         "Compilable test cases",
         "{} / 320 ({:.1f}%)".format(compilable, (compilable / 320) * 100)))
@@ -134,15 +134,15 @@ def print_generic_stats_table(compilable, non_compilable, locs, classes,
         "Non-compilable test cases",
         "{} / 320 ({:.1f}%)".format(
             non_compilable, (non_compilable / 320) * 100)))
-    print(80 * "-")
+    print(63 * "-")
     print(row_format.format("LoC (mean)", "{:.1f}".format(locs["mean"])))
     print(row_format.format("LoC (median)", locs["median"]))
-    print(80 * "-")
+    print(63 * "-")
     print(row_format.format(
         "Number of class decls (mean)", "{:.1f}".format(classes["mean"])))
     print(row_format.format(
         "Number of class decls (median)", classes["median"]))
-    print(80 * "-")
+    print(63 * "-")
     print(row_format.format(
         "Number of method decls (mean)", "{:.1f}".format(methods["mean"])))
     print(row_format.format(
@@ -151,46 +151,64 @@ def print_generic_stats_table(compilable, non_compilable, locs, classes,
         "Number of method calls (mean)", "{:.1f}".format(calls["mean"])))
     print(row_format.format(
         "Number of method calls (median)", calls["median"]))
-    print(80 * "-")
+    print(63 * "-")
     print()
 
 
 def print_most_least_chars_table(characteristics, limit):
     row_format = "{:<33}" + "{:>30}"
     print("Most frequent features")
-    print(80 * "-")
+    print(63 * "=")
     most = characteristics[-limit:]
     most.sort(reverse=True, key=lambda x: x[2])
     for char in most:
         print(row_format.format(char[0], "{:.2f}%".format(char[2])))
-    print(80 * "-")
+    print()
     print("Least frequent features")
-    print(80 * "-")
+    print(63 * "=")
     least = characteristics[:limit]
     least.sort(reverse=True, key=lambda x: x[2])
     for char in least:
         print(row_format.format(char[0], "{:.2f}%".format(char[2])))
-    print(80 * "-")
     print()
 
 
 def print_most_per_lang(data, limit):
-    row_format = "{:<33}" + "{:>30}"
+    row_format = ("{:<30}" + "{:>7}") * 4
     print("Most bug-triggering features per language")
-    for lang, stats in data.items():
-        print(80 * "-")
-        print(lang)
-        print(80 * "-")
-        stats.sort(reverse=True, key=lambda x: x[1])
-        for c in stats[:limit]:
-            print(row_format.format(c[0], "{:.2f}%".format(c[1])))
-        print(80 * "-")
+    print(155 * "=")
+    data = list(zip(data.items()))
+    lang1 = data[0][0][1]
+    lang1_name = data[0][0][0]
+    lang1.sort(reverse=True, key=lambda x: x[1])
+    lang2 = data[1][0][1]
+    lang2_name = data[1][0][0]
+    lang2.sort(reverse=True, key=lambda x: x[1])
+    lang3 = data[2][0][1]
+    lang3_name = data[2][0][0]
+    lang3.sort(reverse=True, key=lambda x: x[1])
+    lang4 = data[3][0][1]
+    lang4_name = data[3][0][0]
+    lang4.sort(reverse=True, key=lambda x: x[1])
+    print("{}{}{}{}".format(
+        lang1_name.center(38), lang2_name.center(38),
+        lang3_name.center(38), lang4_name.center(38)
+    ))
+    print(155 * "-")
+    for i, _ in enumerate(lang1[:limit]):
+        print(row_format.format(
+            lang1[i][0], "{:.2f}% | ".format(lang1[i][1]),
+            lang2[i][0], "{:.2f}% | ".format(lang2[i][1]),
+            lang3[i][0], "{:.2f}% | ".format(lang3[i][1]),
+            lang4[i][0], "{:.2f}% | ".format(lang4[i][1])
+        ))
+    print()
 
 
 def print_categories_stats(categories):
-    row_format = "{:<33}" + "{:>30}"
+    row_format = "{:<33}" + "{:>7}"
     print("Most frequent characteristic categories")
-    print(80 * "-")
+    print(40 * "=")
     for row in categories:
         print(row_format.format(row[0], "{:.2f}%".format(row[1])))
     print()
@@ -302,12 +320,12 @@ def main():
     dataframes, characteristics = construct_dataframe(json_chars['Categories'])
     characteristics = sorted(characteristics, key=lambda tup: tup[2])
 
-    print_categories_stats(categories)
     print_generic_stats_table(compilable, non_compilable,
                               locs['total'], classes['total'],
                               methods['total'], calls['total'])
     print_most_least_chars_table(characteristics, args.frequency)
     print_most_per_lang(stats_per_lang, args.most)
+    print_categories_stats(categories)
 
     plot_fig(dataframes, args.output)
 
