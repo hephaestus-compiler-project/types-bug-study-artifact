@@ -112,6 +112,7 @@ def print_stats(df, dimension, lim):
     header_format = "{:<33}" + spaces * columns
     row_format = "{:<33}" + spaces * columns
     print(header_format.format(*header))
+    print((33 + (len(max(header, key=len)) + 5) * columns) * "-")
     print(row_format.format(*row1))
     print(row_format.format(*row2))
     print(row_format.format(*row3))
