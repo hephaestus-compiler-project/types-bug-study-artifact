@@ -413,9 +413,9 @@ python scripts/rq3.py data/diffs/ data/ --directory figures
 
 The previous command saves Fig 13a in `figures/lines.pdf`, Fig 13b in
 `figures/files.pdf`, and Fig 14 in `figures/duration.pdf`.
-Note that you can use `--all` option to add lines for all languages in
+Note that you can use `--all` option to plot lines for all languages in
 the figures `lines.pdf` and `files.pdf`.
-It also prints the following tables.
+The script also prints the following tables.
 
 ```
                          Lines
