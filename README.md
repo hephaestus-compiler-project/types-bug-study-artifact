@@ -341,12 +341,27 @@ Language         Phase 1         Phase 2
 RQ1: Symptoms (Section 3.1)
 ---------------------------
 
+For the first research question, we will use a script reproduce Fig 1 that
+shows the distribution of symptom categories. To do so, run:
+
 ```bash
 python scripts/rq1.py data/bugs.json --output figures/symptoms.pdf
 ```
 
-The above command prints the distribution of symptoms per language and
-it will save Figure 1 in `figures/symptoms.pdf`.
+This produces `symptoms.pdf` in the `figures` directory.
+It also prints a table in standard output that presents the total values
+and the percentages of symptoms per language. Specifically, it will print
+the following.
+
+```
+Symptom                                Groovy           Java         Kotlin          Scala          Total
+---------------------------------------------------------------------------------------------------------
+Unexpected Compile-Time Error      59 (73.8%)     38 (47.5%)     30 (37.5%)     36 (45.0%)    163 (50.9%)
+Internal Compiler Error            10 (12.5%)     25 (31.2%)     18 (22.5%)     26 (32.5%)     79 (24.7%)
+Unexpected Runtime Behavior         9 (11.2%)     11 (13.8%)     22 (27.5%)     11 (13.8%)     53 (16.6%)
+Misleading Report                    2 (2.5%)       4 (5.0%)       7 (8.8%)       5 (6.2%)      18 (5.6%)
+Compilation Performance Issue        0 (0.0%)       2 (2.5%)       3 (3.8%)       2 (2.5%)       7 (2.2%)
+```
 
 RQ2: Bug Patterns (Section 3.2)
 -------------------------------
