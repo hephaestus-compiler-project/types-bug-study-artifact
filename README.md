@@ -200,21 +200,21 @@ of the analyzed bugs in `$DOWNLOADS/repos` directory. More specifically, it
 downloads the following repositories.
 
 ```
-https://github.com/JetBrains/kotlin kotlin
-https://github.com/apache/groovy groovy
-https://github.com/lampepfl/dotty dotty
-https://github.com/scala/scala scala
-https://github.com/openjdk/valhalla Valhalla
-http://hg.openjdk.java.net/type-annotations/type-annotations/ type-annotations
-http://hg.openjdk.java.net/jdk/jdk/ JDK
-http://hg.openjdk.java.net/jdk7/jdk7/ jdk7
-http://hg.openjdk.java.net/jdk7u/jdk7u/ jdk7u
-http://hg.openjdk.java.net/jdk8/jdk8/ jdk8
-http://hg.openjdk.java.net/jdk8u/jdk8u/ jdk8u
-http://hg.openjdk.java.net/jdk9/jdk9/ jdk9
-http://hg.openjdk.java.net/jdk10/master/ jdk10
-http://hg.openjdk.java.net/jdk/jdk13/ jdk13
-http://hg.openjdk.java.net/jdk/jdk14/ jdk14
+https://github.com/JetBrains/kotlin
+https://github.com/apache/groovy
+https://github.com/lampepfl/dotty
+https://github.com/scala/scala
+https://github.com/openjdk/valhalla
+http://hg.openjdk.java.net/type-annotations/type-annotations/
+http://hg.openjdk.java.net/jdk/jdk/
+http://hg.openjdk.java.net/jdk7/jdk7/
+http://hg.openjdk.java.net/jdk7u/jdk7u/
+http://hg.openjdk.java.net/jdk8/jdk8/
+http://hg.openjdk.java.net/jdk8u/jdk8u/
+http://hg.openjdk.java.net/jdk9/jdk9/
+http://hg.openjdk.java.net/jdk10/master/
+http://hg.openjdk.java.net/jdk/jdk13/
+http://hg.openjdk.java.net/jdk/jdk14/
 ```
 
 6. Detect fixes of the downloaded bugs.
