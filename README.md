@@ -43,7 +43,7 @@ statistics for the fix (number of declarations, method/function calls, LoCs.
 * `data/iterations/1/{groovy,java,kotlin,scala}.txt`: bugs analyzed in each
 iteration, each line contains the URL for the bug report and the URL for the
 fix of the bugs, separated by a comma.
-* `data/collection`: Phase 2 dataset
+* `data/collection`: Phase 2 dataset (4.153 bugs).
 
 
 Requirements
@@ -76,19 +76,19 @@ docker run -it \
 Download the Data from sources
 ------------------------------
 
-* Download data (~18 hours)
+* Download data (~18 hours).
 
 ```bash
 ./scripts/fetch/fetch.sh downloads $GH_TOKEN
 ```
 
-* Print stats for download data
+* Print stats for download data.
 
 ```bash
 ./scripts/data_collection_stats.sh downloads/bugs
 ```
 
-* Download and copy data for selected bugs in `data/iterations` (4.5 min)
+* Download and copy data for selected bugs in `data/iterations` (4.5 min).
 
 ```bash
 ./scripts/get_data_for_selected_bugs.sh downloads data
@@ -97,13 +97,13 @@ Download the Data from sources
 Reproduce Paper results
 -----------------------
 
-* Bug collection stats (Section 2.1 -- Table 1)
+* Bug collection stats (Section 2.1 -- Table 1).
 
 ```bash
 ./scripts/data_collection_stats.sh data/collection
 ```
 
-* RQ1: symptoms (Section 3.1 -- Figure 1)
+* RQ1: symptoms (Section 3.1 -- Figure 1).
 
 ```bash
 python scripts/rq1.py data/bugs.json --output figures/symptoms.pdf
@@ -123,7 +123,7 @@ This command prints the distribution of patterns per language and
 it will save Figures 7a and 7b in `figures/patterns.pdf` and
 `figures/patterns_symptoms.pdf`.
 
-* RQ3: Bug Fixes (Section 3.3 -- Figure 13a, Figure 13b, and Figure 14)
+* RQ3: Bug Fixes (Section 3.3 -- Figure 13a, Figure 13b, and Figure 14).
 
 ```bash
 python scripts/rq3.py data/diffs/ data/ --directory figures
@@ -131,10 +131,10 @@ python scripts/rq3.py data/diffs/ data/ --directory figures
 
 The previous command prints statistics for the lines, files, and duration of
 each bug fix. It also creates figures 13a, 13b, and 14 in
-`figures/{files,lines,duration}.pdf`
+`figures/{files,lines,duration}.pdf`.
 
 * RQ4: Test Case Characteristics (Section 3.4 -- Figure 14, Table 2, Table 3,
-and Table 4)
+and Table 4).
 
 ```
 python scripts/rq4.py data/characteristics.json data/bugs.json data/test_cases/ \
