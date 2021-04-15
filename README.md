@@ -402,13 +402,56 @@ AST Transformation Bugs                  5 (1.6%)        9 (2.8%)        0 (0.0%
 RQ3: Bug Fixes (Section 3.3)
 ----------------------------
 
+In the third research question, we study the duration and the fixes of the bugs.
+Hence, we will produce Fig 13a, Fig 13b, and Fig 14. We will also print in
+the standard output the mean, median, standard deviation, max, and min per
+language for files number, lines number, and duration of the fixes.
+
+
 ```bash
 python scripts/rq3.py data/diffs/ data/ --directory figures
 ```
 
-The previous command prints statistics for the lines, files, and duration of
-each bug fix. It also creates figures 13a, 13b, and 14 in
-`figures/{files,lines,duration}.pdf`.
+The previous command saves Fig 13a in `figures/lines.pdf`, Fig 13b in
+`figures/files.pdf`, and Fig 14 in `figures/duration.pdf`.
+Note that you can use `--all` option to add lines for all languages in
+the figures `lines.pdf` and `files.pdf`.
+It also prints the following tables.
+
+```
+                         Lines
+============================================================
+          Mean      Median    SD        Min       Max
+------------------------------------------------------------
+Java      30        16        40        1         190
+Kotlin    56        21        144       1         1177
+Groovy    49        23        89        1         706
+Scala     73        9         379       1         3381
+------------------------------------------------------------
+Total     52        16        208       1         3381
+
+                         Files
+============================================================
+          Mean      Median    SD        Min       Max
+------------------------------------------------------------
+Java      1         1         1         1         5
+Kotlin    2         2         2         1         15
+Groovy    1         1         0         1         5
+Scala     2         1         5         1         45
+------------------------------------------------------------
+Total     2         1         3         1         45
+
+                      Duration
+============================================================
+          Mean      Median    SD        Min       Max
+------------------------------------------------------------
+Java      131       21        284       0         1621
+Kotlin    164       34        296       0         1337
+Groovy    122       8         278       0         1472
+Scala     328       55        628       0         3209
+------------------------------------------------------------
+Total     186       24        407       0         3209
+```
 
 RQ4: Test Case Characteristics (Section 3.4)
 --------------------------------------------
