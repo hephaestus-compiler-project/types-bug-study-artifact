@@ -4,7 +4,7 @@ This is the artifact for the paper titled
 "Well-Typed Programs Can Go Wrong:
 A Study of Typing-Related Bugs in JVM Compilers".
 
-An archived version of the artifact will also be available on Zenodo,
+An archived version of the artifact will also be published on Zenodo,
 upon this paper's publication.
 
 Overview
@@ -50,21 +50,41 @@ Requirements
 ------------
 
 * A Unix-like operating system (tested on Ubuntu and Debian) with python3,
-and the following packages installed.
+or a Docker installation.
+
+
+Ubuntu/Debian
+-------------
+
+You need to install some apt packages and some python packages to run the
+experiments of this artifact.
+First, download the following packages using apt.
 
 ```bash
 apt install curl jq git mercurial diffstat cloc
-pip install requests matplotlib pandas seaborn
 ```
 
-* Otherwise, you can use Docker (see below).
+You also need to install some Python packages.
+In a Python virtualenv run the following:
 
+```bash
+virtualenv .env
+source .env/bin/activate
+pip install requests matplotlib pandas seaborn
+```
 
 Docker
 ------
 
+First, build the docker image.
+
 ```bash
 docker build . -t bug-study
+```
+
+Run the following command to create a new container.
+
+```bash
 docker run -it \
     -v $(pwd)/scripts:/home/scripts \
     -v $(pwd)/downloads:/home/downloads \
@@ -72,6 +92,19 @@ docker run -it \
     -v $(pwd)/figures:/home/figures \
     bug-study /bin/bash
 ```
+
+After executing the command, you will be able to enter the home directory
+(i.e., /home). This directory contains the `scripts` where the scripts that
+we are going to execute are stored, `data` where the data of the bug study are
+stored, `figures` which is the directory where we are going to save the produced
+figures, and `downloads` which is the directory where the data of Phase 1 and
+Phase 2 will be saved if you decide to get the initial data from their sources.
+
+Some further explanations:
+
+The option `-v` is used to mount a local volume inside the Docker container.
+This option is used to get data from this repository to the Docker container,
+and to store all the figures produced from the scripts in `$(pwd)/figures`.
 
 Download the Data from sources
 ------------------------------
