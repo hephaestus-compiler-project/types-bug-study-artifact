@@ -93,6 +93,7 @@ def print_stats(df):
     header_format = "{:<30}" + "{:>15}" * 5
     row_format = "{:<30}" + "{:>15}" * 5
     print(header_format.format(*header))
+    print((30 + 15 * 5) * "-")
     print(row_format.format(*row1))
     print(row_format.format(*row2))
     print(row_format.format(*row3))
