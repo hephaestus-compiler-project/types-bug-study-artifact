@@ -260,10 +260,10 @@ Language         Phase 1         Phase 2
 ./scripts/get_data_for_selected_bugs.sh downloads data
 ```
 Finally, we need to get the fixes and the statistics for the selected bugs
-of our dataset. This script takes as input the `download directory, which
+of our dataset. This script takes as input the `download` directory, which
 includes the initial dataset, and the `data` directory, which must contain
-an `iterations` directory` with the selected bugs. Specifically, in this
-directory, some files contain bugs associated with their fixes.
+an `iterations` directory with the selected bugs. Specifically, in this
+directory, files contain bugs associated with their fixes.
 For example, you can look at `data/iterations/1/java.txt`. The script
 downloads fixes' diffs, and computes statistics for these fixes in
 `data/diffs/{groovy,java,kotlin,scala}/bug_id`. Each generated directory
