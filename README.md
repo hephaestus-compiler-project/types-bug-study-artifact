@@ -20,31 +20,30 @@ download the initial dataset described in our paper (Phase 1 and Phase 2).
 * `categorization`: A python DSL language to categorize the analyzed bugs.
 For more information see `categorization/README.md`.
 * `data`: The dataset of the analyzed 320 bugs.
-* `data/bugs.json` contains all bugs from our study. Each bug has the following
-fields:
-    * `language`
-    * `compiler`
+* `data/bugs.json`: Contains all 320 bugs of our study. Each bug has the
+following fields:
+    * `language`: The language of the compiler.
+    * `compiler`: The compiler in which the bug occurred.
     * `is_correct`: `True` if the test case is compilable. In case the test is
 non-compilable, the value of this field is `False`.
-    * `symptom`: the effect of this bug.
+    * `symptom`: The effect of this bug.
     * `pattern`: The category of this bug.
-    * `root_cause`: The cause the introduced this bug.
+    * `root_cause`: The cause that introduced this bug.
     * `chars`: The characteristics of the test case that trigger the bug.
 * `data/characteristics.json`: The categories and the sub-categories of
 the characteristics that trigger the bugs in our dataset.
-* `data/{groovy,java,kotlin,scala}.json`: data about the timestamp,
+* `data/{groovy,java,kotlin,scala}.json`: Data about the timestamp,
 the reporter, the assignee, and the number of comments for each bug.
 * `data/diffs/{groovy,java,kotlin,scala}/bug_id/*.diff`: The diff of the fix.
 * `data/diffs/{groovy,java,kotlin,scala}/bug_id/stats.csv`: The LoC of the fix.
 * `data/test_cases/{groovy,java,kotlin,scala}/bug_id/*.{kt,java,scala,groovy}`:
 The test case of the fix.
 * `data/test_cases/{groovy,java,kotlin,scala}/bug_id/stats.json`:
-statistics for the fix (number of declarations, method/function calls, LoCs.
-* `data/iterations/1/{groovy,java,kotlin,scala}.txt`: bugs analyzed in each
+Statistics for the fix (number of declarations, method/function calls, LoCs).
+* `data/iterations/1/{groovy,java,kotlin,scala}.txt`: Bugs analyzed in each
 iteration, each line contains the URL for the bug report and the URL for the
 fix of the bugs, separated by a comma.
 * `data/collection`: Phase 2 dataset (4.153 bugs).
-
 
 Requirements
 ------------
