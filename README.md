@@ -112,7 +112,7 @@ space. At this point, we should note that the generated dataset will probably
 contain more bugs than the dataset described in the paper because new bugs
 will have been fixed from the time we downloaded the bugs until now.
 
-* Download data (~18 hours).
+* Download the data (~18 hours).
 
 ```bash
 ./scripts/fetch/fetch.sh downloads $GH_TOKEN
