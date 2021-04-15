@@ -234,7 +234,7 @@ PRs that have tagged the bug id. Then it saves the URLs of the bug ids, along
 with their fixes in `$DOWNLOADS/bugs/fixes/{groovy,kotlin,java,scala}.txt`.
 
 
-* Print stats for download data.
+* Print stats of the download data.
 
 ```bash
 ./scripts/data_collection_stats.sh downloads/bugs
