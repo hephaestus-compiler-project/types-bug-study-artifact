@@ -8,34 +8,31 @@ if [ "$#" -ne 1 ]; then
 fi
 
 
-print_results()
-{
-  phase=$1
-  directory=$2
-  total=0
-  for f in $(ls -d $directory); do
-    lang=${f##*/}
-    lang=${lang%.txt}
-    if [[ "$lang" == "scala" ]]; then
-        dotty=$(grep "dotty" $f | wc -l)
-        scala=$(grep "scala" $f | wc -l)
-        total=$(($total + $dotty + $scala))
-        echo "$phase scala 2: $scala"
-        echo "$phase scala 3: $dotty"
-        echo "$phase scala: $(($scala + $dotty))"
-    else
-      res=$(wc -l $f | cut -d ' ' -f1)
-      total=$(($total + $res))
-      echo "$phase $lang: $res"
-    fi
-  done
-  echo "$phase total: $total"
-}
-
 main ()
 {
-  print_results "Phase 1" "$BUGS/*.txt"
-  print_results "Phase 2" "$BUGS/fixes/*.txt"
+  total_p1=0
+  total_p2=0
+  java_p1=$(wc -l $BUGS/java.txt | cut -d ' ' -f1)
+  java_p2=$(wc -l $BUGS/fixes/java.txt | cut -d ' ' -f1)
+  kotlin_p1=$(wc -l $BUGS/kotlin.txt | cut -d ' ' -f1)
+  kotlin_p2=$(wc -l $BUGS/fixes/kotlin.txt | cut -d ' ' -f1)
+  groovy_p1=$(wc -l $BUGS/groovy.txt | cut -d ' ' -f1)
+  groovy_p2=$(wc -l $BUGS/fixes/groovy.txt | cut -d ' ' -f1)
+  scala2_p1=$(grep "scala" $BUGS/scala.txt | wc -l)
+  scala2_p2=$(grep "scala" $BUGS/fixes/scala.txt | wc -l)
+  dotty_p1=$(grep "dotty" $BUGS/scala.txt | wc -l)
+  dotty_p2=$(grep "dotty" $BUGS/fixes/scala.txt | wc -l)
+  total_p1=$(($java_p1 + $kotlin_p1 + $groovy_p1 + $scala2_p1 + $dotty_p1))
+  total_p2=$(($java_p2 + $kotlin_p2 + $groovy_p2 + $scala2_p2 + $dotty_p2))
+  printf "%8s %15s %15s\n" "Language" "Phase 1" "Phase 2"
+  echo "----------------------------------------"
+  printf "%8s %15s %15s\n" "Java" "$java_p1" "$java_p2"
+  printf "%8s %15s %15s\n" "Scala 2" "$scala2_p1" "$scala2_p2"
+  printf "%8s %15s %15s\n" "Scala 3" "$dotty_p1" "$dotty_p2"
+  printf "%8s %15s %15s\n" "Kotlin" "$kotlin_p1" "$kotlin_p2"
+  printf "%8s %15s %15s\n" "Groovy" "$groovy_p1" "$groovy_p2"
+  echo "----------------------------------------"
+  printf "%8s %15s %15s\n" "Total" "$total_p1" "$total_p2"
 }
 
 main
