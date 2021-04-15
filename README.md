@@ -454,16 +454,119 @@ Total     186       24        407       0         3209
 
 RQ4: Test Case Characteristics (Section 3.4)
 --------------------------------------------
+For this research question, we will use two scripts.
+The first script, will generate Figure 15 and it will print Tables 2, 3, and 4
+in the standard output. Whereas the second script will print the lift scores
+reported in Section 3.4.2.
 
 ```bash
 python scripts/rq4.py data/characteristics.json data/bugs.json data/test_cases/ \
     --output figures/characteristics.pdf
 ```
 
-The first command produces Figure 15 (`figures/characteristics.pdf`) and prints
-in standard output Tables 2, 3, and 4.
-The second command prints the lift scores reported in Section 3.4.2.
+This script generates `figures/characteristics.pdf` and produces:
+
+```
+General statistics on test case characteristics
+===============================================================
+Compilable test cases                         216 / 320 (67.5%)
+Non-compilable test cases                     104 / 320 (32.5%)
+---------------------------------------------------------------
+LoC (mean)                                                 10.2
+LoC (median)                                                  8
+---------------------------------------------------------------
+Number of class decls (mean)                                2.0
+Number of class decls (median)                                2
+---------------------------------------------------------------
+Number of method decls (mean)                               2.9
+Number of method decls (median)                               2
+Number of method calls (mean)                               2.5
+Number of method calls (median)                               1
+---------------------------------------------------------------
+
+Most frequent features
+===============================================================
+Parameterized type                                       46.56%
+Type argument type inference                             31.87%
+Parameterized class                                      30.00%
+Parameterized function                                   26.25%
+Inheritance                                              24.06%
+
+Least frequent features
+===============================================================
+Multiple implements                                       2.19%
+this                                                      2.19%
+Arithmetic Expressions                                    1.88%
+Loops                                                     1.25%
+Sealed Classes                                            0.94%
+
+Most bug-triggering features per language
+===========================================================================================================================================================
+                 Java                                 Groovy                                Kotlin                                Scala
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+Parameterized type            51.25% | Parameterized type            41.25% | Parameterized type            36.25% | Parameterized type            57.50% |
+Type argument type inference  42.50% | Collection API                35.00% | Parameterized class           33.75% | Parameterized class           42.50% |
+Single Abstract Method        37.50% | Type argument type inference  35.00% | Type argument type inference  32.50% | Inheritance                   32.50% |
+Parameterized function        35.00% | Lambda                        25.00% | Parameterized function        26.25% | Implicits                     23.75% |
+Parameterized class           30.00% | Parameterized function        21.25% | Inheritance                   25.00% | Parameterized function        22.50% |
+
+Most frequent characteristic categories
+========================================
+Parametric polymorphism           57.19%
+OOP features                      53.75%
+Type inference                    43.44%
+Type system features              36.25%
+Functional programming            31.56%
+Standard library                  30.63%
+Standard features                 28.75%
+Other                             28.75%
+```
+
+As already mentioned, the following script reports the lift scores that we
+refer in the paper.
 
 ```bash
 python scripts/lift.py data/bugs.json data/ data/diffs/
+```
+
+It produces:
+
+```
+Char Categories -> Char Categories
+Lift        Standard library -> Functional programming : 5.3639 (Confidence A->B: 0.5306, Support B: 0.0989) -- Totals A: 98, B: 101, A-B: 52
+Lift        Standard library -> Type inference         : 5.1717 (Confidence A->B: 0.7041, Support B: 0.1361) -- Totals A: 98, B: 139, A-B: 69
+Characteristics -> Characteristics
+Lift            Variable arguments -> Overloading                  : 24.0125 (Confidence A->B: 0.4545, Support B: 0.0189) -- Totals A: 11, B: 29, A-B: 5
+Lift             Use-site variance -> Parameterized function       : 17.1653 (Confidence A->B: 0.9412, Support B: 0.0548) -- Totals A: 17, B: 84, A-B: 16
+Lift  Type argument type inference -> Parameterized function       : 12.6951 (Confidence A->B: 0.6961, Support B: 0.0548) -- Totals A: 102, B: 84, A-B: 71
+Lift                     Implicits -> Parameterized class          : 10.9189 (Confidence A->B: 0.6842, Support B: 0.0627) -- Totals A: 19, B: 96, A-B: 13
+Lift  Type argument type inference -> Collection API               : 8.5826 (Confidence A->B: 0.3922, Support B: 0.0457) -- Totals A: 102, B: 70, A-B: 40
+Lift  Type argument type inference -> Parameterized type           : 6.9554 (Confidence A->B: 0.6765, Support B: 0.0973) -- Totals A: 102, B: 149, A-B: 69
+```
+
+Note that this script can be used to compute various lift scores.
+To print all available lift scores use the option `--all`.
+Furthermore, you can set the number of pairs to print with `--limit` option,
+a threshold with `--threshold` option, and a population threshold with
+`--ithreshold`.
+
+```
+usage: lift.py [-h] [--threshold THRESHOLD] [--ithreshold ITHRESHOLD]
+               [--limit LIMIT] [--all] bugs stats diffs
+
+Lift correlations
+
+positional arguments:
+  bugs                  File with the bugs
+  stats                 Directory that contains the stats for the bugs.
+  diffs                 Directory that contains the diffs of the bug fixes.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --threshold THRESHOLD
+                        Threshold for lift.
+  --ithreshold ITHRESHOLD
+                        Intersections threshold for lift.
+  --limit LIMIT         Max entries to show per pair.
+  --all                 Print lift score for all categories
 ```
