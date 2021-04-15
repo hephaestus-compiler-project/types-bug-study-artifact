@@ -244,20 +244,15 @@ The above script prints the totals for the bugs collected in the previous step.
 It produces an output similar to the following.
 
 ```
-Phase 1 groovy: 300
-Phase 1 java: 1252
-Phase 1 kotlin: 2189
-Phase 1 scale 2: 1180
-Phase 1 scale 3: 429
-Phase 1 scala: 1609
-Phase 1 total: 5350
-Phase 2 groovy: 246
-Phase 2 java: 873
-Phase 2 kotlin: 1601
-Phase 2 scale 2: 1067
-Phase 2 scale 3: 366
-Phase 2 scala: 1433
-Phase 2 total: 4153
+Language         Phase 1         Phase 2
+----------------------------------------
+    Java            1252             873
+ Scala 2            1180            1067
+ Scala 3             429             366
+  Kotlin            2189            1601
+  Groovy             300             246
+----------------------------------------
+   Total            5350            4153
 ```
 
 * Download and copy data for selected bugs in `data/iterations` (4.5 min).
@@ -314,12 +309,34 @@ Using `cloc`, this script computes the stats of the test cases.
 
 ## Reproduce Paper results
 
+In the following section, we provide scripts that reproduce the results
+presented in the paper using the dataset from `data` directory.
+
 Collecting Bugs & Fixes (Section 2.1)
 -------------------------------------
+
+Run the following script to print the results of the bug collection phases.
+Specifically, it will print the data of Table 1.
 
 ```bash
 ./scripts/data_collection_stats.sh data/collection
 ```
+
+In `data/collection` directory is the data of the bugs that compose our
+initial dataset. The above script prints the following.
+
+```
+Language         Phase 1         Phase 2
+----------------------------------------
+    Java            1252             873
+ Scala 2            1180            1067
+ Scala 3             429             366
+  Kotlin            2189            1601
+  Groovy             300             246
+----------------------------------------
+   Total            5350            4153
+```
+
 
 RQ1: Symptoms (Section 3.1)
 ---------------------------
