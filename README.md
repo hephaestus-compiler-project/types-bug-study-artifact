@@ -7,26 +7,25 @@ A Study of Typing-Related Bugs in JVM Compilers".
 An archived version of the artifact will also be published on Zenodo,
 upon this paper's publication.
 
-Overview
---------
+# Overview
 
 The artifact contains the dataset and scripts to re-compute the results
 described in our paper. The artifact has the following structure:
 
 * `scripts`: This is the directory that contains the scripts needed to
-re-compute the results presented in our paper.
+reproduce the results presented in our paper.
 * `scripts/fetch`: This is the directory that contains the scripts needed to
 download the initial dataset described in our paper (Phase 1 and Phase 2).
-* `categorization`: A python DSL language to categorize the analyzed bugs.
+* `categorization`: A python DSL language used to categorize the analyzed bugs.
 For more information see `categorization/README.md`.
-* `data`: The dataset of the analyzed 320 bugs.
+* `data`: This is dataset of 320 typing-related bugs.
 * `data/bugs.json`: Contains all 320 bugs of our study. Each bug has the
 following fields:
     * `language`: The language of the compiler.
     * `compiler`: The compiler in which the bug occurred.
-    * `is_correct`: `True` if the test case is compilable. In case the test is
-non-compilable, the value of this field is `False`.
-    * `symptom`: The effect of this bug.
+    * `is_correct`: `True` if the bug-revealing test case is compilable;
+       `False` otherwise.
+    * `symptom`: The symptom of this bug.
     * `pattern`: The category of this bug.
     * `root_cause`: The cause that introduced this bug.
     * `chars`: The characteristics of the test case that trigger the bug.
@@ -34,23 +33,27 @@ non-compilable, the value of this field is `False`.
 the characteristics that trigger the bugs in our dataset.
 * `data/{groovy,java,kotlin,scala}.json`: Data about the timestamp,
 the reporter, the assignee, and the number of comments for each bug.
-* `data/diffs/{groovy,java,kotlin,scala}/bug_id/*.diff`: The diff of the fix.
-* `data/diffs/{groovy,java,kotlin,scala}/bug_id/stats.csv`: The LoC of the fix.
+* `data/diffs/{groovy,java,kotlin,scala}/bug_id/*.diff`: The revision of the bug fix.
+* `data/diffs/{groovy,java,kotlin,scala}/bug_id/stats.csv`: The LoC of the bug fix.
 * `data/test_cases/{groovy,java,kotlin,scala}/bug_id/*.{kt,java,scala,groovy}`:
 The test case of the fix.
 * `data/test_cases/{groovy,java,kotlin,scala}/bug_id/stats.json`:
-Statistics for the fix (number of declarations, method/function calls, LoCs).
+Statistics on the bug fix (number of declarations, method/function calls, LoCs).
 * `data/iterations/1/{groovy,java,kotlin,scala}.txt`: Bugs analyzed in each
-iteration, each line contains the URL for the bug report and the URL for the
-fix of the bugs, separated by a comma.
+iteration. Each line contains two entries (comma separated):
+(1) the URL pointing to the bug report,
+and (2) the URL pointing to the fix of the bugs.
 * `data/collection`: Phase 2 dataset (4.153 bugs).
 
-Requirements
-------------
+# Requirements
 
 * A Unix-like operating system (tested on Ubuntu and Debian) with python3,
 or a Docker installation.
 
+
+# Getting Started
+
+## Setup
 
 #### Ubuntu/Debian
 
@@ -103,8 +106,7 @@ The option `-v` is used to mount a local volume inside the Docker container.
 This option is used to get data from this repository to the Docker container,
 and to store all the figures produced from the scripts in `$(pwd)/figures`.
 
-Download the bugs and fixes from sources
-----------------------------------------
+## Download the bugs and fixes from sources
 
 If you select to download and regenerate the initial dataset described in
 Section 2.1 of the paper, then you will need at least 20 GB of available disk
@@ -306,13 +308,12 @@ into `$DATA/{groovy,kotlin,java,scala}.json`.
 
 Using `cloc`, this script computes the stats of the test cases.
 
-## Reproduce Paper results
+# Step by Step Instructions
 
 In the following section, we provide scripts that reproduce the results
 presented in the paper using the dataset from `data` directory.
 
-Collecting Bugs & Fixes (Section 2.1)
--------------------------------------
+## Collecting Bugs & Fixes (Section 2.1)
 
 Run the following script to print the results of the bug collection phases.
 Specifically, it will print the data of Table 1.
@@ -337,8 +338,7 @@ Language         Phase 1         Phase 2
 ```
 
 
-RQ1: Symptoms (Section 3.1)
----------------------------
+## RQ1: Symptoms (Section 3.1)
 
 For the first research question, we will use a script reproduce Fig 1 that
 shows the distribution of symptom categories. To do so, run:
@@ -362,8 +362,7 @@ Misleading Report                    2 (2.5%)       4 (5.0%)       7 (8.8%)     
 Compilation Performance Issue        0 (0.0%)       2 (2.5%)       3 (3.8%)       2 (2.5%)       7 (2.2%)
 ```
 
-RQ2: Bug Patterns (Section 3.2)
--------------------------------
+## RQ2: Bug Patterns (Section 3.2)
 
 For the second research question, first we will reproduce Figures 7a and 7b.
 These figures demonstrates the distribution of bug patterns with regards to
@@ -398,8 +397,7 @@ AST Transformation Bugs                  5 (1.6%)        9 (2.8%)        0 (0.0%
 ```
 
 
-RQ3: Bug Fixes (Section 3.3)
-----------------------------
+## RQ3: Bug Fixes (Section 3.3)
 
 In the third research question, we study the duration and the fixes of the bugs.
 Hence, we will produce Fig 13a, Fig 13b, and Fig 14. We will also print in
@@ -452,8 +450,9 @@ Scala     328       55        628       0         3209
 Total     186       24        407       0         3209
 ```
 
-RQ4: Test Case Characteristics (Section 3.4)
---------------------------------------------
+## RQ4: Test Case Characteristics (Section 3.4)
+
+
 For this research question, we will use two scripts.
 The first script, will generate Figure 15 and it will print Tables 2, 3, and 4
 in the standard output. Whereas the second script will print the lift scores
