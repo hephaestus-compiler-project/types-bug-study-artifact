@@ -192,7 +192,7 @@ class JavaInterop(Characteristic):
     code written in Java (e.g., a library, imports a Java class, uses the
     standard library of Java, etc.)
     """
-    name = "Java interop"
+    name = "Java interoperability"
     category = SpecialFeatures()
     characteristic_type = None
     is_common = True
@@ -314,7 +314,7 @@ class ExtensionFunctions(Characteristic):
 
     https://kotlinlang.org/docs/extensions.html
     """
-    name = "Extensions"
+    name = "Extension Function / Property"
     category = SpecialFeatures()
     characteristic_type = Declaration()
     is_common = False
@@ -324,7 +324,7 @@ class This(Characteristic):
     """
     The test contains a 'this' expression.
     """
-    name = "this"
+    name = "This"
     category = OOPFeatures()
     characteristic_type = Expressions()
     is_common = True
@@ -413,7 +413,7 @@ class BoundedPolymorphism(Characteristic):
     Example:
        class X<T extends Object> {}
     """
-    name = "Bounded type params"
+    name = "Bounded type parameters"
     category = ParametricPolymorphism()
     characteristic_type = Types()
     is_common = True
@@ -462,7 +462,7 @@ class BuilderInference(Characteristic):
     Example:
        fun <K> foo(@BuilderInference block: Inv<K>.() -> Unit) {}
     """
-    name = "Variable type inference"
+    name = "Builder inference"
     category = TypeInference()
     characteristic_type = Declaration()
     is_common = False
@@ -498,7 +498,7 @@ class TypeArgsInference(Characteristic):
       class X<T> {}
       X<String> x = new X<>(); // Here 'X<>', we have type argument inference.
     """
-    name = "Type argument type inference"
+    name = "Type argument inference"
     category = TypeInference()
     characteristic_type = Expressions()
     is_common = True
@@ -511,7 +511,7 @@ class NamedArgs(Characteristic):
     Example:
        String foo(String x, String y = "foo")
     """
-    name = "Named args"
+    name = "Named arguments"
     category = SpecialFeatures()
     characteristic_type = Declaration()
     is_common = False
@@ -831,7 +831,7 @@ class Mixins(Characteristic):
     """
     The test case uses a mixin type (Scala Only)
     """
-    name = "Opaque types"
+    name = "Mixins"
     category = TypeSystem()
     characteristic_type = Types()
     is_common = False
