@@ -1,4 +1,6 @@
 class Category():
+    """A base class for the bug cause categories.
+    """
     name = ""
 
     def __repr__(self):
@@ -9,6 +11,10 @@ class Category():
 
 
 class Subcategory():
+    """A base class for the bug cause sub-categories.
+
+    For example, Inference is a sub-category of type-related bugs.
+    """
     name = ""
     category = None
 
@@ -20,33 +26,41 @@ class Subcategory():
 
 
 class TypeRelatedBugs(Category):
-    """Type-Related Bugs
+    """Type-Related Bugs.
+
+    A type operation of the compiler is not implemented correctly.
 
     Subcategories:
         - Incorrect Type Inference & Substitution
-        - Incorrect Type Transformation * Coercion
+        - Incorrect Type Transformation & Coercion
         - Incorrect Type Comparison & Bound Computation
     """
     name = "Type-related Bugs"
 
 
 class Inference(Subcategory):
+    """Incorrect Type Inference & Type Variable Substitution.
+    """
     name = "Incorrect Type Inference & Substitution"
     category = TypeRelatedBugs()
 
 
 class Approximation(Subcategory):
+    """Incorrect Type Transformation / Coercion.
+    """
     name = "Incorrect Type Transformation / Coercion"
     category = TypeRelatedBugs()
 
 
 class TypeComparison(Subcategory):
+    """Incorrect Type Comparison & Bound Computation.
+    """
     name = "Incorrect Type Comparison & Bound Computation"
     category = TypeRelatedBugs()
 
 
 class SemanticAnalysisBugs(Category):
-    """Semantic Analysis Bugs
+    """Semantic Analysis Bugs.
 
     Subcategories:
         - Missing Validation Checks
@@ -56,11 +70,15 @@ class SemanticAnalysisBugs(Category):
 
 
 class IncorrectAnalysisMechanics(Subcategory):
+    """Incorrect Analysis Mechanics.
+    """
     name = "Incorrect Analysis Mechanics"
     category =  SemanticAnalysisBugs()
 
 
 class MissingValiationChecks(Subcategory): # OtherSemanticChecking Declarations
+    """Missing Validation Checks.
+    """
     name = "Missing Validation Checks"
     category =  SemanticAnalysisBugs()
 
@@ -76,19 +94,27 @@ class ResolutionEnvironment(Category):
 
 
 class Resolution(Subcategory):
+    """Resolution Bug.
+    """
     name = "Resolution"
     category = ResolutionEnvironment()
 
 
 class Environment(Subcategory):
+    """Environment Bug.
+    """
     name = "Environment"
     category = ResolutionEnvironment()
 
 
 
 class ErrorReporting(Category):
+    """Error Handling & Reporting Bugs.
+    """
     name = "Error Handling & Reporting Bugs"
 
 
 class Transformation(Category):
+    """AST Transformation Bugs.
+    """
     name = "AST Transformation Bugs"

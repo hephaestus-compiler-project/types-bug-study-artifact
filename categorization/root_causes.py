@@ -1,4 +1,6 @@
 class RootCause():
+    """Base class for root causes, i.e., error that introduced the bug.
+    """
     name = ""
 
     def __repr__(self):
@@ -9,22 +11,74 @@ class RootCause():
 
 
 class RootCauseGeneralCategory():
+    """General root cause category.
+
+    The main root cause categories are:
+
+    * Logic error
+    * Algorithmic error
+    * Design error
+    * Programming error
+    """
     name = ""
 
 
 class LogicError(RootCauseGeneralCategory):
+    """Logic error stand for defects in logic, sequencing, or branching of
+    a procedure in the compiler.
+
+    Logic errors are classified in the following categories.
+
+    * Missing case
+    * Incorrect condition
+    * Extraneous computation
+    * Incorrect sequence
+    * Wrong params
+    """
     name = "Logic error"
 
 
 class AlgorithmicError(RootCauseGeneralCategory):
+    """Algorithmic errors are related to errors in the structure and
+    implementation of various algorithms employed by compilers (e.g., inference
+    of a type variable, resolution of a method).
+
+    We distinct algorithmic errors in the following categories.
+
+    * Incorrect Computation
+    * Insufficient Algorithm Implementation
+    * Algorithm Improperly Implemented
+    """
     name = "Algorithmic error"
 
 
 class ProgrammingError(RootCauseGeneralCategory):
+    """Programming errors are composed by declarations of a variable with an
+    incorrect data type, out-of-bounds array accesses, accesses to null
+    references, and unchecked exceptions.
+
+    The two sub-categories of programming errors are:
+
+    * Incorrect DataType
+    * Wrong Data Reference
+    """
     name = "Programming error"
 
 
 class DesignError(RootCauseGeneralCategory):
+    """Design errors express issues at a higher level.
+
+    They describe the cases where although the compiler has the intended
+    behavior and is not buggy, a program reveals that this behavior can lead to
+    undesired results. As a result, a re-design is essential for both the
+    language and the compiler. Fixes of design errors include changes from a
+    few code lines to significant refactorings in a compiler's code base.
+
+    There are two sub-categories:
+
+    * Design Issues
+    * Functional Specification Mismatch
+    """
     name = "Design error"
 
 
