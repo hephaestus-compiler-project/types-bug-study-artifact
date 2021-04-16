@@ -86,9 +86,11 @@ def get_fractions(x, total=320, print_all_points=False):
 
 
 def plot_fig(data, all_langs, directory, fig, print_all_points):
-    def plot(data, fractions, color):
+    def plot(duration, fractions, color, style='--'):
         line, = ax.plot(
-            data, fractions, marker=None, linestyle="--", c=color)
+            duration, fractions, marker=None, linestyle=style, c=color,
+            linewidth=2.5
+        )
         return line
     number, fractions = get_fractions(data["total"], 320, print_all_points)
     number_java, fractions_java = get_fractions(
@@ -101,7 +103,7 @@ def plot_fig(data, all_langs, directory, fig, print_all_points):
         data["scala"], 80, print_all_points)
     f, ax = plt.subplots()
     if fig == "duration":
-        width = 3 if not all_langs else 1
+        width = 3
     else:
         width = 3 if all_langs else 5
     total, = ax.plot(
@@ -110,12 +112,14 @@ def plot_fig(data, all_langs, directory, fig, print_all_points):
         marker=None,
         linestyle="-", linewidth=width)
     if all_langs:
-        java = plot(number_java, fractions_java, "red")
-        kotlin = plot(number_kotlin, fractions_kotlin, "purple")
-        groovy = plot(number_groovy, fractions_groovy, "green")
-        scala = plot(number_scala, fractions_scala, "orange")
+        java = plot(number_java, fractions_java, "#b07219")
+        kotlin = plot(number_kotlin, fractions_kotlin, "#f18e33",
+                      style=':')
+        groovy = plot(number_groovy, fractions_groovy, "#e69f56",
+                      style='-.')
+        scala = plot(number_scala, fractions_scala, "#c22d40")
         ax.legend([total, java, kotlin, groovy, scala],
-                  ["Total", "Java", "Kotlin", "Groovy", "Scala"],
+                  ["All", "javac", "kotlinc", "groovyc", "scalac & Dotty"],
                   loc="lower right")
     if fig == "lines":
         ax.scatter(5, 0.265625, c='blue')
@@ -143,7 +147,7 @@ def plot_fig(data, all_langs, directory, fig, print_all_points):
         plt.xlabel('Number of Files in a Fix')
     else:
         plt.xlabel('Duration of Bugs in Days')
-    plt.ylabel('Fraction of Bugs')
+    plt.ylabel('Percentage of Bugs')
     if directory:
         filename = os.path.join(directory, fig + ".pdf")
     else:
