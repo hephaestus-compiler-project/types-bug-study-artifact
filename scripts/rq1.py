@@ -60,7 +60,7 @@ def plot_fig(df, data, categories, output):
 
     sums = []
     for c in categories:
-        v = sum(data[(lang, c)]
+        v = sum(data[(LANG2COMP[lang], c)]
                 for lang in ['Groovy', 'Java', 'Kotlin', 'Scala'])
         sums.append(v)
 
