@@ -105,7 +105,7 @@ def plot_fig(data, all_langs, directory, fig, print_all_points):
     if fig == "duration":
         width = 3
     else:
-        width = 3 if all_langs else 5
+        width = 3 if not all_langs else 5
     total, = ax.plot(
         number,
         fractions,
@@ -120,7 +120,7 @@ def plot_fig(data, all_langs, directory, fig, print_all_points):
         scala = plot(number_scala, fractions_scala, "#c22d40")
         ax.legend([total, java, kotlin, groovy, scala],
                   ["All", "javac", "kotlinc", "groovyc", "scalac & Dotty"],
-                  loc="lower right")
+                  loc="lower right", fontsize=16)
     if fig == "lines":
         ax.scatter(5, 0.265625, c='blue')
         ax.annotate("(5, 0.27)", xy=(5.5, 0.25), xycoords='data',
@@ -142,7 +142,7 @@ def plot_fig(data, all_langs, directory, fig, print_all_points):
     ax.get_xaxis().set_major_formatter(ticker.ScalarFormatter())
     plt.ylim([0, 1.0])
     if fig == "lines":
-        plt.xlabel('Number of Lines of Code in a Fix')
+        plt.xlabel('LoC in a Fix')
     elif fig == "files":
         plt.xlabel('Number of Files in a Fix')
     else:
