@@ -236,7 +236,7 @@ class SAM(Characteristic):
 
     https://stackoverflow.com/questions/17913409/what-is-a-sam-type-in-java
     """
-    name = "Single Abstract Method"
+    name = "Functional interface"
     category = FunctionalProgramming()
     characteristic_type = Declaration()
     is_common = True
@@ -314,7 +314,7 @@ class ExtensionFunctions(Characteristic):
 
     https://kotlinlang.org/docs/extensions.html
     """
-    name = "Extension Function / Property"
+    name = "Extension function / property"
     category = SpecialFeatures()
     characteristic_type = Declaration()
     is_common = False
