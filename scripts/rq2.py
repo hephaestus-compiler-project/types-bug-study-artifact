@@ -36,19 +36,19 @@ def construct_dataframes(bugs):
     data_lang = defaultdict(lambda: 0)
     data_symptoms = defaultdict(lambda: 0)
     for bug in bugs.values():
-        data_lang[(LANG2COMP[bug['language']], bug['pattern']['category'])] += 1
-        data_symptoms[(bug['symptom'], bug['pattern']['category'])] += 1
+        data_lang[(LANG2COMP[bug['language']], bug['bug_cause']['category'])] += 1
+        data_symptoms[(bug['symptom'], bug['bug_cause']['category'])] += 1
     framedata_langs = []
     for (comp, category), value in data_lang.items():
         framedata_langs.append({
-            "Pattern": category,
+            "Bug Cause": category,
             "Compiler": comp,
             "Number of bugs": value
         })
     framedata_symptoms = []
     for (symptom, category), value in data_symptoms.items():
         framedata_symptoms.append({
-            "Pattern": category,
+            "Bug Cause": category,
             "Symptom": symptom,
             "Number of bugs": value
         })
@@ -116,7 +116,7 @@ def print_stats(df, dimension, lim, trim_dimensions=False):
     row5 = get_row(df, 'AST Transformation Bugs', dimension, lim)
     if trim_dimensions:
         dimension = [d.split(' ')[0] for d in dimension]
-    header = ["Pattern"] + dimension + ["Total"]
+    header = ["Bug Cause"] + dimension + ["Total"]
     spaces = "{:>" + str(len(max(header, key=len)) + 5) + "}"
     columns = len(dimension) + 1
     header_format = "{:<33}" + spaces * columns
@@ -137,9 +137,9 @@ def main():
         json_data = json.load(f)
     df_l, df_s, data_l, data_s = construct_dataframes(json_data)
     df_l = df_l.groupby(
-        ['Compiler', 'Pattern'])['Number of bugs'].sum().unstack('Compiler')
+        ['Compiler', 'Bug Cause'])['Number of bugs'].sum().unstack('Compiler')
     df_s = df_s.groupby(
-        ['Symptom', 'Pattern'])['Number of bugs'].sum().unstack('Symptom')
+        ['Symptom', 'Bug Cause'])['Number of bugs'].sum().unstack('Symptom')
     categories = [
         'AST Transformation Bugs',
         'Bugs Related to Error Handling & Reporting',

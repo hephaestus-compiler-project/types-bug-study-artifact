@@ -20,10 +20,10 @@ def boostrap():
 DURATION = boostrap()
 LINES = boostrap()
 FILES = boostrap()
-ROOT_CAUSES = boostrap()
+ERRORS = boostrap()
 CHARACTERISTICS = boostrap()
-CHARACTERISTICS_CATEGORIES = boostrap()
-CATEGORIES = boostrap()
+CHARACTERISTICS_BUG_CAUSES = boostrap()
+BUG_CAUSES = boostrap()
 SYMPTOMS = boostrap()
 KEYWORDS=["test", "Test"]
 SOURCE_FILES=[".java", ".kt", ".scala", ".groovy"]
@@ -136,12 +136,12 @@ def read_data(args):
                     LINES[l][lines_cluster].append(bug)
                     FILES["total"][files_cluster].append(bug)
                     FILES[l][files_cluster].append(bug)
-                    root_cause = bugs[bug]['root_cause']['category']
-                    ROOT_CAUSES["total"][root_cause].append(bug)
-                    ROOT_CAUSES[l][root_cause].append(bug)
-                    category = bugs[bug]['pattern']['category']
-                    CATEGORIES["total"][category].append(bug)
-                    CATEGORIES[l][category].append(bug)
+                    root_cause = bugs[bug]['error']['category']
+                    ERRORS["total"][root_cause].append(bug)
+                    ERRORS[l][root_cause].append(bug)
+                    category = bugs[bug]['bug_cause']['category']
+                    BUG_CAUSES["total"][category].append(bug)
+                    BUG_CAUSES[l][category].append(bug)
                     symptom = bugs[bug]['symptom']
                     SYMPTOMS["total"][symptom].append(bug)
                     SYMPTOMS[l][symptom].append(bug)
@@ -151,8 +151,8 @@ def read_data(args):
                         CHARACTERISTICS["total"][char].append(bug)
                         CHARACTERISTICS[l][char].append(bug)
                     for cat in char_categories:
-                        CHARACTERISTICS_CATEGORIES["total"][cat].append(bug)
-                        CHARACTERISTICS_CATEGORIES[l][cat].append(bug)
+                        CHARACTERISTICS_BUG_CAUSES["total"][cat].append(bug)
+                        CHARACTERISTICS_BUG_CAUSES[l][cat].append(bug)
                 except KeyError:
                     print("Cannot find {}".format(bug))
 
@@ -220,40 +220,40 @@ def main():
         print("Lines -> Duration")
         compute("total", LINES, DURATION, args.threshold, args.ithreshold,
                 args.limit)
-        print("Root cause -> Duration")
-        compute("total", ROOT_CAUSES, DURATION, args.threshold,
+        print("Errors -> Duration")
+        compute("total", ERRORS, DURATION, args.threshold,
                 args.ithreshold, args.limit)
-        print("Root cause -> Lines")
-        compute("total", ROOT_CAUSES, LINES, args.threshold, args.ithreshold,
+        print("Errors -> Lines")
+        compute("total", ERRORS, LINES, args.threshold, args.ithreshold,
                 args.limit)
-        print("Root cause -> FILES")
-        compute("total", ROOT_CAUSES, FILES, args.threshold, args.ithreshold,
+        print("Errors -> FILES")
+        compute("total", ERRORS, FILES, args.threshold, args.ithreshold,
                 args.limit)
         print("Characteristics -> Characteristics")
         compute("total", CHARACTERISTICS, CHARACTERISTICS, args.threshold,
                 args.ithreshold, args.limit)
         print("Char Categories -> Char Categories")
-        compute("total", CHARACTERISTICS_CATEGORIES,
-                CHARACTERISTICS_CATEGORIES, args.threshold, args.ithreshold,
+        compute("total", CHARACTERISTICS_BUG_CAUSES,
+                CHARACTERISTICS_BUG_CAUSES, args.threshold, args.ithreshold,
                 args.limit)
         print("Symptom -> Characteristics")
         compute("total", SYMPTOMS, CHARACTERISTICS, args.threshold,
                 args.ithreshold, args.limit)
-        print("Category -> Root Cause")
-        compute("total", CATEGORIES, ROOT_CAUSES, args.threshold,
+        print("Bug Causes -> Errors")
+        compute("total", BUG_CAUSES, ERRORS, args.threshold,
                 args.ithreshold, args.limit)
     else:
         print("Char Categories -> Char Categories")
-        compute("total", CHARACTERISTICS_CATEGORIES,
-                CHARACTERISTICS_CATEGORIES, 5, 20, 2)
+        compute("total", CHARACTERISTICS_BUG_CAUSES,
+                CHARACTERISTICS_BUG_CAUSES, 5, 20, 2)
         print("Characteristics -> Characteristics")
         filter_list = [
            ("Variable arguments", "Overloading"),
            ("Use-site variance", "Parameterized function"),
-           ("Type argument type inference", "Parameterized function"),
+           ("Type argument inference", "Parameterized function"),
            ("Implicits", "Parameterized class"),
-           ("Type argument type inference", "Collection API"),
-           ("Type argument type inference", "Parameterized type"),
+           ("Type argument inference", "Collection API"),
+           ("Type argument inference", "Parameterized type"),
         ]
         compute("total", CHARACTERISTICS, CHARACTERISTICS,
                 filter_list=filter_list)

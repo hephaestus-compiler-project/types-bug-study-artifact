@@ -1,5 +1,5 @@
-class Category():
-    """A base class for the bug cause categories.
+class BugCause():
+    """A base class for bug causes.
     """
     name = ""
 
@@ -25,7 +25,7 @@ class Subcategory():
         return self.__repr__()
 
 
-class TypeRelatedBugs(Category):
+class TypeRelatedBugs(BugCause):
     """Type-Related Bugs.
 
     A type operation of the compiler is not implemented correctly.
@@ -59,7 +59,7 @@ class TypeComparison(Subcategory):
     category = TypeRelatedBugs()
 
 
-class SemanticAnalysisBugs(Category):
+class SemanticAnalysisBugs(BugCause):
     """Semantic Analysis Bugs.
 
     Subcategories:
@@ -83,7 +83,7 @@ class MissingValiationChecks(Subcategory): # OtherSemanticChecking Declarations
     category =  SemanticAnalysisBugs()
 
 
-class ResolutionEnvironment(Category):
+class ResolutionEnvironment(BugCause):
     """Resolution Bugs
 
     Subcategories:
@@ -108,13 +108,13 @@ class Environment(Subcategory):
 
 
 
-class ErrorReporting(Category):
+class ErrorReporting(BugCause):
     """Bugs Related to Error Handling & Reporting.
     """
     name = "Bugs Related to Error Handling & Reporting"
 
 
-class Transformation(Category):
+class Transformation(BugCause):
     """AST Transformation Bugs.
     """
     name = "AST Transformation Bugs"

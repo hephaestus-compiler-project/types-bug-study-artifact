@@ -1,8 +1,8 @@
 from bug import ScalaBug
-import categories as ct
+import bug_causes as ct
 import characteristics as pc
 import symptoms as sy
-import root_causes as rc
+import errors as rc
 
 
 scala_iter1 = [

@@ -1,5 +1,5 @@
-class RootCause():
-    """Base class for root causes, i.e., error that introduced the bug.
+class Errors():
+    """Base class for errors that introduced the bug.
     """
     name = ""
 
@@ -13,7 +13,7 @@ class RootCause():
 class RootCauseGeneralCategory():
     """General root cause category.
 
-    The main root cause categories are:
+    The main error categories are:
 
     * Logic error
     * Algorithmic error
@@ -83,7 +83,7 @@ class DesignError(RootCauseGeneralCategory):
 
 
 # Logic Errors
-class MissingCase(RootCause):
+class MissingCase(Errors):
     """
     The type of the bug is a missing case or a forgotten step in the
     implementation.
@@ -100,7 +100,7 @@ class MissingCase(RootCause):
     name = "Missing Case / Forgotten Step"
 
 
-class IncorrectCondition(RootCause):
+class IncorrectCondition(Errors):
     """
     The type of the bug is an incorrect/missing condition in e.g., an if
     statement.
@@ -117,7 +117,7 @@ class IncorrectCondition(RootCause):
     name = "Incorrect / Missing Condition"
 
 
-class ExtraneousComputation(RootCause):
+class ExtraneousComputation(Errors):
     """
     The type of the bug is an extraneous computation / condition.
 
@@ -133,7 +133,7 @@ class ExtraneousComputation(RootCause):
     name = "Extraneous Computation / Condition"
 
 
-class IncorrectSequence(RootCause):
+class IncorrectSequence(Errors):
     """
     The type of the bug is an incorrect sequence of operations.
 
@@ -148,7 +148,7 @@ class IncorrectSequence(RootCause):
     name = "Incorrect sequence of operations"
 
 
-class WrongParams(RootCause):
+class WrongParams(Errors):
     """
     There is a bug, because the implementation passes incorrect or
     insufficient parameters to a method.
@@ -166,7 +166,7 @@ class WrongParams(RootCause):
 
 
 # Algorithmic
-class IncorrectComputation(RootCause):
+class IncorrectComputation(Errors):
     """
     The implementation performs an incorerct computation or uses a wrong
     algorithm.
@@ -183,7 +183,7 @@ class IncorrectComputation(RootCause):
     name = "Incorrect Computation / Wrong Algorithm Used"
 
 
-class InsufficientAlgorithmImplementation(RootCause):
+class InsufficientAlgorithmImplementation(Errors):
     """
     The implementation is buggy, because the underlying algorithm is
     insufficient.
@@ -199,7 +199,7 @@ class InsufficientAlgorithmImplementation(RootCause):
     name = "Insufficient Algorithm Implementation"
 
 
-class AlgorithmImproperlyImplemented(RootCause):
+class AlgorithmImproperlyImplemented(Errors):
     """
     The algorithm is not implemented correctly or efficiently.
 
@@ -215,7 +215,7 @@ class AlgorithmImproperlyImplemented(RootCause):
 
 
 # Programming Errors
-class IncorrectDataType(RootCause):
+class IncorrectDataType(Errors):
     """
     A variable/parameter is declared with an incorrect type.
 
@@ -226,7 +226,7 @@ class IncorrectDataType(RootCause):
     name = "Incorrect Data Type"
 
 
-class WrongDataReference(RootCause):
+class WrongDataReference(Errors):
     """
     The implementation refers to wrong or invalid data (e.g.,
     we have an out-of-bounds array access, etc.).
@@ -239,7 +239,7 @@ class WrongDataReference(RootCause):
 
 
 # Design Issues
-class DesignIssue(RootCause):
+class DesignIssue(Errors):
     """
     The bug is associated with an issue in the design rather than the
     implementation.
@@ -264,7 +264,7 @@ class DesignIssue(RootCause):
     name = "Design Issue"
 
 
-class FunctionalSpecificationMismatch(RootCause):
+class FunctionalSpecificationMismatch(Errors):
     """
     The implementation does not follow the specification of the language.
 

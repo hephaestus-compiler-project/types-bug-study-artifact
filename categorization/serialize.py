@@ -29,7 +29,7 @@ if __name__ == "__main__":
         gv.groovy_iter1 + gv.groovy_iter2 + gv.groovy_iter3 + gv.groovy_iter4
     res = {}
     char_stats = {
-            "Categories": defaultdict(
+            "Bug Causes": defaultdict(
                 lambda: {"total": 0,
                          "subcategories": defaultdict(
                              lambda: {"total": 0,
@@ -49,14 +49,14 @@ if __name__ == "__main__":
                 chars["categories"].add(c.category.name)
             # Characteristics distribution
             if isinstance(c.category, CharacteristicCategory):
-                cat = char_stats["Categories"][c.category.name]
+                cat = char_stats["Bug Causes"][c.category.name]
                 if c.category.name not in visited:
                     cat["total"] += 1
                     visited.add(c.category.name)
                 cat["subcategories"][c.name]["total"] += 1
                 cat["subcategories"][c.name]["is_common"] = c.is_common
             else:
-                cat = char_stats["Categories"][c.category.category.name]
+                cat = char_stats["Bug Causes"][c.category.category.name]
                 if c.category.category.name not in visited:
                     cat["total"] += 1
                     visited.add(c.category.category.name)
@@ -87,8 +87,8 @@ if __name__ == "__main__":
             "compiler": b.compiler,
             "is_correct": b.test_case_correct,
             "symptom": b.symptom.name,
-            "pattern": pattern,
-            "root_cause": {"category": b.root_cause.category.name,
+            "bug_cause": pattern,
+            "error": {"category": b.root_cause.category.name,
                            "subcategory": b.root_cause.name},
             "chars": chars
         }

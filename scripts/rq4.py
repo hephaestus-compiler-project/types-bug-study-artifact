@@ -300,7 +300,7 @@ def compute_chars_per_lang(bugs):
 
 def get_categories_stats(chars):
     res = [(category, (values['total'] / 320) * 100)
-           for category, values in chars['Categories'].items()]
+           for category, values in chars['Bug Causes'].items()]
     res.sort(reverse=True, key=lambda x: x[1])
     return res
 
@@ -317,7 +317,7 @@ def main():
     stats_per_lang = compute_chars_per_lang(json_bugs)
     categories = get_categories_stats(json_chars)
 
-    dataframes, characteristics = construct_dataframe(json_chars['Categories'])
+    dataframes, characteristics = construct_dataframe(json_chars['Bug Causes'])
     characteristics = sorted(characteristics, key=lambda tup: tup[2])
 
     print_generic_stats_table(compilable, non_compilable,
@@ -330,7 +330,7 @@ def main():
     plot_fig(dataframes, args.output)
 
     if args.all:
-        print_table(json_chars['Categories'])
+        print_table(json_chars['Bug Causes'])
 
 
 if __name__ == "__main__":

@@ -465,7 +465,7 @@ The above command produce the figures `figures/patterns.pdf` and
 standard output.
 
 ```
-Pattern                                      groovyc              javac            kotlinc     scalac & Dotty              Total
+Bug Cause                                    groovyc              javac            kotlinc     scalac & Dotty              Total
 --------------------------------------------------------------------------------------------------------------------------------
 Type-related Bugs                         37 (46.2%)         34 (42.5%)         31 (38.8%)         27 (33.8%)        129 (40.3%)
 Semantic Analysis Bugs                    17 (21.2%)         16 (20.0%)         20 (25.0%)         24 (30.0%)         77 (24.1%)
@@ -473,7 +473,7 @@ Resolution Bugs                           24 (30.0%)         17 (21.2%)         
 Error Handling & Reporting                  1 (1.2%)         10 (12.5%)           5 (6.2%)           6 (7.5%)          22 (6.9%)
 AST Transformation Bugs                     1 (1.2%)           3 (3.8%)           2 (2.5%)          9 (11.2%)          15 (4.7%)
 
-Pattern                                Unexpected        Internal      Unexpected      Misleading     Compilation           Total
+Bug Cause                              Unexpected        Internal      Unexpected      Misleading     Compilation           Total
 ---------------------------------------------------------------------------------------------------------------------------------
 Type-related Bugs                      90 (28.1%)       23 (7.2%)       10 (3.1%)        3 (0.9%)        3 (0.9%)     129 (40.3%)
 Semantic Analysis Bugs                  24 (7.5%)       21 (6.6%)       27 (8.4%)        3 (0.9%)        2 (0.6%)      77 (24.1%)
@@ -572,7 +572,7 @@ Number of method calls (median)                               1
 Most frequent features
 ===============================================================
 Parameterized type                                       46.56%
-Type argument type inference                             31.87%
+Type argument inference                                  31.87%
 Parameterized class                                      30.00%
 Parameterized function                                   26.25%
 Inheritance                                              24.06%
@@ -580,7 +580,7 @@ Inheritance                                              24.06%
 Least frequent features
 ===============================================================
 Multiple implements                                       2.19%
-this                                                      2.19%
+This                                                      2.19%
 Arithmetic Expressions                                    1.88%
 Loops                                                     1.25%
 Sealed Classes                                            0.94%
@@ -590,8 +590,8 @@ Most bug-triggering features per language
                  Java                                 Groovy                                Kotlin                                Scala
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
 Parameterized type            51.25% | Parameterized type            41.25% | Parameterized type            36.25% | Parameterized type            57.50% |
-Type argument type inference  42.50% | Collection API                35.00% | Parameterized class           33.75% | Parameterized class           42.50% |
-Single Abstract Method        37.50% | Type argument type inference  35.00% | Type argument type inference  32.50% | Inheritance                   32.50% |
+Type argument inference       42.50% | Collection API                35.00% | Parameterized class           33.75% | Parameterized class           42.50% |
+Functional interface          37.50% | Type argument inference       35.00% | Type argument inference       32.50% | Inheritance                   32.50% |
 Parameterized function        35.00% | Lambda                        25.00% | Parameterized function        26.25% | Implicits                     23.75% |
 Parameterized class           30.00% | Parameterized function        21.25% | Inheritance                   25.00% | Parameterized function        22.50% |
 
@@ -621,12 +621,12 @@ Char Categories -> Char Categories
 Lift        Standard library -> Functional programming : 5.3639 (Confidence A->B: 0.5306, Support B: 0.0989) -- Totals A: 98, B: 101, A-B: 52
 Lift        Standard library -> Type inference         : 5.1717 (Confidence A->B: 0.7041, Support B: 0.1361) -- Totals A: 98, B: 139, A-B: 69
 Characteristics -> Characteristics
-Lift            Variable arguments -> Overloading                  : 24.0125 (Confidence A->B: 0.4545, Support B: 0.0189) -- Totals A: 11, B: 29, A-B: 5
-Lift             Use-site variance -> Parameterized function       : 17.1653 (Confidence A->B: 0.9412, Support B: 0.0548) -- Totals A: 17, B: 84, A-B: 16
-Lift  Type argument type inference -> Parameterized function       : 12.6951 (Confidence A->B: 0.6961, Support B: 0.0548) -- Totals A: 102, B: 84, A-B: 71
-Lift                     Implicits -> Parameterized class          : 10.9189 (Confidence A->B: 0.6842, Support B: 0.0627) -- Totals A: 19, B: 96, A-B: 13
-Lift  Type argument type inference -> Collection API               : 8.5826 (Confidence A->B: 0.3922, Support B: 0.0457) -- Totals A: 102, B: 70, A-B: 40
-Lift  Type argument type inference -> Parameterized type           : 6.9554 (Confidence A->B: 0.6765, Support B: 0.0973) -- Totals A: 102, B: 149, A-B: 69
+Lift            Variable arguments -> Overloading                  : 24.0282 (Confidence A->B: 0.4545, Support B: 0.0189) -- Totals A: 11, B: 29, A-B: 5
+Lift             Use-site variance -> Parameterized function       : 17.1765 (Confidence A->B: 0.9412, Support B: 0.0548) -- Totals A: 17, B: 84, A-B: 16
+Lift       Type argument inference -> Parameterized function       : 12.7034 (Confidence A->B: 0.6961, Support B: 0.0548) -- Totals A: 102, B: 84, A-B: 71
+Lift                     Implicits -> Parameterized class          : 10.9260 (Confidence A->B: 0.6842, Support B: 0.0626) -- Totals A: 19, B: 96, A-B: 13
+Lift       Type argument inference -> Collection API               : 8.5882 (Confidence A->B: 0.3922, Support B: 0.0457) -- Totals A: 102, B: 70, A-B: 40
+Lift       Type argument inference -> Parameterized type           : 6.9599 (Confidence A->B: 0.6765, Support B: 0.0972) -- Totals A: 102, B: 149, A-B: 69
 ```
 
 Note that this script can be used to compute various lift scores.
