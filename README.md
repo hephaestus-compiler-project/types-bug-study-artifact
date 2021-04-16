@@ -47,19 +47,35 @@ and (2) the URL pointing to the fix of the bugs.
 
 # Requirements
 
-* A Unix-like operating system (tested on Ubuntu and Debian) with python3,
-or a Docker installation.
+* A Unix-like operating system (tested on Ubuntu and Debian).
 
+* An installation of Python3
+
+* An installation of Docker
+
+* At least 20GB of available disk space
 
 # Getting Started
 
 ## Setup
 
+There are two ways to reproduce the results of the paper.
+If you are in an Ubuntu/Debian OS,
+we provide the instructions for installing the necessary
+apt packages and libraries.
+Otherwise if you do not own an Ubuntu/Debian environment,
+this artifact also provides a Docker image 
+that offers the required setup
+for executing the scripts and reproducing the results of our paper.
+
 #### Ubuntu/Debian
 
-You need to install some apt packages and some python packages to run the
+**NOTE**: If you do not run an Ubuntu/Debian OS, please jump to the
+Section "Installing Docker Image".
+
+You need to install some `apt` packages and some Python packages to run the
 experiments of this artifact.
-First, download the following packages using apt.
+First, download the following packages using `apt`.
 
 ```bash
 apt install curl jq git mercurial diffstat cloc
@@ -74,9 +90,10 @@ source .env/bin/activate
 pip install requests matplotlib pandas seaborn
 ```
 
-#### Docker
+#### Installing Docker Image
 
-First, build the docker image.
+To build the Docker image from source,
+run the following command (estimated running time: ~3 min)
 
 ```bash
 docker build . -t bug-study
@@ -94,25 +111,49 @@ docker run -it \
 ```
 
 After executing the command, you will be able to enter the home directory
-(i.e., /home). This directory contains the `scripts` where the scripts that
-we are going to execute are stored, `data` where the data of the bug study are
-stored, `figures` which is the directory where we are going to save the produced
-figures, and `downloads` which is the directory where the data of Phase 1 and
+(i.e., `/home`). This directory contains
+(1) the scripts for reproducing the results of the paper (see `scripts/`),
+(2) the data of our bug study (see `data/`),
+(3) a dedicated directory for storing the generated figures (see `figures/`),
+and (4) `downloads/` which is the directory where the data of Phase 1 and
 Phase 2 will be saved if you decide to get the initial data from their sources.
 
 Some further explanations:
 
 The option `-v` is used to mount a local volume inside the Docker container.
-This option is used to get data from this repository to the Docker container,
-and to store all the figures produced from the scripts in `$(pwd)/figures`.
+This option is used to mount data from this repository
+inside the Docker container,
+to store the figures produced from the scripts in `$(pwd)/figures`.
 
 ## Download the bugs and fixes from sources
 
-If you select to download and regenerate the initial dataset described in
-Section 2.1 of the paper, then you will need at least 20 GB of available disk
-space. At this point, we should note that the generated dataset will probably
-contain more bugs than the dataset described in the paper because new bugs
-will have been fixed from the time we downloaded the bugs until now.
+**NOTE 1:**
+To complete this step,
+you need to obtain a Github access token
+(see [here](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token)) so that
+you are able to interact with the Github API.
+Once you obtain it,
+please assign it to a shell variable named `GH_TOKEN`.
+
+```bash
+export GH_TOKEN=<your Github access token>
+```
+
+**NOTE 2:** Before executing this step,
+please also ensure that you have at least 20GB of available disk space.
+
+The following script applies our bug collection approach.
+Specifically,
+it searches over the issue trackers of the examined compilers
+and retrieves fixed typing-related bugs that meet our search criteria
+as described in Section 2.1 of our paper.
+Then,
+it runs the `Phase 2` of our bug collection approach to filter out bugs
+without any explicit fix or a test case.
+At this point, we should note that the generated dataset will probably
+contain more bugs than the dataset described in the paper (see Table 1),
+because new bugs will have been fixed from the time we downloaded
+the bugs until now.
 
 * Download the data (~18 hours).
 
@@ -120,86 +161,105 @@ will have been fixed from the time we downloaded the bugs until now.
 ./scripts/fetch/fetch.sh downloads $GH_TOKEN
 ```
 
-This command will execute several scripts in order to download all the data.
-The `downloads` directory is the directory in which the data will be saved.
-Moreover, you will need to save in a local variable called `GH_TOKEN`, a
-GitHub API token. This command takes that much time because (1) we need to
-download a number of large code repositories (compilers' codebases), and (2)
-we need to wait between some requests due to the rate limits of the GitHub API.
-More specifically, the following scripts will be executed. Note that in place
-of `$DOWNLOADS` is the `downloads` directory. The first five scripts compose
-Phase 1 of our collection process, while the 6th script is Phase 2 of our
-process.
+The command above executes six scripts.
+The first five scripts compose the `Phase 1` of our bug collection approach,
+while the 6th script stands for the `Phase 2` of our approach.
+In the following,
+the shell variable `$DOWNLOADS` corresponds to the `downloads/` directory,
+which is passed as an argument of the first command
+(`scripts/fetch/fetch.sh`).
 
-1. Fetch Groovy bugs.
+
+### 1. Fetch Groovy bugs
 
 ```bash
 python scripts/fetch/fetch_groovy_bugs.py $DOWNLOADS/bugs/groovy.txt \
         $DOWNLOADS/bugs/fixes/descriptions/groovy $DOWNLOADS/bugs/groovy.json
 ```
 
-This script fetches `groovyc` bugs from
-<https://issues.apache.org/jira/rest/api>, then it saves the URLs of the scripts
-in `$DOWNLOADS/bugs/groovy.txt`, the description and the summary for each
-bug (with id: GROOVY-XXXX) in
-`$DOWNLOADS/bugs/fixes/descriptions/groovy/GROOVY-XXXX`, and it saves
-statistics such as `created` timestamp, `resolution` timestamp, and `reporter`
+This script fetches `groovyc` bugs
+using the Jira REST API
+(see <https://issues.apache.org/jira/rest/api>).
+It saves (1) the URLs of the retrieved bugs
+in `$DOWNLOADS/bugs/groovy.txt`,
+(2) the description and the summary of each
+bug in
+`$DOWNLOADS/bugs/fixes/descriptions/groovy/GROOVY-XXXX`
+(where `XXXX` stands for the id of the bug), 
+and (3) some general statistics,
+(such as `created` timestamp, `resolution` timestamp, and `reporter`)
 in `$DOWNLOADS/bugs/groovy.json`.
 
-2. Fetch Kotlin bugs.
+### 2. Fetch Kotlin bugs
 
 ```bash
 python scripts/fetch/fetch_kotlin_bugs.py $DOWNLOADS/bugs/kotlin.txt \
         $DOWNLOADS/bugs/fixes/descriptions/kotlin $DOWNLOADS/bugs/kotlin.json
 ```
 
-This script fetches bugs for the Kotlin compiler from
-<https://youtrack.jetbrains.com/api/issues>, it saves the URLs of the scripts
-in `$DOWNLOADS/bugs/kotlin.txt`, the description and the summary for each
-bug (with id: KT-XXXX) in
-`$DOWNLOADS/bugs/fixes/descriptions/kotlin/KT-XXXX`, and it saves
-statistics such as `created` timestamp, `resolution` timestamp, and `reporter`
+This script fetches `kotlinc` bugs
+using the YouTrack REST API
+(see <https://youtrack.jetbrains.com/api/issues>).
+The script stores
+(1) the URLs of the retrieved `kotlinc` bugs
+in `$DOWNLOADS/bugs/kotlin.txt`,
+(2) the description and the summary for each
+bug in
+`$DOWNLOADS/bugs/fixes/descriptions/kotlin/KT-XXXX`,
+and (3) some general statistics
+(such as `created` timestamp, `resolution` timestamp, and `reporter`)
 in `$DOWNLOADS/bugs/kotlin.json`.
 
-3. Fetch Java bugs.
+### 3. Fetch Java bugs
 
 ```bash
 python scripts/fetch/fetch_java_bugs.py $DOWNLOADS/bugs/java.txt \
         $DOWNLOADS/bugs/fixes/descriptions/java $DOWNLOADS/bugs/java.json
 ```
 
-This script fetches bugs for `javac` from
-<https://bugs.openjdk.java.net/rest/api>, it saves the URLs of the scripts
-in `$DOWNLOADS/bugs/java.txt`, the description and the summary for each
-bug (with id: JDK-XXXX) in
-`$DOWNLOADS/bugs/fixes/descriptions/java/JDK-XXXX`, and it saves
-statistics such as `created` timestamp, `resolution` timestamp, and `reporter`
+This script fetches `javac` bugs
+using the Jira REST API
+(see <https://bugs.openjdk.java.net/rest/api>),
+The script saves
+(1) the URLs of the retrieved bugs
+in `$DOWNLOADS/bugs/java.txt`,
+(2) the description and the summary for each bug in
+`$DOWNLOADS/bugs/fixes/descriptions/java/JDK-XXXX`,
+(3) some general statistics
+(such as `created` timestamp, `resolution` timestamp, and `reporter`)
 in `$DOWNLOADS/bugs/java.json`.
 
-4. Fetch Scala bugs.
+### 4. Fetch Scala bugs
 
 ```bash
 python scripts/fetch/fetch_scala_bugs.py $DOWNLOADS/bugs/scala.txt \
         $DOWNLOADS/bugs/fixes/descriptions/scala $DOWNLOADS/bugs/scala.json $GH_TOKEN
 ```
 
-This script fetches bugs for `scalac` and `dotty` from
-<https://api.github.com>, it saves the URLs of the scripts
-in `$DOWNLOADS/bugs/scala.txt`, the description and the summary for each
-bug (with id: scala-XXXX or dotty-XXXX) in
-`$DOWNLOADS/bugs/fixes/descriptions/scala/scala-XXXX`, and it saves
-statistics such as `created` timestamp, `resolution` timestamp, and `reporter`
+This script fetches bugs related to `scalac` and `dotty`
+using the Github REST API
+(see <https://api.github.com>).
+The script saves
+(1) the URLs of the scripts
+in `$DOWNLOADS/bugs/scala.txt`,
+(2) the description and the summary for each bug in
+`$DOWNLOADS/bugs/fixes/descriptions/scala/scala-XXXX`,
+and (3) some general
+statistics
+(such as `created` timestamp, `resolution` timestamp, and `reporter`)
 in `$DOWNLOADS/bugs/scala.json`.
 
-5. Clone compilers' repositories.
+### 5. Clone compilers' repositories
 
 ```bash
 ./scripts/fetch/clone.sh $DOWNLOADS/repos
 ```
 
-This script downloads a number of repositories that we need to get the fixes
-of the analyzed bugs in `$DOWNLOADS/repos` directory. More specifically, it
-downloads the following repositories.
+This script clones a number of repositories.
+We use the history of these repositories to search for fixes
+corresponding to the collected bugs.
+In particular,
+the script downloads the following repositories.
 
 ```
 https://github.com/JetBrains/kotlin
@@ -219,7 +279,7 @@ http://hg.openjdk.java.net/jdk/jdk13/
 http://hg.openjdk.java.net/jdk/jdk14/
 ```
 
-6. Detect fixes of the downloaded bugs.
+### 6. Detect fixes for the collected bugs
 
 ```
 ./scripts/fetch/find_fixes.sh $DOWNLOADS/bugs \
@@ -227,21 +287,32 @@ http://hg.openjdk.java.net/jdk/jdk14/
         $DOWNLOADS/bugs/fixes $GH_TOKEN 2>&1 | tee $DOWNLOADS/logs
 ```
 
-This script is responsible for detecting the fixes for the bugs we fetched with
-the previous scripts. To do so, for each bug, it first searches in
-the corresponding repository for commits with its bug id in the commit message.
-If that fails and the repository is hosted in GitHub, then it searches for
-PRs that have tagged the bug id. Then it saves the URLs of the bug ids, along
-with their fixes in `$DOWNLOADS/bugs/fixes/{groovy,kotlin,java,scala}.txt`.
+This script is responsible for detecting fixes
+associated with the bugs fetched by
+the previous scripts.
+To do so,
+for each bug,
+it first searches over
+the corresponding repository for commits containing
+the ID of the bug in the commit message.
+If that fails and the repository is hosted in GitHub,
+then the script searches for
+pull requests that have tagged the given bug ID.
+Finally,
+the script saves the URLs of bug reports,
+and the URLs of their fixes in
+`$DOWNLOADS/bugs/fixes/{groovy,kotlin,java,scala}.txt`.
 
 
-* Print stats of the download data.
+To print some general statistics regarding
+our bug collection approach run
 
 ```bash
 ./scripts/data_collection_stats.sh downloads/bugs
 ```
 
-The above script prints the totals for the bugs collected in the previous step.
+The above script prints the total number of bugs collected
+in the previous step.
 It produces an output similar to the following.
 
 ```
@@ -256,11 +327,17 @@ Language         Phase 1         Phase 2
    Total            5350            4153
 ```
 
-* Download and copy data for selected bugs in `data/iterations` (4.5 min).
+## Download the 320 typing-related bugs
+
+To download the data associated with
+the 320 typing-related that
+were manually examined in our paper,
+run the following script (estimated running time: 4--5 min)
 
 ```bash
-./scripts/get_data_for_selected_bugs.sh downloads data
+./scripts/fetch/get_data_for_selected_bugs.sh downloads data
 ```
+
 Finally, we need to get the fixes and the statistics for the selected bugs
 of our dataset. This script takes as input the `download` directory, which
 includes the initial dataset, and the `data` directory, which must contain
