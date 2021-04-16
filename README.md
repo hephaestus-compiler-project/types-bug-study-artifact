@@ -17,7 +17,7 @@ described in our paper. The artifact has the following structure:
 re-compute the results presented in our paper.
 * `scripts/fetch`: This is the directory that contains the scripts needed to
 download the initial dataset described in our paper (Phase 1 and Phase 2).
-* `categorization`: A python DSL language to categorize the analyzed bugs.
+* `categorization`: Python code used to categorize the analyzed bugs.
 For more information see `categorization/README.md`.
 * `data`: The dataset of the analyzed 320 bugs.
 * `data/bugs.json`: Contains all 320 bugs of our study. Each bug has the
@@ -105,6 +105,9 @@ and to store all the figures produced from the scripts in `$(pwd)/figures`.
 
 Download the bugs and fixes from sources
 ----------------------------------------
+
+If you do not want to download the bugs from the sources,
+you can go directly to the next section (**Reproduce Paper Results**).
 
 If you select to download and regenerate the initial dataset described in
 Section 2.1 of the paper, then you will need at least 20 GB of available disk
