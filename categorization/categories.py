@@ -84,13 +84,13 @@ class MissingValiationChecks(Subcategory): # OtherSemanticChecking Declarations
 
 
 class ResolutionEnvironment(Category):
-    """Resolution & Environment Bugs
+    """Resolution Bugs
 
     Subcategories:
         - Resolution
         - Environment
     """
-    name = "Resolution & Environment Bugs"
+    name = "Resolution Bugs"
 
 
 class Resolution(Subcategory):
@@ -109,9 +109,9 @@ class Environment(Subcategory):
 
 
 class ErrorReporting(Category):
-    """Error Handling & Reporting Bugs.
+    """Bugs Related to Error Handling & Reporting.
     """
-    name = "Error Handling & Reporting Bugs"
+    name = "Bugs Related to Error Handling & Reporting"
 
 
 class Transformation(Category):

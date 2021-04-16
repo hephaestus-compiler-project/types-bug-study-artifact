@@ -110,8 +110,9 @@ def print_stats(df, dimension, lim, trim_dimensions=False):
     df = df.fillna(0)
     row1 = get_row(df, 'Type-related Bugs', dimension, lim)
     row2 = get_row(df, 'Semantic Analysis Bugs', dimension, lim)
-    row3 = get_row(df, 'Resolution & Environment Bugs', dimension, lim)
-    row4 = get_row(df, 'Error Handling & Reporting Bugs', dimension, lim)
+    row3 = get_row(df, 'Resolution Bugs', dimension, lim)
+    row4 = get_row(df, 'Bugs Related to Error Handling & Reporting', dimension,
+                   lim)
     row5 = get_row(df, 'AST Transformation Bugs', dimension, lim)
     if trim_dimensions:
         dimension = [d.split(' ')[0] for d in dimension]
@@ -125,6 +126,7 @@ def print_stats(df, dimension, lim, trim_dimensions=False):
     print(row_format.format(*row1))
     print(row_format.format(*row2))
     print(row_format.format(*row3))
+    row4[0] = 'Error Handling & Reporting'
     print(row_format.format(*row4))
     print(row_format.format(*row5))
 
@@ -140,8 +142,8 @@ def main():
         ['Symptom', 'Pattern'])['Number of bugs'].sum().unstack('Symptom')
     categories = [
         'AST Transformation Bugs',
-        'Error Handling & Reporting Bugs',
-        'Resolution & Environment Bugs',
+        'Bugs Related to Error Handling & Reporting',
+        'Resolution Bugs',
         'Semantic Analysis Bugs',
         'Type-related Bugs',
     ]
