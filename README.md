@@ -612,11 +612,10 @@ Specifically,
 `--limit` option
 specifies the number of pairs to show per category.
 `--threshold` option
-sets a threshold for lift scores
-that pairs must surpasses to be printed.
+sets a threshold for lift scores.
 Finally,
 `--ithreshold`
-sets a population threshold which pairs must exceed to be printed.
+sets a population threshold that pairs must exceed.
 
 ```
 usage: lift.py [-h] [--threshold THRESHOLD] [--ithreshold ITHRESHOLD]
