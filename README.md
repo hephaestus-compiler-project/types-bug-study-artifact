@@ -441,11 +441,11 @@ the following.
 ```
 Symptom                               groovyc          javac        kotlinc scalac & Dotty          Total
 ---------------------------------------------------------------------------------------------------------
-Unexpected Compile-Time Error      59 (73.8%)     38 (47.5%)     30 (37.5%)     36 (45.0%)    163 (50.9%)
-Internal Compiler Error            10 (12.5%)     25 (31.2%)     18 (22.5%)     26 (32.5%)     79 (24.7%)
-Unexpected Runtime Behavior         9 (11.2%)     11 (13.8%)     22 (27.5%)     11 (13.8%)     53 (16.6%)
-Misleading Report                    2 (2.5%)       4 (5.0%)       7 (8.8%)       5 (6.2%)      18 (5.6%)
-Compilation Performance Issue        0 (0.0%)       2 (2.5%)       3 (3.8%)       2 (2.5%)       7 (2.2%)
+Unexpected Compile-Time Error     59 (73.75%)    38 (47.50%)    30 (37.50%)    36 (45.00%)   163 (50.94%)
+Internal Compiler Error           10 (12.50%)    25 (31.25%)    18 (22.50%)    26 (32.50%)    79 (24.69%)
+Unexpected Runtime Behavior        9 (11.25%)    11 (13.75%)    22 (27.50%)    11 (13.75%)    53 (16.56%)
+Misleading Report                   2 (2.50%)      4 (5.00%)      7 (8.75%)      5 (6.25%)     18 (5.62%)
+Compilation Performance Issue       0 (0.00%)      2 (2.50%)      3 (3.75%)      2 (2.50%)      7 (2.19%)
 ```
 
 ## RQ2: Bug Patterns (Section 3.2)
@@ -467,19 +467,19 @@ standard output.
 ```
 Bug Cause                                    groovyc              javac            kotlinc     scalac & Dotty              Total
 --------------------------------------------------------------------------------------------------------------------------------
-Type-related Bugs                         37 (46.2%)         34 (42.5%)         31 (38.8%)         27 (33.8%)        129 (40.3%)
-Semantic Analysis Bugs                    17 (21.2%)         16 (20.0%)         20 (25.0%)         24 (30.0%)         77 (24.1%)
-Resolution Bugs                           24 (30.0%)         17 (21.2%)         22 (27.5%)         14 (17.5%)         77 (24.1%)
-Error Handling & Reporting                  1 (1.2%)         10 (12.5%)           5 (6.2%)           6 (7.5%)          22 (6.9%)
-AST Transformation Bugs                     1 (1.2%)           3 (3.8%)           2 (2.5%)          9 (11.2%)          15 (4.7%)
+Type-related Bugs                        37 (46.25%)        34 (42.50%)        31 (38.75%)        27 (33.75%)       129 (40.31%)
+Semantic Analysis Bugs                   17 (21.25%)        16 (20.00%)        20 (25.00%)        24 (30.00%)        77 (24.06%)
+Resolution Bugs                          24 (30.00%)        17 (21.25%)        22 (27.50%)        14 (17.50%)        77 (24.06%)
+Error Handling & Reporting                 1 (1.25%)        10 (12.50%)          5 (6.25%)          6 (7.50%)         22 (6.88%)
+AST Transformation Bugs                    1 (1.25%)          3 (3.75%)          2 (2.50%)         9 (11.25%)         15 (4.69%)
 
 Bug Cause                              Unexpected        Internal      Unexpected      Misleading     Compilation           Total
 ---------------------------------------------------------------------------------------------------------------------------------
-Type-related Bugs                      90 (28.1%)       23 (7.2%)       10 (3.1%)        3 (0.9%)        3 (0.9%)     129 (40.3%)
-Semantic Analysis Bugs                  24 (7.5%)       21 (6.6%)       27 (8.4%)        3 (0.9%)        2 (0.6%)      77 (24.1%)
-Resolution Bugs                        44 (13.8%)       11 (3.4%)       16 (5.0%)        5 (1.6%)        1 (0.3%)      77 (24.1%)
-Error Handling & Reporting               0 (0.0%)       15 (4.7%)        0 (0.0%)        7 (2.2%)        0 (0.0%)       22 (6.9%)
-AST Transformation Bugs                  5 (1.6%)        9 (2.8%)        0 (0.0%)        0 (0.0%)        1 (0.3%)       15 (4.7%)
+Type-related Bugs                     90 (28.12%)      23 (7.19%)      10 (3.12%)       3 (0.94%)       3 (0.94%)    129 (40.31%)
+Semantic Analysis Bugs                 24 (7.50%)      21 (6.56%)      27 (8.44%)       3 (0.94%)       2 (0.62%)     77 (24.06%)
+Resolution Bugs                       44 (13.75%)      11 (3.44%)      16 (5.00%)       5 (1.56%)       1 (0.31%)     77 (24.06%)
+Error Handling & Reporting              0 (0.00%)      15 (4.69%)       0 (0.00%)       7 (2.19%)       0 (0.00%)      22 (6.88%)
+AST Transformation Bugs                 5 (1.56%)       9 (2.81%)       0 (0.00%)       0 (0.00%)       1 (0.31%)      15 (4.69%)
 ```
 
 
@@ -506,34 +506,34 @@ The script also prints the following tables.
 ============================================================
           Mean      Median    SD        Min       Max
 ------------------------------------------------------------
-Java      30        16        40        1         190
-Kotlin    56        21        144       1         1177
-Groovy    49        23        89        1         706
-Scala     73        9         379       1         3381
+Java      30.95     16.00     40.60     1.00      190.00
+Kotlin    56.15     21.50     144.21    1.00      1177.00
+Groovy    49.10     23.00     89.20     1.00      706.00
+Scala     73.40     9.50      379.35    1.00      3381.00
 ------------------------------------------------------------
-Total     52        16        208       1         3381
+Total     52.40     16.00     208.33    1.00      3381.00
 
                          Files
 ============================================================
           Mean      Median    SD        Min       Max
 ------------------------------------------------------------
-Java      1         1         1         1         5
-Kotlin    2         2         2         1         15
-Groovy    1         1         0         1         5
-Scala     2         1         5         1         45
+Java      1.60      1.00      1.03      1.00      5.00
+Kotlin    2.70      2.00      2.56      1.00      15.00
+Groovy    1.49      1.00      0.86      1.00      5.00
+Scala     2.46      1.00      5.22      1.00      45.00
 ------------------------------------------------------------
-Total     2         1         3         1         45
+Total     2.06      1.00      3.01      1.00      45.00
 
                       Duration
 ============================================================
           Mean      Median    SD        Min       Max
 ------------------------------------------------------------
-Java      131       21        284       0         1621
-Kotlin    164       34        296       0         1337
-Groovy    122       8         278       0         1472
-Scala     328       55        628       0         3209
+Java      131.39    21.00     284.86    0.00      1621.00
+Kotlin    164.16    34.00     296.25    0.00      1337.00
+Groovy    122.05    8.00      278.64    0.00      1472.00
+Scala     328.09    55.50     628.74    0.00      3209.00
 ------------------------------------------------------------
-Total     186       24        407       0         3209
+Total     186.42    24.00     407.32    0.00      3209.00
 ```
 
 ## RQ4: Test Case Characteristics (Section 3.4)
@@ -554,18 +554,18 @@ This script generates `figures/characteristics.pdf` and produces:
 ```
 General statistics on test case characteristics
 ===============================================================
-Compilable test cases                         216 / 320 (67.5%)
-Non-compilable test cases                     104 / 320 (32.5%)
+Compilable test cases                        216 / 320 (67.50%)
+Non-compilable test cases                    104 / 320 (32.50%)
 ---------------------------------------------------------------
-LoC (mean)                                                 10.2
+LoC (mean)                                                10.24
 LoC (median)                                                  8
 ---------------------------------------------------------------
-Number of class decls (mean)                                2.0
+Number of class decls (mean)                               1.98
 Number of class decls (median)                                2
 ---------------------------------------------------------------
-Number of method decls (mean)                               2.9
+Number of method decls (mean)                              2.89
 Number of method decls (median)                               2
-Number of method calls (mean)                               2.5
+Number of method calls (mean)                              2.48
 Number of method calls (median)                               1
 ---------------------------------------------------------------
 

@@ -51,7 +51,7 @@ def get_args():
 
 def print_stats(stats, title):
     def print_line(stats, row):
-        row_format = "{:<10}" * 6
+        row_format = "{:<10}" + "{:<10.2f}" * 5
         print(row_format.format(
             row, stats["mean"], stats["median"],
             stats["sd"], stats["min"], stats["max"]
@@ -176,9 +176,9 @@ def get_stats(data):
         res[k] = {
             "max": max(data[k]),
             "min": min(data[k]),
-            "mean": int(statistics.mean(data[k])),
-            "median": int(statistics.median(data[k])),
-            "sd": int(statistics.stdev(data[k]))}
+            "mean": statistics.mean(data[k]),
+            "median": statistics.median(data[k]),
+            "sd": statistics.stdev(data[k])}
     return res
 
 

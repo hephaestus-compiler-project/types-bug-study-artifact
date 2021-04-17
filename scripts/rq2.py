@@ -97,10 +97,10 @@ def get_row(df, pattern, dimension, lim):
     for lang in dimension:
         n = int(df[lang][pattern])
         total += n
-        res.append("{} ({:.1f}%)".format(
+        res.append("{} ({:.2f}%)".format(
            n, (n/lim) * 100
         ))
-    res.append("{} ({:.1f}%)".format(
+    res.append("{} ({:.2f}%)".format(
        total, (total/320) * 100
     ))
     return res

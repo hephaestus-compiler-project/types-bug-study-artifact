@@ -129,26 +129,26 @@ def print_generic_stats_table(compilable, non_compilable, locs, classes,
     print(63 * "=")
     print(row_format.format(
         "Compilable test cases",
-        "{} / 320 ({:.1f}%)".format(compilable, (compilable / 320) * 100)))
+        "{} / 320 ({:.2f}%)".format(compilable, (compilable / 320) * 100)))
     print(row_format.format(
         "Non-compilable test cases",
-        "{} / 320 ({:.1f}%)".format(
+        "{} / 320 ({:.2f}%)".format(
             non_compilable, (non_compilable / 320) * 100)))
     print(63 * "-")
-    print(row_format.format("LoC (mean)", "{:.1f}".format(locs["mean"])))
+    print(row_format.format("LoC (mean)", "{:.2f}".format(locs["mean"])))
     print(row_format.format("LoC (median)", locs["median"]))
     print(63 * "-")
     print(row_format.format(
-        "Number of class decls (mean)", "{:.1f}".format(classes["mean"])))
+        "Number of class decls (mean)", "{:.2f}".format(classes["mean"])))
     print(row_format.format(
         "Number of class decls (median)", classes["median"]))
     print(63 * "-")
     print(row_format.format(
-        "Number of method decls (mean)", "{:.1f}".format(methods["mean"])))
+        "Number of method decls (mean)", "{:.2f}".format(methods["mean"])))
     print(row_format.format(
         "Number of method decls (median)", methods["median"]))
     print(row_format.format(
-        "Number of method calls (mean)", "{:.1f}".format(calls["mean"])))
+        "Number of method calls (mean)", "{:.2f}".format(calls["mean"])))
     print(row_format.format(
         "Number of method calls (median)", calls["median"]))
     print(63 * "-")

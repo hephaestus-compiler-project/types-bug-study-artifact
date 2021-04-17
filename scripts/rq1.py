@@ -81,10 +81,10 @@ def get_row(df, symptom):
     for lang in langs:
         n = int(df[lang][symptom])
         total += n
-        res.append("{} ({:.1f}%)".format(
+        res.append("{} ({:.2f}%)".format(
            n, (n/80) * 100
         ))
-    res.append("{} ({:.1f}%)".format(
+    res.append("{} ({:.2f}%)".format(
        total, (total/320) * 100
     ))
     return res
