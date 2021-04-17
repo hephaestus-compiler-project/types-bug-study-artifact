@@ -135,17 +135,19 @@ will not be lost upon container's exit
 
 ## Download the bugs and fixes from sources
 
-If you do not want to download the bugs from the sources,
-you can go directly to the next section (**Reproduce Paper Results**).
+**NOTE 1:**
+If you do not want to re-download the bugs from the sources
+and re-create the bug dataset,
+you can go directly to the next section ("Step-by-Step Instructions").
 
-If you select to download and regenerate the initial dataset described in
+To download and re-construct the initial dataset described in
 Section 2.1 of the paper, then you will need at least 20 GB of available disk
 space. At this point, we should note that the generated dataset will probably
 contain more bugs than the dataset described in the paper because new bugs
 will have been fixed from the time we downloaded the bugs until now.
 
-**NOTE 1:**
-To complete this step,
+**NOTE 2:**
+To run the following scripts successfully,
 you need to obtain a Github access token
 (see [here](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token)) so that
 you are able to interact with the Github API.
@@ -156,8 +158,6 @@ please assign it to a shell variable named `GH_TOKEN`.
 export GH_TOKEN=<your Github access token>
 ```
 
-**NOTE 2:** Before executing this step,
-please also ensure that you have at least 20GB of available disk space.
 
 The following script applies our bug collection approach.
 Specifically,
@@ -165,25 +165,22 @@ it searches over the issue trackers of the examined compilers
 and retrieves fixed typing-related bugs that meet our search criteria
 as described in Section 2.1 of our paper.
 Then,
-it runs the `Phase 2` of our bug collection approach to filter out bugs
+it runs the _post-filtering_ step to filter out bugs
 without any explicit fix or a test case.
-At this point, we should note that the generated dataset will probably
-contain more bugs than the dataset described in the paper (see Table 1),
-because new bugs will have been fixed from the time we downloaded
-the bugs until now.
+To fetch the data,
+run the following script (estimated running time: ~18 hours)
 
-* Download the data (~18 hours).
 
 ```bash
 ./scripts/fetch/fetch.sh downloads $GH_TOKEN
 ```
 
 The command above executes six scripts.
-The first five scripts compose the `Phase 1` of our bug collection approach,
-while the 6th script stands for the `Phase 2` of our approach.
+The first five scripts compose the _bug collection_ phase of our approach,
+while the 6th script stands for the _post-filtering_ step.
 In the following,
 the shell variable `$DOWNLOADS` corresponds to the `downloads/` directory,
-which is passed as an argument of the first command
+which is passed as an argument in the first command
 (`scripts/fetch/fetch.sh`).
 
 
@@ -204,7 +201,7 @@ bug in
 `$DOWNLOADS/bugs/fixes/descriptions/groovy/GROOVY-XXXX`
 (where `XXXX` stands for the id of the bug),
 and (3) some general statistics,
-(such as `created` timestamp, `resolution` timestamp, and `reporter`)
+(such as `created` date, `resolution` date, and `reporter`)
 in `$DOWNLOADS/bugs/groovy.json`.
 
 ### 2. Fetch Kotlin bugs
@@ -224,7 +221,7 @@ in `$DOWNLOADS/bugs/kotlin.txt`,
 bug in
 `$DOWNLOADS/bugs/fixes/descriptions/kotlin/KT-XXXX`,
 and (3) some general statistics
-(such as `created` timestamp, `resolution` timestamp, and `reporter`)
+(such as `created` date, `resolution` date, and `reporter`)
 in `$DOWNLOADS/bugs/kotlin.json`.
 
 ### 3. Fetch Java bugs
@@ -243,7 +240,7 @@ in `$DOWNLOADS/bugs/java.txt`,
 (2) the description and the summary for each bug in
 `$DOWNLOADS/bugs/fixes/descriptions/java/JDK-XXXX`,
 (3) some general statistics
-(such as `created` timestamp, `resolution` timestamp, and `reporter`)
+(such as `created` date, `resolution` date, and `reporter`)
 in `$DOWNLOADS/bugs/java.json`.
 
 ### 4. Fetch Scala bugs
@@ -263,7 +260,7 @@ in `$DOWNLOADS/bugs/scala.txt`,
 `$DOWNLOADS/bugs/fixes/descriptions/scala/scala-XXXX`,
 and (3) some general
 statistics
-(such as `created` timestamp, `resolution` timestamp, and `reporter`)
+(such as `created` date, `resolution` date, and `reporter`)
 in `$DOWNLOADS/bugs/scala.json`.
 
 ### 5. Clone compilers' repositories
@@ -276,7 +273,7 @@ This script clones a number of repositories.
 We use the history of these repositories to search for fixes
 corresponding to the collected bugs.
 In particular,
-the script downloads the following repositories.
+the script clones the following repositories.
 
 ```
 https://github.com/JetBrains/kotlin
@@ -296,7 +293,7 @@ http://hg.openjdk.java.net/jdk/jdk13/
 http://hg.openjdk.java.net/jdk/jdk14/
 ```
 
-### 6. Detect fixes for the collected bugs
+### 6. Detect bug fixes
 
 ```
 ./scripts/fetch/find_fixes.sh $DOWNLOADS/bugs \
@@ -311,17 +308,18 @@ To do so,
 for each bug,
 it first searches over
 the corresponding repository for commits containing
-the ID of the bug in the commit message.
+the ID of the bug in commit's message.
 If that fails and the repository is hosted in GitHub,
 then the script searches for
 pull requests that have tagged the given bug ID.
 Finally,
-the script saves the URLs of bug reports,
-and the URLs of their fixes in
-`$DOWNLOADS/bugs/fixes/{groovy,kotlin,java,scala}.txt`.
+the scripts produces
+`$DOWNLOADS/bugs/fixes/{groovy,kotlin,java,scala}.txt`,
+which contains the URL of each bug report and fix.
 
 
-To print some general statistics regarding
+Finally,
+to print some general statistics regarding
 our bug collection approach run
 
 ```bash
@@ -356,7 +354,7 @@ run the following script (estimated running time: 4--5 min)
 ```
 
 Finally, we need to get the fixes and the statistics for the selected bugs
-of our dataset. This script takes as input the `download` directory, which
+of our dataset. This script takes as input the `downloads` directory, which
 includes the initial dataset, and the `data` directory, which must contain
 an `iterations` directory with the selected bugs. Specifically, in this
 directory, files contain bugs associated with their fixes.
