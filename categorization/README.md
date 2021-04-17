@@ -3,10 +3,11 @@ Python code for bug categorization
 
 We use custom Python classes to categorize the studied bugs,
 as we find it more convenient and extensible.
-You can find the full documentation at `docs` directory.
+You can find the full documentation in the corresponding 
+`pydocs` of Python source files.
 The bugs are saved in `{java,kotlin,groovy,scala}.py`.
-Each file contains 4 lists, one list contains 20 bugs that compose one
-iteration.
+Each file contains 4 lists.
+Each list contains 20 bugs that compose one iteration.
 To serialize the bugs into two JSONs, one for the bugs and one for the
 characteristics, you can use the following command.
 
