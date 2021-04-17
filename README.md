@@ -136,8 +136,12 @@ will not be lost upon container's exit
 ## Download the bugs and fixes from sources
 
 **NOTE 1:**
-If you do not want to re-download the bugs from the sources
-and re-create the bug dataset,
+We provide the pre-baked dataset used in our study,
+which can be found in the `data/` directory.
+If you want to re-download the bugs from the sources
+and create the bug dataset on your own,
+please continue reading this section.
+Otherwise,
 you can go directly to the next section ("Step-by-Step Instructions").
 
 To download and re-construct the initial dataset described in
@@ -360,22 +364,21 @@ downloads fixes' diffs, and computes general statistics for these fixes in
 contains a `.diff` and a `stats.csv` file.
 
 
-# Step by Step Instructions
+# Step-by-Step Instructions
 
 In the following section, we provide scripts that reproduce the results
-presented in the paper using the dataset from `data` directory.
+presented in the paper using the dataset from the `data` directory.
 
 ## Collecting Bugs & Fixes (Section 2.1)
 
-Run the following script to print the results of the bug collection phases.
-Specifically, it will print the data of Table 1.
+Run the following script to print the results of our bug collection phases.
+Specifically, the script reproduces Table 1.
 
 ```bash
 ./scripts/data_collection_stats.sh data/collection
 ```
 
-In `data/collection` directory is the data of the bugs that compose our
-initial dataset. The above script prints the following.
+The above script prints the following
 
 ```
 Language         Phase 1         Phase 2
@@ -392,17 +395,18 @@ Language         Phase 1         Phase 2
 
 ## RQ1: Symptoms (Section 3.1)
 
-For the first research question, we will use a script reproduce Fig 1 that
-shows the distribution of symptom categories. To do so, run:
+For the first research question, we will use a script
+for reproducing Figure 1. To do so, run:
 
 ```bash
 python scripts/rq1.py data/bugs.json --output figures/symptoms.pdf
 ```
 
 This produces `symptoms.pdf` in the `figures` directory.
-It also prints a table in standard output that presents the total values
-and the percentages of symptoms per compiler. Specifically, it will print
-the following.
+Beyond that,
+the script also prints the distribution of symptoms in a tabular format.
+Specifically, it prints
+the following
 
 ```
 Symptom                               groovyc          javac        kotlinc scalac & Dotty          Total
@@ -416,17 +420,19 @@ Compilation Performance Issue       0 (0.00%)      2 (2.50%)      3 (3.75%)     
 
 ## RQ2: Bug Patterns (Section 3.2)
 
-For the second research question, first we will reproduce Figures 7a and 7b.
-These figures demonstrates the distribution of bug patterns with regards to
-the compiler and the symptoms. Second, we will produce two tables, one for
-each figure that display the total values and the percentages of the patterns.
+For the second research question, we first reproduce Figures 7a and 7b.
+These figures demonstrate the distribution of bug causes with regards to
+the examined compilers and symptoms.
+Second,
+we produce the above distributions in a tabular format.
+Run the following command:
 
 ```bash
 python scripts/rq2.py data/bugs.json --patterns figures/patterns.pdf \
     --patterns-symptoms figures/patterns_symptoms.pdf
 ```
 
-The above command produce the figures `figures/patterns.pdf` and
+The above command produces the figures `figures/patterns.pdf` and
 `figures/patterns_symptoms.pdf`, and it prints the following in the
 standard output.
 
@@ -452,9 +458,9 @@ AST Transformation Bugs                 5 (1.56%)       9 (2.81%)       0 (0.00%
 ## RQ3: Bug Fixes (Section 3.3)
 
 In the third research question, we study the duration and the fixes of the bugs.
-Hence, we will produce Fig 13a, Fig 13b, and Fig 14. We will also print in
-the standard output the mean, median, standard deviation, max, and min per
-language for files number, lines number, and duration of the fixes.
+Hence, we produce Fig 13a, Fig 13b, and Fig 14. We also print in
+the standard output the mean, median, standard deviation, max, and min
+of files number, lines number, and duration of fixes.
 
 
 ```bash
@@ -463,9 +469,9 @@ python scripts/rq3.py data/diffs/ data/ --directory figures
 
 The previous command saves Fig 13a in `figures/lines.pdf`, Fig 13b in
 `figures/files.pdf`, and Fig 14 in `figures/duration.pdf`.
-Note that you can use `--all` option to plot lines for all languages in
-the figures `lines.pdf` and `files.pdf`.
-The script also prints the following tables.
+Note that you can use `--all` option to create figures
+containing plots for every compiler.
+The script also prints the following tables
 
 ```
                          Lines
@@ -505,9 +511,11 @@ Total     186.42    24.00     407.32    0.00      3209.00
 ## RQ4: Test Case Characteristics (Section 3.4)
 
 
-For this research question, we will use two scripts.
-The first script, will generate Figure 15 and it will print Tables 2, 3, and 4
-in the standard output. Whereas the second script will print the lift scores
+For this research question, we use two scripts.
+The first script generates Figure 15 and it prints Tables 2, 3, and 4
+to the standard output.
+On the other hand,
+the second script prints the lift scores
 reported in Section 3.4.2.
 
 ```bash
@@ -515,7 +523,7 @@ python scripts/rq4.py data/characteristics.json data/bugs.json data/test_cases/ 
     --output figures/characteristics.pdf
 ```
 
-This script generates `figures/characteristics.pdf` and produces:
+The above script generates `figures/characteristics.pdf` and produces:
 
 ```
 General statistics on test case characteristics
@@ -573,14 +581,14 @@ Standard features                 28.75%
 Other                             28.75%
 ```
 
-As already mentioned, the following script reports the lift scores that we
-refer in the paper.
+
+To compute lift scores, run the following
 
 ```bash
 python scripts/lift.py data/bugs.json data/ data/diffs/
 ```
 
-It produces:
+This script generates the following:
 
 ```
 Char Categories -> Char Categories
@@ -595,11 +603,13 @@ Lift       Type argument inference -> Collection API               : 8.5882 (Con
 Lift       Type argument inference -> Parameterized type           : 6.9599 (Confidence A->B: 0.6765, Support B: 0.0972) -- Totals A: 102, B: 149, A-B: 69
 ```
 
-Note that this script can be used to compute various lift scores.
-To print all available lift scores use the option `--all`.
-Furthermore, you can set the number of pairs to print with `--limit` option,
-a threshold with `--threshold` option, and a population threshold with
-`--ithreshold`.
+Note that this script can also be used to compute various lift scores.
+To print all lift cores for every combination,
+use the option `--all`.
+Furthermore, you can set the number of pairs to print
+by providing the `--limit` option,
+a threshold with `--threshold` option,
+and a population threshold with `--ithreshold`.
 
 ```
 usage: lift.py [-h] [--threshold THRESHOLD] [--ithreshold ITHRESHOLD]
