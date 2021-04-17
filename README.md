@@ -17,7 +17,7 @@ The artifact has the following structure:
 reproduce the results, the figures, and the tables presented in our paper.
 * `scripts/fetch`: This is the directory that contains the scripts needed to
 download the initial dataset described in our paper
-(_bug collection_ and _post filtering_).
+(_bug collection_ and _post-filtering_).
 * `categorization`: Python code used to categorize the analyzed bugs.
 For more information see `categorization/README.md`.
 * `data`: This is dataset of 320 the typing-related bugs under study.
@@ -49,7 +49,7 @@ method/function calls, LoCs) associated with the bug `bug_id`.
 iteration. Each line contains two entries (comma separated):
 (1) the URL pointing to the bug report,
 and (2) the URL pointing to the fix of the bug.
-* `data/collection`: The entire dataset produced by the _post filtering_ step
+* `data/collection`: The entire dataset produced by the _post-filtering_ step
   (4.153 bugs) of our bug collection approach.
 
 # Requirements
@@ -66,19 +66,20 @@ and (2) the URL pointing to the fix of the bug.
 
 ## Setup
 
-There are two ways to reproduce the results of the paper.
-If you are in an Ubuntu/Debian OS,
+There are two options for reproducing the results of the paper.
+If you run an Ubuntu/Debian OS,
 we provide the instructions for installing the necessary
-apt packages and libraries.
-Otherwise if you do not own an Ubuntu/Debian environment,
-this artifact also provides a Docker image
-that offers the required setup
+`apt` packages and libraries
+used for running the scripts of the artifact.
+Otherwise if you do not have an Ubuntu/Debian installation,
+this artifact provides you with a Docker image
+that contains the required setup
 for executing the scripts and reproducing the results of our paper.
 
-#### Ubuntu/Debian
+#### Option1: Ubuntu/Debian Installation
 
 **NOTE**: If you do not run an Ubuntu/Debian OS, please jump to the
-Section "Installing Docker Image".
+Section "Option2: Docker Image Installation".
 
 You need to install some `apt` packages and some Python packages to run the
 experiments of this artifact.
@@ -97,7 +98,7 @@ source .env/bin/activate
 pip install requests matplotlib pandas seaborn
 ```
 
-#### Installing Docker Image
+#### Option2: Docker Image Installation
 
 To build the Docker image from source,
 run the following command (estimated running time: ~3 min)
@@ -122,15 +123,15 @@ After executing the command, you will be able to enter the home directory
 (1) the scripts for reproducing the results of the paper (see `scripts/`),
 (2) the data of our bug study (see `data/`),
 (3) a dedicated directory for storing the generated figures (see `figures/`),
-and (4) `downloads/` which is the directory where the data of Phase 1 and
-Phase 2 will be saved if you decide to get the initial data from their sources.
+and (4) `downloads/` which is the directory where the data
+produced by the _bug collection_ and _post-filtering_ phases
+will be saved (in case you decide to re-create the bug dataset).
 
-Some further explanations:
-
+**Some further explanations**:
 The option `-v` is used to mount a local volume inside the Docker container.
-This option is used to mount data from this repository
-inside the Docker container,
-to store the figures produced from the scripts in `$(pwd)/figures`.
+In this way, data produced during the execution of the container
+will not be lost upon container's exit
+(e.g., the resulting figures will be stored in `$(pwd)/figures`).
 
 ## Download the bugs and fixes from sources
 
