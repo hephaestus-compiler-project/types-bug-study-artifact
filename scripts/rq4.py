@@ -214,6 +214,30 @@ def print_categories_stats(categories):
     print()
 
 
+def print_comparative_stats(characteristics):
+    print("Comparative Analysis stats")
+    print(33 * "=")
+    print("{}: {:.2f}".format(
+        "Scala Implicits",
+        next(i[1] for i in characteristics['Scala'] if i[0] == 'Implicits')))
+    print("{}: {:.2f}".format(
+        "Scala Higher-kinded types",
+        next(i[1] for i in characteristics['Scala']
+             if i[0] == 'Higher-kinded types')))
+    print("{}: {:.2f}".format(
+        "Scala Pattern matching",
+        next(i[1] for i in characteristics['Scala']
+             if i[0] == 'Pattern matching')))
+    print("{}: {:.2f}".format(
+        "Scala Algebraic Data Types",
+        next(i[1] for i in characteristics['Scala']
+             if i[0] == 'Algebraic Data Types')))
+    print("{}: {:.2f}".format(
+        "Kotlin Nullable types",
+        next(i[1] for i in characteristics['Kotlin']
+             if i[0] == 'Nullable types')))
+
+
 def create_dict():
     return {"total": [], "java": [], "groovy": [], "kotlin": [], "scala": []}
 
@@ -326,6 +350,7 @@ def main():
     print_most_least_chars_table(characteristics, args.frequency)
     print_most_per_lang(stats_per_lang, args.most)
     print_categories_stats(categories)
+    print_comparative_stats(stats_per_lang)
 
     plot_fig(dataframes, args.output)
 
