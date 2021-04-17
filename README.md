@@ -579,12 +579,13 @@ Standard features                 28.75%
 Other                             28.75%
 
 Comparative Analysis stats
-=================================
+===========================================
 Scala Implicits: 23.75
 Scala Higher-kinded types: 13.75
 Scala Pattern matching: 21.25
 Scala Algebraic Data Types: 13.75
 Kotlin Nullable types: 16.25
+Kotlin Extension function / property: 15.00
 ```
 
 

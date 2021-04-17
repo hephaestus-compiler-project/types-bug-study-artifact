@@ -216,7 +216,7 @@ def print_categories_stats(categories):
 
 def print_comparative_stats(characteristics):
     print("Comparative Analysis stats")
-    print(33 * "=")
+    print(43 * "=")
     print("{}: {:.2f}".format(
         "Scala Implicits",
         next(i[1] for i in characteristics['Scala'] if i[0] == 'Implicits')))
@@ -236,6 +236,10 @@ def print_comparative_stats(characteristics):
         "Kotlin Nullable types",
         next(i[1] for i in characteristics['Kotlin']
              if i[0] == 'Nullable types')))
+    print("{}: {:.2f}".format(
+        "Kotlin Extension function / property",
+        next(i[1] for i in characteristics['Kotlin']
+             if i[0] == 'Extension function / property')))
 
 
 def create_dict():
