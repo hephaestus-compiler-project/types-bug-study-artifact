@@ -352,53 +352,13 @@ run the following script (estimated running time: 4--5 min)
 ```bash
 ./scripts/fetch/get_data_for_selected_bugs.sh downloads data
 ```
-
-Finally, we need to get the fixes and the statistics for the selected bugs
-of our dataset. This script takes as input the `downloads` directory, which
-includes the initial dataset, and the `data` directory, which must contain
-an `iterations` directory with the selected bugs. Specifically, in this
-directory, files contain bugs associated with their fixes.
-For example, you can look at `data/iterations/1/java.txt`. The script
-downloads fixes' diffs, and computes statistics for these fixes in
+The above script takes as input the `downloads` directory
+that includes the initial dataset, and the `data` directory that contains
+an `iterations` directory with the selected bugs. The script
+downloads fixes' diffs, and computes general statistics for these fixes in
 `data/diffs/{groovy,java,kotlin,scala}/bug_id`. Each generated directory
-contains a `.diff` and a `stats.csv` file. More specifically, the following
-scripts will be executed.
+contains a `.diff` and a `stats.csv` file.
 
-1. Get fixes of the bugs.
-
-```bash
-./scripts/fetch/get_fixes.sh $DATA/iterations $DOWNLOADS/repos $DATA/diffs
-```
-
-This script finds the bugs' fixes in `$DATA/iterations` from the corresponding
-compiler's repository or its pull request from GitHub.
-Finally, it saves the diffs in `$DATA/diffs`.
-
-2. Compute statistics of diffs.
-
-```bash
-./scripts/fetch/get_diff_stats.sh $DATA/diffs
-```
-
-Using `diffstat` this script computes the stats of the diffs.
-
-3. Copy general statistics.
-
-```bash
-python scripts/fetch/copy_stats.py $DATA/iterations/ $DOWNLOADS/bugs/ $DATA/
-```
-
-For the bugs in `$DATA/iterations/` this script copies their statistics from
-the files `$DOWNLOADS/bugs/{groovy,kotlin,java,scala}.json`
-into `$DATA/{groovy,kotlin,java,scala}.json`.
-
-4. Compute LoCs of test cases.
-
-```bash
-./scripts/fetch/add_locs.sh $DATA/test_cases
-```
-
-Using `cloc`, this script computes the stats of the test cases.
 
 # Step by Step Instructions
 
