@@ -36,7 +36,7 @@ For more information see `categorization/README.md`.
 * `data/{groovy,java,kotlin,scala}.json`: General statistics regarding
    the creation and resolution date, the assignee,
    and the number of comments associated with each bug.
-* `data/diffs/{groovy,java,kotlin,scala}/bug_id/*.diff`: The revisions associated with 
+* `data/diffs/{groovy,java,kotlin,scala}/bug_id/*.diff`: The revisions associated with
    the fix of bug `bug_id`.
 * `data/diffs/{groovy,java,kotlin,scala}/bug_id/stats.csv`: Lines of code affected
    by the fix of bug `bug_id`.
@@ -610,6 +610,15 @@ Furthermore, you can set the number of pairs to print
 by providing the `--limit` option,
 a threshold with `--threshold` option,
 and a population threshold with `--ithreshold`.
+Specifically,
+`--limit` option
+specifies the number of pairs to show per category.
+`--threshold` option
+sets a threshold for lift scores
+that pairs must surpasses to be printed.
+Finally,
+`--ithreshold`
+sets a population threshold which pairs must exceed to be printed.
 
 ```
 usage: lift.py [-h] [--threshold THRESHOLD] [--ithreshold ITHRESHOLD]
