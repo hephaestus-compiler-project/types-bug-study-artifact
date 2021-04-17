@@ -18,8 +18,6 @@ reproduce the results, the figures, and the tables presented in our paper.
 * `scripts/fetch`: This is the directory that contains the scripts needed to
 download the initial dataset described in our paper
 (_bug collection_ and _post-filtering_).
-* `categorization`: Python code used to categorize the analyzed bugs.
-For more information see `categorization/README.md`.
 * `data`: This is dataset of 320 the typing-related bugs under study.
 * `data/bugs.json`: This document contains all 320 bugs examined in our study
                     and their categorization. Each bug entry has the following fields:
