@@ -1,4 +1,4 @@
-# Artifact for Well-Typed Programs Can Go Wrong: A Study of Typing-Related Bugs in JVM Compilers
+# Artifact for "Well-Typed Programs Can Go Wrong: A Study of Typing-Related Bugs in JVM Compilers"
 
 This is the artifact for the paper titled
 "Well-Typed Programs Can Go Wrong:
@@ -9,41 +9,48 @@ upon this paper's publication.
 
 # Overview
 
-The artifact contains the dataset and scripts to re-compute the results
-described in our paper. The artifact has the following structure:
+The artifact contains the dataset and scripts to reproduce the results
+described in our paper.
+The artifact has the following structure:
 
 * `scripts`: This is the directory that contains the scripts needed to
-reproduce the results presented in our paper.
+reproduce the results, the figures, and the tables presented in our paper.
 * `scripts/fetch`: This is the directory that contains the scripts needed to
-download the initial dataset described in our paper (Phase 1 and Phase 2).
+download the initial dataset described in our paper
+(_bug collection_ and _post filtering_).
 * `categorization`: Python code used to categorize the analyzed bugs.
 For more information see `categorization/README.md`.
-* `data`: This is dataset of 320 typing-related bugs.
-* `data/bugs.json`: Contains all 320 bugs of our study. Each bug has the
-following fields:
+* `data`: This is dataset of 320 the typing-related bugs under study.
+* `data/bugs.json`: This document contains all 320 bugs examined in our study
+                    and their categorization. Each bug entry has the following fields:
     * `language`: The language of the compiler.
     * `compiler`: The compiler in which the bug occurred.
     * `is_correct`: `True` if the bug-revealing test case is compilable;
        `False` otherwise.
-    * `symptom`: The symptom of this bug.
-    * `pattern`: The category of this bug.
-    * `root_cause`: The cause that introduced this bug.
-    * `chars`: The characteristics of the test case that trigger the bug.
-* `data/characteristics.json`: The categories and the sub-categories of
-the characteristics that trigger the bugs in our dataset.
-* `data/{groovy,java,kotlin,scala}.json`: Data about the timestamp,
-the reporter, the assignee, and the number of comments for each bug.
-* `data/diffs/{groovy,java,kotlin,scala}/bug_id/*.diff`: The revision of the bug fix.
-* `data/diffs/{groovy,java,kotlin,scala}/bug_id/stats.csv`: The LoC of the bug fix.
+    * `symptom`: The bug's symptom.
+    * `bug_cause`: The root cause of the bug.
+    * `error`: This field indicates how the bug was introduced.
+    * `chars`: This is an array containing the characteristics of the bug-revealing test case.
+* `data/characteristics.json`: This document contains the categories
+   and the sub-categories of the bug-revealing test cases.
+* `data/{groovy,java,kotlin,scala}.json`: General statistics regarding
+   the creation and resolution date, the assignee,
+   and the number of comments associated with each bug.
+* `data/diffs/{groovy,java,kotlin,scala}/bug_id/*.diff`: The revisions associated with 
+   the fix of bug `bug_id`.
+* `data/diffs/{groovy,java,kotlin,scala}/bug_id/stats.csv`: Lines of code affected
+   by the fix of bug `bug_id`.
 * `data/test_cases/{groovy,java,kotlin,scala}/bug_id/*.{kt,java,scala,groovy}`:
-The test case of the fix.
+The test case of the fix of bug `bug_id`.
 * `data/test_cases/{groovy,java,kotlin,scala}/bug_id/stats.json`:
-Statistics on the bug fix (number of declarations, method/function calls, LoCs).
+Statistics on the bug-revealing test case (number of declarations,
+method/function calls, LoCs) associated with the bug `bug_id`.
 * `data/iterations/1/{groovy,java,kotlin,scala}.txt`: Bugs analyzed in each
 iteration. Each line contains two entries (comma separated):
 (1) the URL pointing to the bug report,
-and (2) the URL pointing to the fix of the bugs.
-* `data/collection`: Phase 2 dataset (4.153 bugs).
+and (2) the URL pointing to the fix of the bug.
+* `data/collection`: The entire dataset produced by the _post filtering_ step
+  (4.153 bugs) of our bug collection approach.
 
 # Requirements
 
