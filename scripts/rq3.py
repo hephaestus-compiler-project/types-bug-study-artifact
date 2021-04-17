@@ -147,7 +147,7 @@ def plot_fig(data, all_langs, directory, fig, print_all_points):
         plt.xlabel('Number of Files in a Fix')
     else:
         plt.xlabel('Duration of Bugs in Days')
-    plt.ylabel('Percentage of Bugs')
+    plt.ylabel('Bug prevalence (%)')
     if directory:
         filename = os.path.join(directory, fig + ".pdf")
     else:
