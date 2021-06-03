@@ -116,9 +116,9 @@ CHARS=[
     'Template string'
 ]
 URL_LOOKUP={
-    "JDK": "https://bugs.openjdk.java.net/browse/",
-    "KT": "https://youtrack.jetbrains.com/issue/",
-    "GROOVY": "https://issues.apache.org/jira/browse/",
+    "JDK": "https://bugs.openjdk.java.net/browse/JDK-",
+    "KT": "https://youtrack.jetbrains.com/issue/KT-",
+    "GROOVY": "https://issues.apache.org/jira/browse/GROOVY-",
     "Scala2": "https://github.com/scala/bug/issues/",
     "Dotty": "https://github.com/lampepfl/dotty/issues/"
 }
