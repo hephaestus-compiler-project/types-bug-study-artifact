@@ -184,6 +184,10 @@ def get_args():
         action='store_true',
         help="Replace ID with URL"
     )
+    parser.add_argument(
+        "-o", "--output",
+        help="File to save the output"
+    )
     return parser.parse_args()
 
 
@@ -218,10 +222,19 @@ def main():
     if args.url:
         data = {get_url(k):v for k,v in data.items()}
     if args.print_url:
-        for k in data.keys():
-            print(get_url(k))
+        if args.output:
+            with open(args.output, 'w') as f:
+                for k in data.keys():
+                    f.write("%s\n" % k)
+        else:
+            for k in data.keys():
+                print(get_url(k))
     else:
-        pprint(data)
+        if args.output:
+            with open(args.output, 'w') as f:
+                json.dump(data, f)
+        else:
+            pprint(data)
 
 
 if __name__ == "__main__":
