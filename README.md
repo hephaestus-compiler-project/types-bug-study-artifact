@@ -125,13 +125,13 @@ and (4) `downloads/` which is the directory where the data
 produced by the _bug collection_ and _post-filtering_ phases
 will be saved (in case you decide to re-create the bug dataset).
 
-**NOTE 1**:
+**Further explanations**:
 The option `-v` is used to mount a local volume inside the Docker container.
 In this way, data produced during the execution of the container
 will not be lost upon the container's exit
 (e.g., the resulting figures will be stored in `$(pwd)/figures`).
 
-**NOTE 2**:
+**IMPORTANT NOTE**:
 From now on,
 if you chose to set up the necessary environment through Docker,
 we assume that all the commands shown in our artifact below
@@ -376,7 +376,7 @@ label in (
 label != "stat:wontfix"
 ```
 
-### Cloning compilers' repositories
+### Cloning Compilers' Repositories
 
 ```bash
 ./scripts/fetch/clone.sh downloads/repos
@@ -406,12 +406,13 @@ http://hg.openjdk.java.net/jdk/jdk13/
 http://hg.openjdk.java.net/jdk/jdk14/
 ```
 
-### Detecting bug fixes
+### Detecting Bug Fixes
 
-```
+```bash
 ./scripts/fetch/find_fixes.sh downloads/bugs \
-        downloads/bugs/fixes/descriptions downloads/repos \
-        downloads/bugs/fixes $GH_TOKEN 2>&1 | tee downloads/logs
+  downloads/bugs/fixes/descriptions downloads/repos \
+  downloads/bugs/fixes $GH_TOKEN 2>&1 |
+tee downloads/logs
 ```
 
 This script is responsible for detecting fixes
@@ -421,12 +422,11 @@ To do so,
 for each bug,
 it first searches over
 the corresponding repository for commits containing
-the ID of the bug in commit's message.
+the ID of the bug in the commit's message.
 If that fails and the repository is hosted in GitHub,
 then the script searches for
 pull requests that have tagged the given bug ID.
-Finally,
-the scripts produces
+The output of the script is
 `downloads/bugs/fixes/{groovy,kotlin,java,scala}.txt`,
 which contains the URL of each bug report and fix.
 
@@ -440,8 +440,9 @@ our bug collection approach run
 ```
 
 The above script prints the total number of bugs collected
-in the previous step.
-It produces an output similar to the following.
+in the previous step
+reproducing Table 1 of our paper,
+i.e., the output of the script is similar to the following.
 
 ```
 Language         Phase 1         Phase 2
@@ -455,10 +456,10 @@ Language         Phase 1         Phase 2
    Total            5350            4153
 ```
 
-## Download the 320 typing-related bugs
+## Downloading the 320 Typing-Related Bugs
 
 To download the data associated with
-the 320 typing-related that
+the *specific* 320 typing-related that
 were manually examined in our paper,
 run the following script (estimated running time: 4--5 min)
 
@@ -466,11 +467,26 @@ run the following script (estimated running time: 4--5 min)
 ./scripts/fetch/get_data_for_selected_bugs.sh downloads data
 ```
 The above script takes as input the `downloads` directory
-that includes the initial dataset, and the `data` directory that contains
-an `iterations` directory with the selected bugs. The script
-downloads fixes' diffs, and computes general statistics for these fixes in
-`data/diffs/{groovy,java,kotlin,scala}/bug_id`. Each generated directory
-contains a `.diff` and a `stats.csv` file.
+that includes the entire dataset of bugs,
+and the `data/` directory that contains
+an `iterations/` directory with the bugs examined in our paper.
+Note that the directory `iterations/` includes the bugs
+that were selected and manually analyzed in each iteration
+as described in Section 2.2 of our paper.
+For example,
+the file `data/iterations/1/java.txt` shows the `javac` bugs
+that were examined in first iteration of our manual analysis.
+
+Regarding its execution,
+the script `get_data_for_selected_bugs.sh`
+first downloads the revisions of bug fixes
+corresponding to each of the selected bugs,
+and then stores some general statistics for these fixes in
+the `data/diffs/{groovy,java,kotlin,scala}/bug_id` directory.
+Each generated directory contains a `.diff` and a `stats.csv` file.
+The `.diff` file is the revision of the corresponding fix,
+while the `stats.csv` file enumerates for each source file
+how many lines were inserted, deleted or modified by the revision.
 
 
 ## Dataset Overview
