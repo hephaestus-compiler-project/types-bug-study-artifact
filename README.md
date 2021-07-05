@@ -47,16 +47,25 @@ and _post filtering_ phases, see Section 2 of our paper).
 
 # Getting Started
 
+This section includes instructions and documentation for
+(1) setting up the necessary environment in order
+run our scripts,
+(2) constructing a dataset of 320 typing-related bugs
+taken from the issue trackers of Java, Scala, Kotlin,
+and Groovy,
+(3) the resulting dataset and its categorization. 
+
 ## Setup
 
 There are two options for reproducing the results of the paper.
 If you run an Ubuntu/Debian OS,
-we provide the instructions for installing the necessary
+we provide instructions for installing the required
 `apt` packages and libraries
 used for running the scripts of the artifact.
-Otherwise if you do not have an Ubuntu/Debian installation,
+Otherwise,
+if you do not have an Ubuntu/Debian installation,
 this artifact provides you with a Docker image
-that contains the required setup
+that contains the required environment
 for executing the scripts and reproducing the results of our paper.
 
 #### Option1: Ubuntu/Debian Installation
@@ -110,11 +119,18 @@ and (4) `downloads/` which is the directory where the data
 produced by the _bug collection_ and _post-filtering_ phases
 will be saved (in case you decide to re-create the bug dataset).
 
-**Some further explanations**:
+**NOTE 1**:
 The option `-v` is used to mount a local volume inside the Docker container.
 In this way, data produced during the execution of the container
-will not be lost upon container's exit
+will not be lost upon the container's exit
 (e.g., the resulting figures will be stored in `$(pwd)/figures`).
+
+**NOTE 2**:
+From now on,
+if you chose to set up the necessary environment through Docker,
+we assume that all the commands shown in our artifact below
+are executed inside a Docker container
+(which has been spawned by running the `docker run` command above).
 
 ## Download the bugs and fixes from sources
 
