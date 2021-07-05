@@ -145,15 +145,19 @@ to collect typing-related bugs and their fixes
 (see Section 2.1 of our paper).
 
 **NOTE**:
-We already provide the "pre-baked" dataset used in our study,
+To complete this step requires roughly 18 hours.
+For this reason,
+we already provide you with the
+"pre-baked" dataset used in our study,
 which can be found in the `data/` directory.
 However,
-if you want to re-download the bugs from the sources
+if you still want to re-download the bugs from
+the corresponding sources
 and create the bug dataset on your own,
 please continue reading this section.
 Otherwise,
 you can go directly to the next section
-("Downloading the 320 typing-related bugs").
+("Dataset Overview").
 
 To download and re-construct the initial dataset described in
 Section 2.1 of the paper, then you will need at least 20 GB of available disk
@@ -541,6 +545,13 @@ and (2) the URL pointing to the fix of the bug.
 
 * `data/collection`: The entire dataset produced by the _post-filtering_ step
   of our bug collection approach.
+
+## Details Regarding Categorization
+
+The documentation of our categorizations
+(i.e., symptoms, bug causes and test case characteristics)
+can be found in our OOPSLA paper or can be viewed through
+the `docs/index.html` file. # TODO
 
 
 # Step-by-Step Instructions
