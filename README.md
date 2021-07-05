@@ -203,7 +203,7 @@ compilers.
 Below, you find further details regarding these scripts.
 
 
-### Fetching Groovy bugs
+### Fetching Groovy Bugs
 
 ```bash
 python scripts/fetch/fetch_groovy_bugs.py downloads/bugs/groovy.txt \
@@ -237,11 +237,12 @@ status in ("Resolved", "Closed") AND
 component = "Static Type Checker"
 ```
 
-### Fetching Kotlin bugs
+### Fetching Kotlin Bugs
 
 ```bash
 python scripts/fetch/fetch_kotlin_bugs.py downloads/bugs/kotlin.txt \
-        downloads/bugs/fixes/descriptions/kotlin downloads/bugs/kotlin.json
+        downloads/bugs/fixes/descriptions/kotlin \
+        downloads/bugs/kotlin.json
 ```
 
 This script fetches `kotlinc` bugs
@@ -257,11 +258,28 @@ and (3) some general statistics
 (such as `created` date, `resolution` date, and `reporter`)
 in `downloads/bugs/kotlin.json`.
 
+To fetch `kotlinc` typing-related bugs,
+the script above performs the following query:
+
+```jql
+project = "Kotlin" AND
+Type in "("Bug", "Performance Problem") AND,
+"State" = "Fixed" AND
+Subsystems in (
+  "Frontend. Resolution and Inference",
+  "Frontend. Data-flow analysis",
+  "Frontend. Control-flow analysis",
+  "Frontend. Declarations",
+  "Frontend"
+)
+```
+
 ### Fetching Java bugs
 
 ```bash
 python scripts/fetch/fetch_java_bugs.py downloads/bugs/java.txt \
-        downloads/bugs/fixes/descriptions/java downloads/bugs/java.json
+        downloads/bugs/fixes/descriptions/java \
+        downloads/bugs/java.json
 ```
 
 This script fetches `javac` bugs
@@ -276,11 +294,30 @@ in `downloads/bugs/java.txt`,
 (such as `created` date, `resolution` date, and `reporter`)
 in `downloads/bugs/java.json`.
 
+The script above fetches `javac` bugs by applying the following
+query:
+
+```jql
+project = "JDK" AND
+type = "bug" AND
+resolution = "fixed" AND
+status in ("Resolved", "Closed") AND,
+component = "tools" AND
+Subcomponent = "javac" AND
+priority in ("P1", "P2", "P3")" AND (
+  affectedVersion in (7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) OR (
+    fixVersion in (7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) AND
+    affectedVersion is EMPTY
+  )
+)
+```
+
 ### Fetching Scala bugs
 
 ```bash
 python scripts/fetch/fetch_scala_bugs.py downloads/bugs/scala.txt \
-        downloads/bugs/fixes/descriptions/scala downloads/bugs/scala.json $GH_TOKEN
+        downloads/bugs/fixes/descriptions/scala \
+        downloads/bugs/scala.json $GH_TOKEN
 ```
 
 This script fetches bugs related to `scalac` and `dotty`
@@ -295,6 +332,49 @@ and (3) some general
 statistics
 (such as `created` date, `resolution` date, and `reporter`)
 in `downloads/bugs/scala.json`.
+
+For fetching Scala2 bugs that are relevant
+to our study,
+the script above filters bugs as follows:
+
+```jql
+label in (
+  "typer",
+  "infer",
+  "should compile",
+  "should not compile",
+  "patmat",
+  "overloading",
+  "dependent types",
+  "structural types",
+  "existential",
+  "gadt",
+  "implicit classes",
+  "implicit",
+  "valueclass",
+  "typelevel",
+  "compiler crash"
+) AND
+label not in ("backend", "won't fix")
+```
+
+For filtering Dotty bugs,
+the scripts applies the following filters:
+
+```jql
+label in ("itype:bug", "itype:crash", "itype:performance") AND
+label in (
+  "area:typer",
+  "area:overloading",
+  "area:gadt",
+  "area:implicts",
+  "area:f-bounds",
+  "area:match-types",
+  "itype:performance",
+  "area:erasure"
+) AND
+label != "stat:wontfix"
+```
 
 ### Cloning compilers' repositories
 
