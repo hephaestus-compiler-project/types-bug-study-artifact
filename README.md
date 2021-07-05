@@ -153,7 +153,7 @@ and create the bug dataset on your own,
 please continue reading this section.
 Otherwise,
 you can go directly to the next section
-("Dataset Overview").
+("Downloading the 320 typing-related bugs").
 
 To download and re-construct the initial dataset described in
 Section 2.1 of the paper, then you will need at least 20 GB of available disk
@@ -186,40 +186,62 @@ run the following script (estimated running time: ~18 hours)
 ./scripts/fetch/fetch.sh downloads $GH_TOKEN
 ```
 
-The command above executes six scripts.
-The first five scripts compose the _bug collection_ phase of our approach,
+The command above executes the following six scripts
+(which can be also executed as stand-alone).
+
+1. `scripts/fetch/fetch_groovy_bugs.py`
+2. `scripts/fetch/fetch_kotlin_bugs.py`
+3. `scripts/fetch/fetch_java_bugs.py`
+4. `scripts/fetch/fetch_scala_bugs.py`
+5. `scripts/fetch/clone.sh`
+6. `scripts/fetch/find_fixes.sh`
+
+The first four scripts compose the _bug collection_ phase of our approach,
 while the 6th script stands for the _post-filtering_ step.
-In the following,
-the shell variable `$DOWNLOADS` corresponds to the `downloads/` directory,
-which is passed as an argument in the first command
-(`scripts/fetch/fetch.sh`).
+Finally, the 5th script is used to clone the repositories of
+compilers.
+Below, you find further details regarding these scripts.
 
 
-### 1. Fetch Groovy bugs
+### Fetching Groovy bugs
 
 ```bash
-python scripts/fetch/fetch_groovy_bugs.py $DOWNLOADS/bugs/groovy.txt \
-        $DOWNLOADS/bugs/fixes/descriptions/groovy $DOWNLOADS/bugs/groovy.json
+python scripts/fetch/fetch_groovy_bugs.py downloads/bugs/groovy.txt \
+        downloads/bugs/fixes/descriptions/groovy \
+        downloads/bugs/groovy.json
 ```
 
 This script fetches `groovyc` bugs
 using the Jira REST API
 (see <https://issues.apache.org/jira/rest/api>).
 It saves (1) the URLs of the retrieved bugs
-in `$DOWNLOADS/bugs/groovy.txt`,
+in `downloads/bugs/groovy.txt`,
 (2) the description and the summary of each
 bug in
-`$DOWNLOADS/bugs/fixes/descriptions/groovy/GROOVY-XXXX`
+`downloads/bugs/fixes/descriptions/groovy/GROOVY-XXXX`
 (where `XXXX` stands for the id of the bug),
 and (3) some general statistics,
 (such as `created` date, `resolution` date, and `reporter`)
-in `$DOWNLOADS/bugs/groovy.json`.
+in `downloads/bugs/groovy.json`.
 
-### 2. Fetch Kotlin bugs
+This script fetches Groovy bugs from Jira by applying the following
+filters (the query below is written in
+[JQL](https://www.atlassian.com/blog/jira-software/jql-the-most-flexible-way-to-search-jira-14),
+which is the query language of Jira):
+
+```jql
+project = "Groovy" AND
+type = "bug" AND
+resolution = "fixed" AND
+status in ("Resolved", "Closed") AND
+component = "Static Type Checker"
+```
+
+### Fetching Kotlin bugs
 
 ```bash
-python scripts/fetch/fetch_kotlin_bugs.py $DOWNLOADS/bugs/kotlin.txt \
-        $DOWNLOADS/bugs/fixes/descriptions/kotlin $DOWNLOADS/bugs/kotlin.json
+python scripts/fetch/fetch_kotlin_bugs.py downloads/bugs/kotlin.txt \
+        downloads/bugs/fixes/descriptions/kotlin downloads/bugs/kotlin.json
 ```
 
 This script fetches `kotlinc` bugs
@@ -227,19 +249,19 @@ using the YouTrack REST API
 (see <https://youtrack.jetbrains.com/api/issues>).
 The script stores
 (1) the URLs of the retrieved `kotlinc` bugs
-in `$DOWNLOADS/bugs/kotlin.txt`,
+in `downloads/bugs/kotlin.txt`,
 (2) the description and the summary for each
 bug in
-`$DOWNLOADS/bugs/fixes/descriptions/kotlin/KT-XXXX`,
+`downloads/bugs/fixes/descriptions/kotlin/KT-XXXX`,
 and (3) some general statistics
 (such as `created` date, `resolution` date, and `reporter`)
-in `$DOWNLOADS/bugs/kotlin.json`.
+in `downloads/bugs/kotlin.json`.
 
-### 3. Fetch Java bugs
+### Fetching Java bugs
 
 ```bash
-python scripts/fetch/fetch_java_bugs.py $DOWNLOADS/bugs/java.txt \
-        $DOWNLOADS/bugs/fixes/descriptions/java $DOWNLOADS/bugs/java.json
+python scripts/fetch/fetch_java_bugs.py downloads/bugs/java.txt \
+        downloads/bugs/fixes/descriptions/java downloads/bugs/java.json
 ```
 
 This script fetches `javac` bugs
@@ -247,18 +269,18 @@ using the Jira REST API
 (see <https://bugs.openjdk.java.net/rest/api>),
 The script saves
 (1) the URLs of the retrieved bugs
-in `$DOWNLOADS/bugs/java.txt`,
+in `downloads/bugs/java.txt`,
 (2) the description and the summary for each bug in
-`$DOWNLOADS/bugs/fixes/descriptions/java/JDK-XXXX`,
+`downloads/bugs/fixes/descriptions/java/JDK-XXXX`,
 (3) some general statistics
 (such as `created` date, `resolution` date, and `reporter`)
-in `$DOWNLOADS/bugs/java.json`.
+in `downloads/bugs/java.json`.
 
-### 4. Fetch Scala bugs
+### Fetching Scala bugs
 
 ```bash
-python scripts/fetch/fetch_scala_bugs.py $DOWNLOADS/bugs/scala.txt \
-        $DOWNLOADS/bugs/fixes/descriptions/scala $DOWNLOADS/bugs/scala.json $GH_TOKEN
+python scripts/fetch/fetch_scala_bugs.py downloads/bugs/scala.txt \
+        downloads/bugs/fixes/descriptions/scala downloads/bugs/scala.json $GH_TOKEN
 ```
 
 This script fetches bugs related to `scalac` and `dotty`
@@ -266,18 +288,18 @@ using the Github REST API
 (see <https://api.github.com>).
 The script saves
 (1) the URLs of the scripts
-in `$DOWNLOADS/bugs/scala.txt`,
+in `downloads/bugs/scala.txt`,
 (2) the description and the summary for each bug in
-`$DOWNLOADS/bugs/fixes/descriptions/scala/scala-XXXX`,
+`downloads/bugs/fixes/descriptions/scala/scala-XXXX`,
 and (3) some general
 statistics
 (such as `created` date, `resolution` date, and `reporter`)
-in `$DOWNLOADS/bugs/scala.json`.
+in `downloads/bugs/scala.json`.
 
-### 5. Clone compilers' repositories
+### Cloning compilers' repositories
 
 ```bash
-./scripts/fetch/clone.sh $DOWNLOADS/repos
+./scripts/fetch/clone.sh downloads/repos
 ```
 
 This script clones a number of repositories.
@@ -304,12 +326,12 @@ http://hg.openjdk.java.net/jdk/jdk13/
 http://hg.openjdk.java.net/jdk/jdk14/
 ```
 
-### 6. Detect bug fixes
+### Detecting bug fixes
 
 ```
-./scripts/fetch/find_fixes.sh $DOWNLOADS/bugs \
-        $DOWNLOADS/bugs/fixes/descriptions $DOWNLOADS/repos \
-        $DOWNLOADS/bugs/fixes $GH_TOKEN 2>&1 | tee $DOWNLOADS/logs
+./scripts/fetch/find_fixes.sh downloads/bugs \
+        downloads/bugs/fixes/descriptions downloads/repos \
+        downloads/bugs/fixes $GH_TOKEN 2>&1 | tee downloads/logs
 ```
 
 This script is responsible for detecting fixes
@@ -325,7 +347,7 @@ then the script searches for
 pull requests that have tagged the given bug ID.
 Finally,
 the scripts produces
-`$DOWNLOADS/bugs/fixes/{groovy,kotlin,java,scala}.txt`,
+`downloads/bugs/fixes/{groovy,kotlin,java,scala}.txt`,
 which contains the URL of each bug report and fix.
 
 
