@@ -1,6 +1,7 @@
 # Artifact for "Well-Typed Programs Can Go Wrong: A Study of Typing-Related Bugs in JVM Compilers"
 
-This is the artifact for the paper titled
+This is the artifact for the conditionally accepted
+OOPSLA'21 paper titled
 "Well-Typed Programs Can Go Wrong:
 A Study of Typing-Related Bugs in JVM Compilers".
 
@@ -15,50 +16,34 @@ The artifact has the following structure:
 
 * `scripts`: This is the directory that contains the scripts needed to
 reproduce the results, the figures, and the tables presented in our paper.
-* `scripts/fetch`: This is the directory that contains the scripts needed to
-download the initial dataset described in our paper
-(_bug collection_ and _post-filtering_).
-* `data`: This is dataset of 320 the typing-related bugs under study.
-* `data/bugs.json`: This document contains all 320 bugs examined in our study
-                    and their categorization. Each bug entry has the following fields:
-    * `language`: The language of the compiler.
-    * `compiler`: The compiler in which the bug occurred.
-    * `is_correct`: `True` if the bug-revealing test case is compilable;
-       `False` otherwise.
-    * `symptom`: The bug's symptom.
-    * `bug_cause`: The root cause of the bug.
-    * `error`: This field indicates how the bug was introduced.
-    * `chars`: This is an array containing the characteristics of the bug-revealing test case.
-* `data/characteristics.json`: This document contains the categories
-   and the sub-categories of the bug-revealing test cases.
-* `data/{groovy,java,kotlin,scala}.json`: General statistics regarding
-   the creation and resolution date, the assignee,
-   and the number of comments associated with each bug.
-* `data/diffs/{groovy,java,kotlin,scala}/bug_id/*.diff`: The revisions associated with
-   the fix of bug `bug_id`.
-* `data/diffs/{groovy,java,kotlin,scala}/bug_id/stats.csv`: Lines of code affected
-   by the fix of bug `bug_id`.
-* `data/test_cases/{groovy,java,kotlin,scala}/bug_id/*.{kt,java,scala,groovy}`:
-The test case of the fix of bug `bug_id`.
-* `data/test_cases/{groovy,java,kotlin,scala}/bug_id/stats.json`:
-Statistics on the bug-revealing test case (number of declarations,
-method/function calls, LoCs) associated with the bug `bug_id`.
-* `data/iterations/1/{groovy,java,kotlin,scala}.txt`: Bugs analyzed in each
-iteration. Each line contains two entries (comma separated):
-(1) the URL pointing to the bug report,
-and (2) the URL pointing to the fix of the bug.
-* `data/collection`: The entire dataset produced by the _post-filtering_ step
-  (4.153 bugs) of our bug collection approach.
+
+* `scripts/fetch`: This is the directory that contains the scripts needed
+to construct the dataset of typing-related bugs
+as described in our paper
+(i.e., this directory contains the code of our _bug collection_
+and _post filtering_ phases, see Section 2 of our paper).
+
+* `data`: This is the "pre-baked" dataset of the 320 typing-related bugs
+  under study (for more details about our dataset, please read section
+  "Dataset Overview" of our artifact).
+
 
 # Requirements
 
 * A Unix-like operating system (tested on Ubuntu and Debian).
 
-* An installation of Python3
+* An installation of Python3.
 
-* An installation of Docker
+* (**Optionally**) An installation of Docker.
+  If you don't run an Ubuntu/Debian OS, you will use the provided
+  Docker image to download bugs and run the corresponding scripts
+  in a reproducible way.
 
-* At least 20GB of available disk space
+* (**Optionally**) At least 20GB of available disk space.
+  You will need that space *only* if you decide to re-collect typing-related
+  bugs (along with their fixes) from the corresponding sources
+  (for more details, see Section "Download the bugs and fixes from sources"
+  of our artifact).
 
 # Getting Started
 
@@ -360,6 +345,41 @@ an `iterations` directory with the selected bugs. The script
 downloads fixes' diffs, and computes general statistics for these fixes in
 `data/diffs/{groovy,java,kotlin,scala}/bug_id`. Each generated directory
 contains a `.diff` and a `stats.csv` file.
+
+
+## Dataset Overview
+
+* `data/bugs.json`: This document contains all 320 bugs examined in our study
+                    and their categorization. Each bug entry has the following fields:
+    * `language`: The language of the compiler.
+    * `compiler`: The compiler in which the bug occurred.
+    * `is_correct`: `True` if the bug-revealing test case is compilable;
+       `False` otherwise.
+    * `symptom`: The bug's symptom.
+    * `bug_cause`: The root cause of the bug.
+    * `error`: This field indicates how the bug was introduced.
+    * `chars`: This is an array containing the characteristics of the bug-revealing test case.
+* `data/characteristics.json`: This document contains the categories
+   and the sub-categories of the bug-revealing test cases.
+* `data/{groovy,java,kotlin,scala}.json`: General statistics regarding
+   the creation and resolution date, the assignee,
+   and the number of comments associated with each bug.
+* `data/diffs/{groovy,java,kotlin,scala}/bug_id/*.diff`: The revisions associated with
+   the fix of bug `bug_id`.
+* `data/diffs/{groovy,java,kotlin,scala}/bug_id/stats.csv`: Lines of code affected
+   by the fix of bug `bug_id`.
+* `data/test_cases/{groovy,java,kotlin,scala}/bug_id/*.{kt,java,scala,groovy}`:
+The test case of the fix of bug `bug_id`.
+* `data/test_cases/{groovy,java,kotlin,scala}/bug_id/stats.json`:
+Statistics on the bug-revealing test case (number of declarations,
+method/function calls, LoCs) associated with the bug `bug_id`.
+* `data/iterations/1/{groovy,java,kotlin,scala}.txt`: Bugs analyzed in each
+iteration. Each line contains two entries (comma separated):
+(1) the URL pointing to the bug report,
+and (2) the URL pointing to the fix of the bug.
+* `data/collection`: The entire dataset produced by the _post-filtering_ step
+  (4.153 bugs) of our bug collection approach.
+
 
 
 # Step-by-Step Instructions
