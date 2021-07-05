@@ -491,8 +491,14 @@ how many lines were inserted, deleted or modified by the revision.
 
 ## Dataset Overview
 
+Now, we provide details regarding the dataset of the 320 typing-related
+studied in our paper.
+The dataset is stored in the `data/` directory,
+which has the following structure.
+
 * `data/bugs.json`: This document contains all 320 bugs examined in our study
-                    and their categorization. Each bug entry has the following fields:
+                    and their categorization.
+                    Each bug entry has the following fields:
     * `language`: The language of the compiler.
     * `compiler`: The compiler in which the bug occurred.
     * `is_correct`: `True` if the bug-revealing test case is compilable;
@@ -501,27 +507,40 @@ how many lines were inserted, deleted or modified by the revision.
     * `bug_cause`: The root cause of the bug.
     * `error`: This field indicates how the bug was introduced.
     * `chars`: This is an array containing the characteristics of the bug-revealing test case.
+
 * `data/characteristics.json`: This document contains the categories
    and the sub-categories of the bug-revealing test cases.
-* `data/{groovy,java,kotlin,scala}.json`: General statistics regarding
-   the creation and resolution date, the assignee,
-   and the number of comments associated with each bug.
+
+* `data/{groovy,java,kotlin,scala}.json`: Other general information
+   for each bug, i.e., 
+   the creation and resolution date of bug,
+   the assignee of bug,
+   and the number of comments associated with the corresponding bug report.
+
 * `data/diffs/{groovy,java,kotlin,scala}/bug_id/*.diff`: The revisions associated with
-   the fix of bug `bug_id`.
-* `data/diffs/{groovy,java,kotlin,scala}/bug_id/stats.csv`: Lines of code affected
-   by the fix of bug `bug_id`.
+   the fix of bug with ID `bug_id`.
+
+* `data/diffs/{groovy,java,kotlin,scala}/bug_id/stats.csv`:
+   For each source file affected by the fix of bug with ID `bug_id`,
+   this file enumerates how many Lines of code were inserted, deleted,
+   or modified.
+
 * `data/test_cases/{groovy,java,kotlin,scala}/bug_id/*.{kt,java,scala,groovy}`:
-The test case of the fix of bug `bug_id`.
+The test case that triggers the bug with ID `bug_id`.
+
 * `data/test_cases/{groovy,java,kotlin,scala}/bug_id/stats.json`:
 Statistics on the bug-revealing test case (number of declarations,
-method/function calls, LoCs) associated with the bug `bug_id`.
-* `data/iterations/1/{groovy,java,kotlin,scala}.txt`: Bugs analyzed in each
-iteration. Each line contains two entries (comma separated):
+method/function calls, LoCs) associated with the bug
+with ID `bug_id`.
+
+* `data/iterations/iter/{groovy,java,kotlin,scala}.txt`: Bugs analyzed in each
+iteration `iter`.
+Each line contains two entries (comma separated):
 (1) the URL pointing to the bug report,
 and (2) the URL pointing to the fix of the bug.
-* `data/collection`: The entire dataset produced by the _post-filtering_ step
-  (4.153 bugs) of our bug collection approach.
 
+* `data/collection`: The entire dataset produced by the _post-filtering_ step
+  of our bug collection approach.
 
 
 # Step-by-Step Instructions
