@@ -42,8 +42,14 @@ and _post filtering_ phases, see Section 2 of our paper).
 * (**Optionally**) At least 20GB of available disk space.
   You will need that space *only* if you decide to re-collect typing-related
   bugs (along with their fixes) from the corresponding sources
-  (for more details, see Section "Download the bugs and fixes from sources"
+  (for more details, see Section "Downloading Bugs & Fixes from Sources"
   of our artifact).
+
+* (**Optionally**) A Github access token (see [here](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token))
+  for interacting with the Github API.
+  You will need this access token *only* if you decide to execute the
+  instructions included in Section "Downloading Bugs & Fixes from Sources"
+  of our artifact.
 
 # Getting Started
 
@@ -132,16 +138,22 @@ we assume that all the commands shown in our artifact below
 are executed inside a Docker container
 (which has been spawned by running the `docker run` command above).
 
-## Download the bugs and fixes from sources
+## Downloading Bugs & Fixes from Sources
 
-**NOTE 1:**
-We provide the pre-baked dataset used in our study,
+This section provides the instructions
+to collect typing-related bugs and their fixes
+(see Section 2.1 of our paper).
+
+**NOTE**:
+We already provide the "pre-baked" dataset used in our study,
 which can be found in the `data/` directory.
-If you want to re-download the bugs from the sources
+However,
+if you want to re-download the bugs from the sources
 and create the bug dataset on your own,
 please continue reading this section.
 Otherwise,
-you can go directly to the next section ("Step-by-Step Instructions").
+you can go directly to the next section
+("Dataset Overview").
 
 To download and re-construct the initial dataset described in
 Section 2.1 of the paper, then you will need at least 20 GB of available disk
@@ -149,18 +161,14 @@ space. At this point, we should note that the generated dataset will probably
 contain more bugs than the dataset described in the paper because new bugs
 will have been fixed from the time we downloaded the bugs until now.
 
-**NOTE 2:**
-To run the following scripts successfully,
-you need to obtain a Github access token
-(see [here](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token)) so that
-you are able to interact with the Github API.
+Also, at this point you will need
+a Github access token (see [here](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token)).
 Once you obtain it,
 please assign it to a shell variable named `GH_TOKEN`.
 
 ```bash
 export GH_TOKEN=<your Github access token>
 ```
-
 
 The following script applies our bug collection approach.
 Specifically,
