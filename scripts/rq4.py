@@ -27,17 +27,17 @@ def get_args():
     parser.add_argument(
             "--all",
             action="store_true",
-            help="Print table with all characteristics")
+            help="Print table with the distribution of all characteristics")
     parser.add_argument(
-            "--frequency",
+            "--limit",
             type=int,
             default=5,
-            help="Number of most/least frequent characteristics (default: 5)")
+            help="The number of the most / least frequent characteristics (default: 5)")
     parser.add_argument(
-            "--most",
+            "--top",
             type=int,
             default=5,
-            help="Number of most frequent characteristics per language (default: 5)")
+            help="The number of the most frequent characteristics per language (default: 5)")
     return parser.parse_args()
 
 
@@ -110,21 +110,19 @@ def print_table(data):
                     continue
                 res.append((subsubcat, category, total, True))
     res = sorted(res, key=lambda x: (x[1], -x[2]))
-    print("\\begin{tabular}{l l l c c}")
-    print("\\hline")
-    print("{\\bf Feature} & {\\bf Category} & {\\bf Total} & {\\bf Common} \\\\")
-    print("\\hline")
+    row_format = "{:<33}" + "{:<35}" + "{:<20}" + "{:<20}"
+    print()
+    print("Distribution of Language Features (Corresponding to complete Figure 15)")
+    print(93 * "=")
+    print(row_format.format("Feature", "Category", "# Test Cases", "Common"))
+    print(93 * "-")
     for row in res:
-        print("{} & {} & {} & {}\\\\".format(
-            row[0], row[1], row[2], row[3]
-        ))
-    print("\\hline")
-    print("\\end{tabular}")
+        print(row_format.format(row[0], row[1], row[2], str(row[3])))
 
 
 def print_generic_stats_table(compilable, non_compilable, locs, classes,
                               methods, calls):
-    print("General statistics on test case characteristics")
+    print("General Statistics on Test Case Characteristics (Table 2)")
     row_format = "{:<33}" + "{:>30}"
     print(63 * "=")
     print(row_format.format(
@@ -157,14 +155,14 @@ def print_generic_stats_table(compilable, non_compilable, locs, classes,
 
 def print_most_least_chars_table(characteristics, limit):
     row_format = "{:<33}" + "{:>30}"
-    print("Most frequent features")
+    print("Most Frequent Features (Table 3)")
     print(63 * "=")
     most = characteristics[-limit:]
     most.sort(reverse=True, key=lambda x: x[2])
     for char in most:
         print(row_format.format(char[0], "{:.2f}%".format(char[2])))
     print()
-    print("Least frequent features")
+    print("Least frequent features (Table 3)")
     print(63 * "=")
     least = characteristics[:limit]
     least.sort(reverse=True, key=lambda x: x[2])
@@ -174,8 +172,14 @@ def print_most_least_chars_table(characteristics, limit):
 
 
 def print_most_per_lang(data, limit):
+    def _get(thunk, default="-"):
+        try:
+            return thunk()
+        except IndexError:
+            return default
+
     row_format = ("{:<30}" + "{:>7}") * 4
-    print("Most bug-triggering features per language")
+    print("Most Bug-Triggering Features per Language (Table 4)")
     print(155 * "=")
     data = list(zip(data.items()))
     lang1 = data[0][0][1]
@@ -195,19 +199,23 @@ def print_most_per_lang(data, limit):
         lang3_name.center(38), lang4_name.center(38)
     ))
     print(155 * "-")
-    for i, _ in enumerate(lang1[:limit]):
+    for i in range(limit):
         print(row_format.format(
-            lang1[i][0], "{:.2f}% | ".format(lang1[i][1]),
-            lang2[i][0], "{:.2f}% | ".format(lang2[i][1]),
-            lang3[i][0], "{:.2f}% | ".format(lang3[i][1]),
-            lang4[i][0], "{:.2f}% | ".format(lang4[i][1])
+            _get(lambda: lang1[i][0]), "{:.2f}% | ".format(_get(
+                lambda: lang1[i][1], 0)),
+            _get(lambda: lang2[i][0]), "{:.2f}% | ".format(_get(
+                lambda: lang2[i][1], 0)),
+            _get(lambda: lang3[i][0]), "{:.2f}% | ".format(_get(
+                lambda: lang3[i][1], 0)),
+            _get(lambda: lang4[i][0]), "{:.2f}% | ".format(_get(
+                lambda: lang4[i][1], 0))
         ))
     print()
 
 
 def print_categories_stats(categories):
     row_format = "{:<33}" + "{:>7}"
-    print("Most frequent characteristic categories")
+    print("Frequency of Characteristic Categories (see Section 3.4.2)")
     print(40 * "=")
     for row in categories:
         print(row_format.format(row[0], "{:.2f}%".format(row[1])))
@@ -215,7 +223,7 @@ def print_categories_stats(categories):
 
 
 def print_comparative_stats(characteristics):
-    print("Comparative Analysis stats")
+    print("Comparative Analysis Stats (see Section 3.4.3)")
     print(43 * "=")
     print("{}: {:.2f}".format(
         "Scala Implicits",
@@ -351,8 +359,8 @@ def main():
     print_generic_stats_table(compilable, non_compilable,
                               locs['total'], classes['total'],
                               methods['total'], calls['total'])
-    print_most_least_chars_table(characteristics, args.frequency)
-    print_most_per_lang(stats_per_lang, args.most)
+    print_most_least_chars_table(characteristics, args.limit)
+    print_most_per_lang(stats_per_lang, args.top)
     print_categories_stats(categories)
     print_comparative_stats(stats_per_lang)
 

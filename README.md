@@ -740,23 +740,39 @@ python scripts/rq3.py data/diffs/ data/ \
 
 ## RQ4: Test Case Characteristics (Section 3.4)
 
+For this research question,
+we examine the distribution and the correlation
+of test case characteristics.
 
-For this research question, we use two scripts.
-The first script generates Figure 15 and it prints Tables 2, 3, and 4
-to the standard output.
-On the other hand,
-the second script prints the lift scores
-reported in Section 3.4.2.
+### Frequency of Test Case Characteristics
+
+To compute the frequency of test case
+characteristics,
+we use a script that generates Figure 15,
+prints Tables 2, 3, and 4,
+and reports some metrics mentioned in Sections 3.4.2
+and 3.4.3 of our paper.
+Please run
 
 ```bash
-python scripts/rq4.py data/characteristics.json data/bugs.json data/test_cases/ \
+python scripts/rq4.py data/characteristics.json \
+   data/bugs.json data/test_cases/ \
     --output figures/characteristics.pdf
 ```
 
-The above script generates `figures/characteristics.pdf` and produces:
+This script takes three inputs.
+The first input `data/characteristics.json` is the file
+that contains the frequency of every test case characteristic.
+The second input (`data/bugs.json`) is the file that
+contains our categorization for every examined bug,
+while the third one stands for the directory
+of test cases.
+
+
+The above script generates `figures/characteristics.pdf` and reports:
 
 ```
-General statistics on test case characteristics
+General Statistics on Test Case Characteristics (Table 2)
 ===============================================================
 Compilable test cases                        216 / 320 (67.50%)
 Non-compilable test cases                    104 / 320 (32.50%)
@@ -773,7 +789,7 @@ Number of method calls (mean)                              2.48
 Number of method calls (median)                               1
 ---------------------------------------------------------------
 
-Most frequent features
+Most Frequent Features (Table 3)
 ===============================================================
 Parameterized type                                       46.56%
 Type argument inference                                  31.87%
@@ -781,7 +797,7 @@ Parameterized class                                      30.00%
 Parameterized function                                   26.25%
 Inheritance                                              24.06%
 
-Least frequent features
+Least frequent features (Table 3)
 ===============================================================
 Multiple implements                                       2.19%
 This                                                      2.19%
@@ -789,7 +805,7 @@ Arithmetic Expressions                                    1.88%
 Loops                                                     1.25%
 Sealed Classes                                            0.94%
 
-Most bug-triggering features per language
+Most Bug-Triggering Features per Language (Table 4)
 ===========================================================================================================================================================
                  Java                                 Groovy                                Kotlin                                Scala
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -799,7 +815,7 @@ Functional interface          37.50% | Type argument inference       35.00% | Ty
 Parameterized function        35.00% | Lambda                        25.00% | Parameterized function        26.25% | Implicits                     23.75% |
 Parameterized class           30.00% | Parameterized function        21.25% | Inheritance                   25.00% | Parameterized function        22.50% |
 
-Most frequent characteristic categories
+Frequency of Characteristic Categories (see Section 3.4.2)
 ========================================
 Parametric polymorphism           57.19%
 OOP features                      53.75%
@@ -810,7 +826,7 @@ Standard library                  30.63%
 Standard features                 28.75%
 Other                             28.75%
 
-Comparative Analysis stats
+Comparative Analysis Stats (see Section 3.4.3)
 ===========================================
 Scala Implicits: 23.75
 Scala Higher-kinded types: 13.75
@@ -820,6 +836,276 @@ Kotlin Nullable types: 16.25
 Kotlin Extension function / property: 15.00
 ```
 
+This script is useful for finding what
+are the most and least bug-triggering language features.
+For completeness,
+the `scripts/rq4.py` provides three extra command-line options
+used for presenting the full results of our study
+(some results are not presented in the paper for brevity).
+
+#### Example: Table 3 
+
+For displaying a more complete Table 3,
+use the `--limit` option by providing the
+number of Table entries.
+For example,
+to produce Table 3 that shows the 30 most and
+the 30 least frequent language features,
+run
+
+```bash
+ python scripts/rq4.py data/characteristics.json \
+    data/bugs.json data/test_cases/ \
+        --output figures/characteristics.pdf --limit 30
+```
+
+This produces
+
+```
+Most Frequent Features (Table 3)
+===============================================================
+Parameterized type                                       46.56%
+Type argument inference                                  31.87%
+Parameterized class                                      30.00%
+Parameterized function                                   26.25%
+Inheritance                                              24.06%
+Collection API                                           21.88%
+Lambda                                                   19.06%
+Bounded type parameters                                  17.81%
+Subtyping                                                16.25%
+Overriding                                               15.62%
+Functional interface                                     13.44%
+Overloading                                              11.25%
+Function reference                                        8.75%
+Parameter type inference                                  8.12%
+Nested class                                              7.81%
+Wildcard type                                             7.50%
+Function type                                             7.50%
+Conditionals                                              6.56%
+Variable type inference                                   6.25%
+Anonymous classes                                         5.62%
+Array                                                     5.62%
+Use-site variance                                         5.31%
+Function API                                              5.31%
+Java interoperability                                     5.31%
+Access modifiers                                          5.00%
+Cast                                                      4.69%
+Property                                                  4.06%
+Reflection API                                            3.75%
+Import                                                    3.44%
+Variable arguments                                        3.44%
+Try/Catch                                                 3.12%
+Augmented Assignment Operator                             2.50%
+Multiple implements                                       2.19%
+This                                                      2.19%
+Enums                                                     2.19%
+Arithmetic Expressions                                    1.88%
+Loops                                                     1.25%
+Sealed Classes                                            0.94%
+
+Least frequent features (Table 3)
+===============================================================
+Parameterized type                                       46.56%
+Type argument inference                                  31.87%
+Parameterized class                                      30.00%
+Parameterized function                                   26.25%
+Inheritance                                              24.06%
+Collection API                                           21.88%
+Lambda                                                   19.06%
+Bounded type parameters                                  17.81%
+Subtyping                                                16.25%
+Overriding                                               15.62%
+Functional interface                                     13.44%
+Overloading                                              11.25%
+Function reference                                        8.75%
+Parameter type inference                                  8.12%
+Nested class                                              7.81%
+Wildcard type                                             7.50%
+Function type                                             7.50%
+Conditionals                                              6.56%
+Variable type inference                                   6.25%
+Anonymous classes                                         5.62%
+Array                                                     5.62%
+Use-site variance                                         5.31%
+Function API                                              5.31%
+Java interoperability                                     5.31%
+Access modifiers                                          5.00%
+Cast                                                      4.69%
+Property                                                  4.06%
+Reflection API                                            3.75%
+Import                                                    3.44%
+Variable arguments                                        3.44%
+Try/Catch                                                 3.12%
+Augmented Assignment Operator                             2.50%
+Multiple implements                                       2.19%
+This                                                      2.19%
+Enums                                                     2.19%
+Arithmetic Expressions                                    1.88%
+Loops                                                     1.25%
+Sealed Classes                                            0.94%
+```
+
+
+#### Example: Table 4
+
+For producing a more complete Table 4,
+our scripts provides the `--top` option.
+For example,
+to display the 20 most bug-triggering features
+per language, run
+
+```bash
+ python scripts/rq4.py data/characteristics.json \
+    data/bugs.json data/test_cases/ \
+        --output figures/characteristics.pdf --top 20
+```
+
+This yields
+
+```
+Most Bug-Triggering Features per Language (Table 4)
+===========================================================================================================================================================
+                 Java                                 Groovy                                Kotlin                                Scala
+                 -----------------------------------------------------------------------------------------------------------------------------------------------------------
+                 Parameterized type            51.25% | Parameterized type            41.25% | Parameterized type            36.25% | Parameterized type            57.50% |
+                 Type argument inference       42.50% | Collection API                35.00% | Parameterized class           33.75% | Parameterized class           42.50% |
+                 Functional interface          37.50% | Type argument inference       35.00% | Type argument inference       32.50% | Inheritance                   32.50% |
+                 Parameterized function        35.00% | Lambda                        25.00% | Parameterized function        26.25% | Implicits                     23.75% |
+                 Parameterized class           30.00% | Parameterized function        21.25% | Inheritance                   25.00% | Parameterized function        22.50% |
+                 Inheritance                   22.50% | Subtyping                     21.25% | Lambda                        25.00% | Pattern matching              21.25% |
+                 Collection API                22.50% | Parameter type inference      17.50% | Function type                 17.50% | Type alias                    17.50% |
+                 Subtyping                     21.25% | Functional interface          15.00% | Nullable types                16.25% | Type argument inference       17.50% |
+                 Lambda                        21.25% | Parameterized class           13.75% | Extension function / property 15.00% | Bounded type parameters       17.50% |
+                 Bounded type parameters       20.00% | Inheritance                   13.75% | Collection API                13.75% | Collection API                16.25% |
+                 Function reference            17.50% | Primitive types               12.50% | Conditionals                  13.75% | Singleton object              15.00% |
+                 Overloading                   16.25% | Overriding                    11.25% | Function reference            13.75% | Case classes                  15.00% |
+                 Function API                  15.00% | Variable type inference       10.00% | Overriding                    13.75% | Higher-kinded types           13.75% |
+                 Overriding                    13.75% | Property                      10.00% | Subtyping                     12.50% | Algebraic Data Types          13.75% |
+                 Use-site variance             12.50% | Array                         8.75% | Flow typing                   8.75% | Function type                 12.50% |
+                 Cast                          11.25% | Named arguments               6.25% | Bounded type parameters       8.75% | Wildcard type                 12.50% |
+                 Nested class                  10.00% | Access modifiers              6.25% | Wildcard type                 8.75% | Special method overriding     12.50% |
+                 Conditionals                  10.00% | Java interoperability         6.25% | Java interoperability         8.75% | Overriding                    11.25% |
+                 Array                         10.00% | Flow typing                   5.00% | Variable type inference       8.75% | Nested class                  10.00% |
+                 Anonymous classes             8.75% | Overloading                   5.00% | Operator overloading          8.75% | Subtyping                     10.00% |
+```
+
+### Example: Showing the Distribution of All Language Features
+
+Figure 15 shows the four most frequent language feature
+per category.
+To show the full results,
+use the command-line flag `--all`
+as follows
+
+```bash
+ python scripts/rq4.py data/characteristics.json \
+   data/bugs.json data/test_cases/ \
+    --output figures/characteristics.pdf --all
+```
+
+
+This dumps the following Table to standard output.
+Note that this Table actually corresponds to
+complete Figure 15.
+
+```
+
+Distribution of Language Features (Corresponding to complete Figure 15)
+=============================================================================================
+Feature                          Category                           # Test Cases        Common
+---------------------------------------------------------------------------------------------
+Lambda                           Functional programming             61                  True
+Functional interface             Functional programming             43                  True
+Function reference               Functional programming             28                  True
+Function type                    Functional programming             24                  True
+Eta expansion                    Functional programming             2                   False
+Inheritance                      OOP features                       77                  True
+Overriding                       OOP features                       50                  True
+Overloading                      OOP features                       36                  True
+Nested class                     OOP features                       25                  True
+Anonymous classes                OOP features                       18                  True
+Access modifiers                 OOP features                       16                  True
+Singleton object                 OOP features                       14                  False
+Property                         OOP features                       13                  True
+Case classes                     OOP features                       12                  False
+Special method overriding        OOP features                       10                  True
+Static Method                    OOP features                       9                   False
+Operator overloading             OOP features                       7                   True
+Multiple implements              OOP features                       7                   True
+This                             OOP features                       7                   True
+Secondary constructor            OOP features                       5                   False
+Delegation                       OOP features                       4                   False
+Sealed Classes                   OOP features                       3                   True
+Self types                       OOP features                       3                   False
+Property reference               OOP features                       3                   False
+Value classes                    OOP features                       2                   False
+Data classes                     OOP features                       1                   False
+Implicits                        Other                              19                  False
+Java interoperability            Other                              17                  True
+Pattern matching                 Other                              17                  False
+Extension function / property    Other                              12                  False
+Type annotations                 Other                              9                   False
+Named arguments                  Other                              7                   False
+Option types                     Other                              5                   False
+Elvis operator                   Other                              5                   False
+Call by name                     Other                              4                   False
+Inline                           Other                              4                   False
+Template string                  Other                              3                   False
+Safe navigation operator         Other                              2                   False
+Erased parameters                Other                              1                   False
+Default Initializer              Other                              1                   False
+Null assertion                   Other                              1                   False
+With                             Other                              1                   False
+Parameterized type               Parametric polymorphism            149                 True
+Parameterized class              Parametric polymorphism            96                  True
+Parameterized function           Parametric polymorphism            84                  True
+Bounded type parameters          Parametric polymorphism            57                  True
+Use-site variance                Parametric polymorphism            17                  True
+F-bounds                         Parametric polymorphism            14                  True
+Declaration-site variance        Parametric polymorphism            12                  False
+Higher-kinded types              Parametric polymorphism            11                  False
+Multi-bounds                     Parametric polymorphism            3                   True
+Conditionals                     Standard features                  21                  True
+Array                            Standard features                  18                  True
+Cast                             Standard features                  15                  True
+Import                           Standard features                  11                  True
+Variable arguments               Standard features                  11                  True
+Try/Catch                        Standard features                  10                  True
+Augmented Assignment Operator    Standard features                  8                   True
+Enums                            Standard features                  7                   True
+Arithmetic Expressions           Standard features                  6                   True
+Loops                            Standard features                  4                   True
+Collection API                   Standard library                   70                  True
+Function API                     Standard library                   17                  True
+Reflection API                   Standard library                   12                  True
+Coroutines API                   Standard library                   4                   False
+Stream API                       Standard library                   2                   False
+Delegation API                   Standard library                   1                   False
+Type argument inference          Type inference                     102                 True
+Parameter type inference         Type inference                     26                  True
+Variable type inference          Type inference                     20                  True
+Flow typing                      Type inference                     11                  False
+Builder inference                Type inference                     4                   False
+Return type inference            Type inference                     2                   False
+Subtyping                        Type system features               52                  True
+Wildcard type                    Type system features               24                  True
+Type alias                       Type system features               16                  False
+Primitive types                  Type system features               14                  False
+Nullable types                   Type system features               13                  False
+Algebraic Data Types             Type system features               11                  False
+Dependent types                  Type system features               7                   False
+Intersection types               Type system features               5                   False
+Nothing                          Type system features               3                   False
+Type Lambdas                     Type system features               3                   False
+Type Projection                  Type system features               3                   False
+Union types                      Type system features               2                   False
+Opaque types                     Type system features               1                   False
+Mixins                           Type system features               1                   False
+Match types                      Type system features               1                   False
+```
+
+
+### Correlation of Test Case Characteristics
 
 To compute lift scores, run the following
 
