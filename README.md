@@ -56,10 +56,12 @@ and _post filtering_ phases, see Section 2 of our paper).
 This section includes instructions and documentation for
 (1) setting up the necessary environment in order
 run our scripts,
-(2) constructing a dataset of 320 typing-related bugs
+(2) re-constructing the dataset of 320 typing-related bugs
 taken from the issue trackers of Java, Scala, Kotlin,
 and Groovy,
-(3) the resulting dataset and its categorization. 
+(3) the categorization of our bug dataset. 
+The final output of this step is the directory `data/`,
+which is used for answering our research questions.
 
 ## Setup
 
@@ -557,7 +559,7 @@ the `docs/index.html` file. # TODO
 # Step-by-Step Instructions
 
 In the following section, we provide scripts that reproduce the results
-presented in the paper using the dataset from the `data` directory.
+presented in the paper using the dataset from the `data/` directory.
 
 ## Collecting Bugs & Fixes (Section 2.1)
 
@@ -592,8 +594,8 @@ for reproducing Figure 1. To do so, run:
 python scripts/rq1.py data/bugs.json --output figures/symptoms.pdf
 ```
 
-This produces `symptoms.pdf` in the `figures` directory.
-Beyond that,
+This produces `symptoms.pdf` file in the `figures/` directory.
+For those who are running the above script inside a Docker container,
 the script also prints the distribution of symptoms in a tabular format.
 Specifically, it prints
 the following
@@ -608,23 +610,32 @@ Misleading Report                   2 (2.50%)      4 (5.00%)      7 (8.75%)     
 Compilation Performance Issue       0 (0.00%)      2 (2.50%)      3 (3.75%)      2 (2.50%)      7 (2.19%)
 ```
 
+However, please note that Docker users are still able to examine
+the resulting figure by opening the
+pdf file `$(pwd)/figures/symptoms.pdf` stored in their host machine.
+The same also applies for the output figures of the next research
+questions.
+
 ## RQ2: Bug Patterns (Section 3.2)
 
-For the second research question, we first reproduce Figures 7a and 7b.
-These figures demonstrate the distribution of bug causes with regards to
-the examined compilers and symptoms.
-Second,
-we produce the above distributions in a tabular format.
+For the second research question, we compute the distribution of
+bug causes with regards to the examined compilers,
+and bug symptoms.
+This reproduces Figures 7a and 7b.
+As in the first research question,
+our script also reports the above distributions
+in a tabular format.
 Run the following command:
 
 ```bash
-python scripts/rq2.py data/bugs.json --patterns figures/patterns.pdf \
+python scripts/rq2.py data/bugs.json \
+    --patterns figures/patterns.pdf \
     --patterns-symptoms figures/patterns_symptoms.pdf
 ```
 
-The above command produces the figures `figures/patterns.pdf` and
-`figures/patterns_symptoms.pdf`, and it prints the following in the
-standard output.
+The above command produces the figures `figures/patterns.pdf` (Figure 7a)
+and `figures/patterns_symptoms.pdf` (Figure 7b),
+and it prints the following in the standard output.
 
 ```
 Bug Cause                                    groovyc              javac            kotlinc     scalac & Dotty              Total
@@ -648,19 +659,34 @@ AST Transformation Bugs                 5 (1.56%)       9 (2.81%)       0 (0.00%
 ## RQ3: Bug Fixes (Section 3.3)
 
 In the third research question, we study the duration and the fixes of the bugs.
-Hence, we produce Fig 13a, Fig 13b, and Fig 14. We also print in
+Hence, we produce Figure 13a, Figure 13b, and Figure 14. We also print in
 the standard output the mean, median, standard deviation, max, and min
-of files number, lines number, and duration of fixes.
+of the following metrics:
+* number of files affected by a fix
+* lines of code affected by a fix
+* duration of a fix
 
+To produce the aforementioned figures and metrics,
+please run
 
 ```bash
 python scripts/rq3.py data/diffs/ data/ --directory figures
 ```
 
-The previous command saves Fig 13a in `figures/lines.pdf`, Fig 13b in
-`figures/files.pdf`, and Fig 14 in `figures/duration.pdf`.
-Note that you can use `--all` option to create figures
-containing plots for every compiler.
+The previous command takes two inputs.
+The first input (i.e., `data/diffs/`)
+is the revisions of bug fixes,
+while the second input (i.e., `data/`)
+is the directory where the JSON files
+(e.g., `data/kotlin.json`)
+containing
+general information
+(e.g., creation date, resolution date)
+about the examined bugs are located.
+The previous command saves Figure 13a in `figures/lines.pdf`,
+Figure 13b in `figures/files.pdf`,
+and Figure 14 in `figures/duration.pdf`.
+
 The script also prints the following tables
 
 ```
@@ -696,6 +722,20 @@ Groovy    122.05    8.00      278.64    0.00      1472.00
 Scala     328.09    55.50     628.74    0.00      3209.00
 ------------------------------------------------------------
 Total     186.42    24.00     407.32    0.00      3209.00
+```
+
+Note that this script takes an extra command-line
+flag,
+namely `--all`,
+used for creating figures that contain plots
+for every compiler
+Therefore,
+to re-create Figure 14 as shown in our paper,
+you have to run
+
+```bash
+python scripts/rq3.py data/diffs/ data/ \
+  --directory figures --all
 ```
 
 ## RQ4: Test Case Characteristics (Section 3.4)

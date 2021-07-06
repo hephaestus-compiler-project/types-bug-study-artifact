@@ -237,7 +237,7 @@ def compute_duration(args):
                 durations[l].append(duration)
     duration_stats = get_stats(durations)
     print_stats(duration_stats, "Duration")
-    plot_fig(durations, True, args.directory, "duration",
+    plot_fig(durations, args.all, args.directory, "duration",
              args.print_all_points)
 
 
