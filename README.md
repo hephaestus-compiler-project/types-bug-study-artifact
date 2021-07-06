@@ -989,7 +989,7 @@ Most Bug-Triggering Features per Language (Table 4)
                  Anonymous classes             8.75% | Overloading                   5.00% | Operator overloading          8.75% | Subtyping                     10.00% |
 ```
 
-### Example: Showing the Distribution of All Language Features
+#### Example: Showing the Distribution of All Language Features
 
 Figure 15 shows the four most frequent language feature
 per category.
