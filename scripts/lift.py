@@ -48,8 +48,14 @@ def get_args():
     parser.add_argument("--limit", type=int,
                         default=5,
                         help="Max entries to show per pair.")
-    parser.add_argument("--all", action='store_true',
-                        help="Print lift score for all categories")
+    parser.add_argument("--A", type=str,
+                        default=None,
+                        choices=BUG_ASPECTS.keys(),
+                        help="Name of the first bug aspect")
+    parser.add_argument("--B", type=str,
+                        default=None,
+                        choices=BUG_ASPECTS.keys(),
+                        help="Name of the second bug aspect")
     return parser.parse_args()
 
 
@@ -157,8 +163,8 @@ def read_data(args):
                     print("Cannot find {}".format(bug))
 
 
-def compute(keyword, a, b, threshold=False, ithreshold=False, limit=None,
-            filter_list=None):
+def compute(pair_name, keyword, a, b, threshold=False, ithreshold=False,
+            limit=None, filter_list=None):
     """https://stackabuse.com/association-rule-mining-via-apriori-algorithm-in-python/
     """
     size = sum(len(i) for i in a["total"].values())
@@ -202,51 +208,44 @@ def compute(keyword, a, b, threshold=False, ithreshold=False, limit=None,
                     intersection, max_a, max_b))
     res.sort(reverse=True, key=lambda x: x[2])
     res = res[:limit] if limit else res
+    row_format = "{:<90} {:<10}"
+    print("{:<90} {:<10}".format("Pair (" + pair_name + ")", "Lift Score"))
+    print(113 * "=")
     for r in res:
-        print(("Lift {:>{x}} -> {:<{y}}: {:.4f} (Confidence A->B: {:.4f}, "
-               "Support B: {:.4f}) -- Totals A: {}, B: {}, A-B: {}").format(
-                r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7],
-                intersection,
-                x=r[8], y=r[9]))
+        print(row_format.format(r[0] + " -> " + r[1],
+                                round(r[2], 4)))
+    print()
+
+BUG_ASPECTS = {
+    "symptoms": ("Symptoms", SYMPTOMS),
+    "bug_causes": ("Bug Causes", BUG_CAUSES),
+    'duration': ("Duration", DURATION),
+    "loc": ("LoC", LINES),
+    "files": ("Number of Files", FILES),
+    "errors": ("Error Types", ERRORS),
+    "test_chars": ("Test Case Characteristics", CHARACTERISTICS),
+    "test_char_cat": ("Test Case Characteristics -- Categories",
+                      CHARACTERISTICS_BUG_CAUSES)
+}
 
 
 def main():
     args = get_args()
     read_data(args)
-    if args.all:
-        print("Duration -> Lines")
-        compute("total", DURATION, LINES, args.threshold, args.ithreshold,
-                args.limit)
-        print("Lines -> Duration")
-        compute("total", LINES, DURATION, args.threshold, args.ithreshold,
-                args.limit)
-        print("Errors -> Duration")
-        compute("total", ERRORS, DURATION, args.threshold,
-                args.ithreshold, args.limit)
-        print("Errors -> Lines")
-        compute("total", ERRORS, LINES, args.threshold, args.ithreshold,
-                args.limit)
-        print("Errors -> FILES")
-        compute("total", ERRORS, FILES, args.threshold, args.ithreshold,
-                args.limit)
-        print("Characteristics -> Characteristics")
-        compute("total", CHARACTERISTICS, CHARACTERISTICS, args.threshold,
-                args.ithreshold, args.limit)
-        print("Char Categories -> Char Categories")
-        compute("total", CHARACTERISTICS_BUG_CAUSES,
-                CHARACTERISTICS_BUG_CAUSES, args.threshold, args.ithreshold,
-                args.limit)
-        print("Symptom -> Characteristics")
-        compute("total", SYMPTOMS, CHARACTERISTICS, args.threshold,
-                args.ithreshold, args.limit)
-        print("Bug Causes -> Errors")
-        compute("total", BUG_CAUSES, ERRORS, args.threshold,
-                args.ithreshold, args.limit)
+    if args.A and args.B:
+        category_nameA, valuesA = BUG_ASPECTS[args.A]
+        category_nameB, valuesB = BUG_ASPECTS[args.B]
+        compute(
+            category_nameA + " -> " + category_nameB,
+            "total", valuesA, valuesB, args.threshold, args.ithreshold,
+            args.limit
+        )
     else:
-        print("Char Categories -> Char Categories")
-        compute("total", CHARACTERISTICS_BUG_CAUSES,
-                CHARACTERISTICS_BUG_CAUSES, 5, 20, 2)
-        print("Characteristics -> Characteristics")
+        compute(
+            "Test Case Characteristics (Categories) -> Test Case Characteristics (Categories)",
+            "total",
+            CHARACTERISTICS_BUG_CAUSES,
+            CHARACTERISTICS_BUG_CAUSES, 5, 20, 2)
         filter_list = [
            ("Variable arguments", "Overloading"),
            ("Use-site variance", "Parameterized function"),
@@ -255,8 +254,9 @@ def main():
            ("Type argument inference", "Collection API"),
            ("Type argument inference", "Parameterized type"),
         ]
-        compute("total", CHARACTERISTICS, CHARACTERISTICS,
-                filter_list=filter_list)
+        compute(
+            "Test Case Characteristics -> Test Case Characteristics",
+            "total", CHARACTERISTICS, CHARACTERISTICS, filter_list=filter_list)
 
 
 if __name__ == "__main__":

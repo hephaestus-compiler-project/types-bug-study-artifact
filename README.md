@@ -1010,7 +1010,7 @@ complete Figure 15.
 
 ```
 
-Distribution of Language Features (Corresponding to complete Figure 15)
+Distribution of Language Features (corresponding to a complete version of Figure 15)
 =============================================================================================
 Feature                          Category                           # Test Cases        Common
 ---------------------------------------------------------------------------------------------
@@ -1107,7 +1107,8 @@ Match types                      Type system features               1           
 
 ### Correlation of Test Case Characteristics
 
-To compute lift scores, run the following
+To compute lift scores mentioned in Section 3.4.3
+of our paper, please run the following command
 
 ```bash
 python scripts/lift.py data/bugs.json data/ data/diffs/
@@ -1116,37 +1117,47 @@ python scripts/lift.py data/bugs.json data/ data/diffs/
 This script generates the following:
 
 ```
-Char Categories -> Char Categories
-Lift        Standard library -> Functional programming : 5.3639 (Confidence A->B: 0.5306, Support B: 0.0989) -- Totals A: 98, B: 101, A-B: 52
-Lift        Standard library -> Type inference         : 5.1717 (Confidence A->B: 0.7041, Support B: 0.1361) -- Totals A: 98, B: 139, A-B: 69
-Characteristics -> Characteristics
-Lift            Variable arguments -> Overloading                  : 24.0282 (Confidence A->B: 0.4545, Support B: 0.0189) -- Totals A: 11, B: 29, A-B: 5
-Lift             Use-site variance -> Parameterized function       : 17.1765 (Confidence A->B: 0.9412, Support B: 0.0548) -- Totals A: 17, B: 84, A-B: 16
-Lift       Type argument inference -> Parameterized function       : 12.7034 (Confidence A->B: 0.6961, Support B: 0.0548) -- Totals A: 102, B: 84, A-B: 71
-Lift                     Implicits -> Parameterized class          : 10.9260 (Confidence A->B: 0.6842, Support B: 0.0626) -- Totals A: 19, B: 96, A-B: 13
-Lift       Type argument inference -> Collection API               : 8.5882 (Confidence A->B: 0.3922, Support B: 0.0457) -- Totals A: 102, B: 70, A-B: 40
-Lift       Type argument inference -> Parameterized type           : 6.9599 (Confidence A->B: 0.6765, Support B: 0.0972) -- Totals A: 102, B: 149, A-B: 69
+Pair (Test Case Characteristics (Categories) -> Test Case Characteristics (Categories))    Lift Score
+=================================================================================================================
+Standard library -> Functional programming                                                 5.3639
+Standard library -> Type inference                                                         5.1717
+
+Pair (Test Case Characteristics -> Test Case Characteristics)                              Lift Score
+=================================================================================================================
+Variable arguments -> Overloading                                                          24.0282
+Use-site variance -> Parameterized function                                                17.1765
+Type argument inference -> Parameterized function                                          12.7034
+Implicits -> Parameterized class                                                           10.926
+Type argument inference -> Collection API                                                  8.5882
+Type argument inference -> Parameterized type                                              6.9599
 ```
 
-Note that this script can also be used to compute various lift scores.
-To print all lift cores for every combination,
+#### Using lift.py for Computing Various Lift Scores
+
+Note that `lift.py` can also be used to compute various lift scores.
+i.e., computing the correlation between various aspects of the
+examined bugs (e.g., correlation between bug causes and lines of code
+affected by a fix).
+To print the lift cores for every combination,
 use the option `--all`.
+
 Furthermore, you can set the number of pairs to print
-by providing the `--limit` option,
+to display by providing the `--limit` option.
+The option `--threshold` is used to display
+pairs whose lift score is greater than the given option.
 a threshold with `--threshold` option,
 and a population threshold with `--ithreshold`.
-Specifically,
-`--limit` option
-specifies the number of pairs to show per category.
-`--threshold` option
-sets a threshold for lift scores.
 Finally,
 `--ithreshold`
 sets a population threshold that pairs must exceed.
 
+The detailed usage guide of `lift.py` is shown below
+
 ```
-usage: lift.py [-h] [--threshold THRESHOLD] [--ithreshold ITHRESHOLD]
-               [--limit LIMIT] [--all] bugs stats diffs
+.env ❯ python scripts/lift.py --help
+usage: lift.py [-h] [--threshold THRESHOLD] [--ithreshold ITHRESHOLD] [--limit LIMIT] [--A {symptoms,bug_causes,duration,loc,files,errors,test_chars,test_char_cat}]
+               [--B {symptoms,bug_causes,duration,loc,files,errors,test_chars,test_char_cat}]
+               bugs stats diffs
 
 Lift correlations
 
@@ -1162,5 +1173,48 @@ optional arguments:
   --ithreshold ITHRESHOLD
                         Intersections threshold for lift.
   --limit LIMIT         Max entries to show per pair.
-  --all                 Print lift score for all categories
+  --A {symptoms,bug_causes,duration,loc,files,errors,test_chars,test_char_cat}
+                        Name of first bug aspect
+  --B {symptoms,bug_causes,duration,loc,files,errors,test_chars,test_char_cat}
+                        Name of first bug aspect
 ```
+
+#### Example: Using lift.py for Computing the Correlation Between Symptoms and Bug Causes
+
+Run the following command to compute the lift scores between symptoms
+and bug causes
+
+```bash
+python scripts/lift.py data/bugs.json data/ data/diffs/ \
+  --A symptoms --B bug_causes \
+  --threshold 1 \
+  --limit 5
+```
+
+This yields
+
+
+```
+Pair (Symptoms -> Bug Causes)                                                              Lift Score
+=================================================================================================================
+Internal Compiler Error -> Bugs Related to Error Handling & Reporting                      2.7618
+Unexpected Runtime Behavior -> Semantic Analysis Bugs                                      2.1171
+Unexpected Compile-Time Error -> Type-related Bugs                                         1.3697
+Unexpected Runtime Behavior -> Resolution Bugs                                             1.2546
+Unexpected Compile-Time Error -> Resolution Bugs                                           1.1218
+Internal Compiler Error -> Semantic Analysis Bugs                                          1.1047
+```
+
+Note that the options `--A` and `--B` stand for the bug aspects
+for which we compute their lift scores.
+The available options are
+
+* `symptoms` for bug symptoms
+* `bug_causes` for bug causes
+* `duration` for bug duration
+* `loc` for lines of code affected by bug fixes
+* `files` for number of files affected by bug fixes
+* `errors` for error types (e.g., algorithmic error, logic error, etc.)
+* `test_chars` for test case characteristics
+* `test_char_cat` for categories of test case characteristics (e.g., OOP Features,
+   Functional Programming Features, etc)

@@ -112,7 +112,7 @@ def print_table(data):
     res = sorted(res, key=lambda x: (x[1], -x[2]))
     row_format = "{:<33}" + "{:<35}" + "{:<20}" + "{:<20}"
     print()
-    print("Distribution of Language Features (Corresponding to complete Figure 15)")
+    print("Distribution of Language Features (corresponding to a complete version of Figure 15)")
     print(93 * "=")
     print(row_format.format("Feature", "Category", "# Test Cases", "Common"))
     print(93 * "-")
