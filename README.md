@@ -965,28 +965,28 @@ This yields
 ```
 Most Bug-Triggering Features per Language (Table 4)
 ===========================================================================================================================================================
-                 Java                                 Groovy                                Kotlin                                Scala
-                 -----------------------------------------------------------------------------------------------------------------------------------------------------------
-                 Parameterized type            51.25% | Parameterized type            41.25% | Parameterized type            36.25% | Parameterized type            57.50% |
-                 Type argument inference       42.50% | Collection API                35.00% | Parameterized class           33.75% | Parameterized class           42.50% |
-                 Functional interface          37.50% | Type argument inference       35.00% | Type argument inference       32.50% | Inheritance                   32.50% |
-                 Parameterized function        35.00% | Lambda                        25.00% | Parameterized function        26.25% | Implicits                     23.75% |
-                 Parameterized class           30.00% | Parameterized function        21.25% | Inheritance                   25.00% | Parameterized function        22.50% |
-                 Inheritance                   22.50% | Subtyping                     21.25% | Lambda                        25.00% | Pattern matching              21.25% |
-                 Collection API                22.50% | Parameter type inference      17.50% | Function type                 17.50% | Type alias                    17.50% |
-                 Subtyping                     21.25% | Functional interface          15.00% | Nullable types                16.25% | Type argument inference       17.50% |
-                 Lambda                        21.25% | Parameterized class           13.75% | Extension function / property 15.00% | Bounded type parameters       17.50% |
-                 Bounded type parameters       20.00% | Inheritance                   13.75% | Collection API                13.75% | Collection API                16.25% |
-                 Function reference            17.50% | Primitive types               12.50% | Conditionals                  13.75% | Singleton object              15.00% |
-                 Overloading                   16.25% | Overriding                    11.25% | Function reference            13.75% | Case classes                  15.00% |
-                 Function API                  15.00% | Variable type inference       10.00% | Overriding                    13.75% | Higher-kinded types           13.75% |
-                 Overriding                    13.75% | Property                      10.00% | Subtyping                     12.50% | Algebraic Data Types          13.75% |
-                 Use-site variance             12.50% | Array                         8.75% | Flow typing                   8.75% | Function type                 12.50% |
-                 Cast                          11.25% | Named arguments               6.25% | Bounded type parameters       8.75% | Wildcard type                 12.50% |
-                 Nested class                  10.00% | Access modifiers              6.25% | Wildcard type                 8.75% | Special method overriding     12.50% |
-                 Conditionals                  10.00% | Java interoperability         6.25% | Java interoperability         8.75% | Overriding                    11.25% |
-                 Array                         10.00% | Flow typing                   5.00% | Variable type inference       8.75% | Nested class                  10.00% |
-                 Anonymous classes             8.75% | Overloading                   5.00% | Operator overloading          8.75% | Subtyping                     10.00% |
+Java                                 Groovy                                Kotlin                                Scala
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+Parameterized type            51.25% | Parameterized type            41.25% | Parameterized type            36.25% | Parameterized type            57.50% |
+Type argument inference       42.50% | Collection API                35.00% | Parameterized class           33.75% | Parameterized class           42.50% |
+Functional interface          37.50% | Type argument inference       35.00% | Type argument inference       32.50% | Inheritance                   32.50% |
+Parameterized function        35.00% | Lambda                        25.00% | Parameterized function        26.25% | Implicits                     23.75% |
+Parameterized class           30.00% | Parameterized function        21.25% | Inheritance                   25.00% | Parameterized function        22.50% |
+Inheritance                   22.50% | Subtyping                     21.25% | Lambda                        25.00% | Pattern matching              21.25% |
+Collection API                22.50% | Parameter type inference      17.50% | Function type                 17.50% | Type alias                    17.50% |
+Subtyping                     21.25% | Functional interface          15.00% | Nullable types                16.25% | Type argument inference       17.50% |
+Lambda                        21.25% | Parameterized class           13.75% | Extension function / property 15.00% | Bounded type parameters       17.50% |
+Bounded type parameters       20.00% | Inheritance                   13.75% | Collection API                13.75% | Collection API                16.25% |
+Function reference            17.50% | Primitive types               12.50% | Conditionals                  13.75% | Singleton object              15.00% |
+Overloading                   16.25% | Overriding                    11.25% | Function reference            13.75% | Case classes                  15.00% |
+Function API                  15.00% | Variable type inference       10.00% | Overriding                    13.75% | Higher-kinded types           13.75% |
+Overriding                    13.75% | Property                      10.00% | Subtyping                     12.50% | Algebraic Data Types          13.75% |
+Use-site variance             12.50% | Array                         8.75% | Flow typing                   8.75% | Function type                 12.50% |
+Cast                          11.25% | Named arguments               6.25% | Bounded type parameters       8.75% | Wildcard type                 12.50% |
+Nested class                  10.00% | Access modifiers              6.25% | Wildcard type                 8.75% | Special method overriding     12.50% |
+Conditionals                  10.00% | Java interoperability         6.25% | Java interoperability         8.75% | Overriding                    11.25% |
+Array                         10.00% | Flow typing                   5.00% | Variable type inference       8.75% | Nested class                  10.00% |
+Anonymous classes             8.75% | Overloading                   5.00% | Operator overloading          8.75% | Subtyping                     10.00% |
 ```
 
 #### Example: Showing the Distribution of All Language Features
