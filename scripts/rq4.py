@@ -201,14 +201,18 @@ def print_most_per_lang(data, limit):
     print(155 * "-")
     for i in range(limit):
         print(row_format.format(
-            _get(lambda: lang1[i][0]), "{:.2f}% | ".format(_get(
-                lambda: lang1[i][1], 0)),
-            _get(lambda: lang2[i][0]), "{:.2f}% | ".format(_get(
-                lambda: lang2[i][1], 0)),
-            _get(lambda: lang3[i][0]), "{:.2f}% | ".format(_get(
-                lambda: lang3[i][1], 0)),
-            _get(lambda: lang4[i][0]), "{:.2f}% | ".format(_get(
-                lambda: lang4[i][1], 0))
+            _get(lambda: lang1[i][0]), "{}{:.2f}% | ".format(
+                " " if _get(lambda: lang1[i][1], 0) < 10 else "",
+                _get(lambda: lang1[i][1], 0)),
+            _get(lambda: lang2[i][0]), "{}{:.2f}% | ".format(
+                " " if _get(lambda: lang2[i][1], 0) < 10 else "",
+                _get(lambda: lang2[i][1], 0)),
+            _get(lambda: lang3[i][0]), "{}{:.2f}% | ".format(
+                " " if _get(lambda: lang3[i][1], 0) < 10 else "",
+                _get(lambda: lang3[i][1], 0)),
+            _get(lambda: lang4[i][0]), "{}{:.2f}% | ".format(
+                " " if _get(lambda: lang4[i][1], 0) < 10 else "",
+                _get(lambda: lang4[i][1], 0))
         ))
     print()
 
