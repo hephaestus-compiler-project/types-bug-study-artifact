@@ -8,6 +8,36 @@ A Study of Typing-Related Bugs in JVM Compilers".
 An archived version of the artifact will also be published on Zenodo,
 upon the paper's publication.
 
+# Table of Contents
+
+- [Overview](#overview)
+- [Requirements](#requirements)
+- [Getting Started](#getting-started)
+  * [Setup](#setup)
+    + [Option1: Ubuntu/Debian Installation](#option1-ubuntudebian-installation)
+    + [Option2: Docker Image Installation](#option2-docker-image-installation)
+  * [Downloading Bugs &amp; Fixes from Sources (Optionally)](#downloading-bugs--fixes-from-sources-optionally)
+    + [Fetching Groovy Bugs](#fetching-groovy-bugs)
+    + [Fetching Kotlin Bugs](#fetching-kotlin-bugs)
+    + [Fetching Java bugs](#fetching-java-bugs)
+    + [Fetching Scala bugs](#fetching-scala-bugs)
+    + [Cloning Compilers' Repositories](#cloning-compilers-repositories)
+    + [Detecting Bug Fixes](#detecting-bug-fixes)
+  * [Downloading the 320 Typing-Related Bugs (Optionally)](#downloading-the-320-typing-related-bugs-optionally)
+- [Dataset Overview](#dataset-overview)
+  * [Details Regarding Categorization](#details-regarding-categorization)
+- [Step-by-Step Instructions](#step-by-step-instructions)
+  * [Collecting Bugs &amp; Fixes (Section 2.1)](#collecting-bugs--fixes-section-21)
+  * [RQ1: Symptoms (Section 3.1)](#rq1-symptoms-section-31)
+  * [RQ2: Bug Patterns (Section 3.2)](#rq2-bug-patterns-section-32)
+  * [RQ3: Bug Fixes (Section 3.3)](#rq3-bug-fixes-section-33)
+  * [RQ4: Test Case Characteristics (Section 3.4)](#rq4-test-case-characteristics-section-34)
+    + [Frequency of Test Case Characteristics](#frequency-of-test-case-characteristics)
+    + [Correlation of Test Case Characteristics](#correlation-of-test-case-characteristics)
+- [Other Utilities](#other-utilities)
+  * [Usage](#usage)
+  * [Example](#example)
+
 # Overview
 
 The artifact contains the dataset and scripts to reproduce the results
@@ -59,7 +89,7 @@ run our scripts,
 (2) re-constructing the dataset of 320 typing-related bugs
 taken from the issue trackers of Java, Scala, Kotlin,
 and Groovy,
-(3) the categorization of our bug dataset. 
+(3) the categorization of our bug dataset.
 The final output of this step is the directory `data/`,
 which is used for answering our research questions.
 
@@ -140,7 +170,7 @@ we assume that all the commands shown in our artifact below
 are executed inside a Docker container
 (which has been spawned by running the `docker run` command above).
 
-## Downloading Bugs & Fixes from Sources
+## Downloading Bugs & Fixes from Sources (Optionally)
 
 This section provides the instructions
 to collect typing-related bugs and their fixes
@@ -462,7 +492,7 @@ Language         Phase 1         Phase 2
    Total            5350            4153
 ```
 
-## Downloading the 320 Typing-Related Bugs
+## Downloading the 320 Typing-Related Bugs (Optionally)
 
 To download the data associated with
 the *specific* 320 typing-related that
@@ -495,7 +525,7 @@ while the `stats.csv` file enumerates for each source file
 how many lines were inserted, deleted or modified by the revision.
 
 
-## Dataset Overview
+# Dataset Overview
 
 Now, we provide details regarding the dataset of the 320 typing-related
 studied in our paper.
@@ -530,7 +560,7 @@ which has the following structure.
    and the sub-categories of the bug-revealing test cases.
 
 * `data/{groovy,java,kotlin,scala}.json`: Other general information
-   for each bug, i.e., 
+   for each bug, i.e.,
    the creation and resolution date of bug,
    the assignee of bug,
    and the number of comments associated with the corresponding bug report.
@@ -855,7 +885,7 @@ the `scripts/rq4.py` provides three extra command-line options
 used for presenting the full results of our study
 (some results are not presented in the paper for brevity).
 
-#### Example: Table 3 
+#### Example: Table 3
 
 For displaying a more complete Table 3,
 use the `--limit` option by providing the
@@ -1234,7 +1264,7 @@ The available options are
 # Other Utilities
 
 Our research artifact also offers a utility
-(found in `scripts/query.py`) 
+(found in `scripts/query.py`)
 for performing simple search on the studied bugs
 and their categorization
 (stored in `data/bugs.json` file).
