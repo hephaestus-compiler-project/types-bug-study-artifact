@@ -510,9 +510,21 @@ which has the following structure.
     * `is_correct`: `True` if the bug-revealing test case is compilable;
        `False` otherwise.
     * `symptom`: The bug's symptom.
-    * `bug_cause`: The root cause of the bug.
+    * `bug_cause`: The root cause of the bug. A bug cause may contain
+      subcategories. The subcategory of a specific bug cause is shown
+      by the the `subcategory` field. Example:
+      ```json
+      "bug_cause": {
+        "category": "Type-related Bugs"
+        "subcategory": "Incorrect Type Comparison & Bound Computation"
+      }
+      ```
     * `error`: This field indicates how the bug was introduced.
-    * `chars`: This is an array containing the characteristics of the bug-revealing test case.
+    * `chars`: This field contains the characteristics of the bug-revealing test case.
+       This field contains two more fields: `characteristics` corresponding to
+       language features involved in each test case (e.g., Inheritance),
+       and `categories` that includes the groups to which these language
+       features belong (e.g., OOP features).
 
 * `data/characteristics.json`: This document contains the categories
    and the sub-categories of the bug-revealing test cases.
