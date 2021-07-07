@@ -231,7 +231,7 @@ def print_comparative_stats(characteristics):
     print("{}: {:.2f}".format(
         "Scala Higher-kinded types",
         next(i[1] for i in characteristics['Scala']
-             if i[0] == 'Higher-kinded types')))
+             if i[0] == 'Higher-kinded type')))
     print("{}: {:.2f}".format(
         "Scala Pattern matching",
         next(i[1] for i in characteristics['Scala']
@@ -239,11 +239,11 @@ def print_comparative_stats(characteristics):
     print("{}: {:.2f}".format(
         "Scala Algebraic Data Types",
         next(i[1] for i in characteristics['Scala']
-             if i[0] == 'Algebraic Data Types')))
+             if i[0] == 'Algebraic data type')))
     print("{}: {:.2f}".format(
         "Kotlin Nullable types",
         next(i[1] for i in characteristics['Kotlin']
-             if i[0] == 'Nullable types')))
+             if i[0] == 'Nullable type')))
     print("{}: {:.2f}".format(
         "Kotlin Extension function / property",
         next(i[1] for i in characteristics['Kotlin']
