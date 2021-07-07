@@ -515,7 +515,7 @@ which has the following structure.
       by the the `subcategory` field. Example:
       ```json
       "bug_cause": {
-        "category": "Type-related Bugs"
+        "category": "Type-related Bugs",
         "subcategory": "Incorrect Type Comparison & Bound Computation"
       }
       ```
