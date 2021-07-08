@@ -36,6 +36,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
     "sphinx.ext.inheritance_diagram",
+    'sphinx.ext.autosectionlabel',
     'guzzle_sphinx_theme',
 ]
 
