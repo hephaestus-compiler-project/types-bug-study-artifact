@@ -1008,6 +1008,247 @@ Example:
 Standard Library
 ----------------
 
+Function API
+^^^^^^^^^^^^
+
+The test case uses the function API from the standard library of Java.
+
+
+Refelection API
+^^^^^^^^^^^^^^^
+
+The test case us the reflection API.
+
+Example:
+
+.. code-block:: java
+
+  class A { }
+  val x = new A()
+  x.getClass()
+
+
+Collection API
+^^^^^^^^^^^^^^
+
+The test case uses the collection API (e.g., it uses list types, it
+creates sets, and more).
+
+
+Stream API
+^^^^^^^^^^
+
+The test case uses the Stream API from the standard library of Java.
+
+Coroutines API
+^^^^^^^^^^^^^^
+
+The test case uses the Coroutines API (Kotlin only).
+
+
+Delegation API
+^^^^^^^^^^^^^^
+
+The test case uses the Delegation API from the standard library of Groovy.
+
 
 Other
 -----
+
+Type Annotations
+^^^^^^^^^^^^^^^^
+
+The test case contains annotations.
+
+
+Java Interoperability
+^^^^^^^^^^^^^^^^^^^^^
+
+The test case is written in a language other than Java, but uses part of
+code written in Java (e.g., a library, imports a Java class, uses the
+standard library of Java, etc.)
+
+
+
+Implicits
+^^^^^^^^^
+
+The test case uses implicits (Scala only).
+
+Example:
+
+.. code-block:: scala
+
+  class Prefixer(val prefix: String)
+  def addPrefix(s: String)(implicit p: Prefixer) = p.prefix + s
+  implicit val myImplicitPrefixer = new Prefixer("***")
+  addPrefix("abc")
+
+
+Erased Parameter
+^^^^^^^^^^^^^^^^
+
+The test case contains erased parameters (Scala only).
+
+
+Example:
+
+.. code-block:: scala
+
+  def methodWithErasedEv(erased ev: Ev): Int = 42
+
+
+Call by Name
+^^^^^^^^^^^^
+
+The test case contains call-by-name arguments (Scala only).
+
+Example:
+
+.. code-block:: scala
+
+  def calculate(input: => Int) = input * 37
+
+
+Default Initializer
+^^^^^^^^^^^^^^^^^^^
+
+The test case contains a default initializer (Scala only).
+
+Example:
+
+.. code-block:: scala
+
+  class Socket(var timeout: Int = 2000, var linger: Int = 3000) { }
+
+
+Option Type
+^^^^^^^^^^^
+
+Option types #TODO
+
+
+Pattern Matching
+^^^^^^^^^^^^^^^^
+
+The test case contains pattern matching (Scala only).
+
+Example:
+
+.. code-block:: scala
+
+  val x: Int = Random.nextInt(10)
+
+  x match {
+    case 0 => "zero"
+    case 1 => "one"
+    case 2 => "two"
+    case _ => "other"
+  }
+
+
+Inline
+^^^^^^
+
+The test case uses the inline keyword (Scala and Kotlin only).
+
+
+Example:
+
+.. code-block:: kotlin
+
+  inline fun <T> lock(lock: Lock, body: () -> T): T { ... }
+
+
+Named Arguments
+^^^^^^^^^^^^^^^
+
+The test case contains a function that takes named arguments (TODO only).
+
+Example:
+
+.. code-block:: groovy
+
+  String foo(String x, String y = "foo")
+
+
+Extension Function / Property
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The test case defines an extension function or property (Kotlin only).
+
+Example:
+
+.. code-block:: kotlin
+
+  fun MutableList<Int>.swap(index1: Int, index2: Int) { }
+
+
+Elvis Operator
+^^^^^^^^^^^^^^
+
+The test case contains an elvis expression (Kotlin, Groovy only).
+
+Example:
+
+.. code-block:: kotlin
+
+  val list = mutableList ?: mutableListOf()
+
+
+Null Assertion
+^^^^^^^^^^^^^^
+
+The test case contains a null assertion expression (Kotlin only).
+
+Example:
+
+.. code-block:: kotlin
+
+  val answer = "42"
+  answer!!.toInt()
+
+
+Safe Navigation Operator
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+The test case contains an safe navigation operator (Kotlin, Groovy only).
+
+
+Example:
+
+.. code-block:: kotlin
+
+  val name = article?.author?.name
+
+
+With
+^^^^
+
+The test case performs multiple assignments through the with pattern
+(Groovy only).
+
+
+Example:
+
+.. code-block:: groovy
+
+  Foo foo = new Foo()
+  foo.with {
+      name = 'Foo'
+      age = 2
+  }
+
+
+Template String
+^^^^^^^^^^^^^^^
+
+The test case contains a template sting (Groovy, Kotlin, Scala only).
+
+Example:
+
+.. code-block:: groovy
+
+  String greet(String otherPerson) {
+    "Hello ${otherPerson}"
+  }
