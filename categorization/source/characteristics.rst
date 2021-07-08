@@ -819,7 +819,7 @@ Example:
 Intersection Types
 ^^^^^^^^^^^^^^^^^^
 
-The case makes use of intersection types (#TODO only).
+The test case makes use of intersection types (Scala only).
 
 Example:
 
