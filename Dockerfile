@@ -7,6 +7,7 @@ RUN apt update -yqq && \
     apt install -yqq wget curl jq git sudo mercurial vim diffstat cloc python3-pip
 
 RUN pip3 install requests matplotlib pandas seaborn
+RUN ln -s /usr/bin/python3 /usr/bin/python
 
 # Create a user.
 RUN useradd -ms /bin/bash user && \
