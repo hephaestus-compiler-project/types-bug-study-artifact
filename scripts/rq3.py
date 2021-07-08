@@ -207,8 +207,8 @@ def compute_fixes(args):
     files_stats = create_dict()
     lines_stats = get_stats(lines)
     files_stats = get_stats(files)
-    print_stats(lines_stats, "Lines")
-    print_stats(files_stats, "Files")
+    print_stats(lines_stats, "Lines of Code")
+    print_stats(files_stats, "Number of Affected Files")
     plot_fig(files, args.all, args.directory, "files",
              args.print_all_points)
     plot_fig(lines, args.all, args.directory, "lines",
