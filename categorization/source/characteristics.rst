@@ -15,6 +15,7 @@ eight general categories:
 * *Functional Programming Features*
 * *Parametric Polymorphism*
 * *Type Inference Features*
+* *Type System Features*
 * *Standard Library*
 * *Other*
 
@@ -761,3 +762,15 @@ Example:
   fun test() {
     val result = sequence { yield("result") }
   }
+
+
+Type System Features
+--------------------
+
+
+Standard Library
+----------------
+
+
+Other
+-----
