@@ -767,6 +767,243 @@ Example:
 Type System Features
 --------------------
 
+This category includes features associated with the type system of
+the languages. For example, subtyping, intersection types,
+dependent types, type projections, etc.
+
+Below you can find some Type System features that we encountered
+in the bug-revealing test cases.
+
+
+Subtyping
+^^^^^^^^^
+
+The test case uses types for which the subtyping relation holds.
+
+Example:
+
+.. code-block:: java
+
+  class A {}
+  class B extends A {}
+
+  A x = new B() // here we have subtyping
+
+
+Primitive Types
+^^^^^^^^^^^^^^^
+
+The test case declares a variable/parameter whose type is primitive
+(Java and Groovy only).
+
+Example:
+
+.. code-block:: java
+
+  int x = 5;
+
+
+Wildcard Types
+^^^^^^^^^^^^^^
+
+The test case contains a parameterized type that comes from the
+application of a type constructor with a wildcard type, e.g. A<?>.
+
+Example:
+
+.. code-block:: kotlin
+
+  public static void add(List<? extends Number> list) {}
+
+
+Intersection Types
+^^^^^^^^^^^^^^^^^^
+
+The case makes use of intersection types (#TODO only).
+
+Example:
+
+.. code-block:: java
+
+  interface A { }
+  interface B { }
+
+  public static <T extends A & B> void foo() { }
+
+
+Dependent Type
+^^^^^^^^^^^^^^
+
+The test case declares a variable/parameter whose type is a dependent type
+(Scala only).
+
+Example:
+
+.. code-block:: scala
+
+  trait DepValue{
+    type V
+    val value: V
+  }
+
+  def magic(that: DepValue): that.V = that.value
+
+
+Type Definition / Member
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Test case declares a Type Member (Scala only).
+
+Example:
+
+.. code-block:: scala
+
+  class Blah {
+    type Member
+  }
+
+
+Nothing
+^^^^^^^
+
+The test case handles the special type 'Nothing' (Scala, Kotlin only).
+
+
+Example:
+
+.. code-block:: scala
+
+  val variable: Nothing? = null
+
+
+Algebraic Data Type
+^^^^^^^^^^^^^^^^^^^
+
+The test contains algebraic data types (Scala only).
+
+
+Example:
+
+.. code-block:: scala
+
+  sealed trait Bool
+  case object True extends Bool
+  case object False extends Bool
+
+
+Type Lambdas
+^^^^^^^^^^^^
+
+The test case contains a type lambda expression (Scala only).
+
+Example:
+
+.. code-block:: scala
+
+  [X, Y] =>> Map[Y, X]
+
+For instance, the type above defines a binary type constructor,
+which maps arguments :code:`X` and :code:`Y` to :code:`Map[Y, X]`.
+
+
+Type Projection
+^^^^^^^^^^^^^^^
+
+The test case contains type projections (Scala only).
+
+
+Example:
+
+.. code-block:: scala
+
+  class Foo {
+    class Bar
+  }
+  val foo1 = new Foo
+  val bar1: foo1.Bar = new foo1.Bar
+  val foo2 = new Foo
+  val bar2: foo2.Bar = new foo2.Bar
+  val bar: Foo#Bar = if (???) bar1 else bar2
+
+
+Opaque Type
+^^^^^^^^^^^
+
+The test case defines opaque type alias (Scala only).
+
+
+Example:
+
+.. code-block:: scala
+
+  opaque type Logarithm = Double
+
+
+Union Type
+^^^^^^^^^^
+
+The test case makes use of union types (Scala only).
+
+
+Example:
+
+.. code-block:: scala
+
+  case class UserName(name: String)
+  case class Password(hash: Hash)
+
+  def help(id: UserName | Password) =
+    val user = id match
+      case UserName(name) => lookupName(name)
+      case Password(hash) => lookupPassword(hash)
+    ...
+
+
+Mixins
+^^^^^^
+
+The test case uses a mixin type (Scala only).
+
+Example:
+
+.. code-block:: scala
+
+  abstract class A {
+    val message: String
+  }
+  class B extends A {
+    val message = "I'm an instance of class B"
+  }
+  trait C extends A {
+    def loudMessage = message.toUpperCase()
+  }
+  class D extends B with C // Class D has a superclass B and a mixin C.
+
+
+Match Type
+^^^^^^^^^^
+
+The test case performs pattern matching on types (Scala only).
+
+
+Example:
+
+`Dotty Example http://dotty.epfl.ch/docs/reference/new-types/match-types.html`_
+
+
+Nullable Type
+^^^^^^^^^^^^^
+
+The test case uses nullable types (Kotlin only).
+
+
+Example:
+
+.. code-block:: kotlin
+
+  var b: String? = "abc"
+  b = null
+
 
 Standard Library
 ----------------
