@@ -35,8 +35,6 @@ upon the paper's publication.
     + [Frequency of Test Case Characteristics](#frequency-of-test-case-characteristics)
     + [Correlation of Test Case Characteristics](#correlation-of-test-case-characteristics)
 - [Other Utilities](#other-utilities)
-  * [Usage](#usage)
-  * [Example](#example)
 
 # Overview
 
