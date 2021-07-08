@@ -38,22 +38,25 @@ upon the paper's publication.
 
 # Overview
 
-The artifact contains the dataset and scripts to reproduce the results
-described in our paper.
-The artifact has the following structure:
+The purpose of this artifact is reproduce the results
+presented in our paper,
+and document our dataset and its categorization in order
+facilitate further research.
+Specfically,
+the artifact has the following structure:
 
-* `scripts`: This is the directory that contains the scripts needed to
+* `scripts/`: This is the directory that contains the scripts needed to
 reproduce the results, the figures, and the tables presented in our paper.
 
-* `scripts/fetch`: This is the directory that contains the scripts needed
+* `scripts/fetch/`: This is the directory that contains the scripts needed
 to construct the dataset of typing-related bugs
 as described in our paper
-(i.e., this directory contains the code of our _bug collection_
+(i.e., this directory actually contains the code of our _bug collection_
 and _post filtering_ phases, see Section 2 of our paper).
 
-* `data`: This is the "pre-baked" dataset of the 320 typing-related bugs
+* `data/`: This is the "pre-baked" dataset of the 320 typing-related bugs
   under study (for more details about our dataset, please read section
-  "Dataset Overview" of our artifact).
+  [Dataset Overview](#dataset-overview) of our artifact).
 
 
 # Requirements
@@ -63,20 +66,21 @@ and _post filtering_ phases, see Section 2 of our paper).
 * An installation of Python3.
 
 * (**Optionally**) An installation of Docker.
-  If you don't run an Ubuntu/Debian OS, you will use the provided
-  Docker image to download bugs and run the corresponding scripts
-  in a reproducible way.
+  If you are not running an Ubuntu/Debian OS, you are able to use
+  the provided Docker image (found in `Dockerfile`) to download bugs
+  and run the corresponding scripts in a reproducible way.
 
 * (**Optionally**) At least 20GB of available disk space.
   You will need that space *only* if you decide to re-collect typing-related
   bugs (along with their fixes) from the corresponding sources
-  (for more details, see Section "Downloading Bugs & Fixes from Sources"
-  of our artifact).
+  (for more details, see Section
+  [Downloading Bugs &amp; Fixes from Sources](#downloading-bugs--fixes-from-sources-optionally)).
 
 * (**Optionally**) A Github access token (see [here](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token))
   for interacting with the Github API.
   You will need this access token *only* if you decide to execute the
-  instructions included in Section "Downloading Bugs & Fixes from Sources"
+  instructions included in Section
+  [Downloading Bugs &amp; Fixes from Sources](#downloading-bugs--fixes-from-sources-optionally)
   of our artifact.
 
 # Getting Started
@@ -87,9 +91,9 @@ run our scripts,
 (2) re-constructing the dataset of 320 typing-related bugs
 taken from the issue trackers of Java, Scala, Kotlin,
 and Groovy,
-(3) the categorization of our bug dataset.
+(3) our bug dataset and the proposed categorization.
 The final output of this step is the directory `data/`,
-which is used for answering our research questions.
+which is ultimately used for answering our research questions.
 
 ## Setup
 
