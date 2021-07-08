@@ -1,7 +1,7 @@
 .. _errors:
 
-Errors
-======
+Types of Errors
+===============
 
 To understand how bugs are introduced,
 we manually studied every bug fix and
