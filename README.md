@@ -1342,6 +1342,34 @@ For example, count the number of bugs
 320
 ```
 
+Display the ID of the selected bugs
+
+```mongo
+> db.bugs.find({}, {'bug_id': 1, '_id': 0})
+{ "bug_id" : "JDK-8254557" }
+{ "bug_id" : "JDK-8258972" }
+{ "bug_id" : "JDK-8144066" }
+{ "bug_id" : "JDK-7040883" }
+{ "bug_id" : "JDK-8029721" }
+{ "bug_id" : "JDK-8129214" }
+{ "bug_id" : "JDK-8203277" }
+{ "bug_id" : "JDK-8231461" }
+{ "bug_id" : "JDK-6995200" }
+{ "bug_id" : "JDK-8202597" }
+{ "bug_id" : "JDK-8195598" }
+{ "bug_id" : "JDK-8144832" }
+{ "bug_id" : "JDK-6996914" }
+{ "bug_id" : "JDK-8169091" }
+{ "bug_id" : "JDK-8012238" }
+{ "bug_id" : "JDK-8152832" }
+{ "bug_id" : "JDK-8191802" }
+{ "bug_id" : "JDK-6476118" }
+{ "bug_id" : "JDK-8154180" }
+{ "bug_id" : "JDK-8029569" }
+Type "it" for more
+
+```
+
 Count the number of bugs that are crashes
 
 ```mongo
