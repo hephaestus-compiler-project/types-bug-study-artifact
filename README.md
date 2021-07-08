@@ -39,12 +39,12 @@ upon the paper's publication.
 # Overview
 
 The purpose of this artifact is
-(1) reproduce the results
+(1) to reproduce the results
 presented in our paper,
-and (2) document our dataset
-and the proposed categorization in order
+and (2) to document our dataset
+and the proposed categorization in order to
 facilitate further research.
-Specfically,
+Specifically,
 the artifact has the following structure:
 
 * `scripts/`: This is the directory that contains the scripts needed to
