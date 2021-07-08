@@ -1263,70 +1263,81 @@ The available options are
 
 # Other Utilities
 
-Our research artifact also offers a utility
-(found in `scripts/query.py`)
-for performing simple search on the studied bugs
-and their categorization
-(stored in `data/bugs.json` file).
+Our research artifact also offers a Docker image
+that runs a MongoDB instance.
+This MongoDB instance allows future researchers to
+perform queries over our bug dataset.
+To spawn this MongoDB instance,
+first convert our bug dataset into the desired format
+in order to be stored in the database.
 
-### Usage
-
+```bash
+python3 scripts/data-converter.py data/bugs.json data/bug-collection.json
 ```
 
-.env ❯ python scripts/query.py --help
-usage: query.py [-h] [-l [{Java,Kotlin,Groovy,Scala} [{Java,Kotlin,Groovy,Scala} ...]]]
-                [-b [{Type-related Bugs,Semantic Analysis Bugs,Resolution Bugs,Bugs Related to Error Handling & Reporting,AST Transformation Bugs} [{Type-related Bugs,Semantic Analysis Bugs,Resolution Bugs,Bugs Related to Error Handling & Reporting,AST Transformation Bugs} ...]]]
-                [-s [{Unexpected Compile-Time Error,Internal Compiler Error,Unexpected Runtime Behavior,Compilation Performance Issue,Misleading Report} [{Unexpected Compile-Time Error,Internal Compiler Error,Unexpected Runtime Behavior,Compilation Performance Issue,Misleading Report} ...]]]
-                [-C [{Parametric polymorphism,OOP features,Type system features,Standard library,Functional programming,Standard features,Type inference,Other} [{Parametric polymorphism,OOP features,Type system features,Standard library,Functional programming,Standard features,Type inference,Other} ...]]]
-                [-c [{Parameterized class,Parameterized type,Parameterized function,Use-site variance,Bounded type parameters,Higher-kinded types,Declaration-site variance,Inheritance,Sealed Classes,Nested class,Anonymous classes,Overriding,Static Method,Overloading,Access modifiers,Multiple implements,Value classes,Singleton object,This,Case classes,Self types,Delegation,Property reference,Data classes,Secondary constructor,Property,Subtyping,Primitive types,Wildcard type,Intersection types,Dependent types,Type alias,Nothing,Algebraic Data Types,Type Lambdas,Type Projection,Opaque types,Union types,Mixins,Match types,Nullable types,Function API,Reflection API,Collection API,Stream API,Coroutines API,Delegation API,Lambda,Function reference,Functional interface,Function type,Eta expansion,Conditionals,Array,Import,Cast,Variable arguments,Try/Catch,Loops,Arithmetic Expressions,Augmented Assignment Operator,Enums,Type argument inference,Variable type inference,Parameter type inference,Flow typing,Return type inference,Builder inference,Type annotations,Java interoperability,Implicits,Erased parameters,Call by name,Default Initializer,Option types,Pattern matching,Inline,Named arguments,Extension function / property,Elvis operator,Null assertion,Safe navigation operator,With,Template string} [{Parameterized class,Parameterized type,Parameterized function,Use-site variance,Bounded type parameters,Higher-kinded types,Declaration-site variance,Inheritance,Sealed Classes,Nested class,Anonymous classes,Overriding,Static Method,Overloading,Access modifiers,Multiple implements,Value classes,Singleton object,This,Case classes,Self types,Delegation,Property reference,Data classes,Secondary constructor,Property,Subtyping,Primitive types,Wildcard type,Intersection types,Dependent types,Type alias,Nothing,Algebraic Data Types,Type Lambdas,Type Projection,Opaque types,Union types,Mixins,Match types,Nullable types,Function API,Reflection API,Collection API,Stream API,Coroutines API,Delegation API,Lambda,Function reference,Functional interface,Function type,Eta expansion,Conditionals,Array,Import,Cast,Variable arguments,Try/Catch,Loops,Arithmetic Expressions,Augmented Assignment Operator,Enums,Type argument inference,Variable type inference,Parameter type inference,Flow typing,Return type inference,Builder inference,Type annotations,Java interoperability,Implicits,Erased parameters,Call by name,Default Initializer,Option types,Pattern matching,Inline,Named arguments,Extension function / property,Elvis operator,Null assertion,Safe navigation operator,With,Template string} ...]]]
-                [--is-correct] [--is-incorrect] [-u] [-U] [-o OUTPUT]
-                data
+This script takes the JSON file that includes the studied bugs,
+and creates a collection of bugs stored in `data/bug-collection.json`.
 
-Query bugs
+Now, you can build the Docker image by running
+(estimated running time: ~1 min)
 
-positional arguments:
-  data                  JSON with bugs.
+```bash
+docker build -t bugdb -f db.Dockerfile .
+```
 
-optional arguments:
-  -h, --help            show this help message and exit
-  -l [{Java,Kotlin,Groovy,Scala} [{Java,Kotlin,Groovy,Scala} ...]], --languages [{Java,Kotlin,Groovy,Scala} [{Java,Kotlin,Groovy,Scala} ...]]
-                        Select bugs from specific languages.
-  -b [{Type-related Bugs,Semantic Analysis Bugs,Resolution Bugs,Bugs Related to Error Handling & Reporting,AST Transformation Bugs} [{Type-related Bugs,Semantic Analysis Bugs,Resolution Bugs,Bugs Related to Error Handling & Reporting,AST Transformation Bugs} ...]], --bug-causes [{Type-related Bugs,Semantic Analysis Bugs,Resolution Bugs,Bugs Related to Error Handling & Reporting,AST Transformation Bugs} [{Type-related Bugs,Semantic Analysis Bugs,Resolution Bugs,Bugs Related to Error Handling & Reporting,AST Transformation Bugs} ...]]
-                        Select bugs with specific bug causes
-  -s [{Unexpected Compile-Time Error,Internal Compiler Error,Unexpected Runtime Behavior,Compilation Performance Issue,Misleading Report} [{Unexpected Compile-Time Error,Internal Compiler Error,Unexpected Runtime Behavior,Compilation Performance Issue,Misleading Report} ...]], --symptoms [{Unexpected Compile-Time Error,Internal Compiler Error,Unexpected Runtime Behavior,Compilation Performance Issue,Misleading Report} [{Unexpected Compile-Time Error,Internal Compiler Error,Unexpected Runtime Behavior,Compilation Performance Issue,Misleading Report} ...]]
-                        Select bugs with specific symptoms.
-  -C [{Parametric polymorphism,OOP features,Type system features,Standard library,Functional programming,Standard features,Type inference,Other} [{Parametric polymorphism,OOP features,Type system features,Standard library,Functional programming,Standard features,Type inference,Other} ...]], --char-categories [{Parametric polymorphism,OOP features,Type system features,Standard library,Functional programming,Standard features,Type inference,Other} [{Parametric polymorphism,OOP features,Type system features,Standard library,Functional programming,Standard features,Type inference,Other} ...]]
-                        Select bugs with specific characteristics' categories.
-  -c [{Parameterized class,Parameterized type,Parameterized function,Use-site variance,Bounded type parameters,Higher-kinded types,Declaration-site variance,Inheritance,Sealed Classes,Nested class,Anonymous classes,Overriding,Static Method,Overloading,Access modifiers,Multiple implements,Value classes,Singleton object,This,Case classes,Self types,Delegation,Property reference,Data classes,Secondary constructor,Property,Subtyping,Primitive types,Wildcard type,Intersection types,Dependent types,Type alias,Nothing,Algebraic Data Types,Type Lambdas,Type Projection,Opaque types,Union types,Mixins,Match types,Nullable types,Function API,Reflection API,Collection API,Stream API,Coroutines API,Delegation API,Lambda,Function reference,Functional interface,Function type,Eta expansion,Conditionals,Array,Import,Cast,Variable arguments,Try/Catch,Loops,Arithmetic Expressions,Augmented Assignment Operator,Enums,Type argument inference,Variable type inference,Parameter type inference,Flow typing,Return type inference,Builder inference,Type annotations,Java interoperability,Implicits,Erased parameters,Call by name,Default Initializer,Option types,Pattern matching,Inline,Named arguments,Extension function / property,Elvis operator,Null assertion,Safe navigation operator,With,Template string} [{Parameterized class,Parameterized type,Parameterized function,Use-site variance,Bounded type parameters,Higher-kinded types,Declaration-site variance,Inheritance,Sealed Classes,Nested class,Anonymous classes,Overriding,Static Method,Overloading,Access modifiers,Multiple implements,Value classes,Singleton object,This,Case classes,Self types,Delegation,Property reference,Data classes,Secondary constructor,Property,Subtyping,Primitive types,Wildcard type,Intersection types,Dependent types,Type alias,Nothing,Algebraic Data Types,Type Lambdas,Type Projection,Opaque types,Union types,Mixins,Match types,Nullable types,Function API,Reflection API,Collection API,Stream API,Coroutines API,Delegation API,Lambda,Function reference,Functional interface,Function type,Eta expansion,Conditionals,Array,Import,Cast,Variable arguments,Try/Catch,Loops,Arithmetic Expressions,Augmented Assignment Operator,Enums,Type argument inference,Variable type inference,Parameter type inference,Flow typing,Return type inference,Builder inference,Type annotations,Java interoperability,Implicits,Erased parameters,Call by name,Default Initializer,Option types,Pattern matching,Inline,Named arguments,Extension function / property,Elvis operator,Null assertion,Safe navigation operator,With,Template string} ...]], --characteristics [{Parameterized class,Parameterized type,Parameterized function,Use-site variance,Bounded type parameters,Higher-kinded types,Declaration-site variance,Inheritance,Sealed Classes,Nested class,Anonymous classes,Overriding,Static Method,Overloading,Access modifiers,Multiple implements,Value classes,Singleton object,This,Case classes,Self types,Delegation,Property reference,Data classes,Secondary constructor,Property,Subtyping,Primitive types,Wildcard type,Intersection types,Dependent types,Type alias,Nothing,Algebraic Data Types,Type Lambdas,Type Projection,Opaque types,Union types,Mixins,Match types,Nullable types,Function API,Reflection API,Collection API,Stream API,Coroutines API,Delegation API,Lambda,Function reference,Functional interface,Function type,Eta expansion,Conditionals,Array,Import,Cast,Variable arguments,Try/Catch,Loops,Arithmetic Expressions,Augmented Assignment Operator,Enums,Type argument inference,Variable type inference,Parameter type inference,Flow typing,Return type inference,Builder inference,Type annotations,Java interoperability,Implicits,Erased parameters,Call by name,Default Initializer,Option types,Pattern matching,Inline,Named arguments,Extension function / property,Elvis operator,Null assertion,Safe navigation operator,With,Template string} [{Parameterized class,Parameterized type,Parameterized function,Use-site variance,Bounded type parameters,Higher-kinded types,Declaration-site variance,Inheritance,Sealed Classes,Nested class,Anonymous classes,Overriding,Static Method,Overloading,Access modifiers,Multiple implements,Value classes,Singleton object,This,Case classes,Self types,Delegation,Property reference,Data classes,Secondary constructor,Property,Subtyping,Primitive types,Wildcard type,Intersection types,Dependent types,Type alias,Nothing,Algebraic Data Types,Type Lambdas,Type Projection,Opaque types,Union types,Mixins,Match types,Nullable types,Function API,Reflection API,Collection API,Stream API,Coroutines API,Delegation API,Lambda,Function reference,Functional interface,Function type,Eta expansion,Conditionals,Array,Import,Cast,Variable arguments,Try/Catch,Loops,Arithmetic Expressions,Augmented Assignment Operator,Enums,Type argument inference,Variable type inference,Parameter type inference,Flow typing,Return type inference,Builder inference,Type annotations,Java interoperability,Implicits,Erased parameters,Call by name,Default Initializer,Option types,Pattern matching,Inline,Named arguments,Extension function / property,Elvis operator,Null assertion,Safe navigation operator,With,Template string} ...]]
-                        Select bugs with specific characteristics.
-  --is-correct          Select bugs that their test cases are correct
-  --is-incorrect        Select bugs that their test cases are incorrect
-  -u, --print-url       Print only the URLs of the bug reports
-  -U, --url             Replace ID with URL
-  -o OUTPUT, --output OUTPUT
+You are ready to spawn a new MongoDB instance by
+running
+
+```bash
+docker run --rm --name bug-container \
+  -d -p 27017:27017 bugdb mongod
+```
+
+Then, enter a mongo shell of the MongoDB instance
+by executing
+
+```bash
+docker exec -i -t bug-container bash -c "mongo db"
+```
+
+Now you are ready to perform any Mongo query over
+our bug collection called (`bugs`).
+
+## Examples
+
+For example, count the number of bugs
+
+```mongo
+> db.bugs.count()
+320
+```
+
+Count the number of bugs that are crashes
+
+```mongo
+> db.bugs.count({symptom: 'Internal Compiler Error'})
+79
 ```
 
 
-### Example
+Find Scala bugs whose test cases involve implicits
+and are non-compilable
 
-The following commands finds Scala bugs
-that are triggered by non-compilable test cases
-that involve Scala implicits.
+```mongo
+> db.bugs.find({
+    language: 'Scala',
+    'chars.characteristics': 'Implicits',
+    'is_correct': false
+  }, {
+    bug_id: 1,
+    _id: 0
+  })
+```
 
+This query returns three Scala bugs, namely,
 
 ```
-python scripts/query data/bugs.json \
-  --languages Scala \
-  -c Implicits \
-  --is-incorrect \
-  --print-url
-```
-
-The above script returns three Scala bugs
-that match our search criteria
-
-```
-https://github.com/lampepfl/dotty/issues/9044
-https://github.com/scala/bug/issues/5231
-https://github.com/scala/bug/issues/9231
+{ "bug_id" : "Dotty-9044"  }
+{ "bug_id" : "Scala2-5231"  }
+{ "bug_id" : "Scala2-9231"  }
 ```
