@@ -15,7 +15,7 @@ eight general categories:
 * *Functional Programming Features*
 * *Parametric Polymorphism*
 * *Type Inference Features*
-* *Type System Features*
+* *Type System-Related Features*
 * *Standard Library*
 * *Other*
 
@@ -764,14 +764,14 @@ Example:
   }
 
 
-Type System Features
+Type System-Related Features
 --------------------
 
 This category includes features associated with the type system of
 the languages. For example, subtyping, intersection types,
 dependent types, type projections, etc.
 
-Below you can find some Type System features that we encountered
+Below you can find some type system-related features that we encountered
 in the bug-revealing test cases.
 
 
@@ -1125,7 +1125,19 @@ Example:
 Option Type
 ^^^^^^^^^^^
 
-Option types #TODO
+The test case declares a variable, parameter or field
+with an option type (Scala only).
+
+Example:
+
+.. code-block:: scala
+
+  object Test {
+    def test(x: Option[String]) = x match {
+        case None => ???
+        case Some(str) => ???
+    } 
+  }
 
 
 Pattern Matching
@@ -1163,7 +1175,8 @@ Example:
 Named Arguments
 ^^^^^^^^^^^^^^^
 
-The test case contains a function that takes named arguments (TODO only).
+The test case contains a function that takes named arguments
+(Kotlin, Scala, and Groovy only).
 
 Example:
 
