@@ -98,20 +98,22 @@ which is ultimately used for answering our research questions.
 ## Setup
 
 There are two options for reproducing the results of the paper.
-If you run an Ubuntu/Debian OS,
+If you are running an Ubuntu/Debian OS,
 we provide instructions for installing the required
 `apt` packages and libraries
 used for running the scripts of the artifact.
 Otherwise,
 if you do not have an Ubuntu/Debian installation,
 this artifact provides you with a Docker image
+(defined in `Dockerfile`)
 that contains the required environment
-for executing the scripts and reproducing the results of our paper.
+for executing the scripts
+and reproducing the results of our paper.
 
 #### Option1: Ubuntu/Debian Installation
 
-**NOTE**: If you do not run an Ubuntu/Debian OS, please jump to the
-Section "Option2: Docker Image Installation".
+**NOTE**: If you are not running an Ubuntu/Debian OS, please jump to the
+Section [Option2: Docker Image Installation](#option2-docker-image-installation).
 
 You need to install some `apt` packages and some Python packages to run the
 experiments of this artifact.
@@ -133,7 +135,7 @@ pip install requests matplotlib pandas seaborn
 #### Option2: Docker Image Installation
 
 To build the Docker image from source,
-run the following command (estimated running time: ~3 min)
+run the following command (estimated running time: ~5 min)
 
 ```bash
 docker build . -t bug-study
@@ -143,15 +145,16 @@ Run the following command to create a new container.
 
 ```bash
 docker run -it \
-    -v $(pwd)/scripts:/home/scripts \
-    -v $(pwd)/downloads:/home/downloads \
-    -v $(pwd)/data:/home/data \
-    -v $(pwd)/figures:/home/figures \
+    --rm \
+    -v $(pwd)/scripts:/home/user/scripts \
+    -v $(pwd)/downloads:/home/user/downloads \
+    -v $(pwd)/data:/home/user/data \
+    -v $(pwd)/figures:/home/user/figures \
     bug-study /bin/bash
 ```
 
 After executing the command, you will be able to enter the home directory
-(i.e., `/home`). This directory contains
+(i.e., `/home/user`). This directory contains
 (1) the scripts for reproducing the results of the paper (see `scripts/`),
 (2) the data of our bug study (see `data/`),
 (3) a dedicated directory for storing the generated figures (see `figures/`),
@@ -163,14 +166,15 @@ will be saved (in case you decide to re-create the bug dataset).
 The option `-v` is used to mount a local volume inside the Docker container.
 In this way, data produced during the execution of the container
 will not be lost upon the container's exit
-(e.g., the resulting figures will be stored in `$(pwd)/figures`).
+(e.g., the resulting figures will be stored in `$(pwd)/figures`
+of your host machine).
 
 **IMPORTANT NOTE**:
 From now on,
 if you chose to set up the necessary environment through Docker,
-we assume that all the commands shown in our artifact below
+we assume that all the commands shown in the artifact below
 are executed inside a Docker container
-(which has been spawned by running the `docker run` command above).
+(which has been spawned by running the `docker run` on `bug-study` image).
 
 ## Downloading Bugs & Fixes from Sources (Optionally)
 
@@ -178,12 +182,13 @@ This section provides the instructions
 to collect typing-related bugs and their fixes
 (see Section 2.1 of our paper).
 
-**NOTE**:
-To complete this step requires roughly 18 hours.
+**IMPORTANT NOTE**:
+This step requires roughly 18 hours.
 For this reason,
 we already provide you with the
-"pre-baked" dataset used in our study,
-which can be found in the `data/` directory.
+"pre-baked" dataset used in our study
+along with the proposed categorization.
+This dataset can be found in the `data/` directory.
 However,
 if you still want to re-download the bugs from
 the corresponding sources
@@ -191,10 +196,10 @@ and create the bug dataset on your own,
 please continue reading this section.
 Otherwise,
 you can go directly to the next section
-("Dataset Overview").
+([Dataset Overview](#dataset-overview)).
 
-To download and re-construct the initial dataset described in
-Section 2.1 of the paper, then you will need at least 20 GB of available disk
+To download and re-construct the initial dataset as described in
+Section 2.1 of the paper, you will need at least 20 GB of available disk
 space. At this point, we should note that the generated dataset will probably
 contain more bugs than the dataset described in the paper because new bugs
 will have been fixed from the time we downloaded the bugs until now.
@@ -225,7 +230,7 @@ run the following script (estimated running time: ~18 hours)
 ```
 
 The command above executes the following six scripts
-(which can be also executed as stand-alone).
+(which can be also executed as stand-alone tools).
 
 1. `scripts/fetch/fetch_groovy_bugs.py`
 2. `scripts/fetch/fetch_kotlin_bugs.py`
@@ -496,15 +501,19 @@ Language         Phase 1         Phase 2
 
 ## Downloading the 320 Typing-Related Bugs (Optionally)
 
+**IMPORTANT NOTE:**
+You have to complete the previous step in order
+to proceed with this one.
+
 To download the data associated with
 the *specific* 320 typing-related that
 were manually examined in our paper,
-run the following script (estimated running time: 4--5 min)
+run the following script (estimated running time: 4--5 min).
 
 ```bash
 ./scripts/fetch/get_data_for_selected_bugs.sh downloads data
 ```
-The above script takes as input the `downloads` directory
+The above script takes as input the `downloads/` directory
 that includes the entire dataset of bugs,
 and the `data/` directory that contains
 an `iterations/` directory with the bugs examined in our paper.
@@ -513,18 +522,20 @@ that were selected and manually analyzed in each iteration
 as described in Section 2.2 of our paper.
 For example,
 the file `data/iterations/1/java.txt` shows the `javac` bugs
-that were examined in first iteration of our manual analysis.
+that we manually studied in the first iteration
+of our bug analysis.
 
 Regarding its execution,
-the script `get_data_for_selected_bugs.sh`
+the script `scripts/fetch/get_data_for_selected_bugs.sh`
 first downloads the revisions of bug fixes
 corresponding to each of the selected bugs,
 and then stores some general statistics for these fixes in
-the `data/diffs/{groovy,java,kotlin,scala}/bug_id` directory.
+the `data/diffs/{groovy,java,kotlin,scala}/bug_id/` directory.
 Each generated directory contains a `.diff` and a `stats.csv` file.
 The `.diff` file is the revision of the corresponding fix,
-while the `stats.csv` file enumerates for each source file
-how many lines were inserted, deleted or modified by the revision.
+while the `stats.csv` file enumerates,
+for each source file,
+how many lines are inserted, deleted or modified by the revision.
 
 
 # Dataset Overview
@@ -572,7 +583,7 @@ which has the following structure.
 
 * `data/diffs/{groovy,java,kotlin,scala}/bug_id/stats.csv`:
    For each source file affected by the fix of bug with ID `bug_id`,
-   this file enumerates how many Lines of code were inserted, deleted,
+   this file enumerates how many Lines of code are inserted, deleted,
    or modified.
 
 * `data/test_cases/{groovy,java,kotlin,scala}/bug_id/*.{kt,java,scala,groovy}`:
