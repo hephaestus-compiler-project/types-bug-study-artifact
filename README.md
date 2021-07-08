@@ -621,7 +621,7 @@ and (2) the URL pointing to the fix of the bug.
 The documentation of our categorizations
 (i.e., symptoms, bug causes, error types, and test case characteristics)
 can be found in our OOPSLA paper or can be viewed through
-your browser by opening the `docs/index.html` file.
+your browser by opening the `docs/_build/html/index.html` file.
 
 
 # Step-by-Step Instructions
