@@ -24,8 +24,8 @@ upon the paper's publication.
     + [Cloning Compilers' Repositories](#cloning-compilers-repositories)
     + [Detecting Bug Fixes](#detecting-bug-fixes)
   * [Downloading the 320 Typing-Related Bugs (Optionally)](#downloading-the-320-typing-related-bugs-optionally)
-- [Dataset Overview](#dataset-overview)
-  * [Details Regarding Categorization](#details-regarding-categorization)
+- [Selected Bugs](#selected-bugs)
+  * [Details Regarding the Proposed Categorization](#details-regarding-the-proposed-categorization)
 - [Step-by-Step Instructions](#step-by-step-instructions)
   * [Collecting Bugs &amp; Fixes (Section 2.1)](#collecting-bugs--fixes-section-21)
   * [RQ1: Symptoms (Section 3.1)](#rq1-symptoms-section-31)
@@ -38,9 +38,11 @@ upon the paper's publication.
 
 # Overview
 
-The purpose of this artifact is reproduce the results
+The purpose of this artifact is
+(1) reproduce the results
 presented in our paper,
-and document our dataset and its categorization in order
+and (2) document our dataset
+and the proposed categorization in order
 facilitate further research.
 Specfically,
 the artifact has the following structure:
@@ -50,13 +52,13 @@ reproduce the results, the figures, and the tables presented in our paper.
 
 * `scripts/fetch/`: This is the directory that contains the scripts needed
 to construct the dataset of typing-related bugs
-as described in our paper
+as described in Section 2.1 of our paper
 (i.e., this directory actually contains the code of our _bug collection_
-and _post filtering_ phases, see Section 2 of our paper).
+and _post filtering_ phases).
 
 * `data/`: This is the "pre-baked" dataset of the 320 typing-related bugs
-  under study (for more details about our dataset, please read section
-  [Dataset Overview](#dataset-overview) of our artifact).
+  under study (for more details about the selected bugs, please read section
+  [Selected Bugs](#selected-bugs) of our artifact).
 
 
 # Requirements
@@ -66,13 +68,13 @@ and _post filtering_ phases, see Section 2 of our paper).
 * An installation of Python3.
 
 * (**Optionally**) An installation of Docker.
-  If you are not running an Ubuntu/Debian OS, you are able to use
+  If you are *not* running an Ubuntu/Debian OS, you are able to use
   the provided Docker image (found in `Dockerfile`) to download bugs
   and run the corresponding scripts in a reproducible way.
 
 * (**Optionally**) At least 20GB of available disk space.
   You will need that space *only* if you decide to re-collect typing-related
-  bugs (along with their fixes) from the corresponding sources
+  bugs (and their fixes) from the corresponding sources
   (for more details, see Section
   [Downloading Bugs &amp; Fixes from Sources](#downloading-bugs--fixes-from-sources-optionally)).
 
@@ -88,10 +90,10 @@ and _post filtering_ phases, see Section 2 of our paper).
 This section includes instructions and documentation for
 (1) setting up the necessary environment in order
 run our scripts,
-(2) re-constructing the dataset of 320 typing-related bugs
+(2) re-collecting typing-related bugs
 taken from the issue trackers of Java, Scala, Kotlin,
 and Groovy,
-(3) our bug dataset and the proposed categorization.
+(3) the bugs under study and the proposed categorization.
 The final output of this step is the directory `data/`,
 which is ultimately used for answering our research questions.
 
@@ -134,7 +136,16 @@ pip install requests matplotlib pandas seaborn
 
 #### Option2: Docker Image Installation
 
-To build the Docker image from source,
+We provide a `Dockerfile` to build an image
+that contains:
+
+* The necessary `apt` packages (e.g., `cloc`) for running the
+  scripts of our bug collection approach.
+* The necessary Python packages (e.g., `matplotlib`) for running our
+  evaluation scripts.
+* A user named `user` with `sudo` privileges.
+
+To build the Docker image named `bug-study` from source,
 run the following command (estimated running time: ~5 min)
 
 ```bash
@@ -180,15 +191,16 @@ are executed inside a Docker container
 
 This section provides the instructions
 to collect typing-related bugs and their fixes
-(see Section 2.1 of our paper).
+(corresponding to Section 2.1 of our paper).
 
 **IMPORTANT NOTE**:
 This step requires roughly 18 hours.
 For this reason,
 we already provide you with the
-"pre-baked" dataset used in our study
-along with the proposed categorization.
-This dataset can be found in the `data/` directory.
+"pre-baked" data of the selected bugs
+used in our study,
+along with the proposed categorization
+(see the directory `data/`).
 However,
 if you still want to re-download the bugs from
 the corresponding sources
@@ -196,7 +208,7 @@ and create the bug dataset on your own,
 please continue reading this section.
 Otherwise,
 you can go directly to the next section
-([Dataset Overview](#dataset-overview)).
+([Selected Bugs](#selected-bugs)).
 
 To download and re-construct the initial dataset as described in
 Section 2.1 of the paper, you will need at least 20 GB of available disk
@@ -229,7 +241,8 @@ run the following script (estimated running time: ~18 hours)
 ./scripts/fetch/fetch.sh downloads $GH_TOKEN
 ```
 
-The command above executes the following six scripts
+The command above is a wrapper script
+that executes the following six scripts
 (which can be also executed as stand-alone tools).
 
 1. `scripts/fetch/fetch_groovy_bugs.py`
@@ -507,7 +520,7 @@ to proceed with this one.
 
 To download the data associated with
 the *specific* 320 typing-related that
-were manually examined in our paper,
+were manually examined in our study,
 run the following script (estimated running time: 4--5 min).
 
 ```bash
@@ -516,7 +529,7 @@ run the following script (estimated running time: 4--5 min).
 The above script takes as input the `downloads/` directory
 that includes the entire dataset of bugs,
 and the `data/` directory that contains
-an `iterations/` directory with the bugs examined in our paper.
+an `iterations/` directory with the bugs examined in our study.
 Note that the directory `iterations/` includes the bugs
 that were selected and manually analyzed in each iteration
 as described in Section 2.2 of our paper.
@@ -538,12 +551,12 @@ for each source file,
 how many lines are inserted, deleted or modified by the revision.
 
 
-# Dataset Overview
+# Selected Bugs
 
-Now, we provide details regarding the dataset of the 320 typing-related
+Now, we provide details regarding the 320 typing-related bugs
 studied in our paper.
-The dataset is stored in the `data/` directory,
-which has the following structure.
+These details can be found in the `data/` directory,
+which has the following structure:
 
 * `data/bugs.json`: This document contains all 320 bugs examined in our study
                     and their categorization.
@@ -564,9 +577,9 @@ which has the following structure.
       ```
     * `error`: This field indicates how the bug was introduced.
     * `chars`: This field contains the characteristics of the bug-revealing test case.
-       This field contains two more fields: `characteristics` corresponding to
+       This field contains two more fields: (1) `characteristics` corresponding to
        language features involved in each test case (e.g., Inheritance),
-       and `categories` that includes the groups to which these language
+       and (2) `categories` that includes the groups to which these language
        features belong (e.g., OOP features).
 
 * `data/characteristics.json`: This document contains the categories
@@ -583,7 +596,7 @@ which has the following structure.
 
 * `data/diffs/{groovy,java,kotlin,scala}/bug_id/stats.csv`:
    For each source file affected by the fix of bug with ID `bug_id`,
-   this file enumerates how many Lines of code are inserted, deleted,
+   this file enumerates how many lines of code are inserted, deleted,
    or modified.
 
 * `data/test_cases/{groovy,java,kotlin,scala}/bug_id/*.{kt,java,scala,groovy}`:
@@ -594,31 +607,34 @@ Statistics on the bug-revealing test case (number of declarations,
 method/function calls, LoCs) associated with the bug
 with ID `bug_id`.
 
-* `data/iterations/iter/{groovy,java,kotlin,scala}.txt`: Bugs analyzed in each
+* `data/iterations/iter/{groovy,java,kotlin,scala}.txt`: Bugs analyzed in the
 iteration `iter`.
 Each line contains two entries (comma separated):
 (1) the URL pointing to the bug report,
 and (2) the URL pointing to the fix of the bug.
 
-* `data/collection`: The entire dataset produced by the _post-filtering_ step
-  of our bug collection approach.
+* `data/collection/`: This is the entire dataset of bugs produced
+ after applying the _post-filtering_ step of our bug collection approach.
 
-## Details Regarding Categorization
+## Details Regarding the Proposed Categorization
 
 The documentation of our categorizations
-(i.e., symptoms, bug causes and test case characteristics)
+(i.e., symptoms, bug causes, error types, and test case characteristics)
 can be found in our OOPSLA paper or can be viewed through
-the `docs/index.html` file. # TODO
+your browser by opening the `docs/index.html` file.
 
 
 # Step-by-Step Instructions
 
-In the following section, we provide scripts that reproduce the results
-presented in the paper using the dataset from the `data/` directory.
+In the following section, we provide instructions
+for reproducing the results
+presented in the paper using the data coming from the `data/` directory.
+
 
 ## Collecting Bugs & Fixes (Section 2.1)
 
-Run the following script to print the results of our bug collection phases.
+Run the following script to print statistics
+related to our bug collection phases.
 Specifically, the script reproduces Table 1.
 
 ```bash
@@ -642,14 +658,16 @@ Language         Phase 1         Phase 2
 
 ## RQ1: Symptoms (Section 3.1)
 
-For the first research question, we will use a script
-for reproducing Figure 1. To do so, run:
+In the first research question,
+we compute the distribution of bug symptoms.
+To do so, please run:
 
 ```bash
 python scripts/rq1.py data/bugs.json --output figures/symptoms.pdf
 ```
 
-This produces `symptoms.pdf` file in the `figures/` directory.
+The above script produces
+the `symptoms.pdf` file in the `figures/` directory.
 For those who are running the above script inside a Docker container,
 the script also prints the distribution of symptoms in a tabular format.
 Specifically, it prints
@@ -690,7 +708,7 @@ python scripts/rq2.py data/bugs.json \
 
 The above command produces the figures `figures/patterns.pdf` (Figure 7a)
 and `figures/patterns_symptoms.pdf` (Figure 7b),
-and it prints the following in the standard output.
+and it prints the following tables in the standard output.
 
 ```
 Bug Cause                                    groovyc              javac            kotlinc     scalac & Dotty              Total
@@ -714,8 +732,8 @@ AST Transformation Bugs                 5 (1.56%)       9 (2.81%)       0 (0.00%
 ## RQ3: Bug Fixes (Section 3.3)
 
 In the third research question, we study the duration and the fixes of the bugs.
-Hence, we produce Figure 13a, Figure 13b, and Figure 14. We also print in
-the standard output the mean, median, standard deviation, max, and min
+Hence, we produce Figure 13a, Figure 13b, and Figure 14. We also
+report the mean, median, standard deviation, max, and min
 of the following metrics:
 * number of files affected by a fix
 * lines of code affected by a fix
@@ -745,7 +763,7 @@ and Figure 14 in `figures/duration.pdf`.
 The script also prints the following tables
 
 ```
-                         Lines
+                 Lines of Code
 ============================================================
           Mean      Median    SD        Min       Max
 ------------------------------------------------------------
@@ -756,7 +774,7 @@ Scala     73.40     9.50      379.35    1.00      3381.00
 ------------------------------------------------------------
 Total     52.40     16.00     208.33    1.00      3381.00
 
-                         Files
+      Number of Affected Files
 ============================================================
           Mean      Median    SD        Min       Max
 ------------------------------------------------------------
@@ -777,9 +795,10 @@ Groovy    122.05    8.00      278.64    0.00      1472.00
 Scala     328.09    55.50     628.74    0.00      3209.00
 ------------------------------------------------------------
 Total     186.42    24.00     407.32    0.00      3209.00
+
 ```
 
-Note that this script takes an extra command-line
+Note that this script can take an extra command-line
 flag,
 namely `--all`,
 used for creating figures that contain plots
@@ -792,6 +811,9 @@ you have to run
 python scripts/rq3.py data/diffs/ data/ \
   --directory figures --all
 ```
+
+and then open `figures/duration.pdf`.
+
 
 ## RQ4: Test Case Characteristics (Section 3.4)
 
@@ -893,19 +915,20 @@ Kotlin Extension function / property: 15.00
 
 This script is useful for finding what
 are the most and least bug-triggering language features.
-For completeness,
+For completeness and benefiting future researchers,
 the `scripts/rq4.py` provides three extra command-line options
 used for presenting the full results of our study
 (some results are not presented in the paper for brevity).
 
-#### Example: Table 3
+#### Example: Configuring the Entries of Table 3
 
-For displaying a more complete Table 3,
+For displaying Table 3 with more or fewer entries,
 use the `--limit` option by providing the
-number of Table entries.
+desired number of table entries.
 For example,
 to produce Table 3 that shows the 30 most and
-the 30 least frequent language features,
+the 30 least frequent language features
+that are supported by all the examined compilers,
 run
 
 ```bash
@@ -914,7 +937,7 @@ run
         --output figures/characteristics.pdf --limit 30
 ```
 
-This produces
+The script produces an output that contains the following tables
 
 ```
 Most Frequent Features (Table 3)
@@ -929,7 +952,7 @@ Lambda                                                   19.06%
 Bounded type parameters                                  17.81%
 Subtyping                                                16.25%
 Overriding                                               15.62%
-Functional interface                                     13.44%
+SAM type                                                 13.44%
 Overloading                                              11.25%
 Function reference                                        8.75%
 Parameter type inference                                  8.12%
@@ -938,39 +961,23 @@ Wildcard type                                             7.50%
 Function type                                             7.50%
 Conditionals                                              6.56%
 Variable type inference                                   6.25%
-Anonymous classes                                         5.62%
+Anonymous class                                           5.62%
 Array                                                     5.62%
 Use-site variance                                         5.31%
 Function API                                              5.31%
 Java interoperability                                     5.31%
-Access modifiers                                          5.00%
+Access modifier                                           5.00%
 Cast                                                      4.69%
 Property                                                  4.06%
 Reflection API                                            3.75%
 Import                                                    3.44%
 Variable arguments                                        3.44%
-Try/Catch                                                 3.12%
-Augmented Assignment Operator                             2.50%
-Multiple implements                                       2.19%
-This                                                      2.19%
-Enums                                                     2.19%
-Arithmetic Expressions                                    1.88%
-Loops                                                     1.25%
-Sealed Classes                                            0.94%
 
 Least frequent features (Table 3)
 ===============================================================
-Parameterized type                                       46.56%
-Type argument inference                                  31.87%
-Parameterized class                                      30.00%
-Parameterized function                                   26.25%
-Inheritance                                              24.06%
-Collection API                                           21.88%
-Lambda                                                   19.06%
-Bounded type parameters                                  17.81%
 Subtyping                                                16.25%
 Overriding                                               15.62%
-Functional interface                                     13.44%
+SAM type                                                 13.44%
 Overloading                                              11.25%
 Function reference                                        8.75%
 Parameter type inference                                  8.12%
@@ -979,31 +986,33 @@ Wildcard type                                             7.50%
 Function type                                             7.50%
 Conditionals                                              6.56%
 Variable type inference                                   6.25%
-Anonymous classes                                         5.62%
+Anonymous class                                           5.62%
 Array                                                     5.62%
 Use-site variance                                         5.31%
 Function API                                              5.31%
 Java interoperability                                     5.31%
-Access modifiers                                          5.00%
+Access modifier                                           5.00%
 Cast                                                      4.69%
 Property                                                  4.06%
 Reflection API                                            3.75%
 Import                                                    3.44%
 Variable arguments                                        3.44%
-Try/Catch                                                 3.12%
-Augmented Assignment Operator                             2.50%
+Try / catch                                               3.12%
+Augmented assignment operator                             2.50%
 Multiple implements                                       2.19%
 This                                                      2.19%
 Enums                                                     2.19%
-Arithmetic Expressions                                    1.88%
+Arithmetic expression                                     1.88%
 Loops                                                     1.25%
-Sealed Classes                                            0.94%
+Sealed class                                              0.94%
+
 ```
 
 
-#### Example: Table 4
+#### Example: Configuring the Entries of Table 4
 
-For producing a more complete Table 4,
+For producing a version of Table 4
+containing more entries,
 our scripts provides the `--top` option.
 For example,
 to display the 20 most bug-triggering features
@@ -1015,7 +1024,7 @@ per language, run
         --output figures/characteristics.pdf --top 20
 ```
 
-This yields
+This yields an output containing the following Table
 
 ```
 Most Bug-Triggering Features per Language (Table 4)
@@ -1042,11 +1051,13 @@ Nested class                  10.00% | Access modifier                6.25% | Wi
 Conditionals                  10.00% | Java interoperability          6.25% | Java interoperability          8.75% | Overriding                    11.25% |
 Array                         10.00% | Flow typing                    5.00% | Variable type inference        8.75% | Subtyping                     10.00% |
 Anonymous class                8.75% | Overloading                    5.00% | Operator overloading           8.75% | Nested class                  10.00% |
+
 ```
 
 #### Example: Showing the Distribution of All Language Features
 
-Figure 15 shows the four most frequent language feature
+Figure 15 (as presented in our paper)
+shows the four most frequent language feature
 per category.
 To show the full results,
 use the command-line flag `--all`
@@ -1060,17 +1071,16 @@ as follows
 
 
 This dumps the following Table to standard output.
-Note that this Table actually corresponds to
-complete Figure 15.
+Note that this table actually corresponds to
+a complete version of Figure 15.
 
 ```
-
 Distribution of Language Features (corresponding to a complete version of Figure 15)
 =============================================================================================
 Feature                          Category                           # Test Cases        Common
 ---------------------------------------------------------------------------------------------
 Lambda                           Functional programming             61                  True
-Functional interface             Functional programming             43                  True
+SAM type                         Functional programming             43                  True
 Function reference               Functional programming             28                  True
 Function type                    Functional programming             24                  True
 Eta expansion                    Functional programming             2                   False
@@ -1078,37 +1088,37 @@ Inheritance                      OOP features                       77          
 Overriding                       OOP features                       50                  True
 Overloading                      OOP features                       36                  True
 Nested class                     OOP features                       25                  True
-Anonymous classes                OOP features                       18                  True
-Access modifiers                 OOP features                       16                  True
+Anonymous class                  OOP features                       18                  True
+Access modifier                  OOP features                       16                  True
 Singleton object                 OOP features                       14                  False
 Property                         OOP features                       13                  True
-Case classes                     OOP features                       12                  False
+Case class                       OOP features                       12                  False
 Special method overriding        OOP features                       10                  True
-Static Method                    OOP features                       9                   False
+Static method                    OOP features                       9                   False
 Operator overloading             OOP features                       7                   True
 Multiple implements              OOP features                       7                   True
 This                             OOP features                       7                   True
 Secondary constructor            OOP features                       5                   False
 Delegation                       OOP features                       4                   False
-Sealed Classes                   OOP features                       3                   True
-Self types                       OOP features                       3                   False
+Sealed class                     OOP features                       3                   True
+Self type                        OOP features                       3                   False
 Property reference               OOP features                       3                   False
-Value classes                    OOP features                       2                   False
-Data classes                     OOP features                       1                   False
+Value class                      OOP features                       2                   False
+Data class                       OOP features                       1                   False
 Implicits                        Other                              19                  False
 Java interoperability            Other                              17                  True
 Pattern matching                 Other                              17                  False
 Extension function / property    Other                              12                  False
 Type annotations                 Other                              9                   False
 Named arguments                  Other                              7                   False
-Option types                     Other                              5                   False
+Option type                      Other                              5                   False
 Elvis operator                   Other                              5                   False
 Call by name                     Other                              4                   False
 Inline                           Other                              4                   False
 Template string                  Other                              3                   False
 Safe navigation operator         Other                              2                   False
-Erased parameters                Other                              1                   False
-Default Initializer              Other                              1                   False
+Erased parameter                 Other                              1                   False
+Default initializer              Other                              1                   False
 Null assertion                   Other                              1                   False
 With                             Other                              1                   False
 Parameterized type               Parametric polymorphism            149                 True
@@ -1118,18 +1128,18 @@ Bounded type parameters          Parametric polymorphism            57          
 Use-site variance                Parametric polymorphism            17                  True
 F-bounds                         Parametric polymorphism            14                  True
 Declaration-site variance        Parametric polymorphism            12                  False
-Higher-kinded types              Parametric polymorphism            11                  False
+Higher-kinded type               Parametric polymorphism            11                  False
 Multi-bounds                     Parametric polymorphism            3                   True
-Conditionals                     Standard features                  21                  True
-Array                            Standard features                  18                  True
-Cast                             Standard features                  15                  True
-Import                           Standard features                  11                  True
-Variable arguments               Standard features                  11                  True
-Try/Catch                        Standard features                  10                  True
-Augmented Assignment Operator    Standard features                  8                   True
-Enums                            Standard features                  7                   True
-Arithmetic Expressions           Standard features                  6                   True
-Loops                            Standard features                  4                   True
+Conditionals                     Standard language features         21                  True
+Array                            Standard language features         18                  True
+Cast                             Standard language features         15                  True
+Import                           Standard language features         11                  True
+Variable arguments               Standard language features         11                  True
+Try / catch                      Standard language features         10                  True
+Augmented assignment operator    Standard language features         8                   True
+Enums                            Standard language features         7                   True
+Arithmetic expression            Standard language features         6                   True
+Loops                            Standard language features         4                   True
 Collection API                   Standard library                   70                  True
 Function API                     Standard library                   17                  True
 Reflection API                   Standard library                   12                  True
@@ -1140,29 +1150,30 @@ Type argument inference          Type inference                     102         
 Parameter type inference         Type inference                     26                  True
 Variable type inference          Type inference                     20                  True
 Flow typing                      Type inference                     11                  False
-Builder inference                Type inference                     4                   False
+Build-style inference            Type inference                     4                   False
 Return type inference            Type inference                     2                   False
-Subtyping                        Type system features               52                  True
-Wildcard type                    Type system features               24                  True
-Type alias                       Type system features               16                  False
-Primitive types                  Type system features               14                  False
-Nullable types                   Type system features               13                  False
-Algebraic Data Types             Type system features               11                  False
-Dependent types                  Type system features               7                   False
-Intersection types               Type system features               5                   False
-Nothing                          Type system features               3                   False
-Type Lambdas                     Type system features               3                   False
-Type Projection                  Type system features               3                   False
-Union types                      Type system features               2                   False
-Opaque types                     Type system features               1                   False
-Mixins                           Type system features               1                   False
-Match types                      Type system features               1                   False
+Subtyping                        Type system-related features       52                  True
+Wildcard type                    Type system-related features       24                  True
+Type definition / member         Type system-related features       16                  False
+Primitive type                   Type system-related features       14                  False
+Nullable type                    Type system-related features       13                  False
+Algebraic data type              Type system-related features       11                  False
+Dependent type                   Type system-related features       7                   False
+Intersection type                Type system-related features       5                   False
+Nothing                          Type system-related features       3                   False
+Type lambdas                     Type system-related features       3                   False
+Type projection                  Type system-related features       3                   False
+Union type                       Type system-related features       2                   False
+Opaque type                      Type system-related features       1                   False
+Mixins                           Type system-related features       1                   False
+Match type                       Type system-related features       1                   False
+
 ```
 
 
 ### Correlation of Test Case Characteristics
 
-To compute lift scores mentioned in Section 3.4.3
+To compute the lift scores mentioned in Section 3.4.3
 of our paper, please run the following command
 
 ```bash
@@ -1193,15 +1204,11 @@ Note that `lift.py` can also be used to compute various lift scores.
 i.e., computing the correlation between various aspects of the
 examined bugs (e.g., correlation between bug causes and lines of code
 affected by a fix).
-To print the lift cores for every combination,
-use the option `--all`.
 
-Furthermore, you can set the number of pairs to print
-to display by providing the `--limit` option.
+You can set the number of pairs to print
+by providing the `--limit` option.
 The option `--threshold` is used to display
 pairs whose lift score is greater than the given option.
-a threshold with `--threshold` option,
-and a population threshold with `--ithreshold`.
 Finally,
 `--ithreshold`
 sets a population threshold that pairs must exceed.
@@ -1260,8 +1267,13 @@ Unexpected Compile-Time Error -> Resolution Bugs                                
 Internal Compiler Error -> Semantic Analysis Bugs                                          1.1047
 ```
 
-Note that the options `--A` and `--B` stand for the bug aspects
-for which we compute their lift scores.
+By examining the output above,
+we can presume that bugs related to error handling & reporting
+have the strongest correlation with the symptom "Internal Compiler Error".
+This is because this kind of bugs often manifest as compiler crashes.
+
+Also notice that the provided options `--A` and `--B`
+stand for the bug aspects for which we compute their lift scores.
 The available options are
 
 * `symptoms` for bug symptoms
@@ -1272,17 +1284,18 @@ The available options are
 * `errors` for error types (e.g., algorithmic error, logic error, etc.)
 * `test_chars` for test case characteristics
 * `test_char_cat` for categories of test case characteristics (e.g., OOP Features,
-   Functional Programming Features, etc)
+   Functional Programming Features, etc.)
 
 # Other Utilities
 
 Our research artifact also offers a Docker image
 that runs a MongoDB instance.
 This MongoDB instance allows future researchers to
-perform queries over our bug dataset.
+perform queries over our selected bugs and their categorization.
 To spawn this MongoDB instance,
 first convert our bug dataset into the desired format
-in order to be stored in the database.
+so that it can be easily stored in the Mongo database.
+Please execute:
 
 ```bash
 python3 scripts/data-converter.py data/bugs.json data/bug-collection.json
@@ -1291,7 +1304,10 @@ python3 scripts/data-converter.py data/bugs.json data/bug-collection.json
 This script takes the JSON file that includes the studied bugs,
 and creates a collection of bugs stored in `data/bug-collection.json`.
 
-Now, you can build the Docker image by running
+Now, you can build the Docker image
+(namely `bugdb`)
+that contains an installation of Mongo,
+by running
 (estimated running time: ~1 min)
 
 ```bash
@@ -1306,14 +1322,15 @@ docker run --rm --name bug-container \
   -d -p 27017:27017 bugdb mongod
 ```
 
-Then, enter a mongo shell of the MongoDB instance
+Then, enter a `mongo` shell of the running MongoDB instance
 by executing
 
 ```bash
 docker exec -i -t bug-container bash -c "mongo db"
 ```
 
-Now you are ready to perform any Mongo query over
+Once entering the `mongo` shell,
+you are now ready to perform any Mongo query over
 our bug collection called (`bugs`).
 
 ## Examples
@@ -1334,7 +1351,7 @@ Count the number of bugs that are crashes
 
 
 Find Scala bugs whose test cases involve implicits
-and are non-compilable
+and these test cases are non-compilable
 
 ```mongo
 > db.bugs.find({
