@@ -765,7 +765,7 @@ Example:
 
 
 Type System-Related Features
---------------------
+----------------------------
 
 This category includes features associated with the type system of
 the languages. For example, subtyping, intersection types,
@@ -988,7 +988,12 @@ The test case performs pattern matching on types (Scala only).
 
 Example:
 
-`Dotty Example http://dotty.epfl.ch/docs/reference/new-types/match-types.html`_
+.. code-block:: scala
+
+	type Elem[X] = X match
+	  case String => Char
+	  case Array[t] => t
+	  case Iterable[t] => t
 
 
 Nullable Type
