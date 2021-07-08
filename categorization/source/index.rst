@@ -14,3 +14,4 @@ Contents
    symptoms
    bug_causes
    characteristics
+   errors
