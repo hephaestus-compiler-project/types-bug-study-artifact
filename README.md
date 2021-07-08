@@ -34,7 +34,7 @@ upon the paper's publication.
   * [RQ4: Test Case Characteristics (Section 3.4)](#rq4-test-case-characteristics-section-34)
     + [Frequency of Test Case Characteristics](#frequency-of-test-case-characteristics)
     + [Correlation of Test Case Characteristics](#correlation-of-test-case-characteristics)
-- [Other Utilities](#other-utilities)
+- [Other Utilities (Optionally)](#other-utilities)
 
 # Overview
 
@@ -1286,7 +1286,15 @@ The available options are
 * `test_char_cat` for categories of test case characteristics (e.g., OOP Features,
    Functional Programming Features, etc.)
 
-# Other Utilities
+
+Docker users can now exit the container by running
+
+```bash
+exit
+```
+
+
+# Other Utilities (Optionally)
 
 Our research artifact also offers a Docker image
 that runs a MongoDB instance.
