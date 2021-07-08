@@ -17,7 +17,6 @@ def get_data(descriptions):
     first = True
     while start_at < total or first:
         first = False
-        print('fetching ' + str(start_at))
         base = "https://issues.apache.org/jira/rest/api/latest/search"
         search_terms = [
             "project = Groovy",

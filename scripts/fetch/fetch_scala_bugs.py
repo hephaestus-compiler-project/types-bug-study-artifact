@@ -64,7 +64,6 @@ def get_data(descriptions, token, repo):
     first = True
     while len(temp_data) == max_per_request or first:
         first = False
-        print('fetching ' + str(page))
         # repo format: owner/repo_name
         base = "https://api.github.com/repos/{}/issues".format(repo)
         url = "{base}?state=closed&per_page={pp}&page={p}".format(

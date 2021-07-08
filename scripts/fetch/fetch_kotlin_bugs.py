@@ -16,7 +16,6 @@ def get_data(descriptions):
     temp_data = []
     while len(temp_data) > 0 or first:
         first = False
-        print('fetching ' + str(skip))
         base = "https://youtrack.jetbrains.com/api/issues"
         search_terms = [
             "project: Kotlin",

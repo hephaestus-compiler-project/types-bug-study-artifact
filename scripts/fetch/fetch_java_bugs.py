@@ -21,7 +21,6 @@ def get_data(descriptions):
     first = True
     while start_at < total or first:
         first = False
-        print('fetching ' + str(start_at))
         base = "https://bugs.openjdk.java.net/rest/api/latest/search"
         search_terms = [
             "project = JDK",
