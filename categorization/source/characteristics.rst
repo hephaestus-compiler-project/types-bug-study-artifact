@@ -3,7 +3,7 @@
 Test Case Characteristics
 =========================
 
-By manually the accompanying
+By manually investigating the accompanying
 test case of each bug,
 we identified what specific language features
 are involved in each test case.
@@ -79,7 +79,7 @@ Example:
 .. code-block:: kotlin
 
   fun test(a: Int, b: Int) {
-    val x = a + b 
+    val x = a + b
   }
 
 
@@ -515,7 +515,7 @@ Example:
 
 .. code-block:: kotlin
 
-  
+
   class A {
     fun m() = ""
   }
@@ -542,7 +542,7 @@ which is implemented by a lambda or function reference.
     int m2(I x) {
       return x.m();
     }
-    
+
     void test() {
       m2 { -> 1 };
     }
@@ -756,7 +756,7 @@ The test case involves builder-style type inference (Kotlin only).
 Example:
 
 .. code-block:: kotlin
-  
+
   fun <T> sequence(@BuilderInference block: suspend SequenceScope<T>.() -> Unit): Sequence<T>
   fun test() {
     val result = sequence { yield("result") }
