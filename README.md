@@ -34,7 +34,7 @@ upon the paper's publication.
   * [RQ4: Test Case Characteristics (Section 3.4)](#rq4-test-case-characteristics-section-34)
     + [Frequency of Test Case Characteristics](#frequency-of-test-case-characteristics)
     + [Correlation of Test Case Characteristics](#correlation-of-test-case-characteristics)
-- [Other Utilities (Optionally)](#other-utilities)
+- [Other Utilities (Optionally)](#other-utilities-optionally)
 
 # Overview
 
