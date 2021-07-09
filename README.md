@@ -60,6 +60,12 @@ and _post filtering_ phases).
   under study (for more details about the selected bugs, please read section
   [Selected Bugs](#selected-bugs) of our artifact).
 
+To get the artifact, run
+
+```bash
+git clone https://github.com/StefanosChaliasos/types-bug-study-artifact ~/types-bug-study-artifact
+```
+
 
 # Requirements
 
