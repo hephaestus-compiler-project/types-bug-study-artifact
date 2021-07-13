@@ -60,18 +60,12 @@ and _post filtering_ phases).
   under study (for more details about the selected bugs, please read section
   [Selected Bugs](#selected-bugs) of our artifact).
 
-To get the artifact, run
-
-```bash
-git clone https://github.com/StefanosChaliasos/types-bug-study-artifact ~/types-bug-study-artifact
-```
-
 
 # Requirements
 
 * A Unix-like operating system (tested on Ubuntu and Debian).
 
-* An installation of Python3.
+* An installation of Python version **3.8+**.
 
 * (**Optionally**) An installation of Docker.
   If you are *not* running an Ubuntu/Debian OS, you are able to use
@@ -102,6 +96,14 @@ and Groovy,
 (3) the bugs under study and the proposed categorization.
 The final output of this step is the directory `data/`,
 which is ultimately used for answering our research questions.
+
+First get the artifact,
+and enter the root directory of the artifact
+
+```bash
+git clone https://github.com/StefanosChaliasos/types-bug-study-artifact ~/types-bug-study-artifact
+cd ~/types-bug-study-artifact
+```
 
 ## Setup
 
