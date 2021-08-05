@@ -77,7 +77,7 @@ def get_fractions(x, total=320, print_all_points=False):
         x_dict[l] += 1
     number_of_x = sorted(x_dict.keys())
     number_of_bugs = [x_dict[k] for k in number_of_x]
-    x_fractions = [sum(number_of_bugs[:i]) / total
+    x_fractions = [(sum(number_of_bugs[:i]) / total) * 100
                    for i in range(1, len(number_of_bugs)+1)]
     if print_all_points:
         for fr, l in zip(x_fractions, number_of_x):
@@ -122,13 +122,13 @@ def plot_fig(data, all_langs, directory, fig, print_all_points):
                   ["All", "javac", "kotlinc", "groovyc", "scalac & Dotty"],
                   loc="lower right", fontsize=16)
     if fig == "lines":
-        ax.scatter(5, 0.265625, c='blue')
-        ax.annotate("(5, 0.27)", xy=(5.5, 0.25), xycoords='data',
+        ax.scatter(10, 40, c='blue')
+        ax.annotate("(10, 40)", xy=(10, 40), xycoords='data',
                     xytext=(+20, -30), textcoords='offset points',
                     arrowprops=dict(arrowstyle="-", color='black'),
                     fontsize=16)
-        ax.scatter(100, 0.890625, c='blue')
-        ax.annotate("(100, 0.89)", xy=(110, 0.87), xycoords='data',
+        ax.scatter(100, 89.0625, c='blue')
+        ax.annotate("(100, 89)", xy=(110, 87), xycoords='data',
                     xytext=(+20, -30), textcoords='offset points',
                     arrowprops=dict(arrowstyle="-", color='black'),
                     fontsize=16)
@@ -138,9 +138,9 @@ def plot_fig(data, all_langs, directory, fig, print_all_points):
     elif fig == "files":
         ax.set_xticks([1, 2, 3, 4, 5, 10, 15, 45])
     else:
-        ax.set_xticks([1, 10, 20, 30, 60, 180, 365, 730, 3000])
+        ax.set_xticks([1, 10, 20, 35, 60, 180, 365, 1000, 3000])
     ax.get_xaxis().set_major_formatter(ticker.ScalarFormatter())
-    plt.ylim([0, 1.0])
+    plt.ylim([0, 100.0])
     if fig == "lines":
         plt.xlabel('LoC in a Fix')
     elif fig == "files":
