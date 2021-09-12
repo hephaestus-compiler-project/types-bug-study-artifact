@@ -1,12 +1,25 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5411667.svg)](https://doi.org/10.5281/zenodo.5411667)
+
+
+
 # Artifact for "Well-Typed Programs Can Go Wrong: A Study of Typing-Related Bugs in JVM Compilers"
 
-This is the artifact for the conditionally accepted
-OOPSLA'21 paper titled
+This is the artifact for the OOPSLA'21 paper titled
 "Well-Typed Programs Can Go Wrong:
 A Study of Typing-Related Bugs in JVM Compilers".
 
-An archived version of the artifact will also be published on Zenodo,
-upon the paper's publication.
+* Stefanos Chaliasos, Thodoris Sotiropoulos, Georgios-Petros Drosos, Charalambos Mitropoulos, Dimitris Mitropoulos, and Diomidis Spinellis. 2021.
+  [Well-Typed Programs Can Go Wrong: A Study of Typing-Related Bugs in JVM Compilers](https://doi.org/10.1145/3485500).
+  In Proceedings of the ACM on Programming Languages (OOPSLA '21), 2021, Chicago, USA,
+  30 pages. 
+  ([doi:10.1145/3485500](https://doi.org/10.1145/3485500))
+
+
+An archived version of the artifact
+is also available on Zenodo.
+See https://doi.org/10.5281/zenodo.5411667.
+
+
 
 # Table of Contents
 
